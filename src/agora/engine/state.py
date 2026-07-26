@@ -3,16 +3,11 @@
 `ontology.py` define cómo ES el mundo (inmutable, viene del pack).
 Este archivo define cómo ESTÁ el mundo ahora mismo (mutable, cambia por tick).
 
-Nota de rendimiento que explica una decisión: aquí NO se usa pydantic para el
-estado caliente. Pydantic valida en cada construcción, y esto se toca 672 veces
-por semana simulada por cada agente. Regla general: **pydantic en las fronteras
-(datos externos), dataclass en el interior (datos ya confiables)**. Es el mismo
-criterio que en C# separa un DTO validado de un struct interno.
-
---- CÓMO TRABAJAR ESTE ARCHIVO -------------------------------------------------
-Los PASOS están numerados. `tests/test_state.py` te dice cuál falta.
-    uv run pytest tests/test_state.py -v
---------------------------------------------------------------------------------
+Regla que explica casi todas las decisiones de aquí: **pydantic en las
+fronteras, dataclass en el interior**. Pydantic valida en cada construcción, y
+esto se toca 672 veces por semana simulada por cada agente. Es el mismo
+criterio que en C# separa un DTO validado en el borde de un struct interno que
+ya nadie vuelve a comprobar.
 """
 
 from __future__ import annotations
@@ -23,7 +18,15 @@ from dataclasses import dataclass, field
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from agora.engine.ontology import ActionId, AgentId, NeedId, NeedSpec, PlaceId
+from agora.engine.ontology import (
+    ActionId,
+    AgentId,
+    AgentSpec,
+    NeedId,
+    NeedSpec,
+    PlaceId,
+    PlaceSpec,
+)
 from agora.engine.pack import ContentPack
 from agora.engine.topology import TravelMap
 
@@ -31,11 +34,10 @@ from agora.engine.topology import TravelMap
 # Qué está haciendo un agente: unión, no un flag.
 #
 # Estos dos SÍ son pydantic y SÍ son frozen. Son pequeños, se crean pocas veces
-# y ser inmutables elimina de raíz los bugs de aliasing (dos agentes acabando
-# con el mismo objeto `Busy` y decrementándolo dos veces). En un motor
-# determinista ese bug es de los más difíciles de encontrar.
-#
-# Para "avanzar un tick" no se muta: se crea uno nuevo con `model_copy`.
+# (una por decisión, no una por tick) y ser inmutables elimina de raíz los bugs
+# de aliasing: dos referencias al mismo objeto `Busy` decrementándolo dos veces.
+# En un motor determinista ese bug es de los más caros de encontrar, porque no
+# rompe nada — solo hace que el tiempo pase distinto para un agente.
 # -----------------------------------------------------------------------------
 
 
@@ -55,10 +57,10 @@ class Traveling(BaseModel):
     next_hop: PlaceId
     """El tramo actual. Un viaje largo son varios `Traveling` encadenados.
 
-    Por qué guardar el tramo y no la ruta entera: al llegar a cada nodo se
-    vuelve a preguntar `TravelMap.first_hop`, así que un cambio en el mundo
-    (un camino cortado, un lugar cerrado de noche) se absorbe solo, sin
-    invalidar viajes en curso.
+    Guardar el tramo y no la ruta entera es deliberado: al llegar a cada nodo se
+    vuelve a preguntar `TravelMap.first_hop`, así que un cambio en el mundo (un
+    camino cortado, un lugar cerrado de noche) se absorbe solo sin invalidar
+    viajes en curso.
     """
 
     ticks_remaining: int = Field(ge=0)
@@ -72,9 +74,9 @@ type Busy = PerformingAction | Traveling
         case Traveling():        ...
         case _:                  assert_never(busy)
 
-Cuando en F1 añadas un tercer caso (huir, por ejemplo), mypy te señalará cada
-sitio que falta actualizar. Eso es lo que en C# tendrías que confiar a un
-`default:` que revienta en runtime.
+Cuando en F1 añadas un tercer caso (huir, por ejemplo), mypy señalará cada sitio
+que falta actualizar. En C# eso lo confiarías a un `default:` que revienta en
+runtime; aquí falla antes de ejecutar.
 """
 
 
@@ -87,17 +89,17 @@ sitio que falta actualizar. Eso es lo que en C# tendrías que confiar a un
 class AgentState:
     """Dónde está, cómo está y qué está haciendo un agente.
 
-    `slots=True` es el equivalente aproximado de un `struct` de C#: sin `__dict__`,
-    menos memoria y acceso a atributos más rápido. A cambio no puedes añadir
-    atributos al vuelo, que es justo lo que quieres aquí.
+    `slots=True` se acerca a un `struct` de C#: sin `__dict__`, menos memoria y
+    acceso a atributos más rápido. A cambio no puedes añadir atributos al vuelo,
+    que es justo lo que quieres en el estado caliente.
     """
 
     spec_id: AgentId
     """Solo el id, no el `AgentSpec` entero.
 
-    Decisión deliberada: mantiene el estado serializable. En F4 vas a querer
-    guardar partidas, y un estado que arrastra specs se convierte en un
-    problema de identidad al recargar. El spec se busca en `pack.agent_by_id`.
+    Mantiene el estado serializable. En F4 vas a querer partidas guardadas, y un
+    estado que arrastra specs se convierte en un problema de identidad al
+    recargar: dos copias del mismo spec que ya no son el mismo objeto.
     """
 
     at: PlaceId
@@ -105,55 +107,60 @@ class AgentState:
     busy: Busy | None = None
     """`None` = ocioso. Este agente delibera en el tick actual."""
 
-    # -- PASO 1 ---------------------------------------------------------------
+    # -- necesidades ----------------------------------------------------------
+
     def decay(self, need_specs: Mapping[NeedId, NeedSpec]) -> None:
-        """Baja cada necesidad según su `decay_per_tick`. Resultado en [0, 1].
+        """Baja cada necesidad según su propia tasa. Resultado en [0, 1].
 
-        Recorre `self.needs` y resta. Usa `_clamp` — no repartas el clamp por
-        el archivo (ver PASO 3).
+        Indexa directo en vez de usar `.get(..., default)`: si una necesidad del
+        pack no está en el dict del agente, eso es un bug de construcción y
+        quiero que reviente aquí, ruidosamente, y no que se propague un default
+        inventado. El invariante lo garantiza `WorldState.new`.
         """
-        raise NotImplementedError("PASO 1")
+        for need_id, spec in need_specs.items():
+            self.needs[need_id] = self._clamp(self.needs[need_id] - spec.decay_per_tick)
 
-    # -- PASO 2 ---------------------------------------------------------------
     def apply(self, effects: Mapping[NeedId, float]) -> None:
         """Suma los deltas de una acción completada. Resultado en [0, 1].
 
         Los deltas pueden ser negativos: trabajar da moneda y quita descanso.
         Una necesidad que la acción no menciona no se toca.
         """
-        raise NotImplementedError("PASO 2")
+        for need_id, delta in effects.items():
+            self.needs[need_id] = self._clamp(self.needs[need_id] + delta)
 
-    # -- PASO 3 ---------------------------------------------------------------
     @staticmethod
     def _clamp(value: float) -> float:
         """El ÚNICO sitio donde se fuerza el rango [0, 1].
 
-        Si el clamp se dispersa por el código, un día una necesidad vale 1.4 y
-        pasas dos horas buscando quién la dejó así. Una sola puerta.
+        Si el clamp se dispersa, un día una necesidad vale 1.4 y pasas dos horas
+        buscando quién la dejó así. Una sola puerta.
         """
-        raise NotImplementedError("PASO 3")
+        return max(0.0, min(1.0, value))
 
-    # -- PASO 4 ---------------------------------------------------------------
+    # -- ocupación ------------------------------------------------------------
+
     def advance(self) -> None:
         """Consume un tick de lo que esté haciendo.
 
-        Si `busy` es `None`, no hace nada.
-        Si le quedaba 1 tick, queda en 0 (NO lo pongas en `None`: quien llama
-        necesita ver que terminó para aplicar efectos o registrar la llegada).
+        Se detiene en 0 sin limpiar `busy`: quien llama necesita ver QUÉ acabó,
+        para aplicar sus efectos o registrar la llegada. Poner `None` aquí
+        destruiría esa información.
 
-        Recuerda: `Busy` es inmutable. No hagas `self.busy.ticks_remaining -= 1`;
-        crea uno nuevo con `self.busy.model_copy(update={...})`.
+        `Busy` es inmutable, así que no se decrementa: se reemplaza. Nota sobre
+        `model_copy`: **no revalida**. El `ge=0` del campo no se comprueba en la
+        copia, y por eso la guarda de arriba (`ticks_remaining == 0`) es
+        obligatoria y no defensiva.
         """
-        raise NotImplementedError("PASO 4")
+        busy = self.busy
+        if busy is None or busy.ticks_remaining == 0:
+            return
+        self.busy = busy.model_copy(update={"ticks_remaining": busy.ticks_remaining - 1})
 
-    # -- PASO 5 ---------------------------------------------------------------
     @property
     def is_idle(self) -> bool:
-        """Ocioso = sin nada que hacer, o con algo que ya se agotó.
-
-        Es la condición que usará el tick loop para saber a quién toca deliberar.
-        """
-        raise NotImplementedError("PASO 5")
+        """Dos formas de estar ocioso: nunca empezó, o ya terminó."""
+        return self.busy is None or self.busy.ticks_remaining == 0
 
 
 # -----------------------------------------------------------------------------
@@ -165,50 +172,78 @@ class AgentState:
 class WorldState:
     pack: ContentPack
     travel: TravelMap
-    """Construido UNA vez aquí. No lo recalcules por tick."""
+    """Construido UNA vez en `new`. No lo recalcules por tick."""
 
     tick: int = 0
+
     agents: dict[AgentId, AgentState] = field(default_factory=dict)
-    """`dict` y no `list` ni `set`. Necesitas dos cosas a la vez: búsqueda O(1)
-    por id, y orden estable. `dict` da ambas desde Python 3.7. Un `set` te
-    rompe el determinismo en silencio y sin aviso."""
+    """`dict` y no `list` ni `set`. Hacen falta dos cosas a la vez: búsqueda
+    O(1) por id, y orden estable. `dict` da ambas desde 3.7. Un `set` rompe el
+    determinismo en silencio y sin aviso."""
 
     rng: random.Random = field(default_factory=random.Random)
     """El generador vive AQUÍ, sembrado, y se pasa explícitamente a quien lo
     necesite. Nunca `import random; random.choice(...)` a nivel de módulo: eso
-    usa un generador global compartido y ahí se muere la reproducibilidad."""
+    usa un generador global compartido y ahí muere la reproducibilidad."""
 
     seed: int = 0
     """Se escribe en la primera línea del log. Un bug se reproduce corriendo el
     mismo seed; sin esto, un fallo raro en el día 5 no se investiga."""
 
-    # -- PASO 6 ---------------------------------------------------------------
     @classmethod
     def new(cls, pack: ContentPack, seed: int) -> WorldState:
-        """Construye el estado inicial desde un pack.
+        """Construye el estado inicial desde un pack ya validado."""
+        agents: dict[AgentId, AgentState] = {}
+        for spec in pack.agents:  # el orden del pack fija el orden del mundo
+            # Todas las necesidades del pack, aunque el agente no las mencione.
+            # Un dict incompleto obliga a cada consumidor a inventarse un
+            # default, y acabarían siendo distintos en dos sitios.
+            needs: dict[NeedId, float] = {need.id: need.initial for need in pack.needs}
+            needs.update(spec.initial_needs)
 
-        Qué hacer:
-          1. `TravelMap(pack.places)`
-          2. `random.Random(seed)`
-          3. un `AgentState` por cada `AgentSpec`, EN EL ORDEN DEL PACK:
-             - `at` = `spec.start_at`
-             - `needs` = el `initial` de cada `NeedSpec`, sobrescrito por
-               lo que diga `spec.initial_needs`
-             - `busy` = None (todos deliberan en el tick 0)
+            agents[spec.id] = AgentState(
+                spec_id=spec.id,
+                at=spec.start_at,
+                needs=needs,
+                busy=None,  # todos deliberan en el tick 0
+            )
 
-        Toda necesidad del pack debe aparecer en el dict de todo agente, aunque
-        el agente no la mencione. Un dict de necesidades incompleto obliga a
-        cada consumidor a hacer `.get(need, default)`, y ese default acabará
-        siendo distinto en dos sitios.
-        """
-        raise NotImplementedError("PASO 6")
+        return cls(
+            pack=pack,
+            travel=TravelMap(pack.places),
+            tick=0,
+            agents=agents,
+            rng=random.Random(seed),
+            seed=seed,
+        )
 
-    # -- PASO 7 ---------------------------------------------------------------
     def agents_in_order(self) -> list[AgentState]:
         """Los agentes en orden fijo y reproducible.
 
         Existe como método propio para que el orden se decida en UN sitio. El
-        día que quieras aleatorizar el orden por tick (para que el mismo agente
-        no gane siempre los empates), se cambia aquí y en ningún otro lado.
+        día que quieras aleatorizarlo por tick (para que el mismo agente no gane
+        siempre los empates), se cambia aquí y en ningún otro lado.
         """
-        raise NotImplementedError("PASO 7")
+        return list(self.agents.values())
+
+    # -- atajos que el tick loop y la deliberación usarán constantemente ------
+
+    def spec_of(self, agent: AgentState) -> AgentSpec:
+        """Personalidad y gustos del agente. Vive en el pack, no en el estado."""
+        return self.pack.agent_by_id[agent.spec_id]
+
+    def place_of(self, agent: AgentState) -> PlaceSpec:
+        """Dónde está, con sus affordances. Decide qué acciones son válidas."""
+        return self.pack.place_by_id[agent.at]
+
+    def others_at(self, agent: AgentState) -> list[AgentState]:
+        """Los demás agentes en el mismo lugar.
+
+        Base de los eventos de encuentro del tick loop, y en F2 de quién puede
+        hablar con quién.
+        """
+        return [
+            other
+            for other in self.agents_in_order()
+            if other.spec_id != agent.spec_id and other.at == agent.at
+        ]
