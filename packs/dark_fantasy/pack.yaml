@@ -1,0 +1,179 @@
+# =============================================================================
+# Content pack: aldea de fantasía oscura.
+#
+# Este fichero es el ÚNICO sitio donde este mundo existe. El motor lo carga y
+# no sabe nada más. Cambiar de ambientación = cambiar de pack, cero código.
+#
+# Reloj: 1 tick = 15 minutos simulados -> 96 ticks por día.
+#
+# AVISO: los números de abajo están sin calibrar. Son un punto de partida
+# plausible, no una respuesta. Ajustarlos hasta que las dos vidas se lean
+# coherentes ES el trabajo de F0.
+# =============================================================================
+
+id: dark_fantasy
+label: "La aldea de Ceniza Baja"
+
+# -----------------------------------------------------------------------------
+# Necesidades. Nótese que "fe" no tiene nada de especial para el motor:
+# es un eje que decae, igual que el sustento. Ahí está el agnosticismo.
+# -----------------------------------------------------------------------------
+needs:
+  - id: sustento
+    label: "sustento"
+    decay_per_tick: 0.015     # vacío en ~16 h
+    initial: 0.8
+    base_weight: 1.0
+    urgency_exponent: 2.5     # apremia tarde, pero cuando apremia es tirano
+
+  - id: descanso
+    label: "descanso"
+    decay_per_tick: 0.012     # vacío en ~20 h
+    initial: 0.9
+    base_weight: 1.0
+    urgency_exponent: 2.0
+
+  - id: moneda
+    label: "moneda"
+    decay_per_tick: 0.002     # sangría lenta: vivir cuesta
+    initial: 0.5
+    base_weight: 0.8
+    urgency_exponent: 1.5     # casi lineal: se piensa en dinero siempre un poco
+
+  - id: vinculo
+    label: "vínculo"
+    decay_per_tick: 0.0035    # vacío en ~3 días
+    initial: 0.6
+    base_weight: 0.7
+    urgency_exponent: 2.0
+
+# -----------------------------------------------------------------------------
+# Rasgos: reescalan el peso de las necesidades según la intensidad del agente.
+# Un multiplicador de 1.0 es "sin efecto"; se interpola desde ahí.
+# -----------------------------------------------------------------------------
+traits:
+  - id: sociabilidad
+    label: "sociabilidad"
+    need_weight_multipliers:
+      vinculo: 2.0
+      descanso: 0.9
+
+  - id: laboriosidad
+    label: "laboriosidad"
+    need_weight_multipliers:
+      moneda: 1.5
+      descanso: 0.7          # el laborioso subestima su propio cansancio
+
+  - id: codicia
+    label: "codicia"
+    need_weight_multipliers:
+      moneda: 2.2
+      vinculo: 0.6
+
+# -----------------------------------------------------------------------------
+# Acciones estacionarias. Moverse NO está aquí: es primitiva del motor.
+#
+# `satisfies` = lo que el agente CREE al deliberar (0..1).
+# `effects`   = lo que realmente pasa al completar (delta, puede ser negativo).
+# Que difieran es intencional: permite que un NPC se equivoque.
+# -----------------------------------------------------------------------------
+actions:
+  - id: comer
+    label: "comer"
+    duration_ticks: 2                 # 30 min
+    requires_affordance: comida
+    satisfies: { sustento: 1.0 }
+    effects:  { sustento: +0.75, moneda: -0.06 }
+
+  - id: dormir
+    label: "dormir"
+    duration_ticks: 28                # 7 h
+    requires_affordance: lecho
+    satisfies: { descanso: 1.0 }
+    effects:  { descanso: +0.95 }
+
+  - id: trabajar
+    label: "trabajar"
+    duration_ticks: 16                # 4 h
+    requires_affordance: labor
+    satisfies: { moneda: 0.9 }
+    effects:  { moneda: +0.22, descanso: -0.18, sustento: -0.08 }
+    tags: [agotadora]
+
+  - id: departir
+    label: "departir con alguien"
+    duration_ticks: 6                 # 1.5 h
+    requires_affordance: reunion
+    satisfies: { vinculo: 1.0 }
+    effects:  { vinculo: +0.6, descanso: -0.04 }
+    tags: [social]
+
+  - id: holgar
+    # La red de seguridad. Sin affordance -> siempre válida, en cualquier sitio.
+    # Sin esto tendrás agentes bloqueados sin ninguna opción legal.
+    label: "holgar"
+    duration_ticks: 4
+    satisfies: { descanso: 0.2 }
+    effects:  { descanso: +0.06 }
+
+# -----------------------------------------------------------------------------
+# Lugares. Grafo dirigido: `neighbors` es destino -> ticks de viaje.
+# -----------------------------------------------------------------------------
+places:
+  - id: casa_mira
+    label: "la casa de Mira"
+    affordances: [lecho, comida]
+    tags: [privado, hogar]
+    neighbors: { plaza: 2 }
+
+  - id: casa_toma
+    label: "la casa de Toma"
+    affordances: [lecho, comida]
+    tags: [privado, hogar]
+    neighbors: { plaza: 3 }
+
+  - id: plaza
+    label: "la plaza de Ceniza Baja"
+    affordances: [reunion]
+    tags: [publico, vigilado]
+    neighbors: { casa_mira: 2, casa_toma: 3, posada: 1, campo: 4 }
+
+  - id: posada
+    label: "la posada del Cuervo Manco"
+    affordances: [comida, reunion, lecho]
+    tags: [publico, calido]
+    neighbors: { plaza: 1 }
+
+  - id: campo
+    label: "los campos de labranza"
+    affordances: [labor]
+    tags: [abierto, expuesto]
+    neighbors: { plaza: 4 }
+
+# -----------------------------------------------------------------------------
+# Agentes.
+#
+# Ninguno tiene una rutina escrita. Las rutinas deben EMERGER de estos números.
+# Si no emergen, están mal las curvas o las tasas de decay: ese es el bug real
+# que F0 existe para encontrar.
+# -----------------------------------------------------------------------------
+agents:
+  - id: mira
+    label: "Mira"
+    home: casa_mira
+    start_at: casa_mira
+    traits: { sociabilidad: 0.8, laboriosidad: -0.4, codicia: -0.2 }
+    tastes:
+      - { target: posada, multiplier: 1.4 }   # se siente en casa allí
+      - { target: campo, multiplier: 0.7 }    # el campo la deprime
+    initial_needs: { moneda: 0.35 }
+
+  - id: toma
+    label: "Toma"
+    home: casa_toma
+    start_at: casa_toma
+    traits: { sociabilidad: -0.6, laboriosidad: 0.9, codicia: 0.5 }
+    tastes:
+      - { target: posada, multiplier: 0.6 }   # el gentío lo agota
+      - { target: trabajar, multiplier: 1.3 }
+    initial_needs: { moneda: 0.6, descanso: 0.7 }
