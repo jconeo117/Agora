@@ -4,25 +4,20 @@ Un pack inválido debe explotar AL CARGAR, con un mensaje que diga exactamente
 qué está mal. La alternativa es descubrirlo tres horas después, con un NPC
 comportándose raro y sin pista de por qué.
 
-Analogía con C#: esto es el equivalente a validar un `appsettings.json` con
-`IValidateOptions<T>` en el arranque, en vez de reventar en la primera petición
-que toca una opción mal puesta.
+Equivalente en C#: validar `appsettings.json` con `IValidateOptions<T>` en el
+arranque, en vez de reventar en la primera petición que toca una opción mal
+puesta.
 
---- CÓMO TRABAJAR ESTE ARCHIVO -------------------------------------------------
 Cada `_check_*` devuelve una LISTA DE PROBLEMAS (vacía = todo bien) en vez de
-lanzar excepción. Así el usuario ve todos los errores del pack de una vez, no
-el primero y a repetir.
-
-Están todos devolviendo `[]`, así que el pack carga sin validar nada. Ve
-implementándolos de uno en uno; `tests/test_pack.py` tiene un test por cada
-uno y te dice cuál falta. Corre:
-
-    uv run pytest tests/test_pack.py -v
---------------------------------------------------------------------------------
+lanzar. Así el autor del pack ve todos los errores de una pasada, no el primero
+y a repetir. Editar un mundo es un ciclo de prueba y error: un validador que
+solo reporta el primer fallo convierte diez erratas en diez cargas.
 """
 
 from __future__ import annotations
 
+from collections import Counter
+from collections.abc import Iterable, Mapping
 from functools import cached_property
 from pathlib import Path
 
@@ -42,7 +37,7 @@ from agora.engine.ontology import (
     TraitId,
     TraitSpec,
 )
-from agora.engine.topology import is_strongly_connected  # noqa: F401  (lo usas en el PASO 10)
+from agora.engine.topology import is_strongly_connected
 
 
 class PackError(ValueError):
@@ -63,115 +58,220 @@ class ContentPack(Spec):
     # -------------------------------------------------------------------------
     # Índices.
     #
-    # `@cached_property` = `Lazy<T>` de C#: se calcula la primera vez que se
-    # pide y se guarda. Aquí importa porque la deliberación (0.5) va a buscar
-    # specs por id miles de veces por corrida.
+    # `@cached_property` = `Lazy<T>`: se calcula la primera vez que se pide y se
+    # guarda en la instancia. La deliberación (0.5) busca specs por id miles de
+    # veces por corrida; recorrer una tupla cada vez sería el cuello de botella.
     #
-    # PASO 1: implementa los cinco. Son todos el mismo one-liner:
-    #     return {x.id: x for x in self.xxx}
-    # (equivale a `self.Xxx.ToDictionary(x => x.Id)`)
+    # Ojo: estos índices NO se usan durante la validación. Un dict colapsa las
+    # claves repetidas, así que si el pack tuviera ids duplicados el índice los
+    # ocultaría justo cuando queremos detectarlos. Las validaciones trabajan
+    # siempre sobre las tuplas crudas.
     # -------------------------------------------------------------------------
 
     @cached_property
     def need_by_id(self) -> dict[NeedId, NeedSpec]:
-        raise NotImplementedError("PASO 1")
+        return {need.id: need for need in self.needs}
 
     @cached_property
     def trait_by_id(self) -> dict[TraitId, TraitSpec]:
-        raise NotImplementedError("PASO 1")
+        return {trait.id: trait for trait in self.traits}
 
     @cached_property
     def action_by_id(self) -> dict[ActionId, ActionSpec]:
-        raise NotImplementedError("PASO 1")
+        return {action.id: action for action in self.actions}
 
     @cached_property
     def place_by_id(self) -> dict[PlaceId, PlaceSpec]:
-        raise NotImplementedError("PASO 1")
+        return {place.id: place for place in self.places}
 
     @cached_property
     def agent_by_id(self) -> dict[AgentId, AgentSpec]:
-        raise NotImplementedError("PASO 1")
+        return {agent.id: agent for agent in self.agents}
+
+    @cached_property
+    def offered_affordances(self) -> frozenset[str]:
+        """Todo lo que se puede hacer en algún sitio del mundo."""
+        return frozenset(aff for place in self.places for aff in place.affordances)
+
+    @cached_property
+    def fallback_actions(self) -> tuple[ActionSpec, ...]:
+        """Acciones válidas en cualquier lugar. La red de seguridad del motor."""
+        return tuple(a for a in self.actions if a.requires_affordance is None)
 
     # -------------------------------------------------------------------------
-    # Validaciones. Cada una devuelve los problemas que encuentra.
+    # Validaciones
     # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _duplicates(kind: str, ids: Iterable[str]) -> list[str]:
+        counts = Counter(ids)
+        return [
+            f"{kind}: id duplicado {dup!r} (aparece {n} veces)"
+            for dup, n in counts.items()
+            if n > 1
+        ]
+
+    @staticmethod
+    def _unknown_keys(
+        context: str, kind: str, keys: Iterable[str], known: frozenset[str]
+    ) -> list[str]:
+        """Reporta claves que no existen en `known`.
+
+        `sorted` no es cosmético: sin él el orden de los mensajes dependería del
+        orden de iteración de un set, que varía entre ejecuciones. Un pack roto
+        debe producir SIEMPRE el mismo texto de error, o comparar dos corridas
+        se vuelve imposible.
+        """
+        return [
+            f"{context}: {kind} desconocida/o {key!r}" for key in sorted(set(keys) - known)
+        ]
 
     def _check_unique_ids(self) -> list[str]:
-        """PASO 2: ningún id repetido dentro de su colección.
-
-        Reporta CUÁL id está duplicado, no solo que hay uno. Un mensaje de
-        error que no dice qué arreglar no sirve para nada.
-
-        Pista: `collections.Counter` te da los repetidos en una línea.
-        """
-        return []
+        return [
+            *self._duplicates("necesidades", (n.id for n in self.needs)),
+            *self._duplicates("rasgos", (t.id for t in self.traits)),
+            *self._duplicates("acciones", (a.id for a in self.actions)),
+            *self._duplicates("lugares", (p.id for p in self.places)),
+            *self._duplicates("agentes", (a.id for a in self.agents)),
+        ]
 
     def _check_global_id_collisions(self) -> list[str]:
-        """PASO 3: acciones, lugares y agentes no pueden compartir id.
+        """Acciones, lugares y agentes no pueden compartir id.
 
-        Por qué: `TasteSpec.target` puede apuntar a cualquiera de los tres.
-        `ActionId`, `PlaceId` y `AgentId` son tipos distintos para mypy, pero
-        los tres son `str` en runtime — `NewType` no existe al ejecutar. Si una
-        acción y un lugar se llaman igual, un gusto es ambiguo y nadie avisa.
-
-        Esta es la clase de bug que solo previene una validación explícita.
+        `TasteSpec.target` puede apuntar a cualquiera de los tres. Para mypy son
+        tipos distintos, pero `NewType` no existe en runtime: los tres son `str`.
+        Si una acción y un lugar se llaman igual, un gusto es ambiguo y nadie
+        avisa. De ahí el `str(...)` explícito: aquí comparamos deliberadamente
+        al nivel en el que la colisión ocurre de verdad.
         """
-        return []
+        spaces: tuple[tuple[str, set[str]], ...] = (
+            ("acción", {str(a.id) for a in self.actions}),
+            ("lugar", {str(p.id) for p in self.places}),
+            ("agente", {str(a.id) for a in self.agents}),
+        )
+        problems: list[str] = []
+        for index, (left_name, left) in enumerate(spaces):
+            for right_name, right in spaces[index + 1 :]:
+                for clash in sorted(left & right):
+                    problems.append(
+                        f"id {clash!r} usado a la vez por un/a {left_name} y un/a "
+                        f"{right_name}: los gustos no podrían distinguirlos"
+                    )
+        return problems
 
     def _check_need_refs(self) -> list[str]:
-        """PASO 4: toda necesidad citada existe.
+        known = frozenset(str(n.id) for n in self.needs)
+        problems: list[str] = []
 
-        Dónde se citan:
-          - trait.need_weight_multipliers  (claves)
-          - action.satisfies, action.effects  (claves)
-          - agent.initial_needs  (claves)
-        """
-        return []
+        for trait in self.traits:
+            problems += self._unknown_keys(
+                f"rasgo {trait.id!r}", "necesidad", trait.need_weight_multipliers, known
+            )
+
+        for action in self.actions:
+            for field, mapping in (
+                ("satisfies", action.satisfies),
+                ("effects", action.effects),
+            ):
+                problems += self._unknown_keys(
+                    f"acción {action.id!r}.{field}", "necesidad", mapping, known
+                )
+
+        for agent in self.agents:
+            problems += self._unknown_keys(
+                f"agente {agent.id!r}.initial_needs", "necesidad", agent.initial_needs, known
+            )
+
+        return problems
 
     def _check_trait_refs(self) -> list[str]:
-        """PASO 5: todo rasgo que un agente declara existe en `traits`."""
-        return []
+        known = frozenset(str(t.id) for t in self.traits)
+        return [
+            problem
+            for agent in self.agents
+            for problem in self._unknown_keys(
+                f"agente {agent.id!r}", "rasgo", agent.traits, known
+            )
+        ]
 
     def _check_place_refs(self) -> list[str]:
-        """PASO 6: todo lugar citado existe.
+        known = frozenset(str(p.id) for p in self.places)
+        problems: list[str] = []
 
-        Dónde: `place.neighbors` (destinos), `agent.home`, `agent.start_at`.
-        """
-        return []
+        for place in self.places:
+            problems += self._unknown_keys(
+                f"lugar {place.id!r}.neighbors", "lugar", place.neighbors, known
+            )
+
+        for agent in self.agents:
+            for field, value in (("home", agent.home), ("start_at", agent.start_at)):
+                if str(value) not in known:
+                    problems.append(f"agente {agent.id!r}.{field}: lugar desconocido {value!r}")
+
+        return problems
 
     def _check_taste_refs(self) -> list[str]:
-        """PASO 7: el objetivo de cada gusto existe como acción, lugar o agente."""
-        return []
+        known = (
+            frozenset(str(a.id) for a in self.actions)
+            | frozenset(str(p.id) for p in self.places)
+            | frozenset(str(a.id) for a in self.agents)
+        )
+        return [
+            f"agente {agent.id!r}: gusto hacia {taste.target!r}, que no es "
+            f"ninguna acción, lugar ni agente"
+            for agent in self.agents
+            for taste in agent.tastes
+            if str(taste.target) not in known
+        ]
 
     def _check_actions_are_reachable(self) -> list[str]:
-        """PASO 8: toda affordance requerida la ofrece algún lugar.
+        """Toda affordance requerida la ofrece algún lugar.
 
-        Si `trabajar` exige la affordance `labor` y ningún lugar la ofrece, esa
-        acción está muerta: nunca será válida en ningún sitio. El pack "funciona"
-        y ese comportamiento simplemente no existe. Silencioso y caro.
+        Si `trabajar` exige `labor` y ningún lugar la ofrece, la acción está
+        muerta: nunca será válida en ningún sitio. El pack "funciona" y ese
+        comportamiento simplemente no existe. Es el fallo más caro de detectar
+        a ojo, porque no produce ningún síntoma: produce una ausencia.
         """
-        return []
+        offered = self.offered_affordances
+        return [
+            f"acción {action.id!r}: requiere la affordance "
+            f"{action.requires_affordance!r}, que no ofrece ningún lugar "
+            f"(acción huerfana, jamás ejecutable)"
+            for action in self.actions
+            if action.requires_affordance is not None
+            and action.requires_affordance not in offered
+        ]
 
     def _check_fallback_action_exists(self) -> list[str]:
-        """PASO 9: existe al menos una acción sin `requires_affordance`.
+        """Debe existir al menos una acción sin `requires_affordance`.
 
         Es la red de seguridad. Sin ella, un agente en un lugar cuyas
-        affordances no cubren ninguna necesidad se queda sin opciones legales:
-        deadlock.
+        affordances no cubren ninguna de sus necesidades se queda sin opciones
+        legales y el tick loop no tiene nada que elegir: deadlock.
         """
-        return []
+        if self.fallback_actions:
+            return []
+        return [
+            "ninguna acción prescinde de affordance: un agente puede quedarse "
+            "sin opciones válidas y bloquear la simulación"
+        ]
 
     def _check_world_is_navigable(self) -> list[str]:
-        """PASO 10: el grafo de lugares es fuertemente conexo.
+        """El grafo debe ser fuertemente conexo.
 
-        Usa `is_strongly_connected(self.places)`, ya implementado en
-        `topology.py`. Recuerda por qué la conexidad débil no basta: un lugar
-        con entrada y sin salida es una trampa permanente.
+        Conexidad débil no basta: un lugar con entrada y sin salida es una
+        trampa permanente para cualquier agente que llegue.
         """
-        return []
+        if is_strongly_connected(self.places):
+            return []
+        return [
+            "el grafo de lugares no es fuertemente conexo: existe al menos un "
+            "lugar desde el que no se puede volver, y un agente que entre "
+            "quedará varado el resto de la partida"
+        ]
 
     # -------------------------------------------------------------------------
-    # Orquestador. Ya escrito: es el patrón, no el trabajo.
+    # Orquestador
     # -------------------------------------------------------------------------
 
     @model_validator(mode="after")
@@ -201,13 +301,24 @@ def load_pack(path: Path) -> ContentPack:
     Python arbitrarios desde el fichero. Con packs propios da igual; el día que
     cargues el pack de otra persona, no.
 
-    Gotcha de pydantic que conviene conocer: si un validador lanza `ValueError`,
-    pydantic lo captura y lo re-lanza envuelto en `ValidationError`. El mensaje
-    sobrevive, el tipo no. Por eso se traduce aquí a `PackError`, y el resto del
-    programa puede capturar un tipo propio.
+    Gotcha de pydantic: si un validador lanza `ValueError`, pydantic lo captura
+    y lo re-lanza envuelto en `ValidationError`. El mensaje sobrevive, el tipo
+    no. Por eso se traduce aquí a `PackError`: el resto del programa captura un
+    tipo propio y no una excepción de la librería.
     """
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     try:
         return ContentPack.model_validate(raw)
     except ValidationError as exc:
         raise PackError(f"no se pudo cargar {path}:\n{exc}") from exc
+
+
+def describe_pack(pack: ContentPack) -> Mapping[str, int]:
+    """Resumen numérico. Útil para la primera línea del log de una corrida."""
+    return {
+        "needs": len(pack.needs),
+        "traits": len(pack.traits),
+        "actions": len(pack.actions),
+        "places": len(pack.places),
+        "agents": len(pack.agents),
+    }
