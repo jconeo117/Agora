@@ -107,7 +107,9 @@ def test_advance_on_idle_agent_is_a_no_op() -> None:
 def test_is_idle_covers_both_none_and_exhausted() -> None:
     assert agent(busy=None).is_idle
     assert agent(
-        busy=Traveling(destination=P2, next_hop=P2, ticks_remaining=0)
+        busy=Traveling(
+            destination=P2, intent=ActionId("act_libre"), next_hop=P2, ticks_remaining=0
+        )
     ).is_idle
     assert not agent(
         busy=PerformingAction(action=ActionId("act_libre"), ticks_remaining=1)

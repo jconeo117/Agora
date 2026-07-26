@@ -54,6 +54,19 @@ class Traveling(BaseModel):
     destination: PlaceId
     """A dónde quiere llegar al final."""
 
+    intent: ActionId
+    """Qué piensa hacer al llegar.
+
+    Consecuencia directa de deliberar sobre el mundo entero: si el agente
+    elige "comer en la posada", el viaje no es la decisión, es la consecuencia
+    de una decisión que hay que recordar.
+
+    Sin este campo, un agente con hambre crítica que ya va camino de la comida
+    abortaría el viaje en cada tick — porque "viajar" no satisface nada y la
+    comprobación de urgencia no tendría forma de saber que ya está resolviendo
+    el problema.
+    """
+
     next_hop: PlaceId
     """El tramo actual. Un viaje largo son varios `Traveling` encadenados.
 

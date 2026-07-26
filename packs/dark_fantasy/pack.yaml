@@ -15,6 +15,31 @@ id: dark_fantasy
 label: "La aldea de Ceniza Baja"
 
 # -----------------------------------------------------------------------------
+# CALIBRACIÓN. Estas cuatro perillas no dicen QUÉ existe en el mundo, sino CÓMO
+# deciden sus habitantes. Son las que más cambian la sensación de la partida y
+# las que vas a mover más veces. Ninguna requiere tocar código.
+# -----------------------------------------------------------------------------
+tuning:
+  # Se aplica una vez por tick de viaje: descuento ** ticks.
+  #   0.95 ** 6 = 0.74  -> ir al campo cuesta un 26 % de atractivo
+  # Subirlo hacia 1.0 = agentes que cruzan la aldea por un capricho.
+  # Bajarlo = agentes sedentarios que solo usan lo que tienen a mano.
+  travel_discount: 0.95
+
+  # Cuántas de las mejores opciones entran en el sorteo final.
+  # 1 = argmax puro: determinista y robótico, todos los días idénticos.
+  candidate_pool: 3
+
+  # Cuánto pesa el azar frente a la utilidad entre los finalistas.
+  # Cerca de 0 = casi siempre gana el mejor. Alta = veleta.
+  temperature: 0.15
+
+  # Por debajo de esto, una necesidad puede interrumpir lo que se esté haciendo.
+  # Solo interrumpe si la acción en curso NO la atiende: nadie abandona la
+  # comida por hambre. 0.0 desactiva las interrupciones por completo.
+  critical_need_threshold: 0.15
+
+# -----------------------------------------------------------------------------
 # Necesidades. Nótese que "fe" no tiene nada de especial para el motor:
 # es un eje que decae, igual que el sustento. Ahí está el agnosticismo.
 # -----------------------------------------------------------------------------

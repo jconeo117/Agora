@@ -15,7 +15,7 @@ que corre en escena, o en C# entre una clase de configuración y su objeto.
 
 from __future__ import annotations
 
-from typing import NewType
+from typing import Annotated, NewType
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -33,6 +33,14 @@ PlaceId = NewType("PlaceId", str)
 AgentId = NewType("AgentId", str)
 Affordance = NewType("Affordance", str)
 Tag = NewType("Tag", str)
+
+PositiveFactor = Annotated[float, Field(gt=0.0)]
+"""Multiplicador estrictamente positivo.
+
+Se usa donde un factor se eleva a una potencia. Un multiplicador de 0 o
+negativo haría que `0 ** -1` reviente o que la utilidad cambie de signo, y
+ninguna de las dos cosas tiene interpretación en el modelo.
+"""
 
 
 class Spec(BaseModel):
@@ -85,11 +93,17 @@ class TraitSpec(Spec):
 
     id: TraitId
     label: str
-    need_weight_multipliers: dict[NeedId, float] = Field(default_factory=dict)
-    """Ej: codicia -> {"dinero": 1.8, "social": 0.7}.
+    need_weight_multipliers: dict[NeedId, PositiveFactor] = Field(default_factory=dict)
+    """Multiplicador a intensidad plena (rasgo = 1.0). Un 1.0 aquí = sin efecto.
 
-    Se interpola según cuánto tiene el agente del rasgo (-1..1), así que un
-    valor de 1.0 aquí significa "sin efecto".
+    La intensidad del agente (-1..1) se aplica como EXPONENTE, no como
+    interpolación lineal:
+
+        factor = multiplicador ** intensidad
+
+    Así el 0 siempre neutraliza (M**0 == 1) y el -1 invierte exactamente
+    (M**-1 == 1/M). Con interpolación lineal, un multiplicador de 2.2 y una
+    intensidad de -1 daría un factor negativo, que no significa nada.
     """
 
 
@@ -186,3 +200,49 @@ class AgentSpec(Spec):
             if not -1.0 <= value <= 1.0:
                 raise ValueError(f"rasgo {trait!r} = {value}, fuera de [-1, 1]")
         return self
+
+
+# ---------------------------------------------------------------------------
+# Calibración
+# ---------------------------------------------------------------------------
+class TuningSpec(Spec):
+    """Las perillas que gobiernan CÓMO se decide, no QUÉ existe.
+
+    Viven en el pack y no en el código a propósito. Calibrar es un ciclo de
+    decenas de iteraciones sobre el YAML; una constante enterrada en un módulo
+    de Python es una perilla que no se puede girar.
+
+    Además cambian con la ambientación: en un mundo donde viajar es caro y
+    peligroso, `travel_discount` debería ser mucho más agresivo que en una
+    aldea de cinco lugares.
+    """
+
+    travel_discount: float = Field(default=0.95, gt=0.0, le=1.0)
+    """Se aplica una vez por tick de viaje: `descuento ** ticks`.
+
+    1.0 = la distancia no importa, los agentes cruzan el mundo por un capricho.
+    Valores bajos = agentes sedentarios que solo usan lo que tienen cerca.
+    """
+
+    candidate_pool: int = Field(default=3, ge=1)
+    """Cuántas de las mejores opciones entran en el sorteo final.
+
+    1 equivale a argmax puro (determinista y robótico). Subirlo aumenta la
+    variedad, pero también la probabilidad de elegir algo claramente peor.
+    """
+
+    temperature: float = Field(default=0.15, gt=0.0)
+    """Cuánto pesa el azar frente a la utilidad dentro del grupo de finalistas.
+
+    Cerca de 0 = casi siempre gana el mejor. Alta = casi indiferente entre los
+    finalistas. Es la perilla que separa "persona con criterio" de "veleta".
+    """
+
+    critical_need_threshold: float = Field(default=0.15, ge=0.0, le=1.0)
+    """Por debajo de este valor, una necesidad puede interrumpir lo que se esté
+    haciendo. Solo interrumpe si la acción en curso NO la atiende: nadie
+    abandona la comida por hambre.
+
+    0.0 desactiva las interrupciones: los agentes terminan siempre lo que
+    empiezan, aunque se estén muriendo.
+    """

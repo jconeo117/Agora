@@ -22,7 +22,7 @@ from functools import cached_property
 from pathlib import Path
 
 import yaml
-from pydantic import ValidationError, model_validator
+from pydantic import Field, ValidationError, model_validator
 
 from agora.engine.ontology import (
     ActionId,
@@ -36,6 +36,7 @@ from agora.engine.ontology import (
     Spec,
     TraitId,
     TraitSpec,
+    TuningSpec,
 )
 from agora.engine.topology import is_strongly_connected
 
@@ -54,6 +55,14 @@ class ContentPack(Spec):
     actions: tuple[ActionSpec, ...]
     places: tuple[PlaceSpec, ...]
     agents: tuple[AgentSpec, ...]
+
+    tuning: TuningSpec = Field(default_factory=TuningSpec)
+    """Perillas de calibración. Omitir la sección usa los valores por defecto.
+
+    `default_factory` y no `= TuningSpec()`: un default mutable compartido entre
+    instancias es una fuente clásica de estado cruzado. Pydantic lo trata bien,
+    pero la fábrica hace explícito que cada pack tiene el suyo.
+    """
 
     # -------------------------------------------------------------------------
     # Índices.
