@@ -1,0 +1,5 @@
+# Normaliza finales de línea: LF en el repo, nativo en el disco.
+# Evita que cada commit desde Windows ensucie el diff.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
