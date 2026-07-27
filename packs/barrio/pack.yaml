@@ -24,6 +24,11 @@ tuning:
   travel_discount: 0.93
   candidate_pool: 3
   temperature: 0.12
+
+  # Cuánto pesa perder frente a ganar. 1.0 = neutral; 1.5-2.0 = gente prudente;
+  # 0.5 = gente que vive el momento; 0.0 desactiva los costes por completo.
+  loss_aversion: 1.0
+
   critical_need_threshold: 0.15
 
 # -----------------------------------------------------------------------------
@@ -121,11 +126,24 @@ traits:
 # -----------------------------------------------------------------------------
 # ACCIONES
 #
-# `satisfies` = lo que el agente CREE al deliberar.
-# `effects`   = lo que realmente ocurre al completar.
+# `satisfies` = lo que el agente CREE que gana al deliberar.
+# `costs`     = lo que CREE que pierde. MISMA escala que satisfies (0..1):
+#               "cuánto va esta acción de gastar eso".
+# `effects`   = lo que realmente ocurre al completar. Otra escala: es el delta.
+#
+# Los costes NO se derivan de los efectos negativos precisamente por esa
+# diferencia de escala. Y todo efecto negativo obliga a declarar su coste; se
+# admite 0.0 explícito para modelar a alguien que no lo ve venir.
+#
+# El reparto económico de este barrio, de gratis a lujo:
+#   gratis    dormir, descansar, tomar el aire, holgazanear
+#   barato    charlar
+#   medio     cocinar, los tres oficios
+#   caro      comer fuera, hacer la compra
+#   lujo      darse un capricho, salir de fiesta
 # -----------------------------------------------------------------------------
 actions:
-  # --- descanso ---
+  # --- descanso: no cuesta nada salvo tiempo, y el tiempo aún no se modela ---
   - id: dormir
     label: "dormir"
     duration_ticks: 30                # 7 h 30
@@ -140,12 +158,13 @@ actions:
     satisfies: { descanso: 0.40, estimulo: 0.15 }
     effects:  { descanso: +0.30, estimulo: +0.08 }
 
-  # --- comida ---
+  # --- comida: aquí está la disyuntiva económica principal del barrio ---
   - id: cocinar
     label: "cocinar y comer en casa"
     duration_ticks: 6                 # 1 h 30
     requires_affordance: cocina
     satisfies: { sustento: 0.90 }
+    costs:    { provisiones: 0.45, dinero: 0.05 }   # vacía la despensa, no la cartera
     effects:  { sustento: +0.72, provisiones: -0.22, dinero: -0.01 }
 
   - id: comer_fuera
@@ -153,6 +172,7 @@ actions:
     duration_ticks: 5                 # 1 h 15
     requires_affordance: mesa
     satisfies: { sustento: 1.0, vinculo: 0.20 }
+    costs:    { dinero: 0.50 }                      # comer fuera VA de gastar
     effects:  { sustento: +0.85, dinero: -0.09, vinculo: +0.08 }
 
   # --- compras ---
@@ -161,6 +181,7 @@ actions:
     duration_ticks: 7
     requires_affordance: comercio
     satisfies: { provisiones: 1.0 }
+    costs:    { dinero: 0.40 }
     effects:  { provisiones: +0.75, dinero: -0.12 }
 
   - id: darse_un_capricho
@@ -168,15 +189,23 @@ actions:
     duration_ticks: 5
     requires_affordance: capricho
     satisfies: { estimulo: 0.70 }
+    costs:    { dinero: 0.85 }                      # lo primero que cae al no llegar
     effects:  { estimulo: +0.45, dinero: -0.16 }
     tags: [gasto]
 
   # --- trabajo: tres oficios con equilibrios distintos ---
+  #
+  # La escala de coste sube de oficina a almacén: mismo dinero cada vez peor
+  # pagado y cada vez más castigo. Un almacenero agotado deja de ver rentable
+  # su turno; lo que lo sostiene es el gusto por su oficio, que multiplica el
+  # beneficio. Ahí se ve que el ancla laboral y el coste tiran en direcciones
+  # opuestas, como debe ser.
   - id: trabajar_en_oficina
     label: "trabajar en la oficina"
     duration_ticks: 32                # 8 h
     requires_affordance: labor_administrativa
     satisfies: { dinero: 1.0 }
+    costs:    { descanso: 0.40, sustento: 0.30 }
     effects:  { dinero: +0.30, descanso: -0.16, sustento: -0.10, vinculo: +0.05 }
 
   - id: trabajar_en_taller
@@ -184,6 +213,7 @@ actions:
     duration_ticks: 28                # 7 h
     requires_affordance: labor_taller
     satisfies: { dinero: 0.90 }
+    costs:    { descanso: 0.55, sustento: 0.35 }
     effects:  { dinero: +0.26, descanso: -0.22, sustento: -0.12 }
     tags: [agotadora]
 
@@ -192,6 +222,7 @@ actions:
     duration_ticks: 24                # 6 h
     requires_affordance: labor_almacen
     satisfies: { dinero: 0.80 }
+    costs:    { descanso: 0.70, sustento: 0.38 }
     effects:  { dinero: +0.21, descanso: -0.26, sustento: -0.13 }
     tags: [agotadora]
 
@@ -201,6 +232,7 @@ actions:
     duration_ticks: 6
     requires_affordance: tertulia
     satisfies: { vinculo: 1.0 }
+    costs:    { descanso: 0.10 }                    # casi gratis: su ventaja
     effects:  { vinculo: +0.55, estimulo: +0.10, descanso: -0.03 }
     tags: [social]
 
@@ -209,6 +241,7 @@ actions:
     duration_ticks: 14                # 3 h 30
     requires_affordance: jolgorio
     satisfies: { estimulo: 1.0, vinculo: 0.60 }
+    costs:    { dinero: 0.75, descanso: 0.60 }      # cara por los dos lados
     effects:  { estimulo: +0.80, vinculo: +0.35, descanso: -0.30, dinero: -0.20 }
     tags: [social, gasto, agotadora]
 
@@ -217,7 +250,7 @@ actions:
     duration_ticks: 6
     requires_affordance: aire_libre
     satisfies: { estimulo: 0.45, descanso: 0.15 }
-    effects:  { estimulo: +0.28, descanso: +0.05 }
+    effects:  { estimulo: +0.28, descanso: +0.05 }  # el estímulo del que no llega
 
   # --- red de seguridad: sin affordance, válida en cualquier sitio ---
   - id: holgazanear

@@ -296,6 +296,61 @@ def test_action_requiring_an_affordance_nobody_offers_is_rejected() -> None:
     )
 
 
+# --- costes declarados ------------------------------------------------------
+
+
+def test_negative_effect_without_a_declared_cost_is_rejected() -> None:
+    """Si no, añadir un efecto negativo cambia el mundo sin cambiar ninguna
+    decisión, y el síntoma es que un rasgo económico no hace nada."""
+    expect_rejection(
+        "coste",
+        actions=[
+            {
+                "id": "act_con_aff",
+                "label": "x",
+                "duration_ticks": 1,
+                "requires_affordance": "aff",
+                "effects": {"n1": -0.4},
+            },
+            {"id": "act_libre", "label": "act_libre", "duration_ticks": 1},
+        ],
+    )
+
+
+def test_explicit_zero_cost_models_someone_who_does_not_see_it_coming() -> None:
+    pack = build(
+        actions=[
+            {
+                "id": "act_con_aff",
+                "label": "x",
+                "duration_ticks": 1,
+                "requires_affordance": "aff",
+                "costs": {"n1": 0.0},
+                "effects": {"n1": -0.4},
+            },
+            {"id": "act_libre", "label": "act_libre", "duration_ticks": 1},
+        ]
+    )
+    assert pack.action_by_id[ActionId("act_con_aff")].costs == {NeedId("n1"): 0.0}
+
+
+def test_negative_cost_is_rejected() -> None:
+    """Un coste negativo sería un beneficio, y para eso está `satisfies`."""
+    with pytest.raises(ValidationError):
+        build(
+            actions=[
+                {
+                    "id": "act_con_aff",
+                    "label": "x",
+                    "duration_ticks": 1,
+                    "requires_affordance": "aff",
+                    "costs": {"n1": -0.3},
+                },
+                {"id": "act_libre", "label": "act_libre", "duration_ticks": 1},
+            ]
+        )
+
+
 # --- PASO 9: red de seguridad -----------------------------------------------
 
 

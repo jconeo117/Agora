@@ -42,6 +42,14 @@ negativo haría que `0 ** -1` reviente o que la utilidad cambie de signo, y
 ninguna de las dos cosas tiene interpretación en el modelo.
 """
 
+NonNegativeFactor = Annotated[float, Field(ge=0.0)]
+"""Magnitud que nunca es negativa.
+
+Se usa en los costes: un coste negativo sería un beneficio, y para eso ya
+existe `satisfies`. Permitirlo dejaría dos formas de expresar lo mismo y haría
+imposible leer una acción de un vistazo.
+"""
+
 
 class Spec(BaseModel):
     """Base de toda definición que viene del pack. Inmutable y estricta."""
@@ -129,6 +137,20 @@ class ActionSpec(Spec):
 
     satisfies: dict[NeedId, float] = Field(default_factory=dict)
     """Cuánto CREE el agente que esta acción atiende cada necesidad (0..1)."""
+
+    costs: dict[NeedId, NonNegativeFactor] = Field(default_factory=dict)
+    """Cuánto CREE el agente que esta acción le va a costar. Espejo de
+    `satisfies`, y en la MISMA escala: "cuánto va esta acción de gastar eso".
+
+    Ojo con la escala, porque es la trampa del modelo: `satisfies` y `costs`
+    miden intención (0..1), mientras `effects` mide el delta real. Derivar los
+    costes de los efectos negativos compararía unidades distintas y los
+    aplastaría sistemáticamente. Por eso se declaran a mano.
+
+    Un valor de 0.0 explícito significa "el agente no anticipa este coste" —
+    útil para modelar imprudencia, y distinto de olvidarse de declararlo (que
+    `pack.py` rechaza).
+    """
 
     effects: dict[NeedId, float] = Field(default_factory=dict)
     """Delta real aplicado al completar. Puede ser negativo (trabajar cansa)."""
@@ -252,6 +274,19 @@ class TuningSpec(Spec):
 
     Cerca de 0 = casi siempre gana el mejor. Alta = casi indiferente entre los
     finalistas. Es la perilla que separa "persona con criterio" de "veleta".
+    """
+
+    loss_aversion: float = Field(default=1.0, ge=0.0)
+    """Cuánto pesa perder frente a ganar, en el término de coste.
+
+    Viene de economía del comportamiento: la gente sufre las pérdidas alrededor
+    del doble de lo que disfruta las ganancias equivalentes.
+
+    1.0 neutral · 1.5-2.0 gente prudente · 0.5 gente que vive el momento.
+    0.0 desactiva los costes y recupera el comportamiento anterior.
+
+    Es global por ahora. Tiene más sentido como rasgo individual (prudencia
+    frente a impulsividad), pero eso son dos cambios a la vez.
     """
 
     critical_need_threshold: float = Field(default=0.15, ge=0.0, le=1.0)

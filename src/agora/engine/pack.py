@@ -185,6 +185,7 @@ class ContentPack(Spec):
         for action in self.actions:
             for field, mapping in (
                 ("satisfies", action.satisfies),
+                ("costs", action.costs),
                 ("effects", action.effects),
             ):
                 problems += self._unknown_keys(
@@ -256,6 +257,29 @@ class ContentPack(Spec):
             and action.requires_affordance not in offered
         ]
 
+    def _check_costs_are_declared(self) -> list[str]:
+        """Todo efecto negativo tiene que tener su coste declarado.
+
+        El coste es lo que el agente ANTICIPA; el efecto es lo que ocurre. Que
+        una acción reste algo y el agente no lo vea venir es un modelo legítimo
+        —así se representa la imprudencia— pero tiene que ser una decisión, no
+        un olvido. Por eso se admite declarar `0.0` de forma explícita.
+
+        Sin esta comprobación, añadir un efecto negativo a una acción cambiaría
+        el mundo sin cambiar ninguna decisión, y el síntoma sería que un rasgo
+        económico "no hace nada".
+        """
+        problems: list[str] = []
+        for action in self.actions:
+            for need_id, delta in action.effects.items():
+                if delta < 0.0 and need_id not in action.costs:
+                    problems.append(
+                        f"acción {action.id!r}: el efecto sobre {need_id!r} es negativo "
+                        f"({delta}) pero no declara coste. Añádelo a `costs`, o pon "
+                        f"{need_id}: 0.0 si el agente debe ignorarlo a propósito"
+                    )
+        return problems
+
     def _check_fallback_action_exists(self) -> list[str]:
         """Debe existir al menos una acción sin `requires_affordance`.
 
@@ -298,6 +322,7 @@ class ContentPack(Spec):
             *self._check_place_refs(),
             *self._check_taste_refs(),
             *self._check_actions_are_reachable(),
+            *self._check_costs_are_declared(),
             *self._check_fallback_action_exists(),
             *self._check_world_is_navigable(),
         ]

@@ -108,6 +108,7 @@ actions:
     duration_ticks: 2                 # 30 min
     requires_affordance: comida
     satisfies: { sustento: 1.0 }
+    costs:    { moneda: 0.35 }
     effects:  { sustento: +0.75, moneda: -0.06 }
 
   - id: dormir
@@ -122,6 +123,7 @@ actions:
     duration_ticks: 16                # 4 h
     requires_affordance: labor
     satisfies: { moneda: 0.9 }
+    costs:    { descanso: 0.45, sustento: 0.25 }
     effects:  { moneda: +0.22, descanso: -0.18, sustento: -0.08 }
     tags: [agotadora]
 
@@ -130,6 +132,7 @@ actions:
     duration_ticks: 6                 # 1.5 h
     requires_affordance: reunion
     satisfies: { vinculo: 1.0 }
+    costs:    { descanso: 0.10 }
     effects:  { vinculo: +0.6, descanso: -0.04 }
     tags: [social]
 

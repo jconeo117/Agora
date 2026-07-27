@@ -18,14 +18,35 @@ dos opciones casi empatadas y el agente alternando sin completar ninguna.
 
 La fórmula:
 
-    utilidad = suma_necesidades( peso * urgencia * satisface )
-               * descuento_viaje
-               * gusto(acción) * gusto(lugar)
+    beneficio = suma_necesidades( peso * urgencia * satisface )
+    coste     = suma_necesidades( peso * urgencia * cuesta )
+
+    utilidad  = beneficio * descuento_viaje * gustos - aversion * coste
+
+Tres detalles de esa expresión que no son arbitrarios:
+
+**La urgencia pondera también el coste.** Gastar duele más cuando no queda
+dinero; perder sueño duele más estando agotado. De ahí sale que el mismo agente
+cambie de conducta según su situación, sin una sola regla escrita para ello. Es
+también lo que hace operativos los rasgos económicos: subir el peso de una
+necesidad hace a la vez que se persiga más y que se gaste menos.
+
+**El descuento y los gustos multiplican solo el beneficio.** Si multiplicaran el
+neto, una opción mala y lejana parecería menos mala por estar lejos, y algo que
+al agente le encanta le repelería más cuando el neto es negativo. El descuento
+dice "la recompensa está lejos, vale menos"; el precio que se paga al llegar no
+se descuenta.
+
+**La utilidad puede ser negativa**, y debe poder serlo: significa "mala idea
+ahora mismo". Como la acción de red de seguridad no cuesta nada y vale casi
+cero, un agente para el que todo sale negativo se queda quieto. Eso no es un
+bloqueo: es alguien que decide que no le compensa moverse.
 """
 
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import assert_never
 
@@ -108,24 +129,50 @@ def urgency(value: float, exponent: float) -> float:
 # -----------------------------------------------------------------------------
 
 
-def appeal(
+def _weigh(
+    pack: ContentPack,
+    agent: AgentState,
+    weights: dict[NeedId, float],
+    terms: Mapping[NeedId, float],
+) -> float:
+    """Suma ponderada por importancia y urgencia. Sirve a beneficio y coste.
+
+    Que ambos pasen por aquí no es ahorro de líneas: es lo que garantiza que
+    ganar y perder se midan con la misma vara. Ponderar el beneficio por
+    urgencia y el coste no haría que un agente desesperado ignorara los
+    precios.
+    """
+    total = 0.0
+    for need_id, amount in terms.items():
+        need = pack.need_by_id[need_id]
+        pressure = urgency(agent.needs[need_id], need.urgency_exponent)
+        total += weights[need_id] * pressure * amount
+    return total
+
+
+def benefit(
     pack: ContentPack,
     agent: AgentState,
     action: ActionSpec,
     weights: dict[NeedId, float],
 ) -> float:
-    """Atractivo bruto de una acción, sin contar distancia ni gustos.
+    """Lo que el agente espera ganar.
 
-    Usa `satisfies` (lo que el agente CREE) y no `effects` (lo que realmente
-    pasará). Que puedan diferir es intencional: permite que un NPC se equivoque
-    y persiga algo que no le da lo que esperaba.
+    Usa `satisfies` (lo que CREE) y no `effects` (lo que realmente pasará). Que
+    puedan diferir es intencional: permite que un NPC se equivoque y persiga
+    algo que no le da lo que esperaba.
     """
-    total = 0.0
-    for need_id, satisfaction in action.satisfies.items():
-        need = pack.need_by_id[need_id]
-        pressure = urgency(agent.needs[need_id], need.urgency_exponent)
-        total += weights[need_id] * pressure * satisfaction
-    return total
+    return _weigh(pack, agent, weights, action.satisfies)
+
+
+def cost(
+    pack: ContentPack,
+    agent: AgentState,
+    action: ActionSpec,
+    weights: dict[NeedId, float],
+) -> float:
+    """Lo que el agente espera perder. Espejo exacto de `benefit`."""
+    return _weigh(pack, agent, weights, action.costs)
 
 
 def is_available(action: ActionSpec, place: PlaceSpec) -> bool:
@@ -163,14 +210,16 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
         for action in pack.actions:
             if not is_available(action, place):
                 continue
-            utility = (
-                appeal(pack, agent, action, weights)
-                * discount
-                * place_taste
-                * tastes.get(str(action.id), 1.0)
-            )
+            reward = benefit(pack, agent, action, weights) * discount * place_taste
+            reward *= tastes.get(str(action.id), 1.0)
+            price = cost(pack, agent, action, weights) * pack.tuning.loss_aversion
             found.append(
-                Decision(action=action.id, place=place.id, utility=utility, travel_ticks=travel)
+                Decision(
+                    action=action.id,
+                    place=place.id,
+                    utility=reward - price,
+                    travel_ticks=travel,
+                )
             )
     return found
 

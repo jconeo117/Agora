@@ -8,8 +8,9 @@ from typing import Any
 import pytest
 
 from agora.agents.decide import (
-    appeal,
+    benefit,
     candidates,
+    cost,
     critical_need,
     current_intent,
     decide,
@@ -163,11 +164,117 @@ def test_taste_multiplies_the_final_utility() -> None:
     assert utility_of_target(liked) == pytest.approx(utility_of_target(neutral) * 2.0)
 
 
-def test_appeal_is_zero_when_the_need_is_satisfied() -> None:
+def test_benefit_is_zero_when_the_need_is_satisfied() -> None:
     world = world_at(P1, need=1.0)
     pack = world.pack
     weights = need_weights(pack, pack.agent_by_id[AG1])
-    assert appeal(pack, world.agents[AG1], pack.action_by_id[CON_AFF], weights) == 0.0
+    assert benefit(pack, world.agents[AG1], pack.action_by_id[CON_AFF], weights) == 0.0
+
+
+# --- costes ------------------------------------------------------------------
+
+
+def costly_pack(**overrides: Any) -> dict[str, Any]:
+    """`act_con_aff` gana n1 pero gasta n2. `act_libre` no hace ni una cosa
+    ni la otra."""
+    return {
+        "needs": [
+            {"id": "n1", "label": "n1", "decay_per_tick": 0.01, "urgency_exponent": 2.0},
+            {"id": "n2", "label": "n2", "decay_per_tick": 0.01, "urgency_exponent": 2.0},
+        ],
+        "traits": [],
+        "actions": [
+            {
+                "id": "act_con_aff",
+                "label": "act_con_aff",
+                "duration_ticks": 2,
+                "requires_affordance": "aff",
+                "satisfies": {"n1": 1.0},
+                "costs": {"n2": 0.8},
+                "effects": {"n1": 0.8, "n2": -0.2},
+            },
+            {"id": "act_libre", "label": "act_libre", "duration_ticks": 1},
+        ],
+        "agents": [{"id": "ag1", "label": "ag1", "home": "p1", "start_at": "p1"}],
+        **overrides,
+    }
+
+
+def test_cost_grows_as_the_spent_need_runs_out() -> None:
+    """Gastar duele más cuando queda poco. Es lo que hace que un agente sin
+    dinero deje de salir sin ninguna regla que se lo diga."""
+    world = WorldState.new(world_pack(**costly_pack()), seed=7)
+    pack, agent = world.pack, world.agents[AG1]
+    weights = need_weights(pack, pack.agent_by_id[AG1])
+    action = pack.action_by_id[CON_AFF]
+
+    agent.needs[NeedId("n2")] = 0.9
+    holgado = cost(pack, agent, action, weights)
+    agent.needs[NeedId("n2")] = 0.1
+    apurado = cost(pack, agent, action, weights)
+
+    assert apurado > holgado * 3
+
+
+def test_an_expensive_action_can_reach_negative_utility() -> None:
+    """La necesidad que gana está llena y la que gasta, vacía: mala idea."""
+    world = WorldState.new(world_pack(**costly_pack()), seed=7)
+    agent = world.agents[AG1]
+    agent.needs[N1] = 1.0
+    agent.needs[NeedId("n2")] = 0.05
+
+    chosen = next(d for d in candidates(world, agent) if d.action == CON_AFF)
+    assert chosen.utility < 0.0
+
+
+def test_the_free_fallback_wins_when_everything_costs_too_much() -> None:
+    world = WorldState.new(world_pack(**costly_pack()), seed=7)
+    agent = world.agents[AG1]
+    agent.needs[N1] = 0.9
+    agent.needs[NeedId("n2")] = 0.02
+
+    chosen = decide(world, agent)
+    assert chosen is not None
+    assert chosen.action == LIBRE
+
+
+def test_loss_aversion_scales_the_cost_term() -> None:
+    def utility_with(aversion: float) -> float:
+        world = WorldState.new(
+            world_pack(**costly_pack(tuning={"loss_aversion": aversion})), seed=7
+        )
+        agent = world.agents[AG1]
+        agent.needs[N1] = 0.4
+        agent.needs[NeedId("n2")] = 0.3
+        return next(d for d in candidates(world, agent) if d.action == CON_AFF).utility
+
+    assert utility_with(0.0) > utility_with(1.0) > utility_with(2.0)
+
+
+def test_travel_discount_does_not_soften_the_cost() -> None:
+    """Si el descuento se aplicara al neto, una opción cara y lejana parecería
+    menos cara. El precio se paga entero al llegar."""
+    pack = world_pack(**costly_pack())
+    weights = need_weights(pack, pack.agent_by_id[AG1])
+    action = pack.action_by_id[CON_AFF]
+
+    near = WorldState.new(pack, seed=7)
+    near.agents[AG1].needs[N1] = 0.3
+    near.agents[AG1].needs[NeedId("n2")] = 0.3
+
+    far = WorldState.new(pack, seed=7)
+    far.agents[AG1].at = P2
+    far.agents[AG1].needs[N1] = 0.3
+    far.agents[AG1].needs[NeedId("n2")] = 0.3
+
+    price = cost(pack, near.agents[AG1], action, weights)
+    near_utility = next(d for d in candidates(near, near.agents[AG1]) if d.action == CON_AFF)
+    far_utility = next(d for d in candidates(far, far.agents[AG1]) if d.action == CON_AFF)
+
+    # El beneficio se descuenta; el coste no. La diferencia entre ambas
+    # utilidades es exactamente la parte descontada del beneficio.
+    assert far_utility.utility < near_utility.utility
+    assert (near_utility.utility + price) * 0.95 == pytest.approx(far_utility.utility + price)
 
 
 # --- elección ----------------------------------------------------------------
