@@ -258,6 +258,45 @@ def test_no_interruption_while_travelling_towards_the_solution() -> None:
     assert critical_need(world, world.agents[AG1]) is None
 
 
+def test_no_interruption_when_the_action_covers_any_emergency() -> None:
+    """Con dos necesidades críticas, ninguna acción puede cubrir las dos.
+
+    Si la regla fuera "interrumpe si esta necesidad concreta no está atendida",
+    siempre quedaría una fuera y el agente abandonaría lo que hiciera en cada
+    tick. La regla es "interrumpe solo si no atiende NINGUNA".
+    """
+    world = world_at(
+        P1,
+        need=0.05,
+        needs=[
+            {"id": "n1", "label": "n1", "decay_per_tick": 0.01},
+            {"id": "n2", "label": "n2", "decay_per_tick": 0.01},
+        ],
+        traits=[],
+        agents=[{"id": "ag1", "label": "ag1", "home": "p1", "start_at": "p1"}],
+    )
+    agent = world.agents[AG1]
+    agent.needs[NeedId("n2")] = 0.02  # también crítica, y CON_AFF no la atiende
+    agent.busy = PerformingAction(action=CON_AFF, ticks_remaining=2)
+
+    assert critical_need(world, agent) is None
+
+
+def test_must_address_restricts_the_choice_to_the_urgent_need() -> None:
+    world = world_at(P2, need=0.05)
+    chosen = decide(world, world.agents[AG1], must_address=N1)
+    assert chosen is not None
+    assert world.pack.action_by_id[chosen.action].satisfies.get(N1, 0.0) > 0.0
+
+
+def test_must_address_falls_back_when_nothing_can_help() -> None:
+    """Si ninguna acción atiende la urgencia, decidir libremente es mejor que
+    quedarse bloqueado."""
+    world = world_at(P1, need=0.05)
+    chosen = decide(world, world.agents[AG1], must_address=NeedId("inexistente"))
+    assert chosen is not None
+
+
 def test_threshold_zero_disables_interruptions() -> None:
     world = world_at(P1, need=0.0, tuning={"critical_need_threshold": 0.0})
     world.agents[AG1].busy = PerformingAction(action=LIBRE, ticks_remaining=5)

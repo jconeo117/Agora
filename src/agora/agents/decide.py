@@ -128,7 +128,10 @@ def appeal(
     return total
 
 
-def _is_available(action: ActionSpec, place: PlaceSpec) -> bool:
+def is_available(action: ActionSpec, place: PlaceSpec) -> bool:
+    """¿Se puede ejecutar esta acción aquí? Público porque el tick loop lo
+    necesita al llegar a destino, para saber si la intención sigue siendo
+    válida."""
     return action.requires_affordance is None or action.requires_affordance in place.affordances
 
 
@@ -158,7 +161,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
         place_taste = tastes.get(str(place.id), 1.0)
 
         for action in pack.actions:
-            if not _is_available(action, place):
+            if not is_available(action, place):
                 continue
             utility = (
                 appeal(pack, agent, action, weights)
@@ -183,15 +186,32 @@ def _rank(decision: Decision) -> tuple[float, int, str, str]:
     return (-decision.utility, decision.travel_ticks, str(decision.action), str(decision.place))
 
 
-def decide(world: WorldState, agent: AgentState) -> Decision | None:
+def decide(
+    world: WorldState, agent: AgentState, must_address: NeedId | None = None
+) -> Decision | None:
     """Elige qué hará el agente a continuación.
 
     Softmax sobre los `candidate_pool` mejores: da variedad sin renunciar al
     criterio, y sigue siendo reproducible porque consume el RNG sembrado del
     mundo. `None` solo si no hay ninguna opción, algo que un pack validado
     impide (siempre existe la acción sin affordance).
+
+    `must_address` restringe la elección a acciones que atienden esa necesidad.
+    Lo usa el tick loop justo después de una interrupción, y no es un detalle:
+    sin él, el agente abandona por hambre y vuelve a elegir dormir porque
+    dormir seguía siendo lo mejor puntuado — abandona y reinicia lo mismo cada
+    tick, para siempre. Una interrupción tiene que **cambiar** lo que se hace o
+    no sirve de nada.
     """
     pool = candidates(world, agent)
+    if must_address is not None:
+        forced = [
+            option
+            for option in pool
+            if world.pack.action_by_id[option.action].satisfies.get(must_address, 0.0) > 0.0
+        ]
+        if forced:  # si nada la atiende, mejor decidir libremente que bloquearse
+            pool = forced
     if not pool:
         return None
 
@@ -228,25 +248,41 @@ def current_intent(agent: AgentState) -> ActionId | None:
             assert_never(busy)
 
 
+def critical_needs(world: WorldState, agent: AgentState) -> list[NeedId]:
+    """Necesidades bajo el umbral crítico, de la peor a la menos mala.
+
+    Desempate por id para que el orden no dependa de la comparación de floats
+    cuando dos valores coinciden.
+    """
+    threshold = world.pack.tuning.critical_need_threshold
+    urgent = [need for need, value in agent.needs.items() if value < threshold]
+    return sorted(urgent, key=lambda need: (agent.needs[need], str(need)))
+
+
 def critical_need(world: WorldState, agent: AgentState) -> NeedId | None:
     """La necesidad que justifica abandonar lo que se está haciendo, si la hay.
 
-    Dos condiciones, y la segunda es la que evita el comportamiento absurdo:
-      1. la necesidad está por debajo del umbral crítico;
-      2. lo que el agente persigue AHORA no la atiende.
+    La regla es: **se interrumpe solo si lo que se está haciendo no atiende
+    NINGUNA de las emergencias**. No "ninguna en concreto" — ninguna en
+    absoluto.
 
-    Sin la segunda, un agente hambriento abandonaría la comida por hambre en
-    cada tick. Como `Traveling` lleva su `intent`, la comprobación funciona
-    igual para quien ya está comiendo y para quien va de camino.
+    La diferencia decide si el motor funciona. Con dos necesidades críticas a
+    la vez, ninguna acción puede atender las dos; si la comprobación fuera por
+    necesidad individual, siempre quedaría una sin cubrir y el agente
+    abandonaría lo que hiciera, cada tick, indefinidamente. Con la regla de
+    "alguna", el que ya está resolviendo una emergencia sigue a lo suyo.
+
+    Como `Traveling` lleva su `intent`, esto funciona igual para quien ya está
+    comiendo y para quien va de camino a comer.
     """
-    threshold = world.pack.tuning.critical_need_threshold
-    intent = current_intent(agent)
-    addressed = world.pack.action_by_id[intent].satisfies if intent is not None else {}
+    urgent = critical_needs(world, agent)
+    if not urgent:
+        return None
 
-    worst: NeedId | None = None
-    worst_value = threshold
-    # `agent.needs` conserva el orden del pack, así que el recorrido es estable.
-    for need_id, value in agent.needs.items():
-        if value < worst_value and addressed.get(need_id, 0.0) <= 0.0:
-            worst, worst_value = need_id, value
-    return worst
+    intent = current_intent(agent)
+    if intent is not None:
+        satisfies = world.pack.action_by_id[intent].satisfies
+        if any(satisfies.get(need, 0.0) > 0.0 for need in urgent):
+            return None
+
+    return urgent[0]

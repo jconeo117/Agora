@@ -29,6 +29,7 @@ from agora.engine.ontology import (
     ActionSpec,
     AgentId,
     AgentSpec,
+    ClockSpec,
     NeedId,
     NeedSpec,
     PlaceId,
@@ -55,6 +56,10 @@ class ContentPack(Spec):
     actions: tuple[ActionSpec, ...]
     places: tuple[PlaceSpec, ...]
     agents: tuple[AgentSpec, ...]
+
+    clock: ClockSpec = Field(default_factory=ClockSpec)
+    """Cómo se leen los ticks. Solo lo usa la presentación; el motor cuenta
+    ticks y nada más."""
 
     tuning: TuningSpec = Field(default_factory=TuningSpec)
     """Perillas de calibración. Omitir la sección usa los valores por defecto.

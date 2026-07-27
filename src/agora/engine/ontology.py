@@ -203,6 +203,22 @@ class AgentSpec(Spec):
 
 
 # ---------------------------------------------------------------------------
+# Reloj
+# ---------------------------------------------------------------------------
+class ClockSpec(Spec):
+    """Cómo se traduce un tick a tiempo del mundo.
+
+    Vive en el pack porque no es universal: una aldea tiene días de 24 h, una
+    estación espacial puede tener ciclos de 18, y un plano infernal puede no
+    tener día en absoluto. El motor solo cuenta ticks; esto es lo único que
+    sabe convertirlos a algo legible.
+    """
+
+    minutes_per_tick: int = Field(default=15, ge=1)
+    ticks_per_day: int = Field(default=96, ge=1)
+
+
+# ---------------------------------------------------------------------------
 # Calibración
 # ---------------------------------------------------------------------------
 class TuningSpec(Spec):
