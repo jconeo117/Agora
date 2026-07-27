@@ -1,0 +1,471 @@
+# =============================================================================
+# Content pack: barrio urbano contemporáneo.
+#
+# Reloj: 1 tick = 15 minutos -> 96 ticks por día.
+#
+# AVISO: los agentes de este pack son RELLENO. No tienen personalidad, solo
+# rasgos repartidos para que el entorno se pueda probar a escala. Se sustituyen
+# por los personajes reales en el siguiente paso.
+# =============================================================================
+
+id: barrio
+label: "El barrio"
+
+clock:
+  minutes_per_tick: 15
+  ticks_per_day: 96
+
+# -----------------------------------------------------------------------------
+# CALIBRACIÓN
+# -----------------------------------------------------------------------------
+tuning:
+  # 21 lugares y trayectos más largos que en la aldea: el descuento pesa más.
+  # 0.93 ** 6 = 0.65  -> ir a la oficina cuesta un 35 % de atractivo.
+  travel_discount: 0.93
+  candidate_pool: 3
+  temperature: 0.12
+  critical_need_threshold: 0.15
+
+# -----------------------------------------------------------------------------
+# NECESIDADES
+#
+# `provisiones` es la que hace que las tiendas existan: cocinar la consume,
+# comprar la repone. De ahí sale la disyuntiva cocinar barato / comer fuera caro.
+#
+# Limitación del motor a tener presente: NO hay precondiciones sobre recursos.
+# Un agente con la despensa a 0 puede "cocinar" igual; el efecto negativo
+# simplemente se recorta. Produce el ritmo correcto, pero no es una restricción
+# real. Modelarlo de verdad es trabajo de F1.
+# -----------------------------------------------------------------------------
+needs:
+  - id: sustento
+    label: "sustento"
+    decay_per_tick: 0.014      # vacío en ~18 h
+    initial: 0.75
+    base_weight: 1.0
+    urgency_exponent: 2.5      # irrelevante hasta que es tirano
+
+  - id: descanso
+    label: "descanso"
+    decay_per_tick: 0.011      # vacío en ~23 h
+    initial: 0.85
+    base_weight: 1.0
+    urgency_exponent: 2.2
+
+  - id: dinero
+    label: "dinero"
+    decay_per_tick: 0.0018     # coste de vida: sangría lenta y constante
+    initial: 0.55
+    base_weight: 0.9
+    urgency_exponent: 1.6      # casi lineal: siempre se piensa un poco en ello
+
+  - id: vinculo
+    label: "vínculo"
+    decay_per_tick: 0.0040     # vacío en ~2.6 días
+    initial: 0.60
+    base_weight: 0.75
+    urgency_exponent: 1.9
+
+  - id: estimulo
+    label: "estímulo"
+    decay_per_tick: 0.0055     # vacío en ~1.9 días
+    initial: 0.55
+    base_weight: 0.65
+    urgency_exponent: 1.7
+
+  - id: provisiones
+    label: "provisiones"
+    decay_per_tick: 0.0012     # merma lenta; lo que de verdad la vacía es cocinar
+    initial: 0.70
+    base_weight: 0.50
+    urgency_exponent: 1.4
+
+# -----------------------------------------------------------------------------
+# RASGOS
+#
+# Cinco ejes independientes. La intensidad del agente (-1..1) entra como
+# exponente: 0 no hace nada, -1 invierte exactamente el multiplicador.
+# -----------------------------------------------------------------------------
+traits:
+  - id: sociabilidad
+    label: "sociabilidad"
+    need_weight_multipliers:
+      vinculo: 2.2
+      descanso: 0.9
+
+  - id: laboriosidad
+    label: "laboriosidad"
+    need_weight_multipliers:
+      dinero: 1.6
+      descanso: 0.75          # subestima su propio cansancio
+
+  - id: hedonismo
+    label: "hedonismo"
+    need_weight_multipliers:
+      estimulo: 2.4
+      dinero: 0.7             # gasta sin pensarlo
+
+  - id: frugalidad
+    label: "frugalidad"
+    need_weight_multipliers:
+      dinero: 1.5
+      provisiones: 1.6        # prefiere despensa llena a restaurante
+      estimulo: 0.6
+
+  - id: apego_al_hogar
+    label: "apego al hogar"
+    need_weight_multipliers:
+      descanso: 1.35
+      vinculo: 0.7
+
+# -----------------------------------------------------------------------------
+# ACCIONES
+#
+# `satisfies` = lo que el agente CREE al deliberar.
+# `effects`   = lo que realmente ocurre al completar.
+# -----------------------------------------------------------------------------
+actions:
+  # --- descanso ---
+  - id: dormir
+    label: "dormir"
+    duration_ticks: 30                # 7 h 30
+    requires_affordance: lecho
+    satisfies: { descanso: 1.0 }
+    effects:  { descanso: +0.95 }
+
+  - id: descansar
+    label: "descansar en casa"
+    duration_ticks: 8                 # 2 h
+    requires_affordance: lecho
+    satisfies: { descanso: 0.40, estimulo: 0.15 }
+    effects:  { descanso: +0.30, estimulo: +0.08 }
+
+  # --- comida ---
+  - id: cocinar
+    label: "cocinar y comer en casa"
+    duration_ticks: 6                 # 1 h 30
+    requires_affordance: cocina
+    satisfies: { sustento: 0.90 }
+    effects:  { sustento: +0.72, provisiones: -0.22, dinero: -0.01 }
+
+  - id: comer_fuera
+    label: "comer fuera"
+    duration_ticks: 5                 # 1 h 15
+    requires_affordance: mesa
+    satisfies: { sustento: 1.0, vinculo: 0.20 }
+    effects:  { sustento: +0.85, dinero: -0.09, vinculo: +0.08 }
+
+  # --- compras ---
+  - id: hacer_compras
+    label: "hacer la compra"
+    duration_ticks: 7
+    requires_affordance: comercio
+    satisfies: { provisiones: 1.0 }
+    effects:  { provisiones: +0.75, dinero: -0.12 }
+
+  - id: darse_un_capricho
+    label: "darse un capricho"
+    duration_ticks: 5
+    requires_affordance: capricho
+    satisfies: { estimulo: 0.70 }
+    effects:  { estimulo: +0.45, dinero: -0.16 }
+    tags: [gasto]
+
+  # --- trabajo: tres oficios con equilibrios distintos ---
+  - id: trabajar_en_oficina
+    label: "trabajar en la oficina"
+    duration_ticks: 32                # 8 h
+    requires_affordance: labor_administrativa
+    satisfies: { dinero: 1.0 }
+    effects:  { dinero: +0.30, descanso: -0.16, sustento: -0.10, vinculo: +0.05 }
+
+  - id: trabajar_en_taller
+    label: "trabajar en el taller"
+    duration_ticks: 28                # 7 h
+    requires_affordance: labor_taller
+    satisfies: { dinero: 0.90 }
+    effects:  { dinero: +0.26, descanso: -0.22, sustento: -0.12 }
+    tags: [agotadora]
+
+  - id: trabajar_en_almacen
+    label: "trabajar en el almacén"
+    duration_ticks: 24                # 6 h
+    requires_affordance: labor_almacen
+    satisfies: { dinero: 0.80 }
+    effects:  { dinero: +0.21, descanso: -0.26, sustento: -0.13 }
+    tags: [agotadora]
+
+  # --- social ---
+  - id: charlar
+    label: "charlar"
+    duration_ticks: 6
+    requires_affordance: tertulia
+    satisfies: { vinculo: 1.0 }
+    effects:  { vinculo: +0.55, estimulo: +0.10, descanso: -0.03 }
+    tags: [social]
+
+  - id: salir_de_fiesta
+    label: "salir de fiesta"
+    duration_ticks: 14                # 3 h 30
+    requires_affordance: jolgorio
+    satisfies: { estimulo: 1.0, vinculo: 0.60 }
+    effects:  { estimulo: +0.80, vinculo: +0.35, descanso: -0.30, dinero: -0.20 }
+    tags: [social, gasto, agotadora]
+
+  - id: tomar_el_aire
+    label: "tomar el aire"
+    duration_ticks: 6
+    requires_affordance: aire_libre
+    satisfies: { estimulo: 0.45, descanso: 0.15 }
+    effects:  { estimulo: +0.28, descanso: +0.05 }
+
+  # --- red de seguridad: sin affordance, válida en cualquier sitio ---
+  - id: holgazanear
+    label: "holgazanear"
+    duration_ticks: 4
+    satisfies: { descanso: 0.12 }
+    effects:  { descanso: +0.04 }
+
+# -----------------------------------------------------------------------------
+# LUGARES
+#
+# El vestíbulo es el corazón del edificio: cocina común y zona de tertulia. Es
+# donde los vecinos se cruzan sin haberlo buscado.
+#
+# La plaza es el nudo del barrio. Todo pasa por ella, así que es donde se
+# producirán la mayoría de encuentros no domésticos.
+# -----------------------------------------------------------------------------
+places:
+  # --- edificio ---
+  - id: vestibulo
+    label: "el vestíbulo del edificio"
+    affordances: [cocina, tertulia]
+    tags: [interior, comunitario]
+    neighbors:
+      hab_01: 1
+      hab_02: 1
+      hab_03: 1
+      hab_04: 1
+      hab_05: 1
+      hab_06: 1
+      hab_07: 1
+      hab_08: 1
+      hab_09: 1
+      hab_10: 1
+      plaza: 2
+
+  - id: hab_01
+    label: "la habitación 1"
+    affordances: [lecho]
+    tags: [interior, privado]
+    neighbors: { vestibulo: 1 }
+  - id: hab_02
+    label: "la habitación 2"
+    affordances: [lecho]
+    tags: [interior, privado]
+    neighbors: { vestibulo: 1 }
+  - id: hab_03
+    label: "la habitación 3"
+    affordances: [lecho]
+    tags: [interior, privado]
+    neighbors: { vestibulo: 1 }
+  - id: hab_04
+    label: "la habitación 4"
+    affordances: [lecho]
+    tags: [interior, privado]
+    neighbors: { vestibulo: 1 }
+  - id: hab_05
+    label: "la habitación 5"
+    affordances: [lecho]
+    tags: [interior, privado]
+    neighbors: { vestibulo: 1 }
+  - id: hab_06
+    label: "la habitación 6"
+    affordances: [lecho]
+    tags: [interior, privado]
+    neighbors: { vestibulo: 1 }
+  - id: hab_07
+    label: "la habitación 7"
+    affordances: [lecho]
+    tags: [interior, privado]
+    neighbors: { vestibulo: 1 }
+  - id: hab_08
+    label: "la habitación 8"
+    affordances: [lecho]
+    tags: [interior, privado]
+    neighbors: { vestibulo: 1 }
+  - id: hab_09
+    label: "la habitación 9"
+    affordances: [lecho]
+    tags: [interior, privado]
+    neighbors: { vestibulo: 1 }
+  - id: hab_10
+    label: "la habitación 10"
+    affordances: [lecho]
+    tags: [interior, privado]
+    neighbors: { vestibulo: 1 }
+
+  # --- zonas sociales ---
+  - id: plaza
+    label: "la plaza"
+    affordances: [tertulia, aire_libre]
+    tags: [exterior, publico, nudo]
+    neighbors: { vestibulo: 2, cafe: 1, fonda: 1, mercado: 2, bazar: 2, oficina: 3 }
+
+  - id: cafe
+    label: "el café"
+    affordances: [tertulia, mesa]
+    tags: [interior, publico, tranquilo]
+    neighbors: { plaza: 1, restaurante: 1 }
+
+  - id: club
+    label: "el club nocturno"
+    affordances: [jolgorio, tertulia]
+    tags: [interior, publico, ruidoso]
+    neighbors: { bazar: 2, restaurante: 1 }
+
+  # --- tiendas ---
+  - id: mercado
+    label: "el mercado"
+    affordances: [comercio]
+    tags: [interior, publico]
+    neighbors: { plaza: 2, almacen: 2 }
+
+  - id: bazar
+    label: "el bazar"
+    affordances: [comercio, capricho]
+    tags: [interior, publico]
+    neighbors: { plaza: 2, club: 2 }
+
+  # --- restaurantes ---
+  - id: fonda
+    label: "la fonda"
+    affordances: [mesa]
+    tags: [interior, publico, barato]
+    neighbors: { plaza: 1 }
+
+  - id: restaurante
+    label: "el restaurante"
+    affordances: [mesa, tertulia]
+    tags: [interior, publico, caro]
+    neighbors: { cafe: 1, club: 1 }
+
+  # --- trabajo ---
+  - id: oficina
+    label: "la oficina"
+    affordances: [labor_administrativa]
+    tags: [interior, laboral]
+    neighbors: { plaza: 3, taller: 2 }
+
+  - id: taller
+    label: "el taller"
+    affordances: [labor_taller]
+    tags: [interior, laboral]
+    neighbors: { oficina: 2, almacen: 2 }
+
+  - id: almacen
+    label: "el almacén"
+    affordances: [labor_almacen]
+    tags: [interior, laboral]
+    neighbors: { taller: 2, mercado: 2 }
+
+# -----------------------------------------------------------------------------
+# AGENTES — RELLENO TEMPORAL
+#
+# Sin personalidad: rasgos repartidos mecánicamente para poder medir el entorno
+# a escala. Se sustituyen por los personajes reales.
+#
+# Dos gustos por agente, y ambos hacen trabajo estructural:
+#   - su propia habitación -> emerge "duermo en mi cuarto" sin control de acceso
+#   - su propio oficio     -> lo ancla a un puesto en vez de ir al mejor pagado
+# -----------------------------------------------------------------------------
+agents:
+  - id: r01
+    label: "R01"
+    home: hab_01
+    start_at: hab_01
+    traits: { laboriosidad: 0.7, sociabilidad: -0.2, frugalidad: 0.5 }
+    tastes:
+      - { target: hab_01, multiplier: 1.8 }
+      - { target: trabajar_en_oficina, multiplier: 2.5 }
+
+  - id: r02
+    label: "R02"
+    home: hab_02
+    start_at: hab_02
+    traits: { sociabilidad: 0.8, hedonismo: 0.4, laboriosidad: -0.3 }
+    tastes:
+      - { target: hab_02, multiplier: 1.8 }
+      - { target: trabajar_en_oficina, multiplier: 2.5 }
+
+  - id: r03
+    label: "R03"
+    home: hab_03
+    start_at: hab_03
+    traits: { hedonismo: 0.9, frugalidad: -0.6, sociabilidad: 0.3 }
+    tastes:
+      - { target: hab_03, multiplier: 1.8 }
+      - { target: trabajar_en_taller, multiplier: 2.5 }
+
+  - id: r04
+    label: "R04"
+    home: hab_04
+    start_at: hab_04
+    traits: { apego_al_hogar: 0.8, sociabilidad: -0.5, frugalidad: 0.6 }
+    tastes:
+      - { target: hab_04, multiplier: 1.8 }
+      - { target: trabajar_en_almacen, multiplier: 2.5 }
+
+  - id: r05
+    label: "R05"
+    home: hab_05
+    start_at: hab_05
+    traits: { sociabilidad: 0.5, laboriosidad: 0.4, hedonismo: -0.2 }
+    tastes:
+      - { target: hab_05, multiplier: 1.8 }
+      - { target: trabajar_en_oficina, multiplier: 2.5 }
+
+  - id: r06
+    label: "R06"
+    home: hab_06
+    start_at: hab_06
+    traits: { frugalidad: 0.9, hedonismo: -0.7, apego_al_hogar: 0.4 }
+    tastes:
+      - { target: hab_06, multiplier: 1.8 }
+      - { target: trabajar_en_taller, multiplier: 2.5 }
+
+  - id: r07
+    label: "R07"
+    home: hab_07
+    start_at: hab_07
+    traits: { hedonismo: 0.6, sociabilidad: 0.7, laboriosidad: -0.4 }
+    tastes:
+      - { target: hab_07, multiplier: 1.8 }
+      - { target: trabajar_en_almacen, multiplier: 2.5 }
+
+  - id: r08
+    label: "R08"
+    home: hab_08
+    start_at: hab_08
+    traits: { laboriosidad: 0.9, apego_al_hogar: 0.3, sociabilidad: -0.6 }
+    tastes:
+      - { target: hab_08, multiplier: 1.8 }
+      - { target: trabajar_en_oficina, multiplier: 2.5 }
+
+  - id: r09
+    label: "R09"
+    home: hab_09
+    start_at: hab_09
+    traits: { sociabilidad: 0.6, frugalidad: -0.4, hedonismo: 0.3 }
+    tastes:
+      - { target: hab_09, multiplier: 1.8 }
+      - { target: trabajar_en_taller, multiplier: 2.5 }
+
+  - id: r10
+    label: "R10"
+    home: hab_10
+    start_at: hab_10
+    traits: { apego_al_hogar: 0.6, laboriosidad: 0.5, hedonismo: -0.3 }
+    tastes:
+      - { target: hab_10, multiplier: 1.8 }
+      - { target: trabajar_en_almacen, multiplier: 2.5 }
