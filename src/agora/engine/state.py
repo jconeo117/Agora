@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from agora.engine.disposition import compose_need_weights, compose_tastes
 from agora.engine.ontology import (
     ActionId,
     AgentId,
@@ -25,6 +26,7 @@ from agora.engine.ontology import (
     NeedSpec,
     PlaceId,
     PlaceSpec,
+    TraitId,
 )
 from agora.engine.pack import ContentPack
 from agora.engine.rng import RngSource
@@ -117,8 +119,80 @@ class AgentState:
 
     at: PlaceId
     needs: dict[NeedId, float]
+
+    # --- disposición: quién es este agente AHORA -----------------------------
+    #
+    # Vive aquí y no en el spec porque tiene que poder cambiar. Un NPC que no
+    # es distinto después de un año de vivir no tiene arco, tiene una ficha.
+    # El spec pasa a ser las condiciones iniciales.
+
+    traits: dict[TraitId, float] = field(default_factory=dict)
+    """Rasgo -> intensidad actual en [-1, 1]. Se mueve con `drift_trait`."""
+
+    tastes: dict[str, float] = field(default_factory=dict)
+    """Objetivo -> multiplicador. Ya compuesto: dos gustos hacia lo mismo se
+    multiplicaron al construirlo. Se puede mutar directamente, no tiene nada
+    derivado que mantener en sincronía."""
+
+    need_weights: dict[NeedId, float] = field(default_factory=dict)
+    """DERIVADO de `traits`. Se recompone en `drift_trait`, que es la única
+    puerta para moverlos precisamente por eso.
+
+    Está aquí y no se recalcula en cada deliberación porque los rasgos cambian
+    muy rara vez y se consultan miles de veces."""
+
     busy: Busy | None = None
     """`None` = ocioso. Este agente delibera en el tick actual."""
+
+    @classmethod
+    def from_spec(cls, pack: ContentPack, spec: AgentSpec) -> AgentState:
+        """Estado inicial de un agente a partir de sus condiciones de partida.
+
+        Los diccionarios se **copian**. `AgentSpec` es `frozen`, pero eso solo
+        impide reasignar sus atributos: el dict de dentro sigue siendo mutable,
+        y compartirlo haría que la deriva de un agente contaminara el pack —y
+        con él, a cualquier otro mundo cargado desde el mismo fichero.
+        """
+        # Todas las necesidades del pack, aunque el agente no las mencione. Un
+        # dict incompleto obliga a cada consumidor a inventarse un default, y
+        # acabarían siendo distintos en dos sitios.
+        needs: dict[NeedId, float] = {need.id: need.initial for need in pack.needs}
+        needs.update(spec.initial_needs)
+
+        return cls(
+            spec_id=spec.id,
+            at=spec.start_at,
+            needs=needs,
+            traits=dict(spec.traits),
+            tastes=compose_tastes(spec.tastes),
+            need_weights=compose_need_weights(pack, spec.traits),
+            busy=None,  # todos deliberan en el tick 0
+        )
+
+    def drift_trait(self, pack: ContentPack, trait: TraitId, delta: float) -> None:
+        """Mueve un rasgo y recompone lo que depende de él.
+
+        Única puerta para cambiar la personalidad, y existe por el invariante:
+        `need_weights` es derivado de `traits`, así que tocarlos por separado
+        dejaría a un agente decidiendo con los pesos de quien era antes. Ese bug
+        no rompe nada visible — solo hace que la deriva no surta efecto.
+
+        El rasgo tiene que existir en el pack, pero NO hace falta que el agente
+        lo tuviera declarado: nadie nace con todos los rasgos, y la experiencia
+        puede despertar uno que estaba a cero. Lo que no puede es inventarse uno
+        —eso sería una errata pasando por capacidad emergente— y por eso falla
+        ruidosamente aquí en vez de reventar dentro de la composición.
+
+        Todavía no lo llama nadie. Es la puerta que este paso existe para abrir:
+        cicatrices, aprendizaje y rampancia entran por aquí.
+        """
+        if trait not in pack.trait_by_id:
+            raise KeyError(
+                f"el rasgo {trait!r} no existe en el pack {pack.id!r}; "
+                f"declarados: {sorted(pack.trait_by_id)}"
+            )
+        self.traits[trait] = max(-1.0, min(1.0, self.traits.get(trait, 0.0) + delta))
+        self.need_weights = compose_need_weights(pack, self.traits)
 
     # -- necesidades ----------------------------------------------------------
 
@@ -212,20 +286,8 @@ class WorldState:
     @classmethod
     def new(cls, pack: ContentPack, seed: int) -> WorldState:
         """Construye el estado inicial desde un pack ya validado."""
-        agents: dict[AgentId, AgentState] = {}
-        for spec in pack.agents:  # el orden del pack fija el orden del mundo
-            # Todas las necesidades del pack, aunque el agente no las mencione.
-            # Un dict incompleto obliga a cada consumidor a inventarse un
-            # default, y acabarían siendo distintos en dos sitios.
-            needs: dict[NeedId, float] = {need.id: need.initial for need in pack.needs}
-            needs.update(spec.initial_needs)
-
-            agents[spec.id] = AgentState(
-                spec_id=spec.id,
-                at=spec.start_at,
-                needs=needs,
-                busy=None,  # todos deliberan en el tick 0
-            )
+        # El orden del pack fija el orden del mundo.
+        agents = {spec.id: AgentState.from_spec(pack, spec) for spec in pack.agents}
 
         return cls(
             pack=pack,

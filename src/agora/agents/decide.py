@@ -53,7 +53,6 @@ from typing import assert_never
 from agora.engine.ontology import (
     ActionId,
     ActionSpec,
-    AgentSpec,
     NeedId,
     PlaceId,
     PlaceSpec,
@@ -76,39 +75,6 @@ class Decision:
 # -----------------------------------------------------------------------------
 # Personalidad -> pesos
 # -----------------------------------------------------------------------------
-
-
-def need_weights(pack: ContentPack, spec: AgentSpec) -> dict[NeedId, float]:
-    """Cuánto le importa a ESTE agente cada necesidad.
-
-    La intensidad del rasgo entra como exponente, no como interpolación:
-
-        factor = multiplicador ** intensidad
-
-    Con intensidad 0 el rasgo no hace nada (M**0 == 1) y con -1 invierte
-    exactamente (M**-1 == 1/M). Es simétrico en escala logarítmica, que es como
-    se comporta un multiplicador. La interpolación lineal, en cambio, daría
-    factores negativos para multiplicadores mayores que 2.
-    """
-    weights: dict[NeedId, float] = {need.id: need.base_weight for need in pack.needs}
-    for trait_id, intensity in spec.traits.items():
-        trait = pack.trait_by_id[trait_id]
-        for need_id, multiplier in trait.need_weight_multipliers.items():
-            weights[need_id] *= multiplier**intensity
-    return weights
-
-
-def taste_multipliers(spec: AgentSpec) -> dict[str, float]:
-    """Predilecciones y aversiones, indexadas por id de objetivo.
-
-    Clave `str` y no `ActionId`/`PlaceId`: un gusto puede apuntar a cualquiera
-    de los tres espacios, y `pack.py` ya garantizó que no colisionan entre sí.
-    """
-    result: dict[str, float] = {}
-    for taste in spec.tastes:
-        key = str(taste.target)
-        result[key] = result.get(key, 1.0) * taste.multiplier
-    return result
 
 
 def urgency(value: float, exponent: float) -> float:
@@ -195,9 +161,11 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
     que el agente haga algo razonable ahí mismo en vez de quedarse en blanco.
     """
     pack = world.pack
-    spec = world.spec_of(agent)
-    weights = need_weights(pack, spec)
-    tastes = taste_multipliers(spec)
+    # La disposición ya está compuesta en el estado del agente: componerla aquí
+    # sería rehacer en cada deliberación algo que cambia una vez cada muchos
+    # días. Ver `AgentState.drift_trait`.
+    weights = agent.need_weights
+    tastes = agent.tastes
 
     found: list[Decision] = []
     for place in pack.places:

@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import pytest
 
-from agora.engine.ontology import ActionId, AgentId, NeedId, NeedSpec, PlaceId
+from agora.engine.ontology import ActionId, AgentId, NeedId, NeedSpec, PlaceId, TraitId
 from agora.engine.pack import ContentPack
 from agora.engine.state import AgentState, PerformingAction, Traveling, WorldState
 from tests.test_pack import base_pack
 
 N1 = NeedId("n1")
+T1 = TraitId("t1")
 AG1 = AgentId("ag1")
 P1 = PlaceId("p1")
 P2 = PlaceId("p2")
@@ -159,3 +160,83 @@ def test_same_seed_gives_the_same_random_streams(pack: ContentPack) -> None:
 def test_travel_map_is_built_once(pack: ContentPack) -> None:
     world = WorldState.new(pack, seed=1)
     assert world.travel.distance(P1, P2) == 1
+
+
+# --- disposición: quién es el agente AHORA -----------------------------------
+
+
+def test_disposition_is_copied_into_the_state(pack: ContentPack) -> None:
+    world = WorldState.new(pack, seed=1)
+    state = world.agents[AG1]
+    assert state.traits == {"t1": 0.5}
+    assert state.tastes == {"p2": 1.2}
+    assert state.need_weights[N1] > 0.0
+
+
+def test_mutating_an_agent_never_touches_the_pack(pack: ContentPack) -> None:
+    """`AgentSpec` es frozen, pero eso solo impide reasignar sus atributos: el
+    dict de dentro sigue siendo mutable. Sin copiar, la deriva de un agente
+    contaminaría el pack y con él cualquier otro mundo cargado del mismo
+    fichero."""
+    world = WorldState.new(pack, seed=1)
+    world.agents[AG1].traits[T1] = -1.0
+    world.agents[AG1].tastes["p2"] = 99.0
+
+    limpio = WorldState.new(pack, seed=1)
+    assert limpio.agents[AG1].traits == {"t1": 0.5}
+    assert limpio.agents[AG1].tastes == {"p2": 1.2}
+
+
+def test_two_worlds_from_the_same_pack_do_not_share_state(pack: ContentPack) -> None:
+    a, b = WorldState.new(pack, seed=1), WorldState.new(pack, seed=1)
+    a.agents[AG1].traits[T1] = -1.0
+    assert b.agents[AG1].traits[T1] == 0.5
+
+
+def test_drift_moves_the_trait_and_recomposes_the_weights(pack: ContentPack) -> None:
+    """El invariante que justifica que exista `drift_trait`: `need_weights` es
+    derivado de `traits`, y tocarlos por separado dejaría al agente decidiendo
+    con los pesos de quien era antes."""
+    world = WorldState.new(pack, seed=1)
+    agent = world.agents[AG1]
+    antes = agent.need_weights[N1]
+
+    agent.drift_trait(pack, TraitId("t1"), +0.5)
+
+    assert agent.traits[TraitId("t1")] == pytest.approx(1.0)
+    assert agent.need_weights[N1] > antes
+
+
+def test_drift_clamps_to_the_valid_range(pack: ContentPack) -> None:
+    world = WorldState.new(pack, seed=1)
+    agent = world.agents[AG1]
+
+    agent.drift_trait(pack, TraitId("t1"), +99.0)
+    assert agent.traits[TraitId("t1")] == 1.0
+    agent.drift_trait(pack, TraitId("t1"), -99.0)
+    assert agent.traits[TraitId("t1")] == -1.0
+
+
+def test_drift_can_awaken_a_trait_the_agent_did_not_have() -> None:
+    """Nadie nace con todos los rasgos del pack declarados. La experiencia puede
+    despertar uno que estaba a cero."""
+    data = base_pack()
+    data["traits"] = [
+        {"id": "t1", "label": "t1", "need_weight_multipliers": {"n1": 1.5}},
+        {"id": "t2", "label": "t2", "need_weight_multipliers": {"n1": 0.5}},
+    ]
+    pack = ContentPack.model_validate(data)
+    agent = WorldState.new(pack, seed=1).agents[AG1]
+    assert TraitId("t2") not in agent.traits
+
+    agent.drift_trait(pack, TraitId("t2"), +0.3)
+    assert agent.traits[TraitId("t2")] == pytest.approx(0.3)
+
+
+def test_drift_towards_an_undeclared_trait_fails_loudly(pack: ContentPack) -> None:
+    """Un rasgo que no existe en el pack es una errata, no una capacidad
+    emergente. Sin esta guarda, reventaría con un KeyError enterrado dentro de
+    la composición de pesos."""
+    agent = WorldState.new(pack, seed=1).agents[AG1]
+    with pytest.raises(KeyError, match="inventado"):
+        agent.drift_trait(pack, TraitId("inventado"), +0.3)

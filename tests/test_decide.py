@@ -14,11 +14,9 @@ from agora.agents.decide import (
     critical_need,
     current_intent,
     decide,
-    need_weights,
-    taste_multipliers,
     urgency,
 )
-from agora.engine.ontology import ActionId, AgentId, NeedId, PlaceId, TasteSpec
+from agora.engine.ontology import ActionId, AgentId, NeedId, PlaceId
 from agora.engine.pack import ContentPack
 from agora.engine.state import AgentState, PerformingAction, Traveling, WorldState
 
@@ -64,34 +62,6 @@ def world_at(place: PlaceId, need: float, **overrides: Any) -> WorldState:
     agent.at = place
     agent.needs[N1] = need
     return world
-
-
-# --- pesos de personalidad ---------------------------------------------------
-
-
-def test_trait_intensity_acts_as_exponent() -> None:
-    """Intensidad 0 neutraliza, 1 aplica entero, -1 invierte exactamente."""
-    pack = world_pack()
-
-    def weight_for(intensity: float) -> float:
-        spec = pack.agent_by_id[AG1].model_copy(update={"traits": {"t1": intensity}})
-        return need_weights(pack, spec)[N1]
-
-    base = pack.need_by_id[N1].base_weight
-    assert weight_for(0.0) == pytest.approx(base)
-    assert weight_for(1.0) == pytest.approx(base * 2.0)
-    assert weight_for(-1.0) == pytest.approx(base * 0.5)
-    assert weight_for(0.5) == pytest.approx(base * 2.0**0.5)
-
-
-def test_tastes_compose_by_target() -> None:
-    """Ojo: `model_copy(update=...)` NO revalida, así que hay que pasar el
-    `TasteSpec` ya construido y no un dict crudo."""
-    pack = world_pack()
-    spec = pack.agent_by_id[AG1].model_copy(
-        update={"tastes": (TasteSpec(target=P1, multiplier=1.5),)}
-    )
-    assert taste_multipliers(spec)["p1"] == pytest.approx(1.5)
 
 
 # --- curva de urgencia -------------------------------------------------------
@@ -166,9 +136,9 @@ def test_taste_multiplies_the_final_utility() -> None:
 
 def test_benefit_is_zero_when_the_need_is_satisfied() -> None:
     world = world_at(P1, need=1.0)
-    pack = world.pack
-    weights = need_weights(pack, pack.agent_by_id[AG1])
-    assert benefit(pack, world.agents[AG1], pack.action_by_id[CON_AFF], weights) == 0.0
+    agent = world.agents[AG1]
+    action = world.pack.action_by_id[CON_AFF]
+    assert benefit(world.pack, agent, action, agent.need_weights) == 0.0
 
 
 # --- costes ------------------------------------------------------------------
@@ -205,13 +175,12 @@ def test_cost_grows_as_the_spent_need_runs_out() -> None:
     dinero deje de salir sin ninguna regla que se lo diga."""
     world = WorldState.new(world_pack(**costly_pack()), seed=7)
     pack, agent = world.pack, world.agents[AG1]
-    weights = need_weights(pack, pack.agent_by_id[AG1])
     action = pack.action_by_id[CON_AFF]
 
     agent.needs[NeedId("n2")] = 0.9
-    holgado = cost(pack, agent, action, weights)
+    holgado = cost(pack, agent, action, agent.need_weights)
     agent.needs[NeedId("n2")] = 0.1
-    apurado = cost(pack, agent, action, weights)
+    apurado = cost(pack, agent, action, agent.need_weights)
 
     assert apurado > holgado * 3
 
@@ -255,7 +224,6 @@ def test_travel_discount_does_not_soften_the_cost() -> None:
     """Si el descuento se aplicara al neto, una opción cara y lejana parecería
     menos cara. El precio se paga entero al llegar."""
     pack = world_pack(**costly_pack())
-    weights = need_weights(pack, pack.agent_by_id[AG1])
     action = pack.action_by_id[CON_AFF]
 
     near = WorldState.new(pack, seed=7)
@@ -267,7 +235,7 @@ def test_travel_discount_does_not_soften_the_cost() -> None:
     far.agents[AG1].needs[N1] = 0.3
     far.agents[AG1].needs[NeedId("n2")] = 0.3
 
-    price = cost(pack, near.agents[AG1], action, weights)
+    price = cost(pack, near.agents[AG1], action, near.agents[AG1].need_weights)
     near_utility = next(d for d in candidates(near, near.agents[AG1]) if d.action == CON_AFF)
     far_utility = next(d for d in candidates(far, far.agents[AG1]) if d.action == CON_AFF)
 
