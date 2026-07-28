@@ -12,7 +12,6 @@ ya nadie vuelve a comprobar.
 
 from __future__ import annotations
 
-import random
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
@@ -28,6 +27,7 @@ from agora.engine.ontology import (
     PlaceSpec,
 )
 from agora.engine.pack import ContentPack
+from agora.engine.rng import RngSource
 from agora.engine.topology import TravelMap
 
 # -----------------------------------------------------------------------------
@@ -194,14 +194,20 @@ class WorldState:
     O(1) por id, y orden estable. `dict` da ambas desde 3.7. Un `set` rompe el
     determinismo en silencio y sin aviso."""
 
-    rng: random.Random = field(default_factory=random.Random)
-    """El generador vive AQUÍ, sembrado, y se pasa explícitamente a quien lo
+    rng: RngSource = field(default_factory=lambda: RngSource(0))
+    """La fuente de aleatoriedad vive AQUÍ y se pasa explícitamente a quien la
     necesite. Nunca `import random; random.choice(...)` a nivel de módulo: eso
-    usa un generador global compartido y ahí muere la reproducibilidad."""
+    usa un generador global compartido y ahí muere la reproducibilidad.
 
-    seed: int = 0
-    """Se escribe en la primera línea del log. Un bug se reproduce corriendo el
-    mismo seed; sin esto, un fallo raro en el día 5 no se investiga."""
+    No es un generador, sino una fábrica de generadores por clave. Cada sorteo
+    pide el suyo con `rng.stream(...)`, y así el resultado no depende de cuántos
+    sorteos hubo antes."""
+
+    @property
+    def seed(self) -> int:
+        """Se escribe en la primera línea del log. Un bug se reproduce corriendo
+        el mismo seed; sin esto, un fallo raro en el día 5 no se investiga."""
+        return self.rng.seed
 
     @classmethod
     def new(cls, pack: ContentPack, seed: int) -> WorldState:
@@ -226,8 +232,7 @@ class WorldState:
             travel=TravelMap(pack.places),
             tick=0,
             agents=agents,
-            rng=random.Random(seed),
-            seed=seed,
+            rng=RngSource(seed),
         )
 
     def agents_in_order(self) -> list[AgentState]:

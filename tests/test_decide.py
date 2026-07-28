@@ -292,13 +292,39 @@ def test_decide_targets_the_place_that_solves_the_need() -> None:
 def test_decide_is_reproducible_with_the_same_seed() -> None:
     def run() -> list[tuple[ActionId, PlaceId]]:
         world = world_at(P2, need=0.4)
-        return [
-            (d.action, d.place)
-            for d in (decide(world, world.agents[AG1]) for _ in range(30))
-            if d is not None
-        ]
+        chosen: list[tuple[ActionId, PlaceId]] = []
+        for tick in range(30):
+            world.tick = tick
+            d = decide(world, world.agents[AG1])
+            if d is not None:
+                chosen.append((d.action, d.place))
+        return chosen
 
     assert run() == run()
+
+
+def test_deliberating_twice_in_the_same_tick_gives_the_same_answer() -> None:
+    """El sorteo es función pura de (semilla, agente, tick).
+
+    No es un efecto secundario: es la propiedad que permite avanzar una parte
+    del mundo sin haber avanzado el resto. Un agente decide una vez por tick, y
+    preguntarle otra vez no le hace cambiar de idea.
+    """
+    world = world_at(P1, need=1.0, tuning={"candidate_pool": 3, "temperature": 1.0})
+    agent = world.agents[AG1]
+    assert len({decide(world, agent) for _ in range(20)}) == 1
+
+
+def test_the_draw_does_not_depend_on_who_deliberated_before() -> None:
+    """Con un generador único consumido en orden, la decisión de un agente
+    dependería de cuántos sorteos hubo antes en el mismo tick. Aquí no."""
+    solo = world_at(P1, need=1.0, tuning={"candidate_pool": 3, "temperature": 1.0})
+    acompanado = world_at(P1, need=1.0, tuning={"candidate_pool": 3, "temperature": 1.0})
+
+    # Alguien consume aleatoriedad antes, en el mismo tick y el mismo mundo.
+    acompanado.rng.stream("decide", "otro", acompanado.tick).random()
+
+    assert decide(solo, solo.agents[AG1]) == decide(acompanado, acompanado.agents[AG1])
 
 
 def test_pool_of_one_is_pure_argmax() -> None:
@@ -308,10 +334,17 @@ def test_pool_of_one_is_pure_argmax() -> None:
     assert len(picks) == 1
 
 
-def test_larger_pool_produces_variety() -> None:
-    """Con necesidades llenas todo empata, y el sorteo debe notarse."""
+def test_larger_pool_produces_variety_across_ticks() -> None:
+    """Con necesidades llenas todo empata, y el sorteo debe notarse.
+
+    La variedad se mide entre ticks distintos, no repitiendo la pregunta: dentro
+    de un mismo tick la decisión está fijada por construcción.
+    """
     world = world_at(P1, need=1.0, tuning={"candidate_pool": 3, "temperature": 1.0})
-    picks = {decide(world, world.agents[AG1]) for _ in range(40)}
+    picks = set()
+    for tick in range(40):
+        world.tick = tick
+        picks.add(decide(world, world.agents[AG1]))
     assert len(picks) > 1
 
 

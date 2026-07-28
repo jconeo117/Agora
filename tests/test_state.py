@@ -149,10 +149,11 @@ def test_agents_in_order_is_stable_across_runs(pack: ContentPack) -> None:
     assert first == second
 
 
-def test_same_seed_gives_the_same_random_sequence(pack: ContentPack) -> None:
+def test_same_seed_gives_the_same_random_streams(pack: ContentPack) -> None:
     a = WorldState.new(pack, seed=7)
     b = WorldState.new(pack, seed=7)
-    assert [a.rng.random() for _ in range(5)] == [b.rng.random() for _ in range(5)]
+    assert a.seed == b.seed == 7
+    assert a.rng.stream("x", 1).random() == b.rng.stream("x", 1).random()
 
 
 def test_travel_map_is_built_once(pack: ContentPack) -> None:

@@ -275,7 +275,13 @@ def decide(
     best = finalists[0].utility
     temperature = world.pack.tuning.temperature
     weights = [math.exp((d.utility - best) / temperature) for d in finalists]
-    return world.rng.choices(finalists, weights=weights, k=1)[0]
+
+    # La clave incluye el tick, y ese detalle es el que importa: el sorteo pasa
+    # a ser función pura de (semilla, agente, momento) en vez de depender de
+    # cuántos sorteos hubo antes. Sin eso no se puede avanzar una parte del
+    # mundo sin avanzar el resto.
+    rng = world.rng.stream("decide", agent.spec_id, world.tick)
+    return rng.choices(finalists, weights=weights, k=1)[0]
 
 
 # -----------------------------------------------------------------------------
