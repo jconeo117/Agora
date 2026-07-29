@@ -17,7 +17,12 @@ from dataclasses import dataclass, field
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from agora.engine.disposition import compose_need_weights, compose_tastes
+from agora.engine.disposition import (
+    Temperament,
+    compose_need_weights,
+    compose_tastes,
+    compose_temperament,
+)
 from agora.engine.ontology import (
     ActionId,
     AgentId,
@@ -141,6 +146,13 @@ class AgentState:
     Está aquí y no se recalcula en cada deliberación porque los rasgos cambian
     muy rara vez y se consultan miles de veces."""
 
+    temperament: Temperament = field(default_factory=lambda: Temperament(0.15, 1.0, 0.15, 0.95))
+    """DERIVADO de `traits` y del `tuning` del pack. Cómo decide esta persona:
+    su impulsividad, su aversión al precio, su aguante y su arraigo.
+
+    El default solo existe para que construir un `AgentState` suelto en un test
+    no reviente; cualquier agente de una partida real pasa por `from_spec`."""
+
     busy: Busy | None = None
     """`None` = ocioso. Este agente delibera en el tick actual."""
 
@@ -166,6 +178,7 @@ class AgentState:
             traits=dict(spec.traits),
             tastes=compose_tastes(spec.tastes),
             need_weights=compose_need_weights(pack, spec.traits),
+            temperament=compose_temperament(pack, spec.traits),
             busy=None,  # todos deliberan en el tick 0
         )
 
@@ -193,6 +206,7 @@ class AgentState:
             )
         self.traits[trait] = max(-1.0, min(1.0, self.traits.get(trait, 0.0) + delta))
         self.need_weights = compose_need_weights(pack, self.traits)
+        self.temperament = compose_temperament(pack, self.traits)
 
     # -- necesidades ----------------------------------------------------------
 

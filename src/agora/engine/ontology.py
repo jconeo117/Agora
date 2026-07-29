@@ -15,6 +15,7 @@ que corre en escena, o en C# entre una clase de configuración y su objeto.
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Annotated, NewType
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -90,6 +91,34 @@ class NeedSpec(Spec):
 
 
 # ---------------------------------------------------------------------------
+# Temperamento
+# ---------------------------------------------------------------------------
+class TemperamentKnob(StrEnum):
+    """Aspectos de CÓMO se decide que un rasgo puede modular.
+
+    Conjunto cerrado a propósito: a diferencia de las necesidades o los lugares,
+    esto no lo define la ambientación sino el motor. Son los cuatro puntos donde
+    la maquinaria de decisión admite variación individual.
+
+    El pack fija el valor del mundo (`TuningSpec`) y el agente lo modula. Un
+    mundo donde viajar es peligroso Y una persona que odia salir de casa son dos
+    cosas distintas que se componen, no que se sustituyen.
+    """
+
+    TEMPERATURE = "temperature"
+    """Cuánto azar frente a criterio. Alto: errático. Bajo: metódico."""
+
+    LOSS_AVERSION = "loss_aversion"
+    """Cuánto pesa el precio. Alto: calculador. Bajo: vive el momento."""
+
+    CRITICAL_THRESHOLD = "critical_need_threshold"
+    """Cuándo cunde el pánico. Alto: se alarma pronto. Bajo: aguanta."""
+
+    TRAVEL_DISCOUNT = "travel_discount"
+    """Cuánto pesa la distancia. Alto: se mueve. Bajo: arraigado."""
+
+
+# ---------------------------------------------------------------------------
 # Rasgos: multiplicadores estables de personalidad
 # ---------------------------------------------------------------------------
 class TraitSpec(Spec):
@@ -112,6 +141,20 @@ class TraitSpec(Spec):
     Así el 0 siempre neutraliza (M**0 == 1) y el -1 invierte exactamente
     (M**-1 == 1/M). Con interpolación lineal, un multiplicador de 2.2 y una
     intensidad de -1 daría un factor negativo, que no significa nada.
+    """
+
+    temperament_multipliers: dict[TemperamentKnob, PositiveFactor] = Field(
+        default_factory=dict
+    )
+    """Segundo canal del rasgo: en vez de QUÉ le importa al agente, cambia CÓMO
+    decide.
+
+    Se compone igual que los pesos —el multiplicador elevado a la intensidad—
+    y sobre el valor que el pack fijó para el mundo.
+
+    Un rasgo puede usar los dos canales, uno, o ninguno. `impulsividad` solo
+    toca temperamento; `codicia` solo toca pesos; nada impide que un rasgo haga
+    ambas cosas.
     """
 
 

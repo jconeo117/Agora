@@ -16,7 +16,7 @@ from agora.agents.decide import (
     decide,
     urgency,
 )
-from agora.engine.ontology import ActionId, AgentId, NeedId, PlaceId
+from agora.engine.ontology import ActionId, AgentId, NeedId, PlaceId, TraitId
 from agora.engine.pack import ContentPack
 from agora.engine.state import AgentState, PerformingAction, Traveling, WorldState
 
@@ -322,6 +322,125 @@ def test_ties_break_towards_the_closer_option() -> None:
     chosen = decide(world, world.agents[AG1])
     assert chosen is not None
     assert chosen.travel_ticks == 0
+
+
+# --- temperamento: dos personas ante la misma situación ----------------------
+
+
+def tempered_pack(**overrides: Any) -> dict[str, Any]:
+    """`act_con_aff` gana n1 pero gasta n2. Tres rasgos de temperamento puro."""
+    data = costly_pack()
+    data["traits"] = [
+        {
+            "id": "impulsividad",
+            "label": "impulsividad",
+            "temperament_multipliers": {"temperature": 3.0, "loss_aversion": 0.3},
+        },
+        {
+            "id": "aguante",
+            "label": "aguante",
+            "temperament_multipliers": {"critical_need_threshold": 0.3},
+        },
+        {
+            "id": "arraigo",
+            "label": "arraigo",
+            "temperament_multipliers": {"travel_discount": 0.6},
+        },
+    ]
+    data.update(overrides)
+    return data
+
+
+def agent_with(traits: dict[str, float], **overrides: Any) -> WorldState:
+    data = tempered_pack(**overrides)
+    data["agents"] = [
+        {"id": "ag1", "label": "ag1", "home": "p1", "start_at": "p1", "traits": traits}
+    ]
+    return WorldState.new(world_pack(**data), seed=7)
+
+
+def test_the_thrifty_and_the_impulsive_price_the_same_action_differently() -> None:
+    """Misma acción, mismo estado, distinta persona. Es lo que el paso existe
+    para permitir: hoy los diez residentes compartían temperamento."""
+
+    def utility(traits: dict[str, float]) -> float:
+        world = agent_with(traits)
+        agent = world.agents[AG1]
+        agent.needs[N1] = 0.4
+        agent.needs[NeedId("n2")] = 0.2  # lo que la acción gasta, escaso
+        return next(d for d in candidates(world, agent) if d.action == CON_AFF).utility
+
+    impulsivo = utility({"impulsividad": 1.0})
+    calculador = utility({"impulsividad": -1.0})
+
+    assert impulsivo > calculador, "al impulsivo el precio le pesa menos"
+
+
+def test_the_rooted_agent_discounts_distance_harder() -> None:
+    def utility(traits: dict[str, float]) -> float:
+        world = agent_with(traits)
+        agent = world.agents[AG1]
+        agent.at = P2  # la acción útil está en p1, a 1 tick
+        agent.needs[N1] = 0.3
+        agent.needs[NeedId("n2")] = 0.9
+        return next(
+            d for d in candidates(world, agent) if d.action == CON_AFF and d.place == P1
+        ).utility
+
+    assert utility({"arraigo": 1.0}) < utility({"arraigo": -1.0})
+
+
+def test_the_stoic_holds_out_longer_before_panicking() -> None:
+    """Mismo estado de necesidad; uno lo considera una emergencia y el otro no."""
+
+    def is_urgent(traits: dict[str, float]) -> bool:
+        world = agent_with(traits, tuning={"critical_need_threshold": 0.3})
+        agent = world.agents[AG1]
+        agent.needs[N1] = 0.12
+        agent.busy = PerformingAction(action=LIBRE, ticks_remaining=5)
+        return critical_need(world, agent) is not None
+
+    assert is_urgent({"aguante": -1.0}) is True
+    assert is_urgent({"aguante": 1.0}) is False
+
+
+def test_the_methodical_agent_wavers_less_than_the_impulsive_one() -> None:
+    """La temperatura solo actúa cuando hay diferencias que ignorar.
+
+    Con las necesidades llenas todas las utilidades valen exactamente 0.0, y el
+    softmax de valores idénticos es uniforme por baja que sea la temperatura.
+    Por eso la prueba usa un estado donde las opciones SÍ se distinguen: ahí es
+    donde el carácter decide si se respeta el criterio o no.
+    """
+
+    def variety(traits: dict[str, float]) -> int:
+        world = agent_with(traits, tuning={"candidate_pool": 3})
+        agent = world.agents[AG1]
+        # Un ganador claro que ignorar: lo que la acción da escasea y lo que
+        # gasta sobra. Con las opciones casi empatadas, la temperatura no
+        # distingue a nadie.
+        agent.needs[N1] = 0.1
+        agent.needs[NeedId("n2")] = 0.9
+
+        picks = set()
+        for tick in range(60):
+            world.tick = tick
+            picks.add(decide(world, agent))
+        return len(picks)
+
+    assert variety({"impulsividad": -1.0}) == 1, "el metódico siempre elige lo mejor"
+    assert variety({"impulsividad": 1.0}) > 1, "el impulsivo se desvía"
+
+
+def test_drift_updates_the_temperament_too() -> None:
+    """`temperament` es derivado igual que `need_weights`: si `drift_trait` no
+    lo recompusiera, el agente seguiría decidiendo con el carácter de antes."""
+    world = agent_with({"impulsividad": 0.0})
+    agent = world.agents[AG1]
+    antes = agent.temperament.temperature
+
+    agent.drift_trait(world.pack, TraitId("impulsividad"), +1.0)
+    assert agent.temperament.temperature > antes
 
 
 # --- interrupción ------------------------------------------------------------

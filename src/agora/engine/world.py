@@ -82,9 +82,10 @@ class Simulation:
         recuerdos del mismo hecho.
         """
         specs = self.pack.need_by_id
-        threshold = self.pack.tuning.critical_need_threshold
 
         for agent in self.state.agents_in_order():
+            # El umbral es de cada cual: quien aguanta más tarda más en alarmarse.
+            threshold = agent.temperament.critical_need_threshold
             before = dict(agent.needs)
             agent.decay(specs)
             for need_id, value in agent.needs.items():

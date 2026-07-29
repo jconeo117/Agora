@@ -123,6 +123,30 @@ traits:
       descanso: 1.35
       vinculo: 0.7
 
+  # ---------------------------------------------------------------------------
+  # TEMPERAMENTO. Estos tres no dicen QUÉ le importa al agente, sino CÓMO
+  # decide. Se componen sobre los valores del mundo declarados en `tuning`.
+  #
+  # No hacen falta rasgos opuestos: la intensidad negativa ya invierte. El
+  # metódico es el impulsivo con el signo cambiado.
+  # ---------------------------------------------------------------------------
+
+  - id: impulsividad
+    label: "impulsividad"
+    temperament_multipliers:
+      temperature: 3.0        # +1 errático · -1 metódico, siempre lo mejor
+      loss_aversion: 0.55     # y además no se para a mirar el precio
+
+  - id: aguante
+    label: "aguante"
+    temperament_multipliers:
+      critical_need_threshold: 0.35   # +1 estoico · -1 se desmorona pronto
+
+  - id: arraigo
+    label: "arraigo"
+    temperament_multipliers:
+      travel_discount: 0.80   # +1 no sale del barrio · -1 cruza la ciudad
+
 # -----------------------------------------------------------------------------
 # ACCIONES
 #
@@ -417,7 +441,7 @@ agents:
     label: "R01"
     home: hab_01
     start_at: hab_01
-    traits: { laboriosidad: 0.7, sociabilidad: -0.2, frugalidad: 0.5 }
+    traits: { laboriosidad: 0.7, sociabilidad: -0.2, frugalidad: 0.5, impulsividad: -0.7, aguante: 0.6 }
     tastes:
       - { target: hab_01, multiplier: 1.8 }
       - { target: trabajar_en_oficina, multiplier: 2.5 }
@@ -426,7 +450,7 @@ agents:
     label: "R02"
     home: hab_02
     start_at: hab_02
-    traits: { sociabilidad: 0.8, hedonismo: 0.4, laboriosidad: -0.3 }
+    traits: { sociabilidad: 0.8, hedonismo: 0.4, laboriosidad: -0.3, impulsividad: 0.6, arraigo: -0.5 }
     tastes:
       - { target: hab_02, multiplier: 1.8 }
       - { target: trabajar_en_oficina, multiplier: 2.5 }
@@ -435,7 +459,7 @@ agents:
     label: "R03"
     home: hab_03
     start_at: hab_03
-    traits: { hedonismo: 0.9, frugalidad: -0.6, sociabilidad: 0.3 }
+    traits: { hedonismo: 0.9, frugalidad: -0.6, sociabilidad: 0.3, impulsividad: 0.9, aguante: -0.6 }
     tastes:
       - { target: hab_03, multiplier: 1.8 }
       - { target: trabajar_en_taller, multiplier: 2.5 }
@@ -444,7 +468,7 @@ agents:
     label: "R04"
     home: hab_04
     start_at: hab_04
-    traits: { apego_al_hogar: 0.8, sociabilidad: -0.5, frugalidad: 0.6 }
+    traits: { apego_al_hogar: 0.8, sociabilidad: -0.5, frugalidad: 0.6, arraigo: 0.9, impulsividad: -0.4 }
     tastes:
       - { target: hab_04, multiplier: 1.8 }
       - { target: trabajar_en_almacen, multiplier: 2.5 }
@@ -453,7 +477,7 @@ agents:
     label: "R05"
     home: hab_05
     start_at: hab_05
-    traits: { sociabilidad: 0.5, laboriosidad: 0.4, hedonismo: -0.2 }
+    traits: { sociabilidad: 0.5, laboriosidad: 0.4, hedonismo: -0.2, aguante: 0.5, arraigo: -0.3 }
     tastes:
       - { target: hab_05, multiplier: 1.8 }
       - { target: trabajar_en_oficina, multiplier: 2.5 }
@@ -462,7 +486,7 @@ agents:
     label: "R06"
     home: hab_06
     start_at: hab_06
-    traits: { frugalidad: 0.9, hedonismo: -0.7, apego_al_hogar: 0.4 }
+    traits: { frugalidad: 0.9, hedonismo: -0.7, apego_al_hogar: 0.4, impulsividad: -0.9, aguante: 0.7 }
     tastes:
       - { target: hab_06, multiplier: 1.8 }
       - { target: trabajar_en_taller, multiplier: 2.5 }
@@ -471,7 +495,7 @@ agents:
     label: "R07"
     home: hab_07
     start_at: hab_07
-    traits: { hedonismo: 0.6, sociabilidad: 0.7, laboriosidad: -0.4 }
+    traits: { hedonismo: 0.6, sociabilidad: 0.7, laboriosidad: -0.4, impulsividad: 0.7, arraigo: -0.8 }
     tastes:
       - { target: hab_07, multiplier: 1.8 }
       - { target: trabajar_en_almacen, multiplier: 2.5 }
@@ -480,7 +504,7 @@ agents:
     label: "R08"
     home: hab_08
     start_at: hab_08
-    traits: { laboriosidad: 0.9, apego_al_hogar: 0.3, sociabilidad: -0.6 }
+    traits: { laboriosidad: 0.9, apego_al_hogar: 0.3, sociabilidad: -0.6, aguante: 0.8, impulsividad: -0.5 }
     tastes:
       - { target: hab_08, multiplier: 1.8 }
       - { target: trabajar_en_oficina, multiplier: 2.5 }
@@ -489,7 +513,7 @@ agents:
     label: "R09"
     home: hab_09
     start_at: hab_09
-    traits: { sociabilidad: 0.6, frugalidad: -0.4, hedonismo: 0.3 }
+    traits: { sociabilidad: 0.6, frugalidad: -0.4, hedonismo: 0.3, impulsividad: 0.4, aguante: -0.7 }
     tastes:
       - { target: hab_09, multiplier: 1.8 }
       - { target: trabajar_en_taller, multiplier: 2.5 }
@@ -498,7 +522,7 @@ agents:
     label: "R10"
     home: hab_10
     start_at: hab_10
-    traits: { apego_al_hogar: 0.6, laboriosidad: 0.5, hedonismo: -0.3 }
+    traits: { apego_al_hogar: 0.6, laboriosidad: 0.5, hedonismo: -0.3, arraigo: 0.7, aguante: 0.3 }
     tastes:
       - { target: hab_10, multiplier: 1.8 }
       - { target: trabajar_en_almacen, multiplier: 2.5 }

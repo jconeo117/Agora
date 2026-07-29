@@ -166,13 +166,14 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
     # días. Ver `AgentState.drift_trait`.
     weights = agent.need_weights
     tastes = agent.tastes
+    temperament = agent.temperament
 
     found: list[Decision] = []
     for place in pack.places:
         travel = world.travel.distance(agent.at, place.id)
         if travel >= INFINITE:
             continue  # imposible con un pack validado, pero el motor no asume
-        discount = pack.tuning.travel_discount**travel
+        discount = temperament.travel_discount**travel
         place_taste = tastes.get(str(place.id), 1.0)
 
         for action in pack.actions:
@@ -180,7 +181,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
                 continue
             reward = benefit(pack, agent, action, weights) * discount * place_taste
             reward *= tastes.get(str(action.id), 1.0)
-            price = cost(pack, agent, action, weights) * pack.tuning.loss_aversion
+            price = cost(pack, agent, action, weights) * temperament.loss_aversion
             found.append(
                 Decision(
                     action=action.id,
@@ -241,7 +242,7 @@ def decide(
     # altas; es el truco estándar de estabilidad numérica del softmax y no
     # cambia el resultado, porque exp(a-m)/Σexp(b-m) == exp(a)/Σexp(b).
     best = finalists[0].utility
-    temperature = world.pack.tuning.temperature
+    temperature = agent.temperament.temperature
     weights = [math.exp((d.utility - best) / temperature) for d in finalists]
 
     # La clave incluye el tick, y ese detalle es el que importa: el sorteo pasa
@@ -277,7 +278,7 @@ def critical_needs(world: WorldState, agent: AgentState) -> list[NeedId]:
     Desempate por id para que el orden no dependa de la comparación de floats
     cuando dos valores coinciden.
     """
-    threshold = world.pack.tuning.critical_need_threshold
+    threshold = agent.temperament.critical_need_threshold
     urgent = [need for need, value in agent.needs.items() if value < threshold]
     return sorted(urgent, key=lambda need: (agent.needs[need], str(need)))
 
