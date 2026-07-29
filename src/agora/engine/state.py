@@ -210,16 +210,25 @@ class AgentState:
 
     # -- necesidades ----------------------------------------------------------
 
-    def decay(self, need_specs: Mapping[NeedId, NeedSpec]) -> None:
+    def decay(self, need_specs: Mapping[NeedId, NeedSpec], company: int = 0) -> None:
         """Baja cada necesidad según su propia tasa. Resultado en [0, 1].
+
+        `company` son los otros agentes presentes. Las necesidades que declaren
+        `company_relief` decaen más despacio estando acompañado, con saturación
+        `n/(n+1)`: uno da la mitad del alivio, tres tres cuartos, una multitud
+        nunca más que el tope.
 
         Indexa directo en vez de usar `.get(..., default)`: si una necesidad del
         pack no está en el dict del agente, eso es un bug de construcción y
         quiero que reviente aquí, ruidosamente, y no que se propague un default
         inventado. El invariante lo garantiza `WorldState.new`.
         """
+        crowd = max(0, company)
+        saturation = crowd / (crowd + 1) if crowd else 0.0
+
         for need_id, spec in need_specs.items():
-            self.needs[need_id] = self._clamp(self.needs[need_id] - spec.decay_per_tick)
+            drop = spec.decay_per_tick - spec.company_relief * saturation
+            self.needs[need_id] = self._clamp(self.needs[need_id] - drop)
 
     def apply(self, effects: Mapping[NeedId, float]) -> None:
         """Suma los deltas de una acción completada. Resultado en [0, 1].
@@ -329,6 +338,17 @@ class WorldState:
     def place_of(self, agent: AgentState) -> PlaceSpec:
         """Dónde está, con sus affordances. Decide qué acciones son válidas."""
         return self.pack.place_by_id[agent.at]
+
+    def occupancy(self) -> dict[PlaceId, int]:
+        """Cuántos agentes hay en cada lugar. Una pasada, no una por consulta.
+
+        La deliberación pregunta por los 21 lugares del mundo en cada decisión;
+        contar por separado cada vez sería cuadrático en el número de agentes.
+        """
+        counts: dict[PlaceId, int] = {}
+        for agent in self.agents.values():
+            counts[agent.at] = counts.get(agent.at, 0) + 1
+        return counts
 
     def others_at(self, agent: AgentState) -> list[AgentState]:
         """Los demás agentes en el mismo lugar.

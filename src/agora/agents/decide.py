@@ -141,11 +141,20 @@ def cost(
     return _weigh(pack, agent, weights, action.costs)
 
 
-def is_available(action: ActionSpec, place: PlaceSpec) -> bool:
-    """¿Se puede ejecutar esta acción aquí? Público porque el tick loop lo
-    necesita al llegar a destino, para saber si la intención sigue siendo
-    válida."""
-    return action.requires_affordance is None or action.requires_affordance in place.affordances
+def is_available(action: ActionSpec, place: PlaceSpec, company: int = 0) -> bool:
+    """¿Se puede ejecutar esta acción aquí y ahora?
+
+    `company` son los OTROS agentes presentes, sin contar al que pregunta.
+
+    Público porque el tick loop lo necesita al llegar a destino: entre decidir y
+    llegar, la gente se mueve, y una intención social puede haberse quedado sin
+    interlocutor.
+    """
+    if action.requires_affordance is not None and (
+        action.requires_affordance not in place.affordances
+    ):
+        return False
+    return company >= action.requires_company
 
 
 def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
@@ -168,6 +177,12 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
     tastes = agent.tastes
     temperament = agent.temperament
 
+    # Una sola pasada para los 21 lugares en vez de una cuenta por consulta.
+    # Nota: es la ocupación de AHORA, y el agente puede tardar en llegar. Que se
+    # equivoque es correcto —la gente se mueve— y en F1.6, cuando el
+    # conocimiento sea limitado, esto pasará a ser una creencia y no un hecho.
+    occupancy = world.occupancy()
+
     found: list[Decision] = []
     for place in pack.places:
         travel = world.travel.distance(agent.at, place.id)
@@ -175,9 +190,10 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             continue  # imposible con un pack validado, pero el motor no asume
         discount = temperament.travel_discount**travel
         place_taste = tastes.get(str(place.id), 1.0)
+        company = occupancy.get(place.id, 0) - (1 if agent.at == place.id else 0)
 
         for action in pack.actions:
-            if not is_available(action, place):
+            if not is_available(action, place, company):
                 continue
             reward = benefit(pack, agent, action, weights) * discount * place_taste
             reward *= tastes.get(str(action.id), 1.0)

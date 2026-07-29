@@ -82,12 +82,16 @@ class Simulation:
         recuerdos del mismo hecho.
         """
         specs = self.pack.need_by_id
+        # La ocupación se mide ANTES de que nadie se mueva este tick, así que
+        # todos los agentes ven la misma foto. Calcularla dentro del bucle haría
+        # que el primero de la lista decidiera sobre un mundo distinto al último.
+        occupancy = self.state.occupancy()
 
         for agent in self.state.agents_in_order():
             # El umbral es de cada cual: quien aguanta más tarda más en alarmarse.
             threshold = agent.temperament.critical_need_threshold
             before = dict(agent.needs)
-            agent.decay(specs)
+            agent.decay(specs, company=occupancy.get(agent.at, 0) - 1)
             for need_id, value in agent.needs.items():
                 if before[need_id] >= threshold > value:
                     self._emit(
@@ -146,11 +150,19 @@ class Simulation:
         # que otra necesidad hubiera subido un poco durante el trayecto, y el
         # agente parecería incapaz de terminar nada.
         action = self.pack.action_by_id[busy.intent]
-        if is_available(action, self.pack.place_by_id[agent.at]):
+        company = len(self.state.others_at(agent))
+        if is_available(action, self.pack.place_by_id[agent.at], company):
             self._start_action(agent, busy.intent, utility=None)
         else:
-            # El mundo cambió durante el viaje. Hoy imposible; en F1, con
-            # lugares que cierran de noche, dejará de serlo.
+            # El mundo cambió durante el viaje: normalmente, que la gente por la
+            # que venías ya no está. Es el "fui a la plaza y no había nadie", y
+            # se registra para que se pueda leer en el log.
+            self._emit(
+                EventKind.ACTION_ABORTED,
+                agent,
+                action=busy.intent,
+                data={"reason": "condiciones", "company": company},
+            )
             agent.busy = None
 
     def _next_leg(self, agent: AgentState, busy: Traveling) -> None:

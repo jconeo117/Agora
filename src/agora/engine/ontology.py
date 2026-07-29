@@ -80,6 +80,21 @@ class NeedSpec(Spec):
     base_weight: float = Field(default=1.0, ge=0.0)
     """Importancia base antes de que la personalidad la modifique."""
 
+    company_relief: float = Field(default=0.0, ge=0.0)
+    """Cuánto frena la compañía el decaimiento de esta necesidad, por tick.
+
+    Estar rodeado de gente alivia la soledad aunque no hables con nadie, y da
+    igual quién sea. Modela eso sin necesidad de relaciones.
+
+    El alivio satura: `relief * n/(n+1)`. Una persona da la mitad del máximo,
+    tres dan tres cuartos, y una multitud nunca da más que el tope. Sin saturar,
+    una sala llena volvería la necesidad irrelevante.
+
+    Puesto igual al `decay_per_tick`, la compañía **frena** la necesidad pero
+    nunca la llena: para eso hay que actuar. Es la diferencia entre estar
+    acompañado y estar acompañado por alguien.
+    """
+
     urgency_exponent: float = Field(default=2.0, gt=0.0)
     """Curva de urgencia: urgencia = (1 - valor) ** exponente.
 
@@ -177,6 +192,18 @@ class ActionSpec(Spec):
 
     requires_affordance: Affordance | None = None
     """Si está puesto, la acción solo es válida en lugares que la ofrezcan."""
+
+    requires_company: int = Field(default=0, ge=0)
+    """Cuántos OTROS agentes hacen falta en el sitio para poder hacer esto.
+
+    Sin esto, un agente "charla" solo en una plaza vacía — medido: el 68 % de
+    las conversaciones del barrio no tenían a nadie delante.
+
+    Es una puerta dura, no un descuento. Y se comprueba dos veces: al deliberar,
+    para no elegir lo imposible, y **al llegar a destino**, porque entre que
+    decides y llegas la gente se va. Ese segundo caso produce el "fui a la plaza
+    y no había nadie", que es exactamente lo que se quiere.
+    """
 
     satisfies: dict[NeedId, float] = Field(default_factory=dict)
     """Cuánto CREE el agente que esta acción atiende cada necesidad (0..1)."""

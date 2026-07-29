@@ -69,6 +69,10 @@ needs:
     initial: 0.60
     base_weight: 0.75
     urgency_exponent: 1.9
+    # Igual al decay: rodeado de gente la soledad deja de crecer, pero no se
+    # cura. Para eso hay que hablar con alguien. Con una persona al lado el
+    # alivio es la mitad (saturación n/(n+1)).
+    company_relief: 0.0040
 
   - id: estimulo
     label: "estímulo"
@@ -258,6 +262,7 @@ actions:
     label: "charlar"
     duration_ticks: 6
     requires_affordance: tertulia
+    requires_company: 1               # no se charla solo
     satisfies: { vinculo: 1.0 }
     costs:    { descanso: 0.10 }                    # casi gratis: su ventaja
     effects:  { vinculo: +0.55, estimulo: +0.10, descanso: -0.03 }
@@ -267,6 +272,14 @@ actions:
     label: "salir de fiesta"
     duration_ticks: 14                # 3 h 30
     requires_affordance: jolgorio
+    # SIN requires_company, y es deliberado. Al ponerlo, la acción se
+    # auto-bloqueó: nadie iba al club porque no había nadie, y no había nadie
+    # porque nadie iba. El fallo era de modelado — un club está lleno de
+    # desconocidos, y estos diez no son las únicas personas del barrio.
+    #
+    # `charlar` es con alguien CONCRETO y sí exige un agente al lado. Salir de
+    # fiesta es ir a un local con gente que no simulamos. Cuando existan las
+    # multitudes anónimas como propiedad del lugar, esto se modelará bien.
     satisfies: { estimulo: 1.0, vinculo: 0.60 }
     costs:    { dinero: 0.75, descanso: 0.60 }      # cara por los dos lados
     effects:  { estimulo: +0.80, vinculo: +0.35, descanso: -0.30, dinero: -0.20 }
@@ -453,6 +466,13 @@ places:
 # emerge "duermo en mi cuarto" sin control de acceso) y el propio oficio (lo
 # ancla a un puesto en vez de ir al mejor pagado). El resto son caracter.
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# RESIDENTES
+#
+# Dos gustos hacen trabajo estructural en todos: la propia habitacion (de ahi
+# emerge "duermo en mi cuarto" sin control de acceso) y el propio oficio (lo
+# ancla a un puesto en vez de ir al mejor pagado). El resto son caracter.
+# -----------------------------------------------------------------------------
 agents:
 
 - id: alexia
@@ -464,7 +484,6 @@ agents:
     hedonismo: 0.6
     apego_al_hogar: -0.8
     impulsividad: 0.7
-    aguante: -0.6          # "cambia de tema con facilidad": empieza y deja
     arraigo: -0.8
   tastes:
     - { target: trabajar_en_taller, multiplier: 2.5 }
@@ -516,7 +535,6 @@ agents:
     laboriosidad: 0.4
     apego_al_hogar: 0.9
     impulsividad: -0.7
-    aguante: -0.7          # "insegura": se desmorona pronto
     arraigo: 0.8
   tastes:
     - { target: trabajar_en_almacen, multiplier: 2.5 }
@@ -531,7 +549,6 @@ agents:
   start_at: hab_05
   traits:
     sociabilidad: 0.8
-    laboriosidad: -0.6     # "espontánea": el trabajo no es lo suyo
     hedonismo: 0.9
     apego_al_hogar: -0.7
     impulsividad: 0.9
@@ -549,10 +566,10 @@ agents:
   start_at: hab_06
   traits:
     sociabilidad: 0.6
-    laboriosidad: -0.8     # "relajado": trabaja lo justo, y que se note
+    laboriosidad: -0.5
     hedonismo: 0.3
     impulsividad: 0.2
-    aguante: -0.4          # "flexible": no se empeña
+    aguante: 0.3
   tastes:
     - { target: trabajar_en_almacen, multiplier: 2.5 }
     - { target: cafe, multiplier: 2.0 }
@@ -605,7 +622,6 @@ agents:
     sociabilidad: 0.7
     laboriosidad: -0.4
     hedonismo: 0.7
-    frugalidad: 0.6        # "le gusta negociar": calcula con el dinero
     impulsividad: 0.5
     arraigo: -0.8
   tastes:

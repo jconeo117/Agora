@@ -257,6 +257,23 @@ class ContentPack(Spec):
             and action.requires_affordance not in offered
         ]
 
+    def _check_company_is_reachable(self) -> list[str]:
+        """Nadie puede reunir más compañía que habitantes tiene el mundo.
+
+        Misma familia que la acción huérfana: el pack "funciona" y ese
+        comportamiento simplemente no ocurre nunca. Aquí además hay un menos
+        uno fácil de olvidar — `requires_company` cuenta a los OTROS, así que
+        con 10 agentes el máximo alcanzable es 9.
+        """
+        techo = len(self.agents) - 1
+        return [
+            f"acción {action.id!r}: exige {action.requires_company} acompañantes, "
+            f"pero el mundo solo tiene {len(self.agents)} agentes (máximo "
+            f"alcanzable: {max(techo, 0)}). Nunca será ejecutable"
+            for action in self.actions
+            if action.requires_company > max(techo, 0)
+        ]
+
     def _check_costs_are_declared(self) -> list[str]:
         """Todo efecto negativo tiene que tener su coste declarado.
 
@@ -322,6 +339,7 @@ class ContentPack(Spec):
             *self._check_place_refs(),
             *self._check_taste_refs(),
             *self._check_actions_are_reachable(),
+            *self._check_company_is_reachable(),
             *self._check_costs_are_declared(),
             *self._check_fallback_action_exists(),
             *self._check_world_is_navigable(),
