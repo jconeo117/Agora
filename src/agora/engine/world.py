@@ -177,6 +177,7 @@ class Simulation:
             intent=busy.intent,
             next_hop=hop,
             ticks_remaining=self.state.travel.distance(agent.at, hop),
+            total_ticks=busy.total_ticks,  # el trayecto no se reinicia en cada cruce
         )
 
     def _abort(self, agent: AgentState, urgent: NeedId) -> None:
@@ -214,6 +215,7 @@ class Simulation:
             intent=choice.action,
             next_hop=hop,
             ticks_remaining=self.state.travel.distance(agent.at, hop),
+            total_ticks=choice.travel_ticks,
         )
         self._emit(
             EventKind.TRAVEL_STARTED,

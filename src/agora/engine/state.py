@@ -85,6 +85,15 @@ class Traveling(BaseModel):
 
     ticks_remaining: int = Field(ge=0)
 
+    total_ticks: int = Field(default=0, ge=0)
+    """Duración estimada del trayecto ENTERO al decidirlo, no del tramo.
+
+    Se conserva de tramo en tramo para poder saber cuánto se lleva andado. Sin
+    esto, el progreso solo se sabría dentro del tramo actual, y como los tramos
+    son de uno o dos ticks, un agente que lleva cuatro ticks caminando parecería
+    recién salido de casa cada vez que pisa un cruce.
+    """
+
 
 type Busy = PerformingAction | Traveling
 """Unión discriminada. Consúmela siempre con `match` + `assert_never`:

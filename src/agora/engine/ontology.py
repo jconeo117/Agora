@@ -389,6 +389,20 @@ class TuningSpec(Spec):
     frente a impulsividad), pero eso son dos cambios a la vez.
     """
 
+    switch_cost: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Cuánto protege lo ya invertido frente a una interrupción.
+
+        umbral_efectivo = umbral * (1 - progreso * switch_cost)
+
+    A mitad de una tarea el listón para abandonarla baja, y casi al final solo
+    una catástrofe la corta. Produce el "ya que estoy, lo termino", que es de
+    lo más humano que hay, y evita el desperdicio peor: medido antes de esto,
+    seis veces por semana alguien tiraba algo que llevaba al 80 %.
+
+    0.0 desactiva el mecanismo: se interrumpe igual con un tick hecho que con
+    treinta.
+    """
+
     critical_need_threshold: float = Field(default=0.15, ge=0.0, le=1.0)
     """Por debajo de este valor, una necesidad puede interrumpir lo que se esté
     haciendo. Solo interrumpe si la acción en curso NO la atiende: nadie

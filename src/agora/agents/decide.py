@@ -304,13 +304,46 @@ def current_intent(agent: AgentState) -> ActionId | None:
             assert_never(busy)
 
 
+def commitment(world: WorldState, agent: AgentState) -> float:
+    """Cuánto lleva invertido en lo que está haciendo, en [0, 1].
+
+    Para una acción es el progreso sobre su duración. Para un viaje es el
+    trayecto ENTERO, no el tramo: como los tramos son de uno o dos ticks, medir
+    por tramo haría que quien lleva cuatro ticks caminando pareciera recién
+    salido de casa cada vez que pisa un cruce.
+    """
+    busy = agent.busy
+    if busy is None:
+        return 0.0
+
+    match busy:
+        case PerformingAction():
+            total = world.pack.action_by_id[busy.action].duration_ticks
+            return 1.0 - busy.ticks_remaining / total
+        case Traveling():
+            if busy.total_ticks <= 0:
+                return 0.0
+            queda = world.travel.distance(busy.next_hop, busy.destination)
+            if queda >= INFINITE:  # pragma: no cover - pack validado lo impide
+                return 0.0
+            return max(0.0, 1.0 - (busy.ticks_remaining + queda) / busy.total_ticks)
+        case _:
+            assert_never(busy)
+
+
 def critical_needs(world: WorldState, agent: AgentState) -> list[NeedId]:
     """Necesidades bajo el umbral crítico, de la peor a la menos mala.
+
+    El umbral se estrecha con lo ya invertido: a mitad de tarea hace falta una
+    urgencia mayor para soltarla, y casi al final solo una catástrofe. Es el
+    "ya que estoy, lo termino".
 
     Desempate por id para que el orden no dependa de la comparación de floats
     cuando dos valores coinciden.
     """
-    threshold = agent.temperament.critical_need_threshold
+    threshold = agent.temperament.critical_need_threshold * (
+        1.0 - commitment(world, agent) * world.pack.tuning.switch_cost
+    )
     urgent = [need for need, value in agent.needs.items() if value < threshold]
     return sorted(urgent, key=lambda need: (agent.needs[need], str(need)))
 

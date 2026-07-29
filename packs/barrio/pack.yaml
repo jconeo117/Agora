@@ -36,6 +36,10 @@ tuning:
   # o un agente harto de comer se dejaría morir de hambre antes que repetir.
   novelty_weight: 0.6
 
+  # Cuánto protege lo ya invertido. 0.8 = casi al final solo una catástrofe
+  # corta lo que estás haciendo. El "ya que estoy, lo termino".
+  switch_cost: 0.8
+
   critical_need_threshold: 0.15
 
 # -----------------------------------------------------------------------------
