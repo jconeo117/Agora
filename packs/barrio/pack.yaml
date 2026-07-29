@@ -15,6 +15,34 @@ clock:
   ticks_per_day: 96
 
 # -----------------------------------------------------------------------------
+# CONTRATO DE SALUD
+#
+# Qué clase de mundo quiere ser este barrio, en forma verificable. No son
+# parámetros: son intención de diseño, y saltan cuando deja de cumplirse.
+#
+# Las bandas van holgadas respecto a lo medido a propósito. Un umbral pegado al
+# valor actual convertiría cualquier calibración en un test roto, y calibrar es
+# justamente el trabajo que esto tiene que permitir.
+# -----------------------------------------------------------------------------
+health:
+  days: 7
+  seeds: [1312, 7, 99]
+
+  # Gente bajo presión moderada. Ni miseria ni abundancia: en los dos extremos
+  # el carácter deja de notarse, y está medido — con todo resuelto los diez
+  # convergen en la opción óptima.
+  min_crisis: 0.05          # medido: 15.0 %
+  max_crisis: 0.30
+
+  max_abort_ratio: 0.20     # medido: 11.1 %
+  max_transit: 0.25         # medido: 17.8 %
+  min_differentiation: 0.70 # medido: 0.891
+
+  # La red de seguridad: en un mundo sano nadie debería necesitarla. Cualquier
+  # OTRA acción sin usar sí sería un aviso.
+  may_go_unused: [holgazanear]
+
+# -----------------------------------------------------------------------------
 # CALIBRACIÓN
 # -----------------------------------------------------------------------------
 tuning:

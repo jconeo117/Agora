@@ -30,6 +30,7 @@ from agora.engine.ontology import (
     AgentId,
     AgentSpec,
     ClockSpec,
+    HealthSpec,
     NeedId,
     NeedSpec,
     PlaceId,
@@ -56,6 +57,10 @@ class ContentPack(Spec):
     actions: tuple[ActionSpec, ...]
     places: tuple[PlaceSpec, ...]
     agents: tuple[AgentSpec, ...]
+
+    health: HealthSpec = Field(default_factory=HealthSpec)
+    """Contrato de salud: qué clase de mundo dice ser este pack. Lo verifica
+    `agora.health`, y lo comprueba la batería de tests sobre todos los packs."""
 
     clock: ClockSpec = Field(default_factory=ClockSpec)
     """Cómo se leen los ticks. Solo lo usa la presentación; el motor cuenta

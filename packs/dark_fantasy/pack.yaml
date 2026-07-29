@@ -15,6 +15,27 @@ id: dark_fantasy
 label: "La aldea de Ceniza Baja"
 
 # -----------------------------------------------------------------------------
+# CONTRATO DE SALUD — deliberadamente mínimo
+#
+# Este pack NO está calibrado, y no debe estarlo. Su trabajo es probar que el
+# motor es agnóstico: una ambientación completamente distinta corriendo sin
+# tocar una línea de código. Para eso basta con que funcione.
+#
+# Medido hoy: crisis 47 %, abandonos 22 %, diferenciación 0.026 — Mira y Toma
+# viven casi la misma vida. Se degradó al ir evolucionando el motor (costes,
+# temperamento, hastío, coste de cambio) sin volver a ajustar sus números.
+# Está aquí escrito para que sea una decisión y no un olvido.
+#
+# Por eso solo se le exigen los invariantes universales: que nadie se bloquee y
+# que ningún valor se salga de rango. Ponerle bandas que ya cumple sería
+# escribir un test para que pase, que es peor que no tenerlo.
+# -----------------------------------------------------------------------------
+health:
+  days: 7
+  seeds: [1312, 7, 99]
+  may_go_unused: [holgar]
+
+# -----------------------------------------------------------------------------
 # CALIBRACIÓN. Estas cuatro perillas no dicen QUÉ existe en el mundo, sino CÓMO
 # deciden sus habitantes. Son las que más cambian la sensación de la partida y
 # las que vas a mover más veces. Ninguna requiere tocar código.

@@ -1,0 +1,217 @@
+"""Salud de un mundo: mide un pack y comprueba lo que él mismo promete.
+
+Sirve a dos cosas a la vez, y es deliberado:
+
+- **Calibrando**, da el panel de números sobre el que decidir qué mover.
+- **En la batería de tests**, verifica que un pack sigue cumpliendo su
+  contrato. Sin esto, un cambio en un YAML puede romper una propiedad que
+  dábamos por buena y nadie se entera hasta leer un log entero.
+
+Vive por encima de `engine/` porque usa el motor y la deliberación a la vez.
+
+Las bandas no están aquí: las declara cada pack en su sección `health`. Un test
+con los umbrales clavados pelearía contra la calibración —cambiar un decay lo
+rompería aunque el cambio fuera bueno— y además una aldea acomodada y un mundo
+al borde del colapso no tienen por qué querer lo mismo.
+"""
+
+from __future__ import annotations
+
+from collections import Counter
+from dataclasses import dataclass, field
+from itertools import combinations
+
+from agora.agents.decide import critical_needs
+from agora.engine.events import EventKind
+from agora.engine.ontology import ActionId, AgentId
+from agora.engine.pack import ContentPack
+from agora.engine.world import Simulation
+
+
+@dataclass(frozen=True, slots=True)
+class HealthReport:
+    """Lo medido. Todo son medias sobre las semillas del contrato."""
+
+    days: int
+    seeds: tuple[int, ...]
+    agents: int
+
+    crisis_time: float
+    """Fracción del tiempo con al menos una necesidad bajo el umbral propio."""
+
+    simultaneous_critical: float
+    abort_ratio: float
+    transit_time: float
+    differentiation: float
+    """Distancia L1 media entre los perfiles de actividad de cada par."""
+
+    completed: int
+    aborted: int
+    stalls: int
+    unused: frozenset[ActionId] = field(default_factory=frozenset)
+    out_of_bounds: tuple[str, ...] = ()
+
+    def lines(self) -> list[str]:
+        """Panel legible. Es lo que se mira mientras se calibra."""
+        return [
+            f"  {self.days} días · {self.agents} agentes · semillas {list(self.seeds)}",
+            "",
+            f"  tiempo en crisis        {self.crisis_time:6.1%}",
+            f"  críticas simultáneas    {self.simultaneous_critical:6.2f}",
+            f"  abandonos/completadas   {self.aborted:5}/{self.completed:<6}"
+            f" {self.abort_ratio:.1%}",
+            f"  tiempo en tránsito      {self.transit_time:6.1%}",
+            f"  diferenciación          {self.differentiation:6.3f}",
+            f"  bloqueos                {self.stalls:6}",
+            f"  acciones sin usar       {sorted(self.unused) if self.unused else '—'}",
+        ]
+
+
+def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] | None = None
+            ) -> HealthReport:
+    """Corre el mundo y devuelve sus números.
+
+    El umbral de crisis es el de cada agente, no el del mundo: quien aguanta
+    más tarda más en considerar que algo es una emergencia, y medirlo con una
+    vara común daría un número que no le pasa a nadie.
+    """
+    spec = pack.health
+    days = days if days is not None else spec.days
+    seeds = seeds if seeds is not None else spec.seeds
+    ticks = days * pack.clock.ticks_per_day
+    population = len(pack.agents)
+
+    crisis = 0
+    critical_count = 0
+    samples = 0
+    completed = 0
+    aborted = 0
+    stalls = 0
+    transit = 0
+    used: set[ActionId] = set()
+    profiles: dict[AgentId, Counter[ActionId]] = {a.id: Counter() for a in pack.agents}
+    out_of_bounds: list[str] = []
+
+    for seed in seeds:
+        sim = Simulation(pack, seed=seed)
+        for _ in range(ticks):
+            sim.tick()
+            for agent in sim.state.agents_in_order():
+                urgent = critical_needs(sim.state, agent)
+                critical_count += len(urgent)
+                samples += 1
+                if urgent:
+                    crisis += 1
+
+        for event in sim.log:
+            match event.kind:
+                case EventKind.ACTION_COMPLETED:
+                    completed += 1
+                    if event.action is not None:
+                        used.add(event.action)
+                        if event.actor is not None:
+                            profiles[event.actor][event.action] += 1
+                case EventKind.ACTION_ABORTED:
+                    aborted += 1
+                case EventKind.IDLE_STALLED:
+                    stalls += 1
+                case EventKind.TRAVEL_STARTED:
+                    transit += int(event.data.get("ticks", 0))
+                case _:
+                    pass
+
+        for agent in sim.state.agents_in_order():
+            for need, value in agent.needs.items():
+                if not 0.0 <= value <= 1.0:
+                    out_of_bounds.append(f"{agent.spec_id}.{need} = {value}")
+
+    return HealthReport(
+        days=days,
+        seeds=tuple(seeds),
+        agents=population,
+        crisis_time=crisis / max(samples, 1),
+        simultaneous_critical=critical_count / max(samples, 1),
+        abort_ratio=aborted / max(completed, 1),
+        transit_time=transit / max(ticks * population * len(seeds), 1),
+        differentiation=_differentiation(profiles),
+        completed=completed,
+        aborted=aborted,
+        stalls=stalls,
+        unused=frozenset(a.id for a in pack.actions) - used,
+        out_of_bounds=tuple(out_of_bounds),
+    )
+
+
+def _differentiation(profiles: dict[AgentId, Counter[ActionId]]) -> float:
+    """Distancia L1 media entre los perfiles de actividad de cada par.
+
+    0 = todos viven igual. 2 = no comparten ni una actividad. En la práctica el
+    techo real está mucho más abajo, porque dormir y comer son obligatorios
+    para todos y ocupan la mayor parte del día.
+    """
+    vectors: list[dict[ActionId, float]] = []
+    for counts in profiles.values():
+        total = sum(counts.values()) or 1
+        vectors.append({k: v / total for k, v in counts.items()})
+
+    pairs = [
+        sum(abs(a.get(k, 0.0) - b.get(k, 0.0)) for k in set(a) | set(b))
+        for a, b in combinations(vectors, 2)
+    ]
+    return sum(pairs) / len(pairs) if pairs else 0.0
+
+
+def check(pack: ContentPack, report: HealthReport | None = None) -> list[str]:
+    """Contrasta lo medido con lo que el pack promete. Vacío = todo en orden.
+
+    Los tres primeros son **invariantes universales**: no dependen de lo que el
+    pack declare, porque un mundo donde alguien se queda sin opciones o donde
+    un valor se sale de rango está roto se proponga lo que se proponga.
+    """
+    report = report if report is not None else measure(pack)
+    spec = pack.health
+    problems: list[str] = []
+
+    if report.stalls:
+        problems.append(
+            f"{report.stalls} bloqueos: algún agente se quedó sin ninguna opción válida"
+        )
+    if report.out_of_bounds:
+        problems.append(f"valores fuera de [0,1]: {report.out_of_bounds[:3]}")
+    if report.completed == 0:
+        problems.append("nadie completó ninguna acción en toda la corrida")
+
+    if spec.min_crisis is not None and report.crisis_time < spec.min_crisis:
+        problems.append(
+            f"tiempo en crisis {report.crisis_time:.1%} por debajo del mínimo "
+            f"{spec.min_crisis:.1%}: sin presión, el carácter deja de notarse"
+        )
+    if spec.max_crisis is not None and report.crisis_time > spec.max_crisis:
+        problems.append(
+            f"tiempo en crisis {report.crisis_time:.1%} por encima del máximo "
+            f"{spec.max_crisis:.1%}: la emergencia aplasta al carácter"
+        )
+    if spec.max_abort_ratio is not None and report.abort_ratio > spec.max_abort_ratio:
+        problems.append(
+            f"abandonos {report.abort_ratio:.1%} por encima del máximo "
+            f"{spec.max_abort_ratio:.1%}"
+        )
+    if spec.max_transit is not None and report.transit_time > spec.max_transit:
+        problems.append(
+            f"tránsito {report.transit_time:.1%} por encima del máximo "
+            f"{spec.max_transit:.1%}"
+        )
+    if spec.min_differentiation is not None and report.differentiation < spec.min_differentiation:
+        problems.append(
+            f"diferenciación {report.differentiation:.3f} por debajo del mínimo "
+            f"{spec.min_differentiation:.3f}: las vidas están colapsando entre sí"
+        )
+
+    huerfanas = report.unused - spec.may_go_unused
+    if huerfanas:
+        problems.append(
+            f"acciones declaradas que nunca ocurren: {sorted(huerfanas)}. "
+            f"Si es intencional, decláralas en `health.may_go_unused`"
+        )
+
+    return problems

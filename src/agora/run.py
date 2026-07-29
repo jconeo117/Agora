@@ -13,9 +13,10 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from agora.engine.pack import describe_pack, load_pack
+from agora.engine.pack import ContentPack, describe_pack, load_pack
 from agora.engine.render import render_activity_summary, render_log, render_state
 from agora.engine.world import Simulation
+from agora.health import check, measure
 
 DEFAULT_PACK = Path("packs/dark_fantasy/pack.yaml")
 
@@ -32,9 +33,19 @@ def main() -> None:
         help="vuelca el log crudo, para comparar dos corridas byte a byte",
     )
     parser.add_argument("--quiet", action="store_true", help="solo el resumen")
+    parser.add_argument(
+        "--health",
+        action="store_true",
+        help="mide la salud del mundo sobre varias semillas y contrasta el "
+        "contrato que el pack declara; no corre la simulación normal",
+    )
     args = parser.parse_args()
 
     pack = load_pack(args.pack)
+
+    if args.health:
+        _report_health(pack)
+        return
     sim = Simulation(pack, seed=args.seed)
     ticks = args.days * pack.clock.ticks_per_day
 
@@ -63,6 +74,24 @@ def main() -> None:
     if args.jsonl is not None:
         args.jsonl.write_text("\n".join(sim.log.to_jsonl()) + "\n", encoding="utf-8")
         print(f"# log crudo -> {args.jsonl}")
+
+
+def _report_health(pack: ContentPack) -> None:
+    """Panel de calibración: los números y si el pack cumple lo que promete."""
+    report = measure(pack)
+    print(f"# salud de {pack.label}")
+    print()
+    for line in report.lines():
+        print(line)
+    print()
+
+    problems = check(pack, report)
+    if not problems:
+        print("  contrato: CUMPLE")
+        return
+    print("  contrato: INCUMPLE")
+    for problem in problems:
+        print(f"    - {problem}")
 
 
 if __name__ == "__main__":

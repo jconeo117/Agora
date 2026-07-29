@@ -307,6 +307,58 @@ class AgentSpec(Spec):
 
 
 # ---------------------------------------------------------------------------
+# Salud
+# ---------------------------------------------------------------------------
+class HealthSpec(Spec):
+    """Qué clase de mundo quiere ser este pack.
+
+    No son parámetros de simulación: son **intención de diseño verificable**.
+    "Aquí la gente vive bajo presión moderada, no en la miseria ni en la
+    abundancia" es una afirmación sobre el mundo, y conviene que falle
+    ruidosamente cuando deja de ser cierta.
+
+    Están aquí y no en el test por dos motivos. Uno, un test con las bandas
+    clavadas pelearía contra la calibración: cambiar un decay rompería el test
+    aunque el cambio fuera bueno. Dos, cada ambientación quiere cosas
+    distintas — una aldea acomodada y un mundo al borde del colapso no tienen
+    por qué compartir umbral.
+
+    Todo es opcional. Un pack sin `health` solo se somete a los invariantes
+    universales: que nadie se bloquee y que ningún valor se salga de rango.
+    """
+
+    days: int = Field(default=7, ge=1)
+    seeds: tuple[int, ...] = (1312, 7, 99)
+    """Varias semillas porque una corrida es una muestra, no un resultado."""
+
+    min_crisis: float | None = Field(default=None, ge=0.0, le=1.0)
+    """Suelo de presión. Un mundo donde nadie pasa apuros nunca es un mundo
+    donde el carácter no se nota: con todo resuelto, todos convergen en la
+    opción óptima y las diferencias de personalidad dejan de verse."""
+
+    max_crisis: float | None = Field(default=None, ge=0.0, le=1.0)
+    """Techo de presión. Por encima, la emergencia aplasta al carácter."""
+
+    max_abort_ratio: float | None = Field(default=None, ge=0.0)
+    """Abandonos frente a acciones completadas."""
+
+    max_transit: float | None = Field(default=None, ge=0.0, le=1.0)
+    """Fracción del tiempo en tránsito."""
+
+    min_differentiation: float | None = Field(default=None, ge=0.0)
+    """Distancia media entre las vidas de cada par de agentes. Es la métrica
+    que caza el colapso: fichas distintas que producen vidas idénticas."""
+
+    may_go_unused: frozenset[ActionId] = Field(default_factory=frozenset)
+    """Acciones que pueden no aparecer nunca sin que sea un fallo.
+
+    La red de seguridad es el caso típico: en un mundo sano nadie debería
+    necesitar recurrir a ella. Cualquier OTRA acción sin usar sí es un aviso —
+    es contenido declarado que el mundo nunca ejerce.
+    """
+
+
+# ---------------------------------------------------------------------------
 # Reloj
 # ---------------------------------------------------------------------------
 class ClockSpec(Spec):
