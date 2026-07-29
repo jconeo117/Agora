@@ -92,6 +92,7 @@ class Simulation:
             threshold = agent.temperament.critical_need_threshold
             before = dict(agent.needs)
             agent.decay(specs, company=occupancy.get(agent.at, 0) - 1)
+            agent.recover_novelty(self.pack.tuning.saturation_recovery)
             for need_id, value in agent.needs.items():
                 if before[need_id] >= threshold > value:
                     self._emit(
@@ -128,6 +129,7 @@ class Simulation:
             case PerformingAction():
                 spec = self.pack.action_by_id[busy.action]
                 agent.apply(spec.effects)
+                agent.saturate(busy.action, spec.saturation_gain)
                 self._emit(EventKind.ACTION_COMPLETED, agent, action=busy.action)
                 agent.busy = None
             case Traveling():

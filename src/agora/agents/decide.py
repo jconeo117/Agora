@@ -141,6 +141,21 @@ def cost(
     return _weigh(pack, agent, weights, action.costs)
 
 
+def novelty(agent: AgentState, action: ActionId, weight: float) -> float:
+    """Cuánto atractivo le queda a algo de tanto repetirlo.
+
+        novedad = 1 - saturación * peso
+
+    Multiplica el **beneficio**, nunca el neto: el hastío quita ganas de hacer
+    algo, no cambia lo que cuesta.
+
+    El suelo en `1 - peso` es deliberado. Con novedad pura, una acción saturada
+    al tope valdría cero, y un agente harto de comer se dejaría morir de hambre
+    antes que repetir. El hastío tiene que poder cambiar un plan, no vetarlo.
+    """
+    return 1.0 - agent.saturation.get(action, 0.0) * weight
+
+
 def is_available(action: ActionSpec, place: PlaceSpec, company: int = 0) -> bool:
     """¿Se puede ejecutar esta acción aquí y ahora?
 
@@ -197,6 +212,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
                 continue
             reward = benefit(pack, agent, action, weights) * discount * place_taste
             reward *= tastes.get(str(action.id), 1.0)
+            reward *= novelty(agent, action.id, pack.tuning.novelty_weight)
             price = cost(pack, agent, action, weights) * temperament.loss_aversion
             found.append(
                 Decision(

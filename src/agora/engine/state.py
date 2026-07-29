@@ -153,6 +153,17 @@ class AgentState:
     El default solo existe para que construir un `AgentState` suelto en un test
     no reviente; cualquier agente de una partida real pasa por `from_spec`."""
 
+    saturation: dict[ActionId, float] = field(default_factory=dict)
+    """Hastío por acción, en [0, 1]. Sube al COMPLETAR, se disipa cada tick.
+
+    Al completar y no al empezar: uno se cansa de lo que hizo, no de lo que
+    intentó. Un agente que empieza y abandona no debería aburrirse de algo que
+    nunca llegó a hacer.
+
+    Las acciones sin `saturation_gain` nunca entran en este diccionario, así
+    que no ocupan nada.
+    """
+
     busy: Busy | None = None
     """`None` = ocioso. Este agente delibera en el tick actual."""
 
@@ -238,6 +249,29 @@ class AgentState:
         """
         for need_id, delta in effects.items():
             self.needs[need_id] = self._clamp(self.needs[need_id] + delta)
+
+    # -- hastío ---------------------------------------------------------------
+
+    def saturate(self, action: ActionId, gain: float) -> None:
+        """Registra que acaba de hacer esto. `gain` 0 no deja rastro."""
+        if gain <= 0.0:
+            return
+        self.saturation[action] = self._clamp(self.saturation.get(action, 0.0) + gain)
+
+    def recover_novelty(self, rate: float) -> None:
+        """Disipa el hastío. Lo que llega a cero se olvida.
+
+        Borrar las entradas agotadas mantiene el diccionario del tamaño de lo
+        que el agente hace últimamente, no de todo lo que ha hecho nunca.
+        """
+        if rate <= 0.0:
+            return
+        for action in list(self.saturation):
+            resto = self.saturation[action] - rate
+            if resto <= 0.0:
+                del self.saturation[action]
+            else:
+                self.saturation[action] = resto
 
     @staticmethod
     def _clamp(value: float) -> float:

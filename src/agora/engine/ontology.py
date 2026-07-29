@@ -225,6 +225,18 @@ class ActionSpec(Spec):
     effects: dict[NeedId, float] = Field(default_factory=dict)
     """Delta real aplicado al completar. Puede ser negativo (trabajar cansa)."""
 
+    saturation_gain: float = Field(default=0.0, ge=0.0)
+    """Cuánto hastía una repetición de esto. 0 = nunca cansa.
+
+    Que sea opcional y por acción es lo que impide que el mecanismo se pelee
+    con la necesidad fisiológica: si `dormir` saturara, un agente evitaría
+    dormir por repetitivo, y dormir cada día es lo correcto. Se declara solo
+    en lo que de verdad aburre repetir.
+
+    La recuperación es global (`TuningSpec.saturation_recovery`), así que este
+    valor gobierna a la vez cuánto sube el hastío y cuánto tarda en pasarse.
+    """
+
     tags: frozenset[Tag] = Field(default_factory=frozenset)
     """Válvula de escape para lo que el motor no modela: "violenta", "ilegal",
     "ruidosa". Los packs declaran qué significan; el motor solo las compara."""
@@ -344,6 +356,24 @@ class TuningSpec(Spec):
 
     Cerca de 0 = casi siempre gana el mejor. Alta = casi indiferente entre los
     finalistas. Es la perilla que separa "persona con criterio" de "veleta".
+    """
+
+    saturation_recovery: float = Field(default=0.004, ge=0.0)
+    """Cuánto se pasa el hastío por tick. A 0.004, una saturación de 0.35 se
+    disipa en unos 88 ticks — algo menos de un día."""
+
+    novelty_weight: float = Field(default=0.6, ge=0.0, le=1.0)
+    """Cuánto castiga el hastío pleno:
+
+        novedad = 1 - saturación * novelty_weight
+
+    Acotado por debajo a `1 - novelty_weight`, y ahí está su razón de ser. Con
+    novedad pura, una acción saturada al tope valdría cero aunque la necesitaras
+    desesperadamente, y un agente hastiado de comer se moriría de hambre. A 0.6
+    el hastío recorta como mucho un 40 %: suficiente para cambiar de plan, no
+    para impedir lo imprescindible.
+
+    0.0 desactiva el mecanismo por completo.
     """
 
     loss_aversion: float = Field(default=1.0, ge=0.0)

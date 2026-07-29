@@ -28,6 +28,14 @@ tuning:
   # 0.5 = gente que vive el momento; 0.0 desactiva los costes por completo.
   loss_aversion: 1.0
 
+  # Hastío por repetición. La ganancia va por acción (ver `saturation_gain`);
+  # esto es lo que se disipa por tick y cuánto castiga estar harto.
+  # A 0.004, un hastío de 0.35 se pasa en ~88 ticks, algo menos de un día.
+  saturation_recovery: 0.004
+  # Tope del castigo: 0.6 = como mucho un 40 % menos de atractivo. Nunca cero,
+  # o un agente harto de comer se dejaría morir de hambre antes que repetir.
+  novelty_weight: 0.6
+
   critical_need_threshold: 0.15
 
 # -----------------------------------------------------------------------------
@@ -188,6 +196,7 @@ actions:
     requires_affordance: lecho
     satisfies: { descanso: 0.40, estimulo: 0.15 }
     effects:  { descanso: +0.30, estimulo: +0.08 }
+    saturation_gain: 0.35
 
   # --- comida: aquí está la disyuntiva económica principal del barrio ---
   - id: cocinar
@@ -197,6 +206,7 @@ actions:
     satisfies: { sustento: 0.90 }
     costs:    { provisiones: 0.45, dinero: 0.05 }   # vacía la despensa, no la cartera
     effects:  { sustento: +0.72, provisiones: -0.22, dinero: -0.01 }
+    saturation_gain: 0.1
 
   - id: comer_fuera
     label: "comer fuera"
@@ -205,6 +215,7 @@ actions:
     satisfies: { sustento: 1.0, vinculo: 0.20 }
     costs:    { dinero: 0.50 }                      # comer fuera VA de gastar
     effects:  { sustento: +0.85, dinero: -0.09, vinculo: +0.08 }
+    saturation_gain: 0.12
 
   # --- compras ---
   - id: hacer_compras
@@ -214,6 +225,7 @@ actions:
     satisfies: { provisiones: 1.0 }
     costs:    { dinero: 0.40 }
     effects:  { provisiones: +0.75, dinero: -0.12 }
+    saturation_gain: 0.15
 
   - id: darse_un_capricho
     label: "darse un capricho"
@@ -222,6 +234,7 @@ actions:
     satisfies: { estimulo: 0.70 }
     costs:    { dinero: 0.55 }                      # caro, pero alcanzable
     effects:  { estimulo: +0.45, dinero: -0.16 }
+    saturation_gain: 0.3
     tags: [gasto]
 
   # --- trabajo: tres oficios con equilibrios distintos ---
@@ -266,6 +279,7 @@ actions:
     satisfies: { vinculo: 1.0 }
     costs:    { descanso: 0.10 }                    # casi gratis: su ventaja
     effects:  { vinculo: +0.55, estimulo: +0.10, descanso: -0.03 }
+    saturation_gain: 0.2
     tags: [social]
 
   - id: salir_de_fiesta
@@ -283,6 +297,7 @@ actions:
     satisfies: { estimulo: 1.0, vinculo: 0.60 }
     costs:    { dinero: 0.75, descanso: 0.60 }      # cara por los dos lados
     effects:  { estimulo: +0.80, vinculo: +0.35, descanso: -0.30, dinero: -0.20 }
+    saturation_gain: 0.4
     tags: [social, gasto, agotadora]
 
   - id: tomar_el_aire
@@ -291,6 +306,7 @@ actions:
     requires_affordance: aire_libre
     satisfies: { estimulo: 0.45, descanso: 0.15 }
     effects:  { estimulo: +0.28, descanso: +0.05 }  # el estímulo del que no llega
+    saturation_gain: 0.25
 
   # --- red de seguridad: sin affordance, válida en cualquier sitio ---
   - id: holgazanear
@@ -298,6 +314,8 @@ actions:
     duration_ticks: 4
     satisfies: { descanso: 0.12 }
     effects:  { descanso: +0.04 }
+    # SIN saturation_gain, y es importante: es la última opción cuando nada
+    # compensa. Hastiarla podría dejar a un agente sin nada que hacer.
 
 # -----------------------------------------------------------------------------
 # LUGARES
