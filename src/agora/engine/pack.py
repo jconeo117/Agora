@@ -191,6 +191,7 @@ class ContentPack(Spec):
             for field, mapping in (
                 ("satisfies", action.satisfies),
                 ("costs", action.costs),
+                ("requires", action.requires),
                 ("effects", action.effects),
             ):
                 problems += self._unknown_keys(
@@ -279,6 +280,29 @@ class ContentPack(Spec):
             if action.requires_company > max(techo, 0)
         ]
 
+    def _check_requirements_cover_what_they_spend(self) -> list[str]:
+        """Una precondición por debajo de lo que la acción consume no sirve.
+
+        Si `cocinar` exige 0.10 de despensa pero gasta 0.22, un agente con 0.15
+        puede cocinar y el efecto se trunca a cero igual. La puerta existe, deja
+        pasar, y el problema que venía a resolver sigue ahí — pero ahora
+        disfrazado de resuelto, que es peor.
+
+        Quien no quiera la puerta, que no declare el requisito.
+        """
+        problems: list[str] = []
+        for action in self.actions:
+            for need_id, minimum in action.requires.items():
+                gasto = -action.effects.get(need_id, 0.0)
+                if gasto > 0.0 and minimum < gasto:
+                    problems.append(
+                        f"acción {action.id!r}: exige {minimum} de {need_id!r} pero "
+                        f"consume {gasto}. Un agente justo por encima del mínimo "
+                        f"seguiría truncando el efecto; sube el requisito a {gasto} "
+                        f"o quítalo"
+                    )
+        return problems
+
     def _check_costs_are_declared(self) -> list[str]:
         """Todo efecto negativo tiene que tener su coste declarado.
 
@@ -345,6 +369,7 @@ class ContentPack(Spec):
             *self._check_taste_refs(),
             *self._check_actions_are_reachable(),
             *self._check_company_is_reachable(),
+            *self._check_requirements_cover_what_they_spend(),
             *self._check_costs_are_declared(),
             *self._check_fallback_action_exists(),
             *self._check_world_is_navigable(),

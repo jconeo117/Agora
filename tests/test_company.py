@@ -64,17 +64,22 @@ def social_pack(**overrides: Any) -> ContentPack:
 # --- disponibilidad ----------------------------------------------------------
 
 
+HOLGADO = {N1: 1.0}
+
+
 def test_a_social_action_is_unavailable_alone() -> None:
     pack = social_pack()
     action, place = pack.action_by_id[SOCIAL], pack.place_by_id[P1]
-    assert not is_available(action, place, company=0)
-    assert is_available(action, place, company=1)
+    assert not is_available(action, place, company=0, needs=HOLGADO)
+    assert is_available(action, place, company=1, needs=HOLGADO)
 
 
 def test_company_does_not_replace_the_affordance() -> None:
-    """Las dos condiciones son necesarias, no alternativas."""
+    """Las tres condiciones son necesarias, no alternativas."""
     pack = social_pack()
-    assert not is_available(pack.action_by_id[SOCIAL], pack.place_by_id[P2], company=5)
+    assert not is_available(
+        pack.action_by_id[SOCIAL], pack.place_by_id[P2], company=5, needs=HOLGADO
+    )
 
 
 def test_deliberation_ignores_a_place_without_company() -> None:

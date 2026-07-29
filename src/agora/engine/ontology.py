@@ -193,6 +193,22 @@ class ActionSpec(Spec):
     requires_affordance: Affordance | None = None
     """Si está puesto, la acción solo es válida en lugares que la ofrezcan."""
 
+    requires: dict[NeedId, NonNegativeFactor] = Field(default_factory=dict)
+    """Nivel mínimo de cada necesidad para poder siquiera intentarlo.
+
+    Es el "no puedo permitírmelo". Sin esto, un agente con la despensa a cero
+    cocina igual y el efecto negativo simplemente se recorta: el ritmo sale
+    plausible pero la restricción no existe, y ninguna decisión cambia por
+    estar arruinado.
+
+    Puerta dura, no descuento. El coste ya modula el atractivo de gastar; esto
+    es otra cosa: hay cosas que directamente no puedes hacer.
+
+    Puesto a la altura de lo que la acción consume, el efecto deja de truncarse
+    — y `pack.py` rechaza declararlo por debajo, porque entonces no impediría
+    nada de lo que dice impedir.
+    """
+
     requires_company: int = Field(default=0, ge=0)
     """Cuántos OTROS agentes hacen falta en el sitio para poder hacer esto.
 

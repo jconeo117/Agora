@@ -156,20 +156,33 @@ def novelty(agent: AgentState, action: ActionId, weight: float) -> float:
     return 1.0 - agent.saturation.get(action, 0.0) * weight
 
 
-def is_available(action: ActionSpec, place: PlaceSpec, company: int = 0) -> bool:
-    """¿Se puede ejecutar esta acción aquí y ahora?
+def is_available(
+    action: ActionSpec,
+    place: PlaceSpec,
+    company: int,
+    needs: Mapping[NeedId, float],
+) -> bool:
+    """¿Se puede ejecutar esta acción aquí y ahora? Tres puertas duras:
 
-    `company` son los OTROS agentes presentes, sin contar al que pregunta.
+    - **el lugar** la ofrece (affordance)
+    - **hay gente** suficiente (`company` = los OTROS, sin contar a quien pregunta)
+    - **alcanzan los recursos** (`requires`)
 
-    Público porque el tick loop lo necesita al llegar a destino: entre decidir y
-    llegar, la gente se mueve, y una intención social puede haberse quedado sin
-    interlocutor.
+    Ninguna lleva valor por defecto a propósito. Un `company=0` implícito
+    convertiría en ejecutable una acción social por olvidarse de pasarlo, y ese
+    fallo no se nota mirando: se nota siete días después, leyendo el log.
+
+    Pública porque el tick loop la necesita al llegar a destino. Entre decidir y
+    llegar cambian las tres cosas: la gente se va, el dinero se gasta, y en F1
+    los lugares empezarán a cerrar de noche.
     """
     if action.requires_affordance is not None and (
         action.requires_affordance not in place.affordances
     ):
         return False
-    return company >= action.requires_company
+    if company < action.requires_company:
+        return False
+    return all(needs[need] >= minimum for need, minimum in action.requires.items())
 
 
 def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
@@ -208,7 +221,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
         company = occupancy.get(place.id, 0) - (1 if agent.at == place.id else 0)
 
         for action in pack.actions:
-            if not is_available(action, place, company):
+            if not is_available(action, place, company, agent.needs):
                 continue
             reward = benefit(pack, agent, action, weights) * discount * place_taste
             reward *= tastes.get(str(action.id), 1.0)

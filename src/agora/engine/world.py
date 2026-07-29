@@ -153,7 +153,7 @@ class Simulation:
         # agente parecería incapaz de terminar nada.
         action = self.pack.action_by_id[busy.intent]
         company = len(self.state.others_at(agent))
-        if is_available(action, self.pack.place_by_id[agent.at], company):
+        if is_available(action, self.pack.place_by_id[agent.at], company, agent.needs):
             self._start_action(agent, busy.intent, utility=None)
         else:
             # El mundo cambió durante el viaje: normalmente, que la gente por la

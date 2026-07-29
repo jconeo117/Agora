@@ -236,6 +236,7 @@ actions:
     duration_ticks: 6                 # 1 h 30
     requires_affordance: cocina
     satisfies: { sustento: 0.90 }
+    requires: { provisiones: 0.22 }   # sin despensa no se cocina
     costs:    { provisiones: 0.45, dinero: 0.05 }   # vacía la despensa, no la cartera
     effects:  { sustento: +0.72, provisiones: -0.22, dinero: -0.01 }
     saturation_gain: 0.1
@@ -245,6 +246,7 @@ actions:
     duration_ticks: 5                 # 1 h 15
     requires_affordance: mesa
     satisfies: { sustento: 1.0, vinculo: 0.20 }
+    requires: { dinero: 0.09 }        # hay que poder pagar la cuenta
     costs:    { dinero: 0.50 }                      # comer fuera VA de gastar
     effects:  { sustento: +0.85, dinero: -0.09, vinculo: +0.08 }
     saturation_gain: 0.12
@@ -255,6 +257,7 @@ actions:
     duration_ticks: 7
     requires_affordance: comercio
     satisfies: { provisiones: 1.0 }
+    requires: { dinero: 0.12 }        # y la compra
     costs:    { dinero: 0.40 }
     effects:  { provisiones: +0.75, dinero: -0.12 }
     saturation_gain: 0.15
@@ -264,6 +267,7 @@ actions:
     duration_ticks: 5
     requires_affordance: capricho
     satisfies: { estimulo: 0.70 }
+    requires: { dinero: 0.16 }        # el lujo es lo primero que se cae
     costs:    { dinero: 0.55 }                      # caro, pero alcanzable
     effects:  { estimulo: +0.45, dinero: -0.16 }
     saturation_gain: 0.3
@@ -327,6 +331,7 @@ actions:
     # fiesta es ir a un local con gente que no simulamos. Cuando existan las
     # multitudes anónimas como propiedad del lugar, esto se modelará bien.
     satisfies: { estimulo: 1.0, vinculo: 0.60 }
+    requires: { dinero: 0.20 }        # una noche fuera no es barata
     costs:    { dinero: 0.75, descanso: 0.60 }      # cara por los dos lados
     effects:  { estimulo: +0.80, vinculo: +0.35, descanso: -0.30, dinero: -0.20 }
     saturation_gain: 0.4

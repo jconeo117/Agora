@@ -18,7 +18,9 @@ from agora.engine.render import render_activity_summary, render_log, render_stat
 from agora.engine.world import Simulation
 from agora.health import check, measure
 
-DEFAULT_PACK = Path("packs/dark_fantasy/pack.yaml")
+DEFAULT_PACK = Path("packs/barrio/pack.yaml")
+"""El mundo de trabajo. `dark_fantasy` existe para probar el agnosticismo del
+motor, no para jugarse, así que hay que pedirlo explícitamente."""
 
 
 def main() -> None:
