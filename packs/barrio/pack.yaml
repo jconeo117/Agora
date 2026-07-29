@@ -68,6 +68,14 @@ tuning:
   # corta lo que estás haciendo. El "ya que estoy, lo termino".
   switch_cost: 0.8
 
+  # Tercera capa del temperamento: cómo decide alguien que está al límite.
+  # El exponente es el desgaste (0 entero, 1 destrozado), así que un agente
+  # entero no se ve afectado. Produce los "días malos" sin tocar la
+  # personalidad: el mismo NPC decide distinto según cómo esté.
+  strain_multipliers:
+    temperature: 2.2        # agotado se decide peor, más a lo tonto
+    travel_discount: 0.85   # y cruzar el barrio pesa más de lo que pesaría
+
   critical_need_threshold: 0.15
 
 # -----------------------------------------------------------------------------
@@ -75,11 +83,11 @@ tuning:
 #
 # `provisiones` es la que hace que las tiendas existan: cocinar la consume,
 # comprar la repone. De ahí sale la disyuntiva cocinar barato / comer fuera caro.
+# Y con `requires` en las acciones, la despensa vacía impide cocinar de verdad:
+# medido, obliga a pasar por el mercado unas cuatro veces por semana.
 #
-# Limitación del motor a tener presente: NO hay precondiciones sobre recursos.
-# Un agente con la despensa a 0 puede "cocinar" igual; el efecto negativo
-# simplemente se recorta. Produce el ritmo correcto, pero no es una restricción
-# real. Modelarlo de verdad es trabajo de F1.
+# `strain_weight` marca las que desgastan la cabeza cuando escasean. El dinero
+# aprieta pero no te vuelve torpe, así que va a cero.
 # -----------------------------------------------------------------------------
 needs:
   - id: sustento
@@ -88,6 +96,7 @@ needs:
     initial: 0.75
     base_weight: 1.0
     urgency_exponent: 2.5      # irrelevante hasta que es tirano
+    strain_weight: 0.9                 # y el hambre justo despues
 
   - id: descanso
     label: "descanso"
@@ -95,6 +104,7 @@ needs:
     initial: 0.85
     base_weight: 1.0
     urgency_exponent: 2.2
+    strain_weight: 1.0                 # el agotamiento es lo que mas nubla
 
   - id: dinero
     label: "dinero"
@@ -109,6 +119,7 @@ needs:
     initial: 0.60
     base_weight: 0.75
     urgency_exponent: 1.9
+    strain_weight: 0.3                 # la soledad tambien, menos
     # Igual al decay: rodeado de gente la soledad deja de crecer, pero no se
     # cura. Para eso hay que hablar con alguien. Con una persona al lado el
     # alivio es la mitad (saturación n/(n+1)).
@@ -120,6 +131,7 @@ needs:
     initial: 0.55
     base_weight: 0.65
     urgency_exponent: 1.7
+    strain_weight: 0.4                 # el aburrimiento desgasta, pero poco
 
   - id: provisiones
     label: "provisiones"

@@ -80,6 +80,19 @@ class NeedSpec(Spec):
     base_weight: float = Field(default=1.0, ge=0.0)
     """Importancia base antes de que la personalidad la modifique."""
 
+    strain_weight: float = Field(default=0.0, ge=0.0)
+    """Cuánto contribuye esta necesidad al desgaste cognitivo cuando escasea.
+
+    El desgaste no es una emoción: es un modificador de CÓMO se decide. Estar
+    agotado y con hambre no cambia lo que quieres —de eso ya se encarga la
+    urgencia— sino que decides peor: más errático, y las distancias pesan más.
+
+    Qué desgasta es propio de la ambientación. En un barrio, el descanso y el
+    sustento; en una estación espacial, el oxígeno. Un 0 significa que esa
+    necesidad puede estar a cero sin que la cabeza se resienta: el dinero
+    aprieta, pero no te vuelve torpe.
+    """
+
     company_relief: float = Field(default=0.0, ge=0.0)
     """Cuánto frena la compañía el decaimiento de esta necesidad, por tick.
 
@@ -455,6 +468,17 @@ class TuningSpec(Spec):
 
     Es global por ahora. Tiene más sentido como rasgo individual (prudencia
     frente a impulsividad), pero eso son dos cambios a la vez.
+    """
+
+    strain_multipliers: dict[TemperamentKnob, PositiveFactor] = Field(default_factory=dict)
+    """Cómo cambia el temperamento estando al límite.
+
+    Tercera capa sobre las mismas perillas: mundo * rasgos * estado. Se compone
+    igual, con el desgaste (0..1) como exponente, así que un agente entero no se
+    ve afectado y uno destrozado recibe el multiplicador completo.
+
+    Produce los "días malos" sin tocar la personalidad: el mismo NPC decide
+    distinto según cómo esté, y sigue siendo él.
     """
 
     switch_cost: float = Field(default=0.0, ge=0.0, le=1.0)

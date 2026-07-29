@@ -22,6 +22,7 @@ from agora.engine.disposition import (
     compose_need_weights,
     compose_tastes,
     compose_temperament,
+    compute_strain,
 )
 from agora.engine.ontology import (
     ActionId,
@@ -155,9 +156,22 @@ class AgentState:
     Está aquí y no se recalcula en cada deliberación porque los rasgos cambian
     muy rara vez y se consultan miles de veces."""
 
+    strain: float = 0.0
+    """Desgaste cognitivo en [0, 1]. DERIVADO de las necesidades, se recalcula
+    cada tick. 0 entero, 1 al límite.
+
+    No es una emoción: es lo que hace que el mismo agente decida peor cuando
+    está mal. Se guarda además de usarse porque en F2 va a ser una de las
+    primeras cosas que el narrador necesite saber."""
+
     temperament: Temperament = field(default_factory=lambda: Temperament(0.15, 1.0, 0.15, 0.95))
-    """DERIVADO de `traits` y del `tuning` del pack. Cómo decide esta persona:
-    su impulsividad, su aversión al precio, su aguante y su arraigo.
+    """DERIVADO de `traits`, del `tuning` del pack y del `strain` actual. Cómo
+    decide esta persona hoy: su impulsividad, su aversión al precio, su aguante
+    y su arraigo.
+
+    Como depende del estado, se recompone **cada tick** y no solo al derivar un
+    rasgo. Cuesta una decena de potencias por agente; a cambio hay una sola
+    fuente de verdad y nunca queda desfasado.
 
     El default solo existe para que construir un `AgentState` suelto en un test
     no reviente; cualquier agente de una partida real pasa por `from_spec`."""
@@ -191,6 +205,7 @@ class AgentState:
         needs: dict[NeedId, float] = {need.id: need.initial for need in pack.needs}
         needs.update(spec.initial_needs)
 
+        strain = compute_strain(pack, needs)
         return cls(
             spec_id=spec.id,
             at=spec.start_at,
@@ -198,9 +213,20 @@ class AgentState:
             traits=dict(spec.traits),
             tastes=compose_tastes(spec.tastes),
             need_weights=compose_need_weights(pack, spec.traits),
-            temperament=compose_temperament(pack, spec.traits),
+            strain=strain,
+            temperament=compose_temperament(pack, spec.traits, strain),
             busy=None,  # todos deliberan en el tick 0
         )
+
+    def refresh_state(self, pack: ContentPack) -> None:
+        """Recalcula el desgaste y con él el temperamento.
+
+        Se llama una vez por tick, después del decaimiento. Todo lo derivado del
+        estado se recompone en un solo sitio, así que no puede quedar desfasado
+        respecto a las necesidades que lo generan.
+        """
+        self.strain = compute_strain(pack, self.needs)
+        self.temperament = compose_temperament(pack, self.traits, self.strain)
 
     def drift_trait(self, pack: ContentPack, trait: TraitId, delta: float) -> None:
         """Mueve un rasgo y recompone lo que depende de él.
@@ -226,7 +252,7 @@ class AgentState:
             )
         self.traits[trait] = max(-1.0, min(1.0, self.traits.get(trait, 0.0) + delta))
         self.need_weights = compose_need_weights(pack, self.traits)
-        self.temperament = compose_temperament(pack, self.traits)
+        self.temperament = compose_temperament(pack, self.traits, self.strain)
 
     # -- necesidades ----------------------------------------------------------
 

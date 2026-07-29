@@ -66,12 +66,50 @@ class Temperament:
     travel_discount: float
 
 
-def compose_temperament(pack: ContentPack, traits: Mapping[TraitId, float]) -> Temperament:
-    """Combina el temperamento del mundo con el del agente.
+def compute_strain(pack: ContentPack, needs: Mapping[NeedId, float]) -> float:
+    """Desgaste cognitivo en [0, 1]. 0 entero, 1 al límite.
 
-    Composición multiplicativa: el pack dice cómo es el mundo, el rasgo cuánto
-    se desvía esta persona. Un mundo donde viajar es caro y alguien que además
-    odia salir son dos cosas que se acumulan.
+    Media ponderada de la urgencia de las necesidades que el pack marca como
+    desgastantes. **Reutiliza la curva de urgencia a propósito**, en vez de
+    añadir un parámetro nuevo: `urgency_exponent` ya dice cuán bruscamente esa
+    necesidad empieza a doler, que es exactamente lo que hace falta aquí.
+
+    Y no es un detalle cosmético. Con desgaste lineal, el barrio sano —
+    necesidades en torno a 0.55 — daría un desgaste de 0.45: un mundo entero
+    permanentemente medio roto, y el mecanismo perdería todo su recorrido. Con
+    la curva convexa el mismo mundo da ~0.15, y el desgaste solo aparece cuando
+    de verdad algo va mal.
+
+    Devuelve 0.0 si el pack no marca ninguna necesidad como desgastante, lo que
+    desactiva el mecanismo entero sin código condicional.
+    """
+    total = 0.0
+    weights = 0.0
+    for need in pack.needs:
+        if need.strain_weight <= 0.0:
+            continue
+        pressure = max(0.0, 1.0 - needs[need.id]) ** need.urgency_exponent
+        total += need.strain_weight * pressure
+        weights += need.strain_weight
+    return total / weights if weights else 0.0
+
+
+def compose_temperament(
+    pack: ContentPack, traits: Mapping[TraitId, float], strain: float = 0.0
+) -> Temperament:
+    """Combina el temperamento del mundo, el del agente y su estado actual.
+
+    Tres capas multiplicativas sobre las mismas perillas:
+
+        mundo (tuning)  *  rasgos ^ intensidad  *  desgaste ^ strain
+
+    El pack dice cómo es el mundo, el rasgo cuánto se desvía esta persona, y el
+    desgaste cómo está hoy. Un mundo donde viajar es caro, alguien que además
+    odia salir, y encima agotado: tres cosas distintas que se acumulan.
+
+    La capa de estado es la que produce los "días malos" sin tocar la
+    personalidad. El mismo NPC decide distinto según cómo esté, y sigue siendo
+    él — que es justo lo contrario de cambiarle los rasgos.
 
     **Cada perilla tiene su propio rango válido**, y ahí está el trabajo real de
     esta función. Multiplicar sin acotar produce valores que no significan nada:
@@ -95,6 +133,9 @@ def compose_temperament(pack: ContentPack, traits: Mapping[TraitId, float]) -> T
         intensity = traits[trait_id]
         for knob, multiplier in trait.temperament_multipliers.items():
             factors[knob] *= multiplier**intensity
+
+    for knob, multiplier in pack.tuning.strain_multipliers.items():
+        factors[knob] *= multiplier**strain
 
     tuning = pack.tuning
     return Temperament(

@@ -93,6 +93,11 @@ class Simulation:
             before = dict(agent.needs)
             agent.decay(specs, company=occupancy.get(agent.at, 0) - 1)
             agent.recover_novelty(self.pack.tuning.saturation_recovery)
+            # Después del decaimiento: el desgaste y el temperamento que se
+            # derivan de él tienen que reflejar el estado de ESTE tick, no del
+            # anterior. El umbral crítico que se comprueba justo debajo sale de
+            # aquí.
+            agent.refresh_state(self.pack)
             for need_id, value in agent.needs.items():
                 if before[need_id] >= threshold > value:
                     self._emit(
