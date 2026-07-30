@@ -254,6 +254,21 @@ class ActionSpec(Spec):
     effects: dict[NeedId, float] = Field(default_factory=dict)
     """Delta real aplicado al completar. Puede ser negativo (trabajar cansa)."""
 
+    effects_per_company: dict[NeedId, float] = Field(default_factory=dict)
+    """Cuánto añade la compañía al efecto, con rendimiento decreciente.
+
+    Es la fuente de varianza del mundo, y sin ella no habría nada que aprender:
+    con `effects` como constantes, lo prometido y lo recibido coinciden siempre
+    y el error de predicción es cero por construcción.
+
+    Una conversación con cuatro personas rinde más que con una. Y como entre
+    decidir ir a la plaza y llegar la gente se mueve, el agente se lleva
+    sorpresas en los dos sentidos — que es de donde sale el aprendizaje.
+
+    Satura como el alivio por compañía (`n/(n+1)`): el valor declarado es el
+    tope, uno da la mitad, tres tres cuartos.
+    """
+
     saturation_gain: float = Field(default=0.0, ge=0.0)
     """Cuánto hastía una repetición de esto. 0 = nunca cansa.
 
@@ -468,6 +483,17 @@ class TuningSpec(Spec):
 
     Es global por ahora. Tiene más sentido como rasgo individual (prudencia
     frente a impulsividad), pero eso son dos cambios a la vez.
+    """
+
+    learning_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Cuánto corrige el agente sus expectativas tras cada experiencia (alfa).
+
+    Nunca alto. A 0.10, hacen falta unas veinte experiencias para que una
+    creencia se asiente, que es lo que se quiere: un NPC que aprende deprisa
+    tiene la memoria de un pez y cambia de opinión con cada anécdota.
+
+    0.0 desactiva el aprendizaje y las expectativas se quedan en lo que dice el
+    pack, igual para todos.
     """
 
     strain_multipliers: dict[TemperamentKnob, PositiveFactor] = Field(default_factory=dict)

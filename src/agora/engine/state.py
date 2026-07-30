@@ -34,6 +34,7 @@ from agora.engine.ontology import (
     PlaceSpec,
     TraitId,
 )
+from agora.engine.outcome import company_saturation
 from agora.engine.pack import ContentPack
 from agora.engine.rng import RngSource
 from agora.engine.topology import TravelMap
@@ -176,6 +177,18 @@ class AgentState:
     El default solo existe para que construir un `AgentState` suelto en un test
     no reviente; cualquier agente de una partida real pasa por `from_spec`."""
 
+    beliefs: dict[ActionId, dict[NeedId, float]] = field(default_factory=dict)
+    """Cuánto se fía este agente de lo que promete cada acción.
+
+    Multiplicador sobre `satisfies`, por acción y necesidad. Empieza vacío —lo
+    ausente vale 1.0, o sea "me creo el pack"— y deriva con la experiencia.
+
+    Es lo que convierte a un NPC en una mente separada en vez de en una consulta
+    al estado global: dos agentes con la misma ficha pueden tener expectativas
+    distintas sobre lo mismo porque han vivido cosas distintas. Y pueden estar
+    equivocados, que es la parte interesante.
+    """
+
     saturation: dict[ActionId, float] = field(default_factory=dict)
     """Hastío por acción, en [0, 1]. Sube al COMPLETAR, se disipa cada tick.
 
@@ -269,11 +282,10 @@ class AgentState:
         quiero que reviente aquí, ruidosamente, y no que se propague un default
         inventado. El invariante lo garantiza `WorldState.new`.
         """
-        crowd = max(0, company)
-        saturation = crowd / (crowd + 1) if crowd else 0.0
+        crowd = company_saturation(company)
 
         for need_id, spec in need_specs.items():
-            drop = spec.decay_per_tick - spec.company_relief * saturation
+            drop = spec.decay_per_tick - spec.company_relief * crowd
             self.needs[need_id] = self._clamp(self.needs[need_id] - drop)
 
     def apply(self, effects: Mapping[NeedId, float]) -> None:

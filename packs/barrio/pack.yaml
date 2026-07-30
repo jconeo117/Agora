@@ -68,6 +68,11 @@ tuning:
   # corta lo que estás haciendo. El "ya que estoy, lo termino".
   switch_cost: 0.8
 
+  # Cuánto corrige el agente sus expectativas tras cada experiencia. Bajo a
+  # propósito: a 0.10 hacen falta unas veinte veces para que una creencia se
+  # asiente. Un NPC que aprende deprisa cambia de opinión con cada anécdota.
+  learning_rate: 0.10
+
   # Tercera capa del temperamento: cómo decide alguien que está al límite.
   # El exponente es el desgaste (0 entero, 1 destrozado), así que un agente
   # entero no se ve afectado. Produce los "días malos" sin tocar la
@@ -326,7 +331,11 @@ actions:
     requires_company: 1               # no se charla solo
     satisfies: { vinculo: 1.0 }
     costs:    { descanso: 0.10 }                    # casi gratis: su ventaja
-    effects:  { vinculo: +0.55, estimulo: +0.10, descanso: -0.03 }
+    effects:  { vinculo: +0.30, estimulo: +0.10, descanso: -0.03 }
+    # Con una persona sale +0.55 (como antes); con tres, +0.68. Ahí está la
+    # varianza que hace que haya algo que aprender: entre decidir ir a la plaza
+    # y llegar, la gente se mueve, y la conversación sale mejor o peor.
+    effects_per_company: { vinculo: +0.50 }
     saturation_gain: 0.2
     tags: [social]
 
@@ -345,7 +354,9 @@ actions:
     satisfies: { estimulo: 1.0, vinculo: 0.60 }
     requires: { dinero: 0.20 }        # una noche fuera no es barata
     costs:    { dinero: 0.75, descanso: 0.60 }      # cara por los dos lados
-    effects:  { estimulo: +0.80, vinculo: +0.35, descanso: -0.30, dinero: -0.20 }
+    effects:  { estimulo: +0.55, vinculo: +0.20, descanso: -0.30, dinero: -0.20 }
+    # Una noche con gente conocida no es una noche entre desconocidos.
+    effects_per_company: { estimulo: +0.50, vinculo: +0.30 }
     saturation_gain: 0.4
     tags: [social, gasto, agotadora]
 

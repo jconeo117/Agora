@@ -122,13 +122,22 @@ def benefit(
     action: ActionSpec,
     weights: dict[NeedId, float],
 ) -> float:
-    """Lo que el agente espera ganar.
+    """Lo que ESTE agente espera ganar.
 
-    Usa `satisfies` (lo que CREE) y no `effects` (lo que realmente pasará). Que
-    puedan diferir es intencional: permite que un NPC se equivoque y persiga
-    algo que no le da lo que esperaba.
+    Parte de `satisfies` —lo que el pack dice que la acción persigue— y lo
+    escala por lo que el agente ha aprendido a esperar de ella. Dos agentes con
+    la misma ficha pueden valorar lo mismo de forma distinta porque han vivido
+    cosas distintas.
+
+    Lo ausente en `beliefs` vale 1.0: quien no tiene experiencia se cree el pack.
     """
-    return _weigh(pack, agent, weights, action.satisfies)
+    beliefs = agent.beliefs.get(action.id, {})
+    total = 0.0
+    for need_id, satisfaction in action.satisfies.items():
+        need = pack.need_by_id[need_id]
+        pressure = urgency(agent.needs[need_id], need.urgency_exponent)
+        total += weights[need_id] * pressure * satisfaction * beliefs.get(need_id, 1.0)
+    return total
 
 
 def cost(

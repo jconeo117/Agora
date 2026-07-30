@@ -19,6 +19,7 @@ from typing import assert_never
 from agora.agents.decide import Decision, critical_need, current_intent, decide, is_available
 from agora.engine.events import EventKind, EventLog, Payload
 from agora.engine.ontology import ActionId, AgentId, NeedId
+from agora.engine.outcome import contextual_effects, learn
 from agora.engine.pack import ContentPack
 from agora.engine.state import AgentState, Busy, PerformingAction, Traveling, WorldState
 
@@ -132,15 +133,39 @@ class Simulation:
     def _complete(self, agent: AgentState, busy: Busy) -> None:
         match busy:
             case PerformingAction():
-                spec = self.pack.action_by_id[busy.action]
-                agent.apply(spec.effects)
-                agent.saturate(busy.action, spec.saturation_gain)
-                self._emit(EventKind.ACTION_COMPLETED, agent, action=busy.action)
-                agent.busy = None
+                self._finish_action(agent, busy.action)
             case Traveling():
                 self._arrive(agent, busy)
             case _:
                 assert_never(busy)
+
+    def _finish_action(self, agent: AgentState, action_id: ActionId) -> None:
+        """Aplica el resultado real y aprende de la diferencia con lo prometido.
+
+        El orden importa: el estado ANTES de aplicar es lo que permite saber si
+        el techo de la necesidad recortó el efecto, y de un efecto recortado no
+        se aprende nada — que te recorten la comida por estar lleno no dice nada
+        sobre la comida.
+        """
+        spec = self.pack.action_by_id[action_id]
+        company = len(self.state.others_at(agent))
+        received = contextual_effects(spec, company)
+
+        before = dict(agent.needs)
+        agent.apply(received)
+
+        learn(
+            agent.beliefs.setdefault(action_id, {}),
+            spec,
+            received,
+            before,
+            self.pack.tuning.learning_rate,
+        )
+        agent.saturate(action_id, spec.saturation_gain)
+
+        data: Payload = {"company": company} if spec.effects_per_company else {}
+        self._emit(EventKind.ACTION_COMPLETED, agent, action=action_id, data=data)
+        agent.busy = None
 
     def _arrive(self, agent: AgentState, busy: Traveling) -> None:
         """Llegada a un nodo: fin de trayecto o siguiente tramo."""
