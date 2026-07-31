@@ -485,13 +485,8 @@ def test_no_interruption_while_travelling_towards_the_solution() -> None:
     assert critical_need(world, world.agents[AG1]) is None
 
 
-def test_no_interruption_when_the_action_covers_any_emergency() -> None:
-    """Con dos necesidades críticas, ninguna acción puede cubrir las dos.
-
-    Si la regla fuera "interrumpe si esta necesidad concreta no está atendida",
-    siempre quedaría una fuera y el agente abandonaría lo que hiciera en cada
-    tick. La regla es "interrumpe solo si no atiende NINGUNA".
-    """
+def two_emergencies(worst: str) -> WorldState:
+    """Dos necesidades críticas a la vez. `CON_AFF` solo atiende `n1`."""
     world = world_at(
         P1,
         need=0.05,
@@ -503,10 +498,38 @@ def test_no_interruption_when_the_action_covers_any_emergency() -> None:
         agents=[{"id": "ag1", "label": "ag1", "home": "p1", "start_at": "p1"}],
     )
     agent = world.agents[AG1]
-    agent.needs[NeedId("n2")] = 0.02  # también crítica, y CON_AFF no la atiende
+    agent.needs[N1] = 0.02 if worst == "n1" else 0.10
+    agent.needs[NeedId("n2")] = 0.02 if worst == "n2" else 0.10
     agent.busy = PerformingAction(action=CON_AFF, ticks_remaining=2)
+    return world
 
-    assert critical_need(world, agent) is None
+
+def test_triage_interrupts_when_something_worse_is_burning() -> None:
+    """Atender lo secundario mientras algo peor arde no basta para seguir."""
+    world = two_emergencies(worst="n2")
+    assert critical_need(world, world.agents[AG1]) == NeedId("n2")
+
+
+def test_no_interruption_while_addressing_the_worst() -> None:
+    """Quien está resolviendo lo más grave sigue a lo suyo, aunque queden otras
+    urgencias abiertas."""
+    world = two_emergencies(worst="n1")
+    assert critical_need(world, world.agents[AG1]) is None
+
+
+def test_the_rule_targets_the_worst_not_merely_any() -> None:
+    """Fija la corrección de una deuda vieja.
+
+    La regla fue "no interrumpas si atiendes ALGUNA emergencia", y eso invertía
+    el sentido del umbral: con el umbral alto casi todo es crítico, siempre
+    atiendes alguna, y quedabas excusado. Un umbral alto daba coartada en vez
+    de alarmar.
+    """
+    peor_atendida = two_emergencies(worst="n1")
+    peor_ignorada = two_emergencies(worst="n2")
+
+    assert critical_need(peor_atendida, peor_atendida.agents[AG1]) is None
+    assert critical_need(peor_ignorada, peor_ignorada.agents[AG1]) is not None
 
 
 def test_must_address_restricts_the_choice_to_the_urgent_need() -> None:

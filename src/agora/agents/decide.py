@@ -373,27 +373,36 @@ def critical_needs(world: WorldState, agent: AgentState) -> list[NeedId]:
 def critical_need(world: WorldState, agent: AgentState) -> NeedId | None:
     """La necesidad que justifica abandonar lo que se está haciendo, si la hay.
 
-    La regla es: **se interrumpe solo si lo que se está haciendo no atiende
-    NINGUNA de las emergencias**. No "ninguna en concreto" — ninguna en
-    absoluto.
+    La regla es **triaje**: se interrumpe si lo que se está haciendo no atiende
+    la PEOR de las emergencias. Quien está resolviendo lo más grave sigue a lo
+    suyo; quien atiende lo secundario mientras algo peor arde, cambia.
 
-    La diferencia decide si el motor funciona. Con dos necesidades críticas a
-    la vez, ninguna acción puede atender las dos; si la comprobación fuera por
-    necesidad individual, siempre quedaría una sin cubrir y el agente
-    abandonaría lo que hiciera, cada tick, indefinidamente. Con la regla de
-    "alguna", el que ya está resolviendo una emergencia sigue a lo suyo.
+    Historia de esta línea, porque explica por qué no fue así desde el principio.
+    Primero se comprobaba necesidad a necesidad y producía un bucle: con dos
+    urgencias a la vez ninguna acción cubre ambas, así que el agente abandonaba
+    lo que hiciera en cada tick, indefinidamente. El parche fue exigir que no
+    atendiera NINGUNA, y eso mató el bucle pero invirtió el sentido de la
+    perilla: con el umbral alto casi todo es emergencia, hagas lo que hagas
+    atiendes alguna, y quedas excusado. Un umbral alto no alarmaba — daba
+    coartada. Medido: correlación -0.76 entre urgencias simultáneas y abandonos.
 
-    Como `Traveling` lleva su `intent`, esto funciona igual para quien ya está
+    Lo que permite volver al triaje es el **coste de cambio**: el umbral se
+    estrecha con lo invertido, así que abandonar algo avanzado exige una
+    catástrofe. Eso ataja el traqueteo por donde había que atajarlo, sin
+    mentir sobre lo que significa el umbral.
+
+    Como `Traveling` lleva su `intent`, funciona igual para quien ya está
     comiendo y para quien va de camino a comer.
     """
     urgent = critical_needs(world, agent)
     if not urgent:
         return None
 
+    worst = urgent[0]
     intent = current_intent(agent)
     if intent is not None:
         satisfies = world.pack.action_by_id[intent].satisfies
-        if any(satisfies.get(need, 0.0) > 0.0 for need in urgent):
+        if satisfies.get(worst, 0.0) > 0.0:
             return None
 
-    return urgent[0]
+    return worst

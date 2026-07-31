@@ -80,6 +80,11 @@ tuning:
   strain_multipliers:
     temperature: 2.2        # agotado se decide peor, más a lo tonto
     travel_discount: 0.85   # y cruzar el barrio pesa más de lo que pesaría
+    # Al límite, todo parece una emergencia. Esto no se pudo conectar cuando se
+    # metió el desgaste porque la regla de interrupción tenía el sentido
+    # invertido: subir el umbral daba coartada en vez de alarmar, y un agente
+    # agotado habría interrumpido MENOS. Con el triaje ya arreglado, funciona.
+    critical_need_threshold: 1.5
 
   critical_need_threshold: 0.15
 
@@ -204,6 +209,10 @@ traits:
       # al personaje en crisis permanente — y la crisis homogeniza, porque en
       # emergencia todo el mundo hace lo mismo. Medido: bajarlo de 0.35 a 0.60
       # recorta el peor caso de crisis del 75% al 65% sin costar diferenciación.
+      #
+      # Y ahora significa de verdad lo que dice: con la regla de interrupción
+      # por triaje, más aguante es menos abandonos. Medido sobre diez clones que
+      # solo difieren en este eje, la correlación es -0.44.
       critical_need_threshold: 0.60   # +1 estoico · -1 se desmorona pronto
 
   - id: arraigo
