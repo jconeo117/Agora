@@ -275,22 +275,27 @@ def decide(
     mundo. `None` solo si no hay ninguna opción, algo que un pack validado
     impide (siempre existe la acción sin affordance).
 
-    `must_address` restringe la elección a acciones que atienden esa necesidad.
-    Lo usa el tick loop justo después de una interrupción, y no es un detalle:
-    sin él, el agente abandona por hambre y vuelve a elegir dormir porque
-    dormir seguía siendo lo mejor puntuado — abandona y reinicia lo mismo cada
-    tick, para siempre. Una interrupción tiene que **cambiar** lo que se hace o
-    no sirve de nada.
+    `must_address` restringe la elección a acciones que atienden esa necesidad,
+    y devuelve **None si ninguna disponible lo hace**. No cae a elección libre.
+
+    Esa severidad es deliberada y corrige un traqueteo real. Con fallback, un
+    agente sin dinero y sin despensa abandonaba su turno de trabajo cada tick:
+    la peor urgencia era la despensa, la única acción que la atiende exige
+    dinero que no tenía, `must_address` no encontraba nada, elegía libremente
+    —trabajar, que era exactamente lo correcto— y al tick siguiente volvía a
+    abandonarlo. El plan era bueno; la interrupción lo destruía.
+
+    Ahora quien llama decide qué hacer con el None. El tick loop lo interpreta
+    como "no merece la pena interrumpir"; un agente ocioso vuelve a preguntar
+    sin restricción.
     """
     pool = candidates(world, agent)
     if must_address is not None:
-        forced = [
+        pool = [
             option
             for option in pool
             if world.pack.action_by_id[option.action].satisfies.get(must_address, 0.0) > 0.0
         ]
-        if forced:  # si nada la atiende, mejor decidir libremente que bloquearse
-            pool = forced
     if not pool:
         return None
 

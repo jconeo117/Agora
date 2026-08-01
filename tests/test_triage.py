@@ -118,6 +118,55 @@ def test_switch_cost_is_what_holds_the_triage_together() -> None:
     assert ratio(switch_cost=0.0) > ratio(switch_cost=0.8)
 
 
+def unaffordable_pack() -> ContentPack:
+    """La urgencia peor solo se atiende con algo que no se puede pagar.
+
+    Reproduce el caso de Samantha: despensa a cero, dinero a cero, la compra
+    exige dinero, y trabajar —que es lo correcto— no atiende la despensa.
+    """
+    return two_needs_pack(
+        needs=[
+            {"id": "hambre_t", "label": "h", "decay_per_tick": 0.04, "initial": 0.05},
+            {"id": "sueno_t", "label": "s", "decay_per_tick": 0.001, "initial": 0.9},
+        ],
+        actions=[
+            {
+                "id": "comer_t",
+                "label": "comer_t",
+                "duration_ticks": 6,
+                "requires": {"sueno_t": 0.95},  # nunca alcanzable: arranca en 0.9
+                "satisfies": {"hambre_t": 1.0},
+                "effects": {"hambre_t": 0.7},
+            },
+            {
+                "id": "dormir_t",
+                "label": "dormir_t",
+                "duration_ticks": 30,
+                "satisfies": {"sueno_t": 1.0},
+                "effects": {"sueno_t": 0.05},
+            },
+            {"id": "nada_t", "label": "nada_t", "duration_ticks": 2},
+        ],
+        tuning={"critical_need_threshold": 0.35, "switch_cost": 0.8},
+    )
+
+
+def test_no_interruption_when_the_emergency_has_no_remedy() -> None:
+    """Interrumpir para hacer algo que no puedes hacer solo destruye el plan.
+
+    Sin esta guarda el agente reinicia lo mismo cada tick indefinidamente:
+    medido en el barrio, una residente acumuló 229 abandonos en tres días
+    porque no podía permitirse la compra.
+    """
+    sim = Simulation(unaffordable_pack(), seed=1)
+    sim.run(400)
+
+    rotas = len(sim.log.of_kind(EventKind.ACTION_ABORTED))
+    hechas = len(sim.log.of_kind(EventKind.ACTION_COMPLETED))
+    assert hechas > 5, "debería seguir completando cosas pese a la urgencia sin salida"
+    assert rotas < hechas, f"traqueteo: {rotas} abandonos frente a {hechas} finalizaciones"
+
+
 def test_a_higher_threshold_means_more_interruptions_not_fewer() -> None:
     """La deuda corregida, medida de punta a punta.
 

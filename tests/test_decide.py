@@ -539,12 +539,19 @@ def test_must_address_restricts_the_choice_to_the_urgent_need() -> None:
     assert world.pack.action_by_id[chosen.action].satisfies.get(N1, 0.0) > 0.0
 
 
-def test_must_address_falls_back_when_nothing_can_help() -> None:
-    """Si ninguna acción atiende la urgencia, decidir libremente es mejor que
-    quedarse bloqueado."""
+def test_must_address_returns_nothing_when_nothing_can_help() -> None:
+    """Severidad deliberada: NO cae a elección libre.
+
+    Con fallback, un agente sin dinero ni despensa abandonaba su turno de
+    trabajo cada tick — la peor urgencia era la despensa, comprarla exigía
+    dinero que no tenía, no encontraba remedio, elegía libremente (trabajar,
+    que era lo correcto) y volvía a abandonarlo. El plan era bueno; la
+    interrupción lo destruía.
+
+    Quien llama decide qué hacer con el None.
+    """
     world = world_at(P1, need=0.05)
-    chosen = decide(world, world.agents[AG1], must_address=NeedId("inexistente"))
-    assert chosen is not None
+    assert decide(world, world.agents[AG1], must_address=NeedId("inexistente")) is None
 
 
 def test_threshold_zero_disables_interruptions() -> None:

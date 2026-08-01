@@ -117,7 +117,13 @@ class Simulation:
             self._complete(agent, busy)
         elif busy is not None:
             urgent = critical_need(self.state, agent)
-            if urgent is not None:
+            # Solo se abandona si existe algo que ATIENDA la urgencia. Sin esta
+            # comprobación, un agente sin dinero ni despensa reinicia su turno
+            # cada tick: la peor urgencia es la despensa, comprarla exige dinero
+            # que no tiene, y trabajar —que es justo lo que hay que hacer— no la
+            # atiende. Interrumpir para hacer algo que no puedes hacer solo
+            # destruye el plan que sí resolvía el problema.
+            if urgent is not None and decide(self.state, agent, urgent) is not None:
                 self._abort(agent, urgent)
                 forced = urgent
 
@@ -222,6 +228,10 @@ class Simulation:
 
     def _begin(self, agent: AgentState, must_address: NeedId | None = None) -> None:
         choice = decide(self.state, agent, must_address)
+        if choice is None and must_address is not None:
+            # El mundo pudo cambiar entre comprobar que había remedio y llegar
+            # aquí. Ocioso es peor que mal atendido: se elige sin restricción.
+            choice = decide(self.state, agent)
         if choice is None:  # pragma: no cover - un pack validado lo impide
             self._emit(EventKind.IDLE_STALLED, agent)
             return
