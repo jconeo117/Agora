@@ -201,6 +201,18 @@ class AgentState:
     salir, y nadie tuvo que escribirle esa lección.
     """
 
+    sightings: dict[PlaceId, tuple[int, int]] = field(default_factory=dict)
+    """Lo último que este agente vio en cada sitio: `(tick, gente)`.
+
+    Solo lo que ha visto con sus ojos, estando allí. Es lo que sustituye a la
+    omnisciencia: sin esto, cada agente conoce en tiempo real la ocupación de
+    los veintiún lugares del barrio.
+
+    Un avistamiento caduca (`sighting_horizon`), y lo caducado se supone **a
+    favor**. Así el agente va a mirar y se lleva el chasco; suponer vacío haría
+    que nadie fuera nunca a un sitio del que no tuviera noticia fresca.
+    """
+
     saturation: dict[ActionId, float] = field(default_factory=dict)
     """Hastío por acción, en [0, 1]. Sube al COMPLETAR, se disipa cada tick.
 
@@ -242,6 +254,28 @@ class AgentState:
             temperament=compose_temperament(pack, spec.traits, strain),
             busy=None,  # todos deliberan en el tick 0
         )
+
+    def observe(self, tick: int, company: int) -> None:
+        """Anota lo que ve donde está. Solo su propio sitio: nadie ve el barrio
+        entero desde su cocina."""
+        self.sightings[self.at] = (tick, company)
+
+    def perceived_company(self, place: PlaceId, tick: int, horizon: int) -> int | None:
+        """Cuánta gente CREE que hay allí. `None` = no lo sabe.
+
+        Sin horizonte, omnisciencia: no hay memoria que valga y quien pregunta
+        se queda con la verdad del mundo.
+
+        Donde está, lo sabe de primera mano. De lo demás, tira de lo último que
+        vio, si no ha caducado. Y lo que no sabe lo supone a favor — de ahí el
+        `None`, que quien decide interpreta como "adelante, ya lo veré".
+        """
+        if horizon <= 0:
+            return None
+        seen = self.sightings.get(place)
+        if seen is None or tick - seen[0] > horizon:
+            return None
+        return seen[1]
 
     def refresh_state(self, pack: ContentPack) -> None:
         """Recalcula el desgaste y con él el temperamento.

@@ -53,10 +53,13 @@ def render_event(pack: ContentPack, event: Event) -> str:
         case EventKind.ACTION_COMPLETED:
             body = f"termina   {_label_of_action(pack, event)}  ({here})"
         case EventKind.ACTION_ABORTED:
-            body = (
-                f"abandona  {_label_of_action(pack, event)}"
-                f"   <- {event.data.get('need')} = {event.data.get('value')}"
-            )
+            # Dos motivos distintos y hay que distinguirlos: soltar algo por una
+            # urgencia no se lee igual que llegar y encontrarse el sitio vacío.
+            if event.data.get("reason") == "condiciones":
+                causa = f"no se daban las condiciones ({here})"
+            else:
+                causa = f"{event.data.get('need')} = {event.data.get('value')}"
+            body = f"abandona  {_label_of_action(pack, event)}   <- {causa}"
         case EventKind.TRAVEL_STARTED:
             destination = _label_of_place(pack, str(event.data.get("to")))
             body = (

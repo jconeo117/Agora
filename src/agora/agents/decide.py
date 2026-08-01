@@ -172,7 +172,7 @@ def novelty(agent: AgentState, action: ActionId, weight: float) -> float:
 def is_available(
     action: ActionSpec,
     place: PlaceSpec,
-    company: int,
+    company: int | None,
     needs: Mapping[NeedId, float],
 ) -> bool:
     """¿Se puede ejecutar esta acción aquí y ahora? Tres puertas duras:
@@ -181,19 +181,25 @@ def is_available(
     - **hay gente** suficiente (`company` = los OTROS, sin contar a quien pregunta)
     - **alcanzan los recursos** (`requires`)
 
-    Ninguna lleva valor por defecto a propósito. Un `company=0` implícito
-    convertiría en ejecutable una acción social por olvidarse de pasarlo, y ese
-    fallo no se nota mirando: se nota siete días después, leyendo el log.
+    `company=None` significa "no lo sé", y se resuelve **a favor**. Un agente que
+    no tiene noticia fresca de un sitio va a mirar; suponer vacío haría que nadie
+    fuera nunca a donde no acabara de estar. El chasco lo da la comprobación al
+    llegar, con la verdad en la mano.
+
+    Ninguna condición lleva valor por defecto a propósito. Un `company=0`
+    implícito convertiría en ejecutable una acción social por olvidarse de
+    pasarlo, y ese fallo no se nota mirando: se nota siete días después, leyendo
+    el log.
 
     Pública porque el tick loop la necesita al llegar a destino. Entre decidir y
-    llegar cambian las tres cosas: la gente se va, el dinero se gasta, y en F1
-    los lugares empezarán a cerrar de noche.
+    llegar cambian las tres cosas: la gente se va, el dinero se gasta, y más
+    adelante los lugares cerrarán de noche.
     """
     if action.requires_affordance is not None and (
         action.requires_affordance not in place.affordances
     ):
         return False
-    if company < action.requires_company:
+    if company is not None and company < action.requires_company:
         return False
     return all(needs[need] >= minimum for need, minimum in action.requires.items())
 
@@ -218,11 +224,11 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
     tastes = agent.tastes
     temperament = agent.temperament
 
-    # Una sola pasada para los 21 lugares en vez de una cuenta por consulta.
-    # Nota: es la ocupación de AHORA, y el agente puede tardar en llegar. Que se
-    # equivoque es correcto —la gente se mueve— y en F1.6, cuando el
-    # conocimiento sea limitado, esto pasará a ser una creencia y no un hecho.
+    # La ocupación real solo se usa para el sitio donde ESTÁ: eso lo ve. Del
+    # resto tira de lo que recuerda haber visto, y lo que no recuerda lo supone
+    # a favor. Con `sighting_horizon` a 0 se vuelve a la omnisciencia.
     occupancy = world.occupancy()
+    horizon = pack.tuning.sighting_horizon
 
     found: list[Decision] = []
     for place in pack.places:
@@ -231,7 +237,13 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             continue  # imposible con un pack validado, pero el motor no asume
         discount = temperament.travel_discount**travel
         place_taste = tastes.get(str(place.id), 1.0)
-        company = occupancy.get(place.id, 0) - (1 if agent.at == place.id else 0)
+        company: int | None
+        if place.id == agent.at:
+            company = occupancy.get(place.id, 0) - 1
+        else:
+            company = agent.perceived_company(place.id, world.tick, horizon)
+            if horizon <= 0:
+                company = occupancy.get(place.id, 0)
 
         for action in pack.actions:
             if not is_available(action, place, company, agent.needs):

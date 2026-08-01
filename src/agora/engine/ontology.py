@@ -485,6 +485,25 @@ class TuningSpec(Spec):
     frente a impulsividad), pero eso son dos cambios a la vez.
     """
 
+    sighting_horizon: int = Field(default=0, ge=0)
+    """Cuántos ticks vale lo que un agente vio en un sitio, antes de olvidarlo.
+
+    Hoy, sin esto, cada agente sabe en tiempo real quién hay en los veintiún
+    lugares del barrio. Con un horizonte, solo sabe lo que vio con sus ojos y
+    hace cuánto — y lo que no recuerda, lo supone.
+
+    Se supone **a favor**: un sitio del que no se sabe nada se da por bueno. Así
+    el agente va a mirar y se lleva el chasco, que es donde estaba la gracia. Lo
+    contrario —suponer vacío— haría que nadie fuera nunca a ningún sitio del que
+    no tuviera noticia fresca.
+
+    No hace falta maquinaria nueva para el chasco: la comprobación al llegar ya
+    existe desde que la compañía es un requisito. Esto solo cambia con qué
+    información se decide, no cómo se resuelve.
+
+    0 desactiva el mecanismo y devuelve la omnisciencia.
+    """
+
     learning_rate: float = Field(default=0.0, ge=0.0, le=1.0)
     """Cuánto corrige el agente sus expectativas tras cada experiencia (alfa).
 

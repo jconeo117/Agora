@@ -89,6 +89,10 @@ class Simulation:
         occupancy = self.state.occupancy()
 
         for agent in self.state.agents_in_order():
+            # Ve lo que tiene delante, y solo eso. Se anota antes de que nadie
+            # se mueva, así que todos observan la misma foto.
+            agent.observe(self.state.tick, occupancy.get(agent.at, 0) - 1)
+
             # El umbral es de cada cual: quien aguanta más tarda más en alarmarse.
             threshold = agent.temperament.critical_need_threshold
             before = dict(agent.needs)

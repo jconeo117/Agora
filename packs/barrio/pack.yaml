@@ -76,6 +76,12 @@ tuning:
   # salir de fiesta (14 ticks) baja un 21 % y tomar el aire (6) sube un 48 %.
   duration_discount: 0.995
 
+  # Cuánto vale lo que un agente vio en un sitio antes de olvidarlo. Un día:
+  # lo que viste ayer sigue siendo tu expectativa; más viejo que eso, vas a
+  # comprobarlo. Lo que no recuerda lo supone a favor, así que va y se lleva el
+  # chasco — medido, los viajes fallidos pasan de 144 a 386 al mes.
+  sighting_horizon: 96
+
   # Cuánto corrige el agente sus expectativas tras cada experiencia. Bajo a
   # propósito: a 0.10 hacen falta unas veinte veces para que una creencia se
   # asiente. Un NPC que aprende deprisa cambia de opinión con cada anécdota.
