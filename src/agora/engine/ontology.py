@@ -507,6 +507,26 @@ class TuningSpec(Spec):
     distinto según cómo esté, y sigue siendo él.
     """
 
+    duration_discount: float = Field(default=1.0, gt=0.0, le=1.0)
+    """Cuánto resta atractivo comprometer tiempo. `descuento ** duración`.
+
+    Cubre la única ceguera real que tenía la fórmula respecto a la duración:
+    quien se mete en algo de treinta ticks **no puede atender nada más durante
+    treinta ticks**, y ese coste de oportunidad no aparecía por ningún lado.
+
+    Ojo con lo que NO es. Durante mucho tiempo arrastramos la idea de que la
+    duración faltaba porque la siesta le ganaba al sueño; pero eso era
+    aritmética del pack —0.30/8 rinde más por tick que 0.95/30— y meter la
+    duración lo habría empeorado, castigando más a la acción larga. Aquello se
+    arregla en el YAML; esto es otra cosa.
+
+    Se aplica solo al beneficio, como el descuento por viaje: sobre el neto, una
+    opción mala y larga parecería menos mala por durar. Y muy suave, o nadie
+    dormiría nunca: a 0.995, treinta ticks cuestan un 14 % y ocho un 4 %.
+
+    1.0 lo desactiva, y es el valor por defecto.
+    """
+
     switch_cost: float = Field(default=0.0, ge=0.0, le=1.0)
     """Cuánto protege lo ya invertido frente a una interrupción.
 

@@ -68,6 +68,14 @@ tuning:
   # corta lo que estás haciendo. El "ya que estoy, lo termino".
   switch_cost: 0.8
 
+  # Coste de oportunidad de comprometerse: mientras dure, no se atiende nada más.
+  # A 0.995, treinta ticks cuestan un 14 % y seis un 3 %.
+  #
+  # Su efecto no se ve en el reparto global de tiempo, porque dormir y trabajar
+  # lo dominan y son obligatorios. Se ve en el margen discrecional: medido,
+  # salir de fiesta (14 ticks) baja un 21 % y tomar el aire (6) sube un 48 %.
+  duration_discount: 0.995
+
   # Cuánto corrige el agente sus expectativas tras cada experiencia. Bajo a
   # propósito: a 0.10 hacen falta unas veinte veces para que una creencia se
   # asiente. Un NPC que aprende deprisa cambia de opinión con cada anécdota.
@@ -253,7 +261,11 @@ actions:
     duration_ticks: 8                 # 2 h
     requires_affordance: lecho
     satisfies: { descanso: 0.40, estimulo: 0.15 }
-    effects:  { descanso: +0.30, estimulo: +0.08 }
+    # 0.20 en 8 ticks rinde 0.025 por tick, por debajo de los 0.032 de dormir.
+    # Con 0.30 la siesta era objetivamente MEJOR por tick que el sueño, y por eso
+    # un agente la repetía tres veces al día: no estaba ciego, optimizaba bien.
+    # Era un fallo del pack, no del motor.
+    effects:  { descanso: +0.20, estimulo: +0.08 }
     saturation_gain: 0.35
 
   # --- comida: aquí está la disyuntiva económica principal del barrio ---

@@ -239,6 +239,9 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             reward = benefit(pack, agent, action, weights) * discount * place_taste
             reward *= tastes.get(str(action.id), 1.0)
             reward *= novelty(agent, action.id, pack.tuning.novelty_weight)
+            # Comprometer tiempo tiene coste: mientras dure, no se atiende nada
+            # más. Ese era el punto ciego respecto a la duración.
+            reward *= pack.tuning.duration_discount**action.duration_ticks
             price = cost(pack, agent, action, weights) * temperament.loss_aversion
             found.append(
                 Decision(
