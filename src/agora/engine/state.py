@@ -177,8 +177,8 @@ class AgentState:
     El default solo existe para que construir un `AgentState` suelto en un test
     no reviente; cualquier agente de una partida real pasa por `from_spec`."""
 
-    beliefs: dict[ActionId, dict[NeedId, float]] = field(default_factory=dict)
-    """Cuánto se fía este agente de lo que promete cada acción.
+    gain_beliefs: dict[ActionId, dict[NeedId, float]] = field(default_factory=dict)
+    """Cuánto se fía este agente de lo que cada acción PROMETE dar.
 
     Multiplicador sobre `satisfies`, por acción y necesidad. Empieza vacío —lo
     ausente vale 1.0, o sea "me creo el pack"— y deriva con la experiencia.
@@ -187,6 +187,18 @@ class AgentState:
     al estado global: dos agentes con la misma ficha pueden tener expectativas
     distintas sobre lo mismo porque han vivido cosas distintas. Y pueden estar
     equivocados, que es la parte interesante.
+    """
+
+    cost_beliefs: dict[ActionId, dict[NeedId, float]] = field(default_factory=dict)
+    """Lo mismo, sobre lo que cada acción CUESTA.
+
+    Almacén aparte del anterior porque una necesidad puede aparecer a los dos
+    lados de la misma acción, y con un solo diccionario las dos creencias se
+    pisarían.
+
+    Aprender el precio importa tanto como aprender el premio: un agente que
+    descubre que salir de fiesta le sale más caro de lo que creía deja de
+    salir, y nadie tuvo que escribirle esa lección.
     """
 
     saturation: dict[ActionId, float] = field(default_factory=dict)

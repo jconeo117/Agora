@@ -155,7 +155,8 @@ class Simulation:
         agent.apply(received)
 
         learn(
-            agent.beliefs.setdefault(action_id, {}),
+            agent.gain_beliefs.setdefault(action_id, {}),
+            agent.cost_beliefs.setdefault(action_id, {}),
             spec,
             received,
             before,

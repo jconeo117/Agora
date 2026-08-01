@@ -272,9 +272,12 @@ actions:
     duration_ticks: 5                 # 1 h 15
     requires_affordance: mesa
     satisfies: { sustento: 1.0, vinculo: 0.20 }
-    requires: { dinero: 0.09 }        # hay que poder pagar la cuenta
+    requires: { dinero: 0.15 }        # y la cuenta sube si hay compañía
     costs:    { dinero: 0.50 }                      # comer fuera VA de gastar
     effects:  { sustento: +0.85, dinero: -0.09, vinculo: +0.08 }
+    # Comer acompañado sube la cuenta. Poco, pero suficiente para que el precio
+    # de esta acción no sea siempre el mismo y haya algo que aprender de él.
+    effects_per_company: { dinero: -0.06, vinculo: +0.10 }
     saturation_gain: 0.12
 
   # --- compras ---
@@ -361,11 +364,13 @@ actions:
     # fiesta es ir a un local con gente que no simulamos. Cuando existan las
     # multitudes anónimas como propiedad del lugar, esto se modelará bien.
     satisfies: { estimulo: 1.0, vinculo: 0.60 }
-    requires: { dinero: 0.20 }        # una noche fuera no es barata
+    requires: { dinero: 0.36 }        # y con gente sale bastante más cara
     costs:    { dinero: 0.75, descanso: 0.60 }      # cara por los dos lados
     effects:  { estimulo: +0.55, vinculo: +0.20, descanso: -0.30, dinero: -0.20 }
-    # Una noche con gente conocida no es una noche entre desconocidos.
-    effects_per_company: { estimulo: +0.50, vinculo: +0.30 }
+    # Una noche con gente conocida no es una noche entre desconocidos: rinde
+    # más, y también sale más cara. La varianza en el precio es lo que permite
+    # aprender que algo cuesta más de lo que parecía.
+    effects_per_company: { estimulo: +0.50, vinculo: +0.30, dinero: -0.16 }
     saturation_gain: 0.4
     tags: [social, gasto, agotadora]
 

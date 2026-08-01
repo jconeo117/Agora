@@ -57,32 +57,40 @@ def contextual_effects(action: ActionSpec, company: int) -> dict[NeedId, float]:
 
 
 def learn(
-    beliefs: dict[NeedId, float],
+    gain_beliefs: dict[NeedId, float],
+    cost_beliefs: dict[NeedId, float],
     action: ActionSpec,
     received: Mapping[NeedId, float],
     before: Mapping[NeedId, float],
     rate: float,
 ) -> None:
-    """Corrige las expectativas con lo que acaba de pasar. Muta `beliefs`.
+    """Corrige las expectativas con lo que acaba de pasar. Muta los dos dicts.
 
         creencia <- creencia + alfa * (recibido/prometido - creencia)
 
-    La creencia es un **multiplicador sobre `satisfies`**, no un sustituto: el
-    pack sigue diciendo de qué va la acción, y el agente aprende cuánto fiarse.
-    Empieza en 1.0 (se fía del pack) y deriva con la experiencia.
+    Se aprende en las dos direcciones: cuánto da algo de verdad y cuánto cuesta
+    de verdad. La creencia es un **multiplicador** sobre `satisfies` o sobre
+    `costs`, no un sustituto — el pack sigue diciendo de qué va la acción y el
+    agente aprende cuánto fiarse. Empieza en 1.0 y deriva con la experiencia.
 
-    Dos cosas que NO se aprenden, y son las que hacen que el mecanismo enseñe la
-    lección correcta:
+    Los almacenes van separados porque una necesidad puede aparecer en los dos
+    lados de la misma acción, y con un solo diccionario las dos creencias se
+    pisarían.
 
-    **No se aprende de lo que no cabía.** Si comes con el estómago casi lleno,
-    el efecto se recorta por el techo de la necesidad y no porque la comida fuera
-    mala. Aprender de ahí produciría agentes convencidos de que comer no sirve
-    justo por haber comido bien. Se salta el caso.
+    Tres cosas que NO se aprenden, y son las que hacen que la lección sea la
+    correcta:
 
-    **No se aprende de lo que no se perseguía.** Trabajar sube el vínculo de
-    rebote, pero el agente no fue a trabajar por eso, y su expectativa sobre esa
-    necesidad no debería moverse por un efecto colateral. Solo se actualiza lo
-    que aparece en `satisfies`.
+    **Nada de lo que no cabía.** Si comes con el estómago casi lleno, el efecto
+    se recorta por el techo de la necesidad y no porque la comida fuera mala.
+    Aprender de ahí produciría agentes convencidos de que comer no sirve justo
+    por haber comido bien.
+
+    **Nada de lo que no se podía pagar.** El espejo del anterior por abajo: si
+    te quedan 0.05 y algo cuesta 0.30, gastas 0.05 y concluirías que es barato.
+
+    **Nada de los efectos colaterales.** Trabajar sube el vínculo de rebote,
+    pero nadie va a trabajar por eso. Solo se actualiza lo que el pack declara
+    como perseguido (`satisfies`) o como precio (`costs`).
 
     `rate` a 0 desactiva el aprendizaje sin código condicional en el motor.
     """
@@ -90,13 +98,22 @@ def learn(
         return
 
     for need_id, promised in action.effects.items():
-        if need_id not in action.satisfies or promised <= 0.0:
-            continue
+        if promised > 0.0 and need_id in action.satisfies:
+            room = 1.0 - before[need_id]
+            if room < promised:
+                continue  # el techo recortó; de esto no se aprende nada
+            realized = received.get(need_id, 0.0) / promised
+            store: dict[NeedId, float] = gain_beliefs
 
-        room = 1.0 - before[need_id]
-        if room < promised:
-            continue  # el techo recortó; de esto no se aprende nada
+        elif promised < 0.0 and need_id in action.costs:
+            spend = -promised
+            if before[need_id] < spend:
+                continue  # el suelo recortó; tampoco se aprende
+            realized = -received.get(need_id, 0.0) / spend
+            store = cost_beliefs
 
-        realized = received.get(need_id, 0.0) / promised
-        current = beliefs.get(need_id, 1.0)
-        beliefs[need_id] = current + rate * (realized - current)
+        else:
+            continue  # efecto colateral: no se perseguía ni se anticipaba
+
+        current = store.get(need_id, 1.0)
+        store[need_id] = current + rate * (realized - current)

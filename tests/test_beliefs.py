@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 
-from agora.agents.decide import benefit
+from agora.agents.decide import benefit, candidates
 from agora.engine.ontology import ActionId, AgentId, NeedId, PlaceId
 from agora.engine.outcome import company_saturation, contextual_effects, learn
 from agora.engine.pack import ContentPack
@@ -103,15 +103,16 @@ def test_an_action_without_company_scaling_is_untouched() -> None:
 
 
 def learn_once(received: float, before: float = 0.0, rate: float = 0.5) -> float:
-    beliefs: dict[NeedId, float] = {}
+    ganancias: dict[NeedId, float] = {}
     learn(
-        beliefs,
+        ganancias,
+        {},
         social_pack().action_by_id[SOCIAL],
         {VINCULO: received},
         {VINCULO: before, OTRA: before},
         rate,
     )
-    return beliefs.get(VINCULO, 1.0)
+    return ganancias.get(VINCULO, 1.0)
 
 
 def test_getting_exactly_what_was_promised_keeps_the_belief() -> None:
@@ -151,15 +152,118 @@ def test_side_effects_teach_nothing() -> None:
     Solo se actualiza lo que aparece en `satisfies`: la expectativa es sobre lo
     que se perseguía, no sobre lo que salió de propina.
     """
-    beliefs: dict[NeedId, float] = {}
+    ganancias: dict[NeedId, float] = {}
     learn(
-        beliefs,
+        ganancias,
+        {},
         social_pack().action_by_id[SOCIAL],
         {VINCULO: 0.20, OTRA: 0.90},
         {VINCULO: 0.0, OTRA: 0.0},
         rate=0.5,
     )
-    assert OTRA not in beliefs
+    assert OTRA not in ganancias
+
+
+# --- el precio también se aprende --------------------------------------------
+
+
+def costly_pack() -> ContentPack:
+    """`act_cara` cuesta y el precio sube con la compañía."""
+    data = social_data()
+    data["needs"].append(
+        {"id": "dinero_t", "label": "d", "decay_per_tick": 0.001, "initial": 0.9}
+    )
+    data["actions"].append(
+        {
+            "id": "act_cara",
+            "label": "act_cara",
+            "duration_ticks": 2,
+            "satisfies": {"vinculo_test": 1.0},
+            "costs": {"dinero_t": 0.5},
+            "effects": {"vinculo_test": 0.20, "dinero_t": -0.10},
+            "effects_per_company": {"dinero_t": -0.20},
+        }
+    )
+    return ContentPack.model_validate(data)
+
+
+DINERO = NeedId("dinero_t")
+CARA = ActionId("act_cara")
+
+
+def learn_price(spent: float, before: float = 0.9, rate: float = 0.5) -> float:
+    precios: dict[NeedId, float] = {}
+    learn(
+        {},
+        precios,
+        costly_pack().action_by_id[CARA],
+        {DINERO: -spent},
+        {VINCULO: 0.3, DINERO: before},
+        rate,
+    )
+    return precios.get(DINERO, 1.0)
+
+
+def test_paying_what_was_expected_keeps_the_price_belief() -> None:
+    assert learn_price(spent=0.10) == pytest.approx(1.0)
+
+
+def test_paying_more_than_expected_raises_the_price_belief() -> None:
+    """Descubrir que algo sale caro es tan capaz de cambiar una rutina como
+    descubrir que rinde poco."""
+    assert learn_price(spent=0.30) > 1.0
+
+
+def test_nothing_is_learned_when_the_floor_cut_the_spending() -> None:
+    """Espejo por abajo de la guarda del techo: si te quedan 0.05 y algo cuesta
+    0.10, gastas 0.05 y concluirías que es barato."""
+    assert learn_price(spent=0.05, before=0.05) == 1.0
+
+
+def test_gains_and_prices_live_in_separate_stores() -> None:
+    """Una necesidad puede estar a los dos lados de la misma acción; con un solo
+    diccionario, las dos creencias se pisarían."""
+    ganancias: dict[NeedId, float] = {}
+    precios: dict[NeedId, float] = {}
+    learn(
+        ganancias,
+        precios,
+        costly_pack().action_by_id[CARA],
+        {VINCULO: 0.40, DINERO: -0.30},
+        {VINCULO: 0.3, DINERO: 0.9},
+        rate=0.5,
+    )
+    assert ganancias[VINCULO] > 1.0
+    assert precios[DINERO] > 1.0
+    assert DINERO not in ganancias and VINCULO not in precios
+
+
+def test_a_learned_price_lowers_the_utility() -> None:
+    """El precio aprendido entra en la decisión, no solo en la contabilidad."""
+    world = WorldState.new(costly_pack(), seed=1)
+    agent = world.agents[AG1]
+    agent.needs[VINCULO] = 0.3
+    agent.needs[DINERO] = 0.4
+
+    def utility() -> float:
+        return next(d for d in candidates(world, agent) if d.action == CARA).utility
+
+    ingenuo = utility()
+    agent.cost_beliefs[CARA] = {DINERO: 2.0}
+    assert utility() < ingenuo
+
+
+def test_the_price_is_learned_over_a_real_run() -> None:
+    sim = Simulation(costly_pack(), seed=1)
+    sim.run(400)
+
+    aprendido = [
+        agent.cost_beliefs.get(CARA, {}).get(DINERO)
+        for agent in sim.state.agents_in_order()
+    ]
+    assert any(v is not None and v > 1.0 for v in aprendido), (
+        f"nadie aprendió que sale más caro acompañado: {aprendido}"
+    )
 
 
 # --- efecto en la decisión ---------------------------------------------------
@@ -172,13 +276,13 @@ def test_the_belief_scales_what_the_agent_expects() -> None:
     action = pack.action_by_id[SOCIAL]
 
     ingenuo = benefit(pack, agent, action, agent.need_weights)
-    agent.beliefs[SOCIAL] = {VINCULO: 1.5}
+    agent.gain_beliefs[SOCIAL] = {VINCULO: 1.5}
     assert benefit(pack, agent, action, agent.need_weights) == pytest.approx(ingenuo * 1.5)
 
 
 def test_an_agent_with_no_experience_trusts_the_pack() -> None:
     world = WorldState.new(social_pack(), seed=1)
-    assert world.agents[AG1].beliefs == {}
+    assert world.agents[AG1].gain_beliefs == {}
 
 
 # --- integración: las creencias divergen -------------------------------------
@@ -211,7 +315,7 @@ def test_experience_moves_the_expectation_over_a_real_run() -> None:
     sim = Simulation(together_pack(), seed=1)
     sim.run(300)
 
-    aprendido = sim.state.agents[AG1].beliefs.get(SOCIAL, {}).get(VINCULO, 1.0)
+    aprendido = sim.state.agents[AG1].gain_beliefs.get(SOCIAL, {}).get(VINCULO, 1.0)
     assert aprendido > 1.05, "acompañado recibe más de lo prometido y debería notarlo"
 
 
@@ -225,7 +329,7 @@ def test_an_action_without_variance_never_moves_its_expectation() -> None:
     sim.run(300)
 
     for agent in sim.state.agents_in_order():
-        control = agent.beliefs.get(ActionId("act_solo"), {})
+        control = agent.gain_beliefs.get(ActionId("act_solo"), {})
         assert all(value == pytest.approx(1.0) for value in control.values())
 
 
@@ -239,7 +343,7 @@ def test_a_shared_life_produces_a_shared_expectation() -> None:
     sim.run(300)
 
     creencias = [
-        agent.beliefs.get(SOCIAL, {}).get(VINCULO, 1.0)
+        agent.gain_beliefs.get(SOCIAL, {}).get(VINCULO, 1.0)
         for agent in sim.state.agents_in_order()
     ]
     assert creencias[0] == pytest.approx(creencias[1])
@@ -260,8 +364,8 @@ def test_living_alone_or_accompanied_produces_different_expectations() -> None:
     solo = Simulation(ContentPack.model_validate(data), seed=1)
     solo.run(300)
 
-    con = acompanado.state.agents[AG1].beliefs.get(SOCIAL, {}).get(VINCULO, 1.0)
-    sin = solo.state.agents[AG1].beliefs.get(SOCIAL, {}).get(VINCULO, 1.0)
+    con = acompanado.state.agents[AG1].gain_beliefs.get(SOCIAL, {}).get(VINCULO, 1.0)
+    sin = solo.state.agents[AG1].gain_beliefs.get(SOCIAL, {}).get(VINCULO, 1.0)
 
     assert con > 1.05, "acompañado recibe más de lo prometido y debería notarlo"
     assert sin == pytest.approx(1.0), "solo recibe exactamente lo dicho: nada que aprender"

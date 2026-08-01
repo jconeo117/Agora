@@ -100,19 +100,23 @@ def _weigh(
     agent: AgentState,
     weights: dict[NeedId, float],
     terms: Mapping[NeedId, float],
+    beliefs: Mapping[NeedId, float],
 ) -> float:
-    """Suma ponderada por importancia y urgencia. Sirve a beneficio y coste.
+    """Suma ponderada por importancia, urgencia y experiencia.
 
-    Que ambos pasen por aquí no es ahorro de líneas: es lo que garantiza que
-    ganar y perder se midan con la misma vara. Ponderar el beneficio por
-    urgencia y el coste no haría que un agente desesperado ignorara los
-    precios.
+    Que beneficio y coste pasen por aquí no es ahorro de líneas: es lo que
+    garantiza que ganar y perder se midan con la misma vara. Ponderar el
+    beneficio por urgencia y el coste no haría que un agente desesperado
+    ignorara los precios; aprender solo de los premios y no de los precios haría
+    que nunca escarmentara.
+
+    Lo ausente en `beliefs` vale 1.0: quien no tiene experiencia se cree el pack.
     """
     total = 0.0
     for need_id, amount in terms.items():
         need = pack.need_by_id[need_id]
         pressure = urgency(agent.needs[need_id], need.urgency_exponent)
-        total += weights[need_id] * pressure * amount
+        total += weights[need_id] * pressure * amount * beliefs.get(need_id, 1.0)
     return total
 
 
@@ -131,13 +135,9 @@ def benefit(
 
     Lo ausente en `beliefs` vale 1.0: quien no tiene experiencia se cree el pack.
     """
-    beliefs = agent.beliefs.get(action.id, {})
-    total = 0.0
-    for need_id, satisfaction in action.satisfies.items():
-        need = pack.need_by_id[need_id]
-        pressure = urgency(agent.needs[need_id], need.urgency_exponent)
-        total += weights[need_id] * pressure * satisfaction * beliefs.get(need_id, 1.0)
-    return total
+    return _weigh(
+        pack, agent, weights, action.satisfies, agent.gain_beliefs.get(action.id, {})
+    )
 
 
 def cost(
@@ -146,8 +146,12 @@ def cost(
     action: ActionSpec,
     weights: dict[NeedId, float],
 ) -> float:
-    """Lo que el agente espera perder. Espejo exacto de `benefit`."""
-    return _weigh(pack, agent, weights, action.costs)
+    """Lo que ESTE agente espera perder. Espejo exacto de `benefit`.
+
+    También se aprende: descubrir que algo sale más caro de lo que creías es
+    tan capaz de cambiar una rutina como descubrir que rinde menos.
+    """
+    return _weigh(pack, agent, weights, action.costs, agent.cost_beliefs.get(action.id, {}))
 
 
 def novelty(agent: AgentState, action: ActionId, weight: float) -> float:

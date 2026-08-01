@@ -138,7 +138,7 @@ def test_a_requirement_below_what_it_spends_is_rejected() -> None:
     """Exigir 0.10 y gastar 0.30 deja pasar a quien tiene 0.15, y el efecto se
     trunca igual. La puerta existiría, dejaría pasar, y el problema seguiría
     ahí disfrazado de resuelto."""
-    with pytest.raises(ValidationError, match="consume"):
+    with pytest.raises(ValidationError, match="consumir"):
         market_pack(
             actions=[
                 {

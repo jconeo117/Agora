@@ -293,13 +293,17 @@ class ContentPack(Spec):
         problems: list[str] = []
         for action in self.actions:
             for need_id, minimum in action.requires.items():
-                gasto = -action.effects.get(need_id, 0.0)
+                # El peor caso, no el nominal: con `effects_per_company` negativo
+                # el gasto real crece con la gente, y una puerta dimensionada
+                # para el caso barato deja pasar justo cuando más caro sale.
+                extra = min(0.0, action.effects_per_company.get(need_id, 0.0))
+                gasto = -(action.effects.get(need_id, 0.0) + extra)
                 if gasto > 0.0 and minimum < gasto:
                     problems.append(
                         f"acción {action.id!r}: exige {minimum} de {need_id!r} pero "
-                        f"consume {gasto}. Un agente justo por encima del mínimo "
-                        f"seguiría truncando el efecto; sube el requisito a {gasto} "
-                        f"o quítalo"
+                        f"puede consumir hasta {round(gasto, 4)} (con compañía). Un "
+                        f"agente justo por encima del mínimo seguiría truncando el "
+                        f"efecto; sube el requisito o quítalo"
                     )
         return problems
 
