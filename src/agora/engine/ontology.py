@@ -504,6 +504,105 @@ class TuningSpec(Spec):
     0 desactiva el mecanismo y devuelve la omnisciencia.
     """
 
+    bond_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Cuánto mueve un rato compartido el aprecio hacia quien estaba delante.
+
+    Mismo error de predicción que `learning_rate`, pero atribuido a **personas**
+    en vez de a acciones. La señal es el premio que aportó la compañía, pesado
+    por lo mucho que al agente le hacía falta: quien estaba ahí cuando lo
+    necesitabas se te queda grabado, y quien estaba ahí cuando no te daba igual.
+
+    Que el premio se reparta entre todos los presentes por igual es deliberado y
+    no una simplificación: nadie puede saber cuál de los cuatro hizo buena la
+    velada. A base de repetir, la persona que sale en todas las veladas buenas
+    acumula aprecio, y esa es exactamente la forma en que se forma el afecto de
+    verdad. Nadie tuvo que escribir quién le cae bien a quién.
+
+    0.0 desactiva el mecanismo: los vínculos se registran pero nunca cambian.
+    """
+
+    bond_scale: float = Field(default=1.0, gt=0.0)
+    """Cuánto premio compartido equivale a medio aprecio.
+
+        premio = bruto / (|bruto| + bond_scale)
+
+    Existe porque el bruto está en las unidades del pack —pesos por urgencias
+    por efectos— y el aprecio está acotado a [-1, 1]. Sin este divisor, el
+    mecanismo es inerte en un pack de números pequeños y desbordado en uno de
+    números grandes: medido en el barrio, los aprecios se estancaban en 0.001.
+
+    Y es lo que mantiene honesto a `bond_weight`. Con la normalización, un
+    aprecio de 0.5 significa lo mismo en el barrio que en un mundo de espadas;
+    sin ella, cada ambientación tendría que recalibrar una perilla del motor,
+    que es justo lo que este proyecto no se puede permitir.
+
+    **Mídelo, no lo adivines.** Corre una semana con el rate puesto y mira dónde
+    se estancan los aprecios; si se quedan cortos, baja la escala.
+    """
+
+    bond_weight: float = Field(default=0.0, ge=0.0)
+    """Cuánto vale una persona apreciada frente a una desconocida, al contar
+    compañía.
+
+        peso_de_uno = 1 + bond_weight * aprecio
+
+    Es la perilla que convierte "cuánta gente hay" en "quién hay". A 0 el mundo
+    vuelve a ser anónimo y cuatro extraños valen lo mismo que cuatro amigos, que
+    es como estaba el motor hasta ahora.
+
+    Con aprecio negativo el peso baja de 1 y puede pasar de 0: la presencia de
+    quien te repele no solo no acompaña, resta. Ver `company_saturation`, que
+    está firmada para admitirlo.
+    """
+
+    bond_fade: float = Field(default=1.0, gt=0.0, le=1.0)
+    """Cuánto se desdibuja el aprecio por cada tick sin ver a alguien.
+
+        aprecio_ahora = aprecio * bond_fade ** (ticks sin verse)
+
+    Se evalúa **al leer**, a partir de `last_seen`, y no recorriendo los
+    vínculos cada tick. Con mil agentes, un bucle por tick sobre cada vínculo de
+    cada uno es justo la clase de coste que hunde el sistema bajo su propio peso;
+    esto es O(1) y da lo mismo.
+
+    1.0 lo desactiva: lo que sentiste una vez lo sientes para siempre.
+    """
+
+    bond_horizon: int = Field(default=0, ge=0)
+    """Tras cuántos ticks sin ver a alguien se borra el vínculo entero.
+
+    Es el segundo mecanismo de olvido del motor, y aquí no es un adorno
+    narrativo: sin él, cada agente acumula una entrada por cada persona con la
+    que se ha cruzado alguna vez, y en un mundo de mil habitantes eso crece sin
+    techo. Olvidar es lo que mantiene el estado acotado.
+
+    Que además se lea bien —dejas de ver a alguien un año y se te borra— es la
+    clase de coincidencia que indica que el modelo va por buen sitio.
+
+    0 desactiva el borrado: nadie olvida a nadie nunca.
+    """
+
+    companionship_weight: float = Field(default=0.0, ge=0.0)
+    """Cuánto atrae la compañía esperada, al deliberar.
+
+        factor = 1 + companionship_weight * saturación(compañía_efectiva)
+
+    Cubre un punto ciego real: hasta ahora, una acción social puntuaba **igual**
+    en un sitio con una persona que en uno con cinco. La compañía era una puerta
+    dura (`requires_company`) y nada más, así que nadie prefería la plaza llena a
+    la plaza justa.
+
+    Se aplica solo a las acciones a las que el pack dice que la gente les importa
+    —las que declaran `effects_per_company` o exigen compañía—. Sin ese filtro,
+    un agente preferiría dormir rodeado de gente.
+
+    Multiplica el beneficio, nunca el neto, por el mismo motivo que el descuento
+    de viaje: sobre el neto, una mala idea parecería menos mala por hacerse
+    acompañado.
+
+    0.0 lo desactiva.
+    """
+
     learning_rate: float = Field(default=0.0, ge=0.0, le=1.0)
     """Cuánto corrige el agente sus expectativas tras cada experiencia (alfa).
 

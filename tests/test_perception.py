@@ -70,34 +70,47 @@ def agent_at(place: PlaceId = P1) -> AgentState:
 
 
 def test_an_unseen_place_is_unknown() -> None:
-    assert agent_at().perceived_company(P2, tick=0, horizon=20) is None
+    assert agent_at().perceived_crowd(P2, tick=0, horizon=20) is None
 
 
 def test_what_was_seen_is_remembered() -> None:
     a = agent_at(P2)
-    a.observe(tick=10, company=3)
-    assert a.perceived_company(P2, tick=15, horizon=20) == 3
+    a.observe(tick=10, present=frozenset({AG2}))
+    assert a.perceived_crowd(P2, tick=15, horizon=20) == frozenset({AG2})
 
 
 def test_a_sighting_expires() -> None:
     a = agent_at(P2)
-    a.observe(tick=10, company=3)
-    assert a.perceived_company(P2, tick=29, horizon=20) == 3
-    assert a.perceived_company(P2, tick=31, horizon=20) is None
+    a.observe(tick=10, present=frozenset({AG2}))
+    assert a.perceived_crowd(P2, tick=29, horizon=20) == frozenset({AG2})
+    assert a.perceived_crowd(P2, tick=31, horizon=20) is None
 
 
 def test_horizon_zero_restores_omniscience() -> None:
     """Devuelve `None` siempre, y quien pregunta se queda con la verdad."""
     a = agent_at(P2)
-    a.observe(tick=10, company=3)
-    assert a.perceived_company(P2, tick=10, horizon=0) is None
+    a.observe(tick=10, present=frozenset({AG2}))
+    assert a.perceived_crowd(P2, tick=10, horizon=0) is None
 
 
 def test_an_agent_only_sees_where_it_stands() -> None:
     """Nadie ve el barrio entero desde su cocina."""
     a = agent_at(P1)
-    a.observe(tick=5, company=2)
+    a.observe(tick=5, present=frozenset({AG2}))
     assert set(a.sightings) == {P1}
+
+
+def test_the_memory_keeps_names_not_a_headcount() -> None:
+    """El cambio que hace posible la capa relacional.
+
+    Con un número, un agente solo puede querer ir donde hay gente. Con nombres
+    puede querer ir donde está alguien concreto.
+    """
+    a = agent_at(P2)
+    a.observe(tick=10, present=frozenset({AG2}))
+    recordado = a.perceived_crowd(P2, tick=10, horizon=20)
+    assert recordado is not None
+    assert AG2 in recordado
 
 
 # --- lo desconocido se supone a favor ----------------------------------------
@@ -116,7 +129,7 @@ def test_a_remembered_empty_place_is_not_offered() -> None:
     agent = world.agents[AG1]
     world.agents[AG2].at = P1  # p2 está vacío de verdad
     world.tick = 10
-    agent.sightings[P2] = (10, 0)  # y él lo sabe
+    agent.sightings[P2] = (10, frozenset())  # y él lo sabe
 
     assert not any(d.action == SOCIAL for d in candidates(world, agent))
 
@@ -126,7 +139,7 @@ def test_a_stale_memory_lets_him_try_again() -> None:
     world = WorldState.new(seen_pack(), seed=1)
     agent = world.agents[AG1]
     world.agents[AG2].at = P1
-    agent.sightings[P2] = (10, 0)
+    agent.sightings[P2] = (10, frozenset())
 
     world.tick = 25
     assert not any(d.action == SOCIAL for d in candidates(world, agent))
@@ -140,7 +153,7 @@ def test_the_current_place_is_known_first_hand() -> None:
     agent = world.agents[AG1]
     agent.at = P2
     world.agents[AG2].at = P1  # p2 está vacío AHORA
-    agent.sightings[P2] = (0, 5)  # pero recuerda que estaba lleno
+    agent.sightings[P2] = (0, frozenset({AG2}))  # pero recuerda que estaba lleno
     world.tick = 1
 
     assert not any(d.action == SOCIAL and d.place == P2 for d in candidates(world, agent))

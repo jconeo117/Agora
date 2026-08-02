@@ -19,7 +19,7 @@ from typing import assert_never
 from agora.agents.decide import Decision, critical_need, current_intent, decide, is_available
 from agora.engine.events import EventKind, EventLog, Payload
 from agora.engine.ontology import ActionId, AgentId, NeedId
-from agora.engine.outcome import contextual_effects, learn
+from agora.engine.outcome import company_premium, contextual_effects, learn
 from agora.engine.pack import ContentPack
 from agora.engine.state import AgentState, Busy, PerformingAction, Traveling, WorldState
 
@@ -83,20 +83,32 @@ class Simulation:
         recuerdos del mismo hecho.
         """
         specs = self.pack.need_by_id
+        tuning = self.pack.tuning
+        tick = self.state.tick
         # La ocupación se mide ANTES de que nadie se mueva este tick, así que
         # todos los agentes ven la misma foto. Calcularla dentro del bucle haría
         # que el primero de la lista decidiera sobre un mundo distinto al último.
-        occupancy = self.state.occupancy()
+        occupants = self.state.occupants()
 
         for agent in self.state.agents_in_order():
-            # Ve lo que tiene delante, y solo eso. Se anota antes de que nadie
+            # Ve a quién tiene delante, y solo eso. Se anota antes de que nadie
             # se mueva, así que todos observan la misma foto.
-            agent.observe(self.state.tick, occupancy.get(agent.at, 0) - 1)
+            others = occupants.get(agent.at, frozenset()) - {agent.spec_id}
+            agent.observe(tick, others)
+
+            # Olvidar va antes de todo lo demás: quien ya no está en tu vida no
+            # debería seguir pesando en el alivio de esta misma ronda.
+            agent.forget_bonds(tick, tuning.bond_horizon)
 
             # El umbral es de cada cual: quien aguanta más tarda más en alarmarse.
             threshold = agent.temperament.critical_need_threshold
             before = dict(agent.needs)
-            agent.decay(specs, company=occupancy.get(agent.at, 0) - 1)
+            agent.decay(
+                specs,
+                company=agent.effective_company(
+                    others, tick, tuning.bond_weight, tuning.bond_fade
+                ),
+            )
             agent.recover_novelty(self.pack.tuning.saturation_recovery)
             # Después del decaimiento: el desgaste y el temperamento que se
             # derivan de él tienen que reflejar el estado de ESTE tick, no del
@@ -158,7 +170,11 @@ class Simulation:
         sobre la comida.
         """
         spec = self.pack.action_by_id[action_id]
-        company = len(self.state.others_at(agent))
+        tuning = self.pack.tuning
+        tick = self.state.tick
+
+        others = [other.spec_id for other in self.state.others_at(agent)]
+        company = agent.effective_company(others, tick, tuning.bond_weight, tuning.bond_fade)
         received = contextual_effects(spec, company)
 
         before = dict(agent.needs)
@@ -170,11 +186,37 @@ class Simulation:
             spec,
             received,
             before,
-            self.pack.tuning.learning_rate,
+            tuning.learning_rate,
         )
+        # Y de paso, qué concluye sobre la gente que estaba delante. Se aprende
+        # de lo mismo que se acaba de vivir y con el estado de ANTES, igual que
+        # las creencias: lo que valió el rato lo decide la necesidad que traías.
+        #
+        # Solo para lo que el pack declara compartido, y la guarda es necesaria,
+        # no cosmética. Sin ella se actualiza el vínculo al terminar CUALQUIER
+        # cosa con alguien delante, con premio cero, y un turno de trabajo en la
+        # misma sala arrastra el aprecio hacia abajo. Medido: los turnos
+        # compartidos son mucho más frecuentes que las comidas compartidas y se
+        # comían la señal entera — los aprecios de treinta días se quedaban en
+        # 0.05 cuando el equilibrio de una charla está en 0.43. Compartir sala
+        # mientras cada uno va a lo suyo no acerca; tampoco tiene por qué alejar.
+        if spec.effects_per_company:
+            agent.remember_company(
+                others,
+                company_premium(
+                    spec,
+                    self.pack.need_by_id,
+                    agent.need_weights,
+                    before,
+                    company,
+                    tuning.bond_scale,
+                ),
+                tuning.bond_rate,
+                tick,
+            )
         agent.saturate(action_id, spec.saturation_gain)
 
-        data: Payload = {"company": company} if spec.effects_per_company else {}
+        data: Payload = {"company": round(company, 4)} if spec.effects_per_company else {}
         self._emit(EventKind.ACTION_COMPLETED, agent, action=action_id, data=data)
         agent.busy = None
 
@@ -290,6 +332,11 @@ class Simulation:
 
         # `sorted` para que el orden de los eventos no dependa del de un set.
         for actor, subject in sorted(current - self._together):
+            # Cruzarse te hace conocer a alguien; compartir algo con él te hace
+            # apreciarlo o detestarlo. Aquí solo lo primero, y en ambos sentidos:
+            # el vínculo es asimétrico en lo que se siente, no en quién se ve.
+            self.state.agents[actor].meet(subject, self.state.tick)
+            self.state.agents[subject].meet(actor, self.state.tick)
             self.log.emit(
                 tick=self.state.tick,
                 kind=EventKind.ENCOUNTER,

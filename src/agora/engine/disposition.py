@@ -52,6 +52,26 @@ def compose_need_weights(
     return weights
 
 
+def urgency(value: float, exponent: float) -> float:
+    """Cuánto apremia una necesidad, dado lo llena que está.
+
+    La curva es el motivo de que los agentes no parezcan termostatos. Con
+    exponente 1 todo compite linealmente y el agente atiende cinco cosas a
+    medias; con exponente 2.5 una necesidad es casi irrelevante hasta que de
+    pronto es tiránica, que es como se comporta el hambre de verdad.
+
+    Vive aquí y no en `decide.py` porque no es deliberación: es "cuánto le
+    importa esto a este agente ahora mismo", la misma familia que `compute_strain`
+    y `compose_need_weights`. Y desde aquí la puede usar también `outcome.py`,
+    que necesita valorar lo ocurrido con la misma vara con que se decidió — si
+    fueran dos curvas distintas, el agente aprendería con un criterio que no es
+    el suyo.
+    """
+    # `float(...)` explícito: para typeshed, `**` puede devolver un complejo
+    # (base negativa, exponente fraccionario). El `max` ya lo impide aquí.
+    return float(max(0.0, 1.0 - value) ** exponent)
+
+
 @dataclass(frozen=True, slots=True)
 class Temperament:
     """Cómo decide este agente, ya compuesto sobre los valores del mundo.
@@ -88,7 +108,7 @@ def compute_strain(pack: ContentPack, needs: Mapping[NeedId, float]) -> float:
     for need in pack.needs:
         if need.strain_weight <= 0.0:
             continue
-        pressure = max(0.0, 1.0 - needs[need.id]) ** need.urgency_exponent
+        pressure = urgency(needs[need.id], need.urgency_exponent)
         total += need.strain_weight * pressure
         weights += need.strain_weight
     return total / weights if weights else 0.0

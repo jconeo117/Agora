@@ -14,8 +14,8 @@ from agora.agents.decide import (
     critical_need,
     current_intent,
     decide,
-    urgency,
 )
+from agora.engine.disposition import urgency
 from agora.engine.ontology import ActionId, AgentId, NeedId, PlaceId, TraitId
 from agora.engine.pack import ContentPack
 from agora.engine.state import AgentState, PerformingAction, Traveling, WorldState

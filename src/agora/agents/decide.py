@@ -21,7 +21,7 @@ La fórmula:
     beneficio = suma_necesidades( peso * urgencia * satisface )
     coste     = suma_necesidades( peso * urgencia * cuesta )
 
-    utilidad  = beneficio * descuento_viaje * gustos - aversion * coste
+    utilidad  = beneficio * descuento_viaje * gustos * compañía - aversion * coste
 
 Tres detalles de esa expresión que no son arbitrarios:
 
@@ -31,11 +31,11 @@ cambie de conducta según su situación, sin una sola regla escrita para ello. E
 también lo que hace operativos los rasgos económicos: subir el peso de una
 necesidad hace a la vez que se persiga más y que se gaste menos.
 
-**El descuento y los gustos multiplican solo el beneficio.** Si multiplicaran el
-neto, una opción mala y lejana parecería menos mala por estar lejos, y algo que
-al agente le encanta le repelería más cuando el neto es negativo. El descuento
-dice "la recompensa está lejos, vale menos"; el precio que se paga al llegar no
-se descuenta.
+**El descuento, los gustos y la compañía multiplican solo el beneficio.** Si
+multiplicaran el neto, una opción mala y lejana parecería menos mala por estar
+lejos, y algo que al agente le encanta le repelería más cuando el neto es
+negativo. El descuento dice "la recompensa está lejos, vale menos"; el precio
+que se paga al llegar no se descuenta.
 
 **La utilidad puede ser negativa**, y debe poder serlo: significa "mala idea
 ahora mismo". Como la acción de red de seguridad no cuesta nada y vale casi
@@ -50,13 +50,16 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import assert_never
 
+from agora.engine.disposition import urgency
 from agora.engine.ontology import (
     ActionId,
     ActionSpec,
+    AgentId,
     NeedId,
     PlaceId,
     PlaceSpec,
 )
+from agora.engine.outcome import company_saturation
 from agora.engine.pack import ContentPack
 from agora.engine.state import AgentState, PerformingAction, Traveling, WorldState
 from agora.engine.topology import INFINITE
@@ -77,17 +80,9 @@ class Decision:
 # -----------------------------------------------------------------------------
 
 
-def urgency(value: float, exponent: float) -> float:
-    """Cuánto apremia una necesidad, dado lo llena que está.
-
-    La curva es el motivo de que los agentes no parezcan termostatos. Con
-    exponente 1 todo compite linealmente y el agente atiende cinco cosas a
-    medias; con exponente 2.5 una necesidad es casi irrelevante hasta que de
-    pronto es tiránica, que es como se comporta el hambre de verdad.
-    """
-    # `float(...)` explícito: para typeshed, `**` puede devolver un complejo
-    # (base negativa, exponente fraccionario). El `max` ya lo impide aquí.
-    return float(max(0.0, 1.0 - value) ** exponent)
+# `urgency` vive en `disposition.py`: no es deliberación, es "cuánto le importa
+# esto a este agente ahora". Desde allí la usa también `outcome.py` para valorar
+# lo ocurrido con la misma vara con la que se decidió.
 
 
 # -----------------------------------------------------------------------------
@@ -169,6 +164,31 @@ def novelty(agent: AgentState, action: ActionId, weight: float) -> float:
     return 1.0 - agent.saturation.get(action, 0.0) * weight
 
 
+def companionship(action: ActionSpec, company: float, weight: float) -> float:
+    """Cuánto más (o menos) apetece este plan por la gente que habrá.
+
+        factor = 1 + peso * saturación(compañía_efectiva)
+
+    Cubre un punto ciego real. Hasta ahora la compañía era **solo una puerta
+    dura**: `charlar` con una persona delante puntuaba exactamente igual que
+    `charlar` con cinco, y nadie prefería la plaza llena a la plaza justa. Al
+    entrar los vínculos hace falta además que se prefiera la plaza donde está la
+    gente que importa, y las dos cosas son el mismo término.
+
+    El filtro es lo que impide que se desmadre: solo se aplica a las acciones a
+    las que el pack dice que la gente les importa. Sin él, un agente preferiría
+    dormir rodeado de gente, que es absurdo y además invisible hasta que lees el
+    log de una semana.
+
+    Acotado a 0 por abajo: con pesos altos y compañía detestable el factor
+    llegaría a negativo, y un beneficio de signo cambiado no significa nada.
+    Cero ya dice todo lo que hay que decir — con esa gente, el plan no vale.
+    """
+    if weight <= 0.0 or (not action.effects_per_company and action.requires_company == 0):
+        return 1.0
+    return max(0.0, 1.0 + weight * company_saturation(company))
+
+
 def is_available(
     action: ActionSpec,
     place: PlaceSpec,
@@ -227,8 +247,9 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
     # La ocupación real solo se usa para el sitio donde ESTÁ: eso lo ve. Del
     # resto tira de lo que recuerda haber visto, y lo que no recuerda lo supone
     # a favor. Con `sighting_horizon` a 0 se vuelve a la omnisciencia.
-    occupancy = world.occupancy()
-    horizon = pack.tuning.sighting_horizon
+    occupants = world.occupants()
+    tuning = pack.tuning
+    horizon = tuning.sighting_horizon
 
     found: list[Decision] = []
     for place in pack.places:
@@ -237,23 +258,38 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             continue  # imposible con un pack validado, pero el motor no asume
         discount = temperament.travel_discount**travel
         place_taste = tastes.get(str(place.id), 1.0)
-        company: int | None
+
+        # Quién cree que hay allí. `None` = no tiene noticia, y se supone a favor.
+        crowd: frozenset[AgentId] | None
         if place.id == agent.at:
-            company = occupancy.get(place.id, 0) - 1
+            crowd = occupants.get(place.id, frozenset()) - {agent.spec_id}
         else:
-            company = agent.perceived_company(place.id, world.tick, horizon)
+            crowd = agent.perceived_crowd(place.id, world.tick, horizon)
             if horizon <= 0:
-                company = occupancy.get(place.id, 0)
+                crowd = occupants.get(place.id, frozenset())
+
+        # Dos lecturas de la misma gente, y no son intercambiables. La puerta
+        # dura cuenta cabezas: una fiesta necesita cuerpos, no amigos. El
+        # atractivo cuenta personas: cuatro conocidos no son cuatro extraños.
+        headcount = None if crowd is None else len(crowd)
+        expected = (
+            0.0
+            if crowd is None
+            else agent.effective_company(
+                crowd, world.tick, tuning.bond_weight, tuning.bond_fade
+            )
+        )
 
         for action in pack.actions:
-            if not is_available(action, place, company, agent.needs):
+            if not is_available(action, place, headcount, agent.needs):
                 continue
             reward = benefit(pack, agent, action, weights) * discount * place_taste
             reward *= tastes.get(str(action.id), 1.0)
-            reward *= novelty(agent, action.id, pack.tuning.novelty_weight)
+            reward *= novelty(agent, action.id, tuning.novelty_weight)
+            reward *= companionship(action, expected, tuning.companionship_weight)
             # Comprometer tiempo tiene coste: mientras dure, no se atiende nada
             # más. Ese era el punto ciego respecto a la duración.
-            reward *= pack.tuning.duration_discount**action.duration_ticks
+            reward *= tuning.duration_discount**action.duration_ticks
             price = cost(pack, agent, action, weights) * temperament.loss_aversion
             found.append(
                 Decision(

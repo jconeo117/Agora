@@ -12,7 +12,7 @@ ya nadie vuelve a comprobar.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -112,6 +112,52 @@ runtime; aquí falla antes de ejecutar.
 
 
 # -----------------------------------------------------------------------------
+# Vínculos: lo que un agente sabe de otro
+# -----------------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class Bond:
+    """Lo que un agente siente y recuerda de otro. Asimétrico a propósito.
+
+    Cada uno guarda el suyo, y no tienen por qué coincidir. Que A aprecie a B
+    más de lo que B aprecia a A es lo normal, no un caso raro, y un vínculo
+    compartido lo haría imposible de expresar.
+
+    Tres campos y ninguno de ellos es nuevo en el motor: un contador que crece
+    con el trato (como `saturation`), un valor aprendido por error de predicción
+    (como `gain_beliefs`) y una marca de tiempo que caduca (como `sightings`).
+    La capa relacional es recombinación de lo que ya había.
+    """
+
+    regard: float = 0.0
+    """Aprecio en [-1, 1]. 0 es un desconocido, y también alguien que te da
+    exactamente igual: la diferencia entre ambos la marca `encounters`."""
+
+    encounters: int = 0
+    """Cuántas veces se han cruzado. No entra en ninguna fórmula todavía.
+
+    Está porque responde lo único que `regard` no puede: si os conocéis. Un
+    aprecio de 0.0 es a la vez el desconocido y el vecino que te resulta
+    indiferente, y el narrador de F5 no puede tratarlos igual.
+    """
+
+    last_seen: int = 0
+    """Tick del último encuentro. De aquí salen el desdibujado y el olvido."""
+
+    def regard_at(self, tick: int, fade: float) -> float:
+        """El aprecio de HOY, desdibujado por el tiempo sin verse.
+
+        Se calcula al leer y no se guarda actualizado. Un bucle por tick sobre
+        cada vínculo de cada agente es exactamente el coste que hunde el sistema
+        cuando el mundo crece; esto vale lo mismo y no cuesta nada.
+        """
+        if fade >= 1.0:
+            return self.regard
+        return self.regard * fade ** max(0, tick - self.last_seen)
+
+
+# -----------------------------------------------------------------------------
 # Estado de un agente
 # -----------------------------------------------------------------------------
 
@@ -201,12 +247,27 @@ class AgentState:
     salir, y nadie tuvo que escribirle esa lección.
     """
 
-    sightings: dict[PlaceId, tuple[int, int]] = field(default_factory=dict)
-    """Lo último que este agente vio en cada sitio: `(tick, gente)`.
+    bonds: dict[AgentId, Bond] = field(default_factory=dict)
+    """A quién conoce y qué siente por cada cual.
+
+    Lo ausente es un desconocido, y se trata como aprecio 0: neutro, ni atrae ni
+    repele. El diccionario solo tiene entrada para quien se ha cruzado de verdad,
+    y `forget_bonds` la borra pasado el horizonte. Así el tamaño es "la gente de
+    tu vida últimamente" y no "todo el que has visto nunca", que es lo que
+    permite que esto escale a un mundo poblado.
+    """
+
+    sightings: dict[PlaceId, tuple[int, frozenset[AgentId]]] = field(default_factory=dict)
+    """Lo último que este agente vio en cada sitio: `(tick, quiénes)`.
 
     Solo lo que ha visto con sus ojos, estando allí. Es lo que sustituye a la
     omnisciencia: sin esto, cada agente conoce en tiempo real la ocupación de
     los veintiún lugares del barrio.
+
+    Guarda **nombres y no un recuento**, y ese cambio es lo que hace posible la
+    capa relacional. Con un número, un agente solo puede querer ir donde hay
+    gente; con nombres puede querer ir donde está Mira. Es la diferencia entre
+    un mundo poblado y un mundo habitado.
 
     Un avistamiento caduca (`sighting_horizon`), y lo caducado se supone **a
     favor**. Así el agente va a mirar y se lleva el chasco; suponer vacío haría
@@ -255,13 +316,15 @@ class AgentState:
             busy=None,  # todos deliberan en el tick 0
         )
 
-    def observe(self, tick: int, company: int) -> None:
-        """Anota lo que ve donde está. Solo su propio sitio: nadie ve el barrio
+    def observe(self, tick: int, present: frozenset[AgentId]) -> None:
+        """Anota a quién ve donde está. Solo su propio sitio: nadie ve el barrio
         entero desde su cocina."""
-        self.sightings[self.at] = (tick, company)
+        self.sightings[self.at] = (tick, present)
 
-    def perceived_company(self, place: PlaceId, tick: int, horizon: int) -> int | None:
-        """Cuánta gente CREE que hay allí. `None` = no lo sabe.
+    def perceived_crowd(
+        self, place: PlaceId, tick: int, horizon: int
+    ) -> frozenset[AgentId] | None:
+        """Quién CREE que hay allí. `None` = no lo sabe.
 
         Sin horizonte, omnisciencia: no hay memoria que valga y quien pregunta
         se queda con la verdad del mundo.
@@ -276,6 +339,106 @@ class AgentState:
         if seen is None or tick - seen[0] > horizon:
             return None
         return seen[1]
+
+    # -- vínculos -------------------------------------------------------------
+
+    def regard_for(self, other: AgentId, tick: int, fade: float) -> float:
+        """Aprecio actual hacia alguien. Un desconocido vale 0."""
+        bond = self.bonds.get(other)
+        return 0.0 if bond is None else bond.regard_at(tick, fade)
+
+    def effective_company(
+        self, others: Collection[AgentId], tick: int, weight: float, fade: float
+    ) -> float:
+        """Cuánta compañía es esa gente PARA ESTE AGENTE.
+
+            compañía = Σ (1 + peso * aprecio)
+
+        Sustituye al recuento en todo sitio donde la compañía hacía algo: el
+        alivio pasivo de las necesidades, la escala de los efectos y el atractivo
+        de un plan acompañado. Con `weight` a 0 devuelve el recuento exacto, así
+        que el mundo anónimo de antes es el caso particular.
+
+        Puede salir negativa, y debe poder: tres personas a las que detestas no
+        son compañía, son un problema. La saturación está firmada para eso.
+
+        La puerta dura `requires_company` NO pasa por aquí y sigue contando
+        cabezas. Una fiesta necesita cuerpos; que te caigan bien es otra cosa, y
+        confundirlas dejaría a un misántropo sin poder entrar en un bar lleno.
+
+        Se suma **en orden de id**, y no es cosmética. Quien llama pasa a menudo
+        un `frozenset`, cuyo orden de iteración depende del hash de las cadenas
+        —aleatorizado por proceso—, y la suma en coma flotante no es asociativa.
+        Sin ordenar, dos corridas con el mismo seed en dos procesos distintos
+        pueden diferir en el último bit y de ahí en el log entero. Es la misma
+        razón por la que los rasgos se recorren ordenados en `disposition.py`.
+        """
+        if weight <= 0.0:
+            return float(len(others))
+        return sum(
+            1.0 + weight * self.regard_for(other, tick, fade) for other in sorted(others)
+        )
+
+    def remember_company(
+        self, others: Collection[AgentId], premium: float, rate: float, tick: int
+    ) -> None:
+        """Actualiza el aprecio hacia quien acaba de compartir algo con él.
+
+            aprecio <- aprecio + alfa * (premio - aprecio)
+
+        Mismo error de predicción que `learn`, atribuido a personas. El premio va
+        acotado a [-1, 1] antes de usarse como objetivo: es una suma pesada sin
+        techo natural, y sin acotarla una velada excepcional mandaría el aprecio
+        fuera de rango de un golpe.
+
+        Todos los presentes reciben el mismo crédito. No es una simplificación:
+        nadie puede saber cuál de los cuatro hizo buena la velada. Lo que
+        distingue a unos de otros es la repetición — quien sale en todas las
+        veladas buenas acumula, quien salió en una se diluye.
+        """
+        if rate <= 0.0 or not others:
+            return
+        target = max(-1.0, min(1.0, premium))
+        for other in others:
+            bond = self.bonds.get(other)
+            if bond is None:
+                bond = Bond()
+                self.bonds[other] = bond
+            bond.regard += rate * (target - bond.regard)
+            bond.last_seen = tick
+
+    def meet(self, other: AgentId, tick: int) -> None:
+        """Registra un encuentro. Crea el vínculo si es el primero.
+
+        Separado de `remember_company` porque cruzarse con alguien y compartir
+        algo con alguien son cosas distintas: lo primero te hace conocerlo, lo
+        segundo te hace apreciarlo o detestarlo.
+        """
+        bond = self.bonds.get(other)
+        if bond is None:
+            bond = Bond()
+            self.bonds[other] = bond
+        bond.encounters += 1
+        bond.last_seen = tick
+
+    def forget_bonds(self, tick: int, horizon: int) -> None:
+        """Borra a quien no ve desde hace demasiado.
+
+        Es el segundo mecanismo de olvido del motor, y el que mantiene acotado
+        el estado: sin él, cada agente acumula una entrada por cada persona con
+        la que se cruzó alguna vez, y en un mundo poblado eso crece sin techo.
+
+        Que además se lea bien —pierdes el trato y acabas por no acordarte— es
+        buena señal, pero no es el motivo.
+        """
+        if horizon <= 0:
+            return
+        for other in [
+            other
+            for other, bond in self.bonds.items()
+            if tick - bond.last_seen > horizon
+        ]:
+            del self.bonds[other]
 
     def refresh_state(self, pack: ContentPack) -> None:
         """Recalcula el desgaste y con él el temperamento.
@@ -315,13 +478,18 @@ class AgentState:
 
     # -- necesidades ----------------------------------------------------------
 
-    def decay(self, need_specs: Mapping[NeedId, NeedSpec], company: int = 0) -> None:
+    def decay(self, need_specs: Mapping[NeedId, NeedSpec], company: float = 0.0) -> None:
         """Baja cada necesidad según su propia tasa. Resultado en [0, 1].
 
-        `company` son los otros agentes presentes. Las necesidades que declaren
-        `company_relief` decaen más despacio estando acompañado, con saturación
-        `n/(n+1)`: uno da la mitad del alivio, tres tres cuartos, una multitud
-        nunca más que el tope.
+        `company` es la compañía **efectiva**: los otros presentes, ya pesados
+        por lo que este agente siente por cada uno (ver `effective_company`).
+        Las necesidades que declaren `company_relief` decaen más despacio estando
+        acompañado, con saturación `n/(n+1)`: uno da la mitad del alivio, tres
+        tres cuartos, una multitud nunca más que el tope.
+
+        Y puede ir al revés. Con compañía efectiva negativa el alivio se vuelve
+        castigo y la necesidad decae MÁS DEPRISA que a solas: un cuarto con
+        alguien a quien no soportas es más solitario que un cuarto vacío.
 
         Indexa directo en vez de usar `.get(..., default)`: si una necesidad del
         pack no está en el dict del agente, eso es un bug de construcción y
@@ -466,16 +634,21 @@ class WorldState:
         """Dónde está, con sus affordances. Decide qué acciones son válidas."""
         return self.pack.place_by_id[agent.at]
 
-    def occupancy(self) -> dict[PlaceId, int]:
-        """Cuántos agentes hay en cada lugar. Una pasada, no una por consulta.
+    def occupants(self) -> dict[PlaceId, frozenset[AgentId]]:
+        """Quién hay en cada lugar. Una pasada, no una por consulta.
 
         La deliberación pregunta por los 21 lugares del mundo en cada decisión;
-        contar por separado cada vez sería cuadrático en el número de agentes.
+        recorrer los agentes por separado cada vez sería cuadrático.
+
+        Devuelve nombres y no un recuento porque desde la capa relacional la
+        pregunta dejó de ser "cuántos" para ser "quiénes". El recuento se saca
+        con `len` donde todavía haga falta —la puerta dura de `requires_company`
+        sigue contando cabezas—, así que no se pierde nada.
         """
-        counts: dict[PlaceId, int] = {}
+        gathered: dict[PlaceId, set[AgentId]] = {}
         for agent in self.agents.values():
-            counts[agent.at] = counts.get(agent.at, 0) + 1
-        return counts
+            gathered.setdefault(agent.at, set()).add(agent.spec_id)
+        return {place: frozenset(who) for place, who in gathered.items()}
 
     def others_at(self, agent: AgentState) -> list[AgentState]:
         """Los demás agentes en el mismo lugar.

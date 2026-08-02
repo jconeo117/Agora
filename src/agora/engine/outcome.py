@@ -19,24 +19,38 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from agora.engine.ontology import ActionSpec, NeedId
+from agora.engine.disposition import urgency
+from agora.engine.ontology import ActionSpec, NeedId, NeedSpec
 
 
-def company_saturation(company: int) -> float:
-    """Rendimiento decreciente de la compañía, en [0, 1).
+def company_saturation(company: float) -> float:
+    """Rendimiento decreciente de la compañía, en (-1, 1).
+
+        saturación(x) = x / (|x| + 1)
 
     Uno da la mitad del máximo, tres tres cuartos, una multitud nunca más que el
     tope. Sin saturar, una sala llena volvería cualquier efecto social absurdo.
 
-    Vive aquí y no repetido en dos sitios porque la curva la usan el alivio
-    pasivo de las necesidades y la escala de los efectos, y tienen que ser la
-    misma o dos mecanismos que dicen medir lo mismo divergen.
+    **Está firmada**, y el valor absoluto del denominador es lo que la hace
+    simétrica en vez de aplastar el lado negativo. Con los vínculos, la compañía
+    dejó de ser un recuento: cada presente vale `1 + peso * aprecio`, y una
+    persona a la que se detesta lo bastante aporta un número negativo. Que el
+    resultado pueda ser negativo es lo que permite que una mala compañía haga
+    daño en vez de simplemente no ayudar — un cuarto con alguien que no soportas
+    es más solitario que un cuarto vacío.
+
+    Para valores no negativos es idéntica a como era, así que nada de lo
+    calibrado hasta ahora se mueve.
+
+    Vive aquí y no repetida en tres sitios porque la curva la usan el alivio
+    pasivo de las necesidades, la escala de los efectos y el atractivo de un
+    plan acompañado. Tienen que ser la misma, o tres mecanismos que dicen medir
+    lo mismo divergen.
     """
-    crowd = max(0, company)
-    return crowd / (crowd + 1) if crowd else 0.0
+    return company / (abs(company) + 1.0)
 
 
-def contextual_effects(action: ActionSpec, company: int) -> dict[NeedId, float]:
+def contextual_effects(action: ActionSpec, company: float) -> dict[NeedId, float]:
     """Lo que la acción da REALMENTE, dadas las circunstancias.
 
     El pack declara un efecto base y, opcionalmente, cuánto añade la compañía.
@@ -54,6 +68,65 @@ def contextual_effects(action: ActionSpec, company: int) -> dict[NeedId, float]:
     for need_id, extra in action.effects_per_company.items():
         result[need_id] = result.get(need_id, 0.0) + extra * bonus
     return result
+
+
+def company_premium(
+    action: ActionSpec,
+    need_specs: Mapping[NeedId, NeedSpec],
+    weights: Mapping[NeedId, float],
+    before: Mapping[NeedId, float],
+    company: float,
+    scale: float,
+) -> float:
+    """Cuánto le aportó la compañía a ESTE agente, ya en escala de aprecio.
+
+    El bruto es la diferencia entre lo que la acción dio acompañado y lo que
+    habría dado a solas, pesada por lo que al agente le importa cada necesidad y
+    por lo mucho que le apretaba en ese momento:
+
+        bruto = Σ  peso * urgencia * effects_per_company * saturación(compañía)
+
+    Los dos factores de delante son los que hacen que esto genere personalidad
+    en vez de estadística de co-presencia. La misma conversación, con la misma
+    gente, vale mucho para quien está muerto de soledad y casi nada para quien
+    la tiene cubierta. De ahí sale que un agente sociable forme vínculos deprisa
+    y uno reservado apenas los forme, sin una sola regla escrita para ello — y
+    que quien te acompañó **cuando te hacía falta** pese más que quien te
+    acompañó cuando te daba igual.
+
+    Se mide con `before`, el estado ANTES de aplicar los efectos, por lo mismo
+    que `learn`: lo que valió el rato lo decide la necesidad que traías, no la
+    que te queda después de saciarla.
+
+    Y luego se **normaliza**, que es la mitad del trabajo de esta función:
+
+        premio = bruto / (|bruto| + scale)
+
+    Sin normalizar, el bruto es una cantidad de utilidad en las unidades del
+    pack —en el barrio salía del orden de 0.05— usada como objetivo de una
+    variable acotada a [-1, 1]. Medido: el aprecio se estancaba en 0.001 y el
+    mecanismo entero era inerte. Peor que inerte: `bond_weight` habría
+    significado cosas distintas en cada ambientación, y eso rompe lo único que
+    el motor no puede permitirse.
+
+    La curva es la misma saturación firmada de la compañía, y por eso `scale` se
+    lee como "cuánto premio equivale a medio aprecio". Es un número de la escala
+    del pack, así que vive en el pack. **Mídelo, no lo adivines**: pon el rate a
+    lo que quieras, corre una semana y mira dónde se estancan los aprecios.
+
+    Devuelve 0.0 para las acciones que no declaran `effects_per_company`. Estar
+    en la misma sala mientras cada uno trabaja lo suyo no acerca a nadie, y eso
+    es correcto: el pack declara qué actividades son compartidas de verdad.
+    """
+    if not action.effects_per_company or scale <= 0.0:
+        return 0.0
+
+    bonus = company_saturation(company)
+    total = 0.0
+    for need_id, extra in action.effects_per_company.items():
+        pressure = urgency(before[need_id], need_specs[need_id].urgency_exponent)
+        total += weights[need_id] * pressure * extra * bonus
+    return company_saturation(total / scale)
 
 
 def learn(

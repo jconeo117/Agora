@@ -102,6 +102,47 @@ tuning:
 
   critical_need_threshold: 0.15
 
+  # --- VINCULOS -------------------------------------------------------------
+  #
+  # Hasta aqui el barrio estaba poblado pero no habitado: los agentes contaban
+  # cabezas y nunca sabian de quien eran. Con esto, la compania deja de ser un
+  # numero y pasa a ser gente concreta.
+
+  # Cuanto premio compartido equivale a medio aprecio. MEDIDO, no elegido:
+  # sobre los diez residentes, una charla renta entre +0.002 y +0.078 segun lo
+  # sola que se sienta cada cual, y una fiesta entre -0.018 y +0.140. A 0.04
+  # una charla de las buenas vale ~0.66 de aprecio pleno y una de compromiso
+  # ~0.04, que es el recorrido que se queria.
+  bond_scale: 0.04
+
+  # Cuanto mueve cada rato compartido el aprecio. A 0.15 hacen falta unas diez
+  # ocasiones para que un vinculo se asiente.
+  #
+  # Esta mas alto que el de las creencias por un motivo medido, no por criterio:
+  # el barrio tiene POCA vida compartida. De 384 acciones sociales completadas
+  # en 30 dias, solo 122 tenian a alguien delante -unas cuatro por vecino al
+  # mes-, asi que un ritmo lento no llega a ninguna parte. Si algun dia el dia
+  # deja de estar sobresuscrito y la gente se junta mas, esto hay que bajarlo.
+  bond_rate: 0.15
+
+  # Cuanto vale alguien apreciado frente a un desconocido, al contar compania.
+  # A 0.5, una persona a la que se quiere del todo cuenta por una y media.
+  bond_weight: 0.5
+
+  # Cuanto atrae la compania esperada al deliberar. Cierra un punto ciego real:
+  # antes, charlar con uno delante puntuaba igual que charlar con cinco.
+  companionship_weight: 0.4
+
+  # Cuanto se desdibuja el aprecio por cada tick sin verse. A 0.9997 un dia
+  # apenas roza (0.97), un mes deja poco menos de la mitad (0.41) y un ano lo
+  # borra. El desdibujado se calcula al leer, no recorriendo vinculos por tick.
+  bond_fade: 0.9997
+
+  # Y a los treinta dias sin verse, el vinculo se borra entero. No es adorno:
+  # es lo que impide que cada agente acumule una entrada por cada persona con
+  # la que se cruzo alguna vez. Olvidar es lo que mantiene acotado el estado.
+  bond_horizon: 2880
+
 # -----------------------------------------------------------------------------
 # NECESIDADES
 #
