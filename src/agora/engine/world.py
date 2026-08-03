@@ -16,7 +16,15 @@ from __future__ import annotations
 
 from typing import assert_never
 
-from agora.agents.decide import Decision, critical_need, current_intent, decide, is_available
+from agora.agents.decide import (
+    Decision,
+    critical_need,
+    current_intent,
+    decide,
+    is_available,
+    planned_duration,
+    recovery_rate,
+)
 from agora.engine.events import EventKind, EventLog, Payload
 from agora.engine.ontology import ActionId, AgentId, NeedId
 from agora.engine.outcome import company_premium, contextual_effects, learn
@@ -131,7 +139,7 @@ class Simulation:
         busy = agent.busy
         if busy is not None and busy.ticks_remaining == 0:
             self._complete(agent, busy)
-        elif busy is not None:
+        elif busy is not None and self._can_drop(busy):
             urgent = critical_need(self.state, agent)
             # Solo se abandona si existe algo que ATIENDA la urgencia. Sin esta
             # comprobación, un agente sin dinero ni despensa reinicia su turno
@@ -152,22 +160,47 @@ class Simulation:
         if agent.busy is None:
             self._begin(agent, forced)
 
+    def _can_drop(self, busy: Busy) -> bool:
+        """¿Se puede soltar esto por una urgencia?
+
+        Solo protege lo que se está EJECUTANDO, no el viaje hacia ello: se puede
+        dar media vuelta de camino a la batalla, lo que no se puede es abandonarla
+        a la mitad para echar una cabezada.
+
+        Y es lo que hace posible la deuda. Mientras todo se pueda soltar, un
+        agente se autolimita y nunca llega al agotamiento extremo: la necesidad no
+        llega a hundirse y no hay nada que acumular.
+        """
+        match busy:
+            case PerformingAction():
+                return self.pack.action_by_id[busy.action].interruptible
+            case Traveling():
+                return True
+            case _:  # pragma: no cover
+                assert_never(busy)
+
     def _complete(self, agent: AgentState, busy: Busy) -> None:
         match busy:
             case PerformingAction():
-                self._finish_action(agent, busy.action)
+                self._finish_action(agent, busy.action, busy.total_ticks)
             case Traveling():
                 self._arrive(agent, busy)
             case _:
                 assert_never(busy)
 
-    def _finish_action(self, agent: AgentState, action_id: ActionId) -> None:
+    def _finish_action(self, agent: AgentState, action_id: ActionId, done: int) -> None:
         """Aplica el resultado real y aprende de la diferencia con lo prometido.
 
         El orden importa: el estado ANTES de aplicar es lo que permite saber si
         el techo de la necesidad recortó el efecto, y de un efecto recortado no
         se aprende nada — que te recorten la comida por estar lleno no dice nada
         sobre la comida.
+
+        `done` son los ticks realmente cumplidos, y solo importa para lo elástico:
+        ahí el efecto es `ritmo * tiempo`, así que soltarlo a medias acredita la
+        mitad en vez de no acreditar nada. Sin eso, la elasticidad EMPEORA las
+        cosas — comprometer quince horas para no cobrar nada si te levantan es
+        peor que comprometer ocho.
         """
         spec = self.pack.action_by_id[action_id]
         tuning = self.pack.tuning
@@ -178,7 +211,11 @@ class Simulation:
         received = contextual_effects(spec, company)
 
         before = dict(agent.needs)
-        agent.apply(received)
+        agent.apply(received, self.pack.need_by_id)
+
+        if spec.elastic is not None and done > 0:
+            rate = recovery_rate(spec, agent, self.pack.place_by_id[agent.at])
+            agent.restore(spec.elastic.need, rate * done)
 
         learn(
             agent.gain_beliefs.setdefault(action_id, {}),
@@ -268,6 +305,16 @@ class Simulation:
         )
 
     def _abort(self, agent: AgentState, urgent: NeedId) -> None:
+        # Lo elástico cobra lo que llevaba hecho. Sin esto, quien se levanta a
+        # falta de un tick se queda sin absolutamente nada, y comprometer quince
+        # horas sería una temeridad en vez de una necesidad.
+        busy = agent.busy
+        if isinstance(busy, PerformingAction):
+            spec = self.pack.action_by_id[busy.action]
+            hechos = busy.total_ticks - busy.ticks_remaining
+            if spec.elastic is not None and hechos > 0:
+                rate = recovery_rate(spec, agent, self.pack.place_by_id[agent.at])
+                agent.restore(spec.elastic.need, rate * hechos)
         self._emit(
             EventKind.ACTION_ABORTED,
             agent,
@@ -292,8 +339,14 @@ class Simulation:
 
     def _start_action(self, agent: AgentState, action: ActionId, utility: float | None) -> None:
         spec = self.pack.action_by_id[action]
-        agent.busy = PerformingAction(action=action, ticks_remaining=spec.duration_ticks)
+        # La duración se fija AQUÍ y se guarda: con lo elástico sale del déficit
+        # de este agente en este sitio, y el pack ya no la sabe. Recalcularla por
+        # tick alargaría el sueño cada vez que el agente se repone un poco.
+        ticks = planned_duration(spec, agent, self.pack.place_by_id[agent.at])
+        agent.busy = PerformingAction(action=action, ticks_remaining=ticks, total_ticks=ticks)
         data: Payload = {} if utility is None else {"utility": round(utility, 4)}
+        if spec.elastic is not None:
+            data = {**data, "ticks": ticks}
         self._emit(EventKind.ACTION_STARTED, agent, action=action, data=data)
 
     def _start_travel(self, agent: AgentState, choice: Decision) -> None:

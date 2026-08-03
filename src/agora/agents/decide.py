@@ -190,6 +190,47 @@ def companionship(action: ActionSpec, company: float, weight: float) -> float:
     return max(0.0, 1.0 + weight * company_saturation(company))
 
 
+def recovery_rate(action: ActionSpec, agent: AgentState, place: PlaceSpec) -> float:
+    """A qué ritmo repone esta acción, para esta persona, en este sitio.
+
+        ritmo = base * lo_que_le_cunde_a_el * lo_que_rinde_aqui
+
+    Las dos modulaciones se componen, y de ahí sale toda la variación: duerme mal
+    quien tiene mal sueño, quien duerme en mal sitio, y peor quien las dos cosas.
+    Las quince horas del guerrero no son un caso especial — son el ritmo de la
+    intemperie aplicado a un déficit grande.
+    """
+    elastic = action.elastic
+    if elastic is None:  # pragma: no cover - quien llama ya lo comprobó
+        return 0.0
+    return (
+        elastic.per_tick
+        * agent.recovery_rates.get(elastic.need, 1.0)
+        * place.elastic_rate_multipliers.get(elastic.need, 1.0)
+    )
+
+
+def planned_duration(action: ActionSpec, agent: AgentState, place: PlaceSpec) -> int:
+    """Cuánto va a durar esto de verdad. Para lo no elástico, lo que dice el pack.
+
+        ticks = acotado( déficit / ritmo,  min_ticks,  duration_ticks )
+
+    El déficit incluye la deuda, y ahí está el drama: dos agentes con el descanso
+    a cero duermen cosas muy distintas si uno lleva tres días de batalla encima.
+
+    Se calcula al empezar y se guarda en `PerformingAction.total_ticks`, no se
+    recalcula por tick. Recalcular haría que el sueño se alargara solo cada vez
+    que el agente se repone un poco, y no terminaría nunca.
+    """
+    elastic = action.elastic
+    if elastic is None:
+        return action.duration_ticks
+
+    rate = recovery_rate(action, agent, place)
+    needed = math.ceil(agent.deficit(elastic.need) / rate) if rate > 0.0 else action.duration_ticks
+    return max(elastic.min_ticks, min(action.duration_ticks, needed))
+
+
 def phase_fit(action: ActionSpec, phase: PhaseId | None) -> float:
     """Cuánto rinde esta acción en esta franja. 1.0 si el mundo no tiene franjas.
 
@@ -330,7 +371,12 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             reward *= phase_fit(action, felt_phase)
             # Comprometer tiempo tiene coste: mientras dure, no se atiende nada
             # más. Ese era el punto ciego respecto a la duración.
-            reward *= tuning.duration_discount**action.duration_ticks
+            #
+            # Con lo elástico hay que descontar la duración REAL, no la del pack:
+            # el tope de una acción elástica es lo que dura en el peor caso, y
+            # castigar una cabezada de una hora como si fueran las ocho del tope
+            # haría que nadie echara nunca una cabezada.
+            reward *= tuning.duration_discount ** planned_duration(action, agent, place)
             price = cost(pack, agent, action, weights) * temperament.loss_aversion
             found.append(
                 Decision(
@@ -441,7 +487,9 @@ def commitment(world: WorldState, agent: AgentState) -> float:
 
     match busy:
         case PerformingAction():
-            total = world.pack.action_by_id[busy.action].duration_ticks
+            # De `busy` y no del spec: con lo elástico, la duración la fijó el
+            # déficit de este agente al empezar y el pack ya no la sabe.
+            total = busy.total_ticks or world.pack.action_by_id[busy.action].duration_ticks
             return 1.0 - busy.ticks_remaining / total
         case Traveling():
             if busy.total_ticks <= 0:

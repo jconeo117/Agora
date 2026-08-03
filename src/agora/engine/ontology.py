@@ -109,6 +109,30 @@ class NeedSpec(Spec):
     acompañado y estar acompañado por alguien.
     """
 
+    max_debt: float = Field(default=0.0, ge=0.0)
+    """Cuánto puede acumularse esta necesidad POR DEBAJO del suelo. 0 lo desactiva.
+
+    Sin esto, el motor no sabe estar peor que vacío. Un guerrero que pelea tres
+    días y otro que durmió mal una noche están los dos en 0.0 y son
+    indistinguibles: el suelo recorta el decaimiento y la información se pierde.
+
+    Con deuda, lo que el suelo recortaría se anota aparte, y **reponer paga la
+    deuda antes de subir la necesidad**. El valor sigue viviendo en [0, 1], así
+    que la urgencia, el desgaste, los requisitos y las métricas no se enteran de
+    que esto existe: solo cambia cuánto tarda uno en recuperarse.
+
+    De ahí sale el drama sin escribirlo. Con `decay_per_tick` 0.007, tres días
+    sin dormir dejan una deuda de 1.00; pagarla y llenar el descanso son 2.00 a
+    razón de 0.033 por tick, o sea **quince horas de sueño**. Y a quien lo
+    despierten a las ocho se levanta con la deuda saldada y el descanso a 0.19,
+    todavía hecho polvo. Días de esfuerzo cuestan días de recuperación.
+
+    El tope es obligatorio: sin él, una campaña de un mes dejaría una deuda
+    impagable. Y es la perilla que dice cómo de brutal es la ambientación —
+    1.0 es "una noche mala se paga en una noche larga", 3.0 es "una campaña te
+    deja roto una semana".
+    """
+
     urgency_exponent: float = Field(default=2.0, gt=0.0)
     """Curva de urgencia: urgencia = (1 - valor) ** exponente.
 
@@ -172,6 +196,18 @@ class TraitSpec(Spec):
     intensidad de -1 daría un factor negativo, que no significa nada.
     """
 
+    elastic_rate_multipliers: dict[NeedId, PositiveFactor] = Field(default_factory=dict)
+    """Cuarto canal: cuánto rinde a esta persona reponerse.
+
+    Se compone como los pesos —el multiplicador elevado a la intensidad— y
+    multiplica al ritmo base de las acciones elásticas. Es lo que separa a quien
+    duerme dos horas y está entero de quien necesita nueve.
+
+    Y es un RITMO, no un tope. "Duermo poco y me basta" es recuperarse deprisa,
+    no tener un límite bajo; modelarlo como tope dejaría a esa persona sin poder
+    dormir de más cuando de verdad lo necesitara.
+    """
+
     phase_shift: int = Field(default=0)
     """Tercer canal: cuánto se desplaza el reloj INTERNO de esta persona.
 
@@ -215,6 +251,40 @@ class TraitSpec(Spec):
 # ---------------------------------------------------------------------------
 # Acciones
 # ---------------------------------------------------------------------------
+class ElasticSpec(Spec):
+    """Una acción que dura lo que haga falta, no un bloque fijo.
+
+    El modelo por defecto —duración constante y efecto al terminar— trata dormir
+    como una transacción, y dormir es una **acumulación**. Se nota en dos sitios:
+    quien está poco cansado tiene que comprometer las ocho horas enteras o nada,
+    y a quien lo levantan a falta de un tick se queda sin absolutamente nada.
+
+    Con esto, la duración sale del déficit y el efecto sale del tiempo:
+
+        ticks  = acotado( déficit / ritmo )
+        efecto = ritmo * ticks
+
+    Y ya es por persona sin declarar nada por persona, porque el déficit es de
+    cada cual: quien llega a 0.9 duerme una hora y quien llega a 0.1 duerme ocho.
+    """
+
+    need: NeedId
+    """Qué eje se repone, y por tanto qué déficit fija la duración."""
+
+    per_tick: float = Field(gt=0.0)
+    """Ritmo base de reposición. Lo modulan los rasgos de quien lo hace y el
+    lugar donde se hace (`elastic_rate_multipliers`), y ahí está toda la
+    variación: dormir mal es tener mal ritmo, no tener un tope bajo.
+
+    De aquí salen las quince horas del guerrero sin ningún caso especial. A 0.033
+    en una buena cama son siete horas y media desde cero; al 0.45 de la
+    intemperie, diecisiete.
+    """
+
+    min_ticks: int = Field(default=1, ge=1)
+    """Suelo. Nadie se acuesta para quince minutos, aunque le sobre con eso."""
+
+
 class ActionSpec(Spec):
     """Algo que un agente puede hacer durante N ticks.
 
@@ -228,6 +298,33 @@ class ActionSpec(Spec):
     id: ActionId
     label: str
     duration_ticks: int = Field(ge=1)
+    """Cuánto dura. Con `elastic`, deja de ser la duración y pasa a ser el TOPE.
+
+    Y entonces conviene que sea generoso: el máximo que un cuerpo aguanta de un
+    tirón, no el típico. Un tope de ocho horas haría inexpresable al guerrero
+    que necesita quince, porque mordería antes que el ritmo.
+    """
+
+    elastic: ElasticSpec | None = None
+    """Si está puesto, `duration_ticks` es el tope y la duración sale del déficit."""
+
+    interruptible: bool = True
+    """Si es `False`, ninguna urgencia puede abortarla: se termina o no se empieza.
+
+    Hoy cualquier cosa se suelta cuando una necesidad cruza su umbral, y hay
+    actividades donde eso no tiene sentido: nadie deja una batalla a la mitad
+    para echar una cabezada.
+
+    Es además **lo que hace posible la deuda**. Mientras se pueda parar, un
+    agente se autolimita y nunca llega al agotamiento extremo; la necesidad no
+    se hunde y no hay nada que acumular. Los dos mecanismos se necesitan.
+
+    Tiene filo, y es el punto: una acción larga e inabandonable con una urgencia
+    que no atiende es una forma de matar a alguien.
+
+    Solo protege lo que se está ejecutando, no el viaje hacia ello. Se puede dar
+    media vuelta de camino a la batalla; lo que no se puede es abandonarla.
+    """
 
     requires_affordance: Affordance | None = None
     """Si está puesto, la acción solo es válida en lugares que la ofrezcan."""
@@ -340,6 +437,16 @@ class PlaceSpec(Spec):
     neighbors: dict[PlaceId, int] = Field(default_factory=dict)
     """Vecino -> ticks de viaje. El grafo es dirigido a propósito: bajar por un
     acantilado puede costar menos que subirlo."""
+
+    elastic_rate_multipliers: dict[NeedId, PositiveFactor] = Field(default_factory=dict)
+    """Cuánto rinde reponerse AQUÍ. Multiplica el ritmo, igual que el rasgo.
+
+    Es la otra mitad de la variación, y se compone con la primera: duerme mal
+    quien tiene mal sueño, quien duerme en mal sitio, y peor quien las dos cosas.
+
+    Aquí es donde una cama de posada se distingue de una noche a la intemperie
+    en el bosque, sin que el motor sepa qué es una cama ni un bosque.
+    """
 
     open_during: frozenset[PhaseId] = Field(default_factory=frozenset)
     """En qué tramos se puede hacer algo aquí. Vacío = siempre abierto.

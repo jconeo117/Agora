@@ -21,6 +21,7 @@ from agora.engine.disposition import (
     Temperament,
     compose_need_weights,
     compose_phase_shift,
+    compose_recovery_rates,
     compose_tastes,
     compose_temperament,
     compute_strain,
@@ -56,6 +57,13 @@ class PerformingAction(BaseModel):
 
     action: ActionId
     ticks_remaining: int = Field(ge=0)
+
+    total_ticks: int = Field(default=0, ge=0)
+    """Cuánto se planificó al empezar. Con las acciones elásticas ya no se puede
+    leer del spec: la duración salió del déficit de este agente en este sitio.
+
+    De aquí salen dos cosas que antes venían del pack: el progreso invertido (ver
+    `commitment`) y cuánto se ha repuesto de verdad al terminar o al soltarlo."""
 
 
 class Traveling(BaseModel):
@@ -211,6 +219,28 @@ class AgentState:
     vez cada muchos días y se consulta en cada deliberación. 0 si el pack no
     declara franjas, y entonces todo lo horario queda inerte."""
 
+    recovery_rates: dict[NeedId, float] = field(default_factory=dict)
+    """DERIVADO de `traits`: cuánto le cunde a esta persona reponer cada eje.
+
+    Distinto del peso, y conviene no confundirlos: `need_weights` dice cuánto le
+    IMPORTA algo, esto dice cuánto le CUNDE atenderlo. Quien le da mucha
+    importancia al descanso y lo recupera despacio es una persona concreta, no
+    una contradicción."""
+
+    debt: dict[NeedId, float] = field(default_factory=dict)
+    """Lo que el suelo se comió, por necesidad. Siempre >= 0.
+
+    Es la memoria de haber estado peor que vacío. Sin esto, quien pelea tres días
+    y quien durmió mal una noche están los dos en 0.0 y son indistinguibles: el
+    recorte del suelo tira la información.
+
+    **Reponer paga esto primero.** Por eso una deuda de 1.00 convierte una noche
+    de ocho horas en quince, y por eso a quien lo despiertan pronto se levanta con
+    la deuda saldada y la necesidad todavía por los suelos.
+
+    Solo existe para las necesidades que declaran `max_debt`; las demás nunca
+    entran aquí y el diccionario se queda vacío."""
+
     strain: float = 0.0
     """Desgaste cognitivo en [0, 1]. DERIVADO de las necesidades, se recalcula
     cada tick. 0 entero, 1 al límite.
@@ -320,6 +350,7 @@ class AgentState:
             tastes=compose_tastes(spec.tastes),
             need_weights=compose_need_weights(pack, spec.traits),
             phase_shift=compose_phase_shift(pack, spec.traits),
+            recovery_rates=compose_recovery_rates(pack, spec.traits),
             strain=strain,
             temperament=compose_temperament(pack, spec.traits, strain),
             busy=None,  # todos deliberan en el tick 0
@@ -484,6 +515,7 @@ class AgentState:
         self.traits[trait] = max(-1.0, min(1.0, self.traits.get(trait, 0.0) + delta))
         self.need_weights = compose_need_weights(pack, self.traits)
         self.phase_shift = compose_phase_shift(pack, self.traits)
+        self.recovery_rates = compose_recovery_rates(pack, self.traits)
         self.temperament = compose_temperament(pack, self.traits, self.strain)
 
     # -- necesidades ----------------------------------------------------------
@@ -510,16 +542,72 @@ class AgentState:
 
         for need_id, spec in need_specs.items():
             drop = spec.decay_per_tick - spec.company_relief * crowd
-            self.needs[need_id] = self._clamp(self.needs[need_id] - drop)
+            self._spend(need_id, drop, spec.max_debt)
 
-    def apply(self, effects: Mapping[NeedId, float]) -> None:
+    def apply(
+        self, effects: Mapping[NeedId, float], need_specs: Mapping[NeedId, NeedSpec]
+    ) -> None:
         """Suma los deltas de una acción completada. Resultado en [0, 1].
 
         Los deltas pueden ser negativos: trabajar da moneda y quita descanso.
         Una necesidad que la acción no menciona no se toca.
+
+        Lo positivo **paga la deuda antes de subir el valor** y lo negativo la
+        acumula al pasarse de rosca. Toda reposición pasa por ahí, no solo la del
+        sueño: si te has quedado sin comer días, el primer plato salda y no llena.
         """
         for need_id, delta in effects.items():
-            self.needs[need_id] = self._clamp(self.needs[need_id] + delta)
+            if delta >= 0.0:
+                self.restore(need_id, delta)
+            else:
+                self._spend(need_id, -delta, need_specs[need_id].max_debt)
+
+    # -- deuda ----------------------------------------------------------------
+    #
+    # El motor no sabía estar peor que vacío: el suelo recortaba y la información
+    # se perdía, así que un guerrero de tres días de batalla y alguien que durmió
+    # mal eran indistinguibles. La deuda guarda ese recorte aparte.
+    #
+    # Lo importante es que `needs` sigue viviendo en [0, 1]. La urgencia, el
+    # desgaste, los requisitos y las métricas no se enteran de que esto existe;
+    # lo único que cambia es cuánto tarda uno en recuperarse.
+
+    def _spend(self, need_id: NeedId, amount: float, max_debt: float) -> None:
+        """Baja una necesidad y anota como deuda lo que el suelo se habría comido."""
+        raw = self.needs[need_id] - amount
+        if raw < 0.0 and max_debt > 0.0:
+            self.debt[need_id] = min(max_debt, self.debt.get(need_id, 0.0) - raw)
+        self.needs[need_id] = self._clamp(raw)
+
+    def restore(self, need_id: NeedId, amount: float) -> float:
+        """Repone, saldando primero. Devuelve lo que llegó a la necesidad.
+
+        Ese retorno importa: es la diferencia entre lo que la acción rindió y lo
+        que se nota. Quince horas de sueño tras una campaña reponen dos enteros
+        de los que la mitad se van en pagar lo debido, y por eso el guerrero se
+        levanta descansado justo cuando ya no debe nada.
+        """
+        owed = self.debt.get(need_id, 0.0)
+        if owed > 0.0:
+            paid = min(owed, amount)
+            amount -= paid
+            if owed - paid <= 0.0:
+                del self.debt[need_id]
+            else:
+                self.debt[need_id] = owed - paid
+        if amount <= 0.0:
+            return 0.0
+        before = self.needs[need_id]
+        self.needs[need_id] = self._clamp(before + amount)
+        return self.needs[need_id] - before
+
+    def deficit(self, need_id: NeedId) -> float:
+        """Cuánto falta para estar entero, contando lo debido.
+
+        Es lo que fija la duración de una acción elástica, y por eso el guerrero
+        endeudado duerme el doble que el vecino con el mismo descanso a cero.
+        """
+        return 1.0 - self.needs[need_id] + self.debt.get(need_id, 0.0)
 
     # -- hastío ---------------------------------------------------------------
 

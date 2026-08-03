@@ -231,6 +231,53 @@ class ContentPack(Spec):
 
         return problems
 
+    def _check_elastic_is_coherent(self) -> list[str]:
+        """Lo elástico repone su eje por ritmo, no por `effects`.
+
+        Declararlo en los dos sitios lo aplicaría dos veces: una por tick cumplido
+        y otra de golpe al terminar. El síntoma sería un mundo donde dormir rinde
+        el doble de lo que dice el pack, y nadie lo relacionaría con esto.
+
+        Y una acción elástica sin deuda ni tope generoso no es un fallo, pero sí
+        conviene avisar de lo contrario: un `min_ticks` por encima del tope es
+        una contradicción que dejaría la duración indefinida.
+        """
+        known = frozenset(str(n.id) for n in self.needs)
+        problems: list[str] = []
+
+        for action in self.actions:
+            elastic = action.elastic
+            if elastic is None:
+                continue
+            if str(elastic.need) not in known:
+                problems.append(
+                    f"acción {action.id!r}.elastic: necesidad desconocida {elastic.need!r}"
+                )
+            if elastic.need in action.effects:
+                problems.append(
+                    f"acción {action.id!r}: repone {elastic.need!r} por ritmo elástico "
+                    f"Y lo declara en `effects`; se aplicaría dos veces"
+                )
+            if elastic.min_ticks > action.duration_ticks:
+                problems.append(
+                    f"acción {action.id!r}: `min_ticks` ({elastic.min_ticks}) supera el "
+                    f"tope `duration_ticks` ({action.duration_ticks})"
+                )
+        return problems
+
+    def _check_recovery_refs(self) -> list[str]:
+        known = frozenset(str(n.id) for n in self.needs)
+        problems: list[str] = []
+        for trait in self.traits:
+            problems += self._unknown_keys(
+                f"rasgo {trait.id!r}", "necesidad", trait.elastic_rate_multipliers, known
+            )
+        for place in self.places:
+            problems += self._unknown_keys(
+                f"lugar {place.id!r}", "necesidad", place.elastic_rate_multipliers, known
+            )
+        return problems
+
     def _check_phase_refs(self) -> list[str]:
         """Toda franja mencionada existe en el reloj.
 
@@ -415,6 +462,8 @@ class ContentPack(Spec):
             *self._check_trait_refs(),
             *self._check_place_refs(),
             *self._check_phase_refs(),
+            *self._check_elastic_is_coherent(),
+            *self._check_recovery_refs(),
             *self._check_places_are_open_sometime(),
             *self._check_taste_refs(),
             *self._check_actions_are_reachable(),

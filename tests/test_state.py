@@ -15,6 +15,13 @@ from agora.engine.state import AgentState, PerformingAction, Traveling, WorldSta
 from tests.test_pack import base_pack
 
 N1 = NeedId("n1")
+N2 = NeedId("n2")
+SPECS = {
+    N1: NeedSpec(id=N1, label="n1", decay_per_tick=0.01),
+    N2: NeedSpec(id=N2, label="n2", decay_per_tick=0.01),
+}
+"""Sin `max_debt`, así que aquí el suelo recorta como siempre: estos tests
+fijan el comportamiento de toda la vida y la deuda tiene los suyos."""
 T1 = TraitId("t1")
 AG1 = AgentId("ag1")
 P1 = PlaceId("p1")
@@ -54,20 +61,20 @@ def test_decay_never_goes_below_zero() -> None:
 
 def test_apply_adds_deltas_and_accepts_negatives() -> None:
     a = agent(needs={N1: 0.4, NeedId("n2"): 0.8})
-    a.apply({N1: 0.3, NeedId("n2"): -0.5})
+    a.apply({N1: 0.3, N2: -0.5}, SPECS)
     assert a.needs[N1] == pytest.approx(0.7)
     assert a.needs[NeedId("n2")] == pytest.approx(0.3)
 
 
 def test_apply_never_exceeds_one() -> None:
     a = agent(needs={N1: 0.9})
-    a.apply({N1: 0.5})
+    a.apply({N1: 0.5}, SPECS)
     assert a.needs[N1] == 1.0
 
 
 def test_apply_leaves_untouched_needs_alone() -> None:
     a = agent(needs={N1: 0.4, NeedId("n2"): 0.8})
-    a.apply({N1: 0.1})
+    a.apply({N1: 0.1}, SPECS)
     assert a.needs[NeedId("n2")] == 0.8
 
 
