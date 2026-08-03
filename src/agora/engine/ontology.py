@@ -29,6 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 # ---------------------------------------------------------------------------
 NeedId = NewType("NeedId", str)
 TraitId = NewType("TraitId", str)
+PhaseId = NewType("PhaseId", str)
 ActionId = NewType("ActionId", str)
 PlaceId = NewType("PlaceId", str)
 AgentId = NewType("AgentId", str)
@@ -171,6 +172,31 @@ class TraitSpec(Spec):
     intensidad de -1 daría un factor negativo, que no significa nada.
     """
 
+    phase_shift: int = Field(default=0)
+    """Tercer canal: cuánto se desplaza el reloj INTERNO de esta persona.
+
+        franja_subjetiva = franja_de(tick + phase_shift * intensidad)
+
+    No es un multiplicador, y esa diferencia costó una medición. La primera
+    versión daba a cada rasgo multiplicadores por franja, igual que a las
+    necesidades. No funciona, por dos motivos que solo se ven corriendo:
+
+    **Multiplicar amplifica cuando debería invertir.** Con `dormir` favorecido de
+    noche y un rasgo nocturno que multiplica lo nocturno, el búho dormiría MÁS de
+    noche — justo al revés. Y dejar el sueño neutro para esquivarlo deja el
+    descanso sin ancla horaria: medido, la gente dormía a cualquier hora y la
+    aldea tenía el mismo trasiego a las cuatro de la mañana que a mediodía.
+
+    **Un cronotipo no es una preferencia, es un desfase.** Para un ave nocturna
+    la noche no "vale más": la noche *es* su mañana. Rotando la franja percibida,
+    todo lo demás cae solo — trabaja, come y socializa en su mañana subjetiva, y
+    duerme en su noche subjetiva, que es tu tarde.
+
+    Lo que NO se desplaza son los horarios de los lugares. La herrería cierra a
+    la misma hora para todo el mundo: el horario del mundo es objetivo y el reloj
+    del cuerpo es subjetivo. Ver `candidates`.
+    """
+
     temperament_multipliers: dict[TemperamentKnob, PositiveFactor] = Field(
         default_factory=dict
     )
@@ -269,6 +295,21 @@ class ActionSpec(Spec):
     tope, uno da la mitad, tres tres cuartos.
     """
 
+    phase_multipliers: dict[PhaseId, PositiveFactor] = Field(default_factory=dict)
+    """Cuánto rinde esto según el tramo del ciclo. Lo ausente vale 1.0.
+
+    Multiplica el **beneficio**, como los gustos y el descuento de viaje, y por
+    el mismo motivo: sobre el neto, una mala idea parecería menos mala por
+    hacerse a deshora.
+
+    **Cuidado con ponérselo a dormir.** Es tentador y es un error. Si dormir
+    valiera el doble de noche, un agente nocturno —que multiplica lo nocturno—
+    dormiría MÁS de noche, justo al revés de lo que se quiere. Deja el sueño
+    neutro y suprime lo demás: se duerme porque hay poco que hacer y aprieta el
+    cansancio, así que quien tiene vida nocturna acaba durmiendo de día. La
+    conducta sale sola en vez de declararse.
+    """
+
     saturation_gain: float = Field(default=0.0, ge=0.0)
     """Cuánto hastía una repetición de esto. 0 = nunca cansa.
 
@@ -299,6 +340,18 @@ class PlaceSpec(Spec):
     neighbors: dict[PlaceId, int] = Field(default_factory=dict)
     """Vecino -> ticks de viaje. El grafo es dirigido a propósito: bajar por un
     acantilado puede costar menos que subirlo."""
+
+    open_during: frozenset[PhaseId] = Field(default_factory=frozenset)
+    """En qué tramos se puede hacer algo aquí. Vacío = siempre abierto.
+
+    Puerta dura, como la affordance: la herrería cerrada de noche no es menos
+    atractiva, es que no está. Es lo que impide que un mundo con franjas siga
+    funcionando a pleno rendimiento de madrugada.
+
+    **Cierra actividades, no el paso.** Un lugar cerrado se sigue cruzando: si
+    cerrar cortara aristas, el mundo dejaría de estar fuertemente conectado a
+    ciertas horas y alguien podría quedarse encerrado lejos de su cama.
+    """
 
     tags: frozenset[Tag] = Field(default_factory=frozenset)
     """Atmósfera y control: "sagrado", "vigilado", "ruinoso"."""
@@ -405,6 +458,25 @@ class HealthSpec(Spec):
 # ---------------------------------------------------------------------------
 # Reloj
 # ---------------------------------------------------------------------------
+class PhaseSpec(Spec):
+    """Un tramo con nombre dentro del ciclo. El motor no sabe qué es "la noche".
+
+    Sabe que el ciclo se parte en tramos y que las cosas rinden distinto en cada
+    uno. Un pack puede declarar `manana/tarde/noche`, o `marea_alta/marea_baja`,
+    o `ciclo_de_luz/ciclo_de_sombra`. La ambientación entra como datos.
+    """
+
+    id: PhaseId
+    label: str
+    starts_at: int = Field(ge=0)
+    """Tick del ciclo en que empieza. El tramo dura hasta que empieza el siguiente.
+
+    No hace falta que ninguno empiece en 0: lo anterior a la primera franja
+    pertenece a la ÚLTIMA, que es como se modela una noche que cruza la
+    medianoche sin partirla en dos.
+    """
+
+
 class ClockSpec(Spec):
     """Cómo se traduce un tick a tiempo del mundo.
 
@@ -416,6 +488,53 @@ class ClockSpec(Spec):
 
     minutes_per_tick: int = Field(default=15, ge=1)
     ticks_per_day: int = Field(default=96, ge=1)
+
+    phases: tuple[PhaseSpec, ...] = ()
+    """Los tramos del ciclo, en orden. Vacío = el mundo no distingue momentos.
+
+    Hasta que esto existió, el reloj era **decorativo**: solo lo leían el
+    renderizador y el bucle para saber cuándo parar. Nada de la deliberación lo
+    consultaba, así que el motor no sabía que era de noche y la gente se acostaba
+    escalonada a cualquier hora, cuando el cansancio apretaba.
+    """
+
+    @model_validator(mode="after")
+    def _phases_are_ordered_and_fit(self) -> ClockSpec:
+        seen: set[PhaseId] = set()
+        last = -1
+        for phase in self.phases:
+            if phase.id in seen:
+                raise ValueError(f"franja {phase.id!r} declarada dos veces")
+            seen.add(phase.id)
+            if phase.starts_at >= self.ticks_per_day:
+                raise ValueError(
+                    f"franja {phase.id!r} empieza en {phase.starts_at}, "
+                    f"fuera del ciclo de {self.ticks_per_day} ticks"
+                )
+            if phase.starts_at <= last:
+                raise ValueError(
+                    f"franja {phase.id!r} empieza en {phase.starts_at}, "
+                    f"antes o a la vez que la anterior ({last}); decláralas en orden"
+                )
+            last = phase.starts_at
+        return self
+
+    def phase_at(self, tick: int) -> PhaseId | None:
+        """En qué tramo del ciclo cae este tick. `None` si el pack no declara
+        ninguno, y entonces todo lo que dependa de la franja queda inerte.
+
+        Lo anterior a la primera franja pertenece a la última: así una noche
+        declarada en el tick 80 cubre también del 0 al amanecer, sin partirla.
+        """
+        if not self.phases:
+            return None
+        moment = tick % self.ticks_per_day
+        chosen = self.phases[-1]
+        for phase in self.phases:
+            if phase.starts_at > moment:
+                break
+            chosen = phase
+        return chosen.id
 
 
 # ---------------------------------------------------------------------------

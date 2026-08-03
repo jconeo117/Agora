@@ -231,6 +231,50 @@ class ContentPack(Spec):
 
         return problems
 
+    def _check_phase_refs(self) -> list[str]:
+        """Toda franja mencionada existe en el reloj.
+
+        Una errata aquí no rompe nada visible: el multiplicador simplemente no
+        se aplica nunca, porque lo ausente vale 1.0. La herrería que creías
+        cerrada de noche sigue abierta y no hay síntoma que lo delate salvo leer
+        una semana de log.
+        """
+        known = frozenset(str(phase.id) for phase in self.clock.phases)
+        problems: list[str] = []
+
+        for action in self.actions:
+            problems += self._unknown_keys(
+                f"acción {action.id!r}", "franja", action.phase_multipliers, known
+            )
+        for trait in self.traits:
+            if trait.phase_shift and not known:
+                problems.append(
+                    f"rasgo {trait.id!r}: declara `phase_shift` pero el reloj no "
+                    f"tiene franjas, así que el desfase no puede hacer nada"
+                )
+        for place in self.places:
+            problems += [
+                f"lugar {place.id!r}.open_during: franja desconocida {phase!r}"
+                for phase in sorted(place.open_during)
+                if str(phase) not in known
+            ]
+        return problems
+
+    def _check_places_are_open_sometime(self) -> list[str]:
+        """Ningún lugar está cerrado siempre.
+
+        `open_during` vacío significa "siempre abierto", así que declararlo con
+        franjas que no cubren nada es la forma de escribir un sitio al que nadie
+        puede entrar jamás. Es contenido muerto que se lee como contenido vivo.
+        """
+        return [
+            f"lugar {place.id!r}: `open_during` no incluye ninguna franja válida, "
+            f"así que nunca se puede hacer nada aquí; déjalo vacío para siempre abierto"
+            for place in self.places
+            if place.open_during
+            and not place.open_during & frozenset(p.id for p in self.clock.phases)
+        ]
+
     def _check_taste_refs(self) -> list[str]:
         known = (
             frozenset(str(a.id) for a in self.actions)
@@ -370,6 +414,8 @@ class ContentPack(Spec):
             *self._check_need_refs(),
             *self._check_trait_refs(),
             *self._check_place_refs(),
+            *self._check_phase_refs(),
+            *self._check_places_are_open_sometime(),
             *self._check_taste_refs(),
             *self._check_actions_are_reachable(),
             *self._check_company_is_reachable(),

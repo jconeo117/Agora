@@ -21,10 +21,16 @@ from agora.engine.state import PerformingAction, Traveling, WorldState
 
 
 def format_time(tick: int, clock: ClockSpec) -> str:
-    """`d3 06:45`. La longitud del día sale del pack, no de una constante."""
+    """`d3 06:45` o `d3 06:45 manana`. La longitud del día sale del pack.
+
+    La franja se añade solo si el pack declara alguna: en un mundo sin momentos
+    del día, esa columna sería siempre la misma palabra.
+    """
     day = tick // clock.ticks_per_day + 1
     minute_of_day = (tick % clock.ticks_per_day) * clock.minutes_per_tick
-    return f"d{day} {minute_of_day // 60:02d}:{minute_of_day % 60:02d}"
+    stamp = f"d{day} {minute_of_day // 60:02d}:{minute_of_day % 60:02d}"
+    phase = clock.phase_at(tick)
+    return stamp if phase is None else f"{stamp} {phase}"
 
 
 def _label_of_action(pack: ContentPack, event: Event) -> str:

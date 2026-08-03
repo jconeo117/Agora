@@ -52,6 +52,27 @@ def compose_need_weights(
     return weights
 
 
+def compose_phase_shift(pack: ContentPack, traits: Mapping[TraitId, float]) -> int:
+    """Cuánto adelanta o atrasa el reloj interno de este agente, en ticks.
+
+    Se **suma**, no se multiplica, y es la única disposición que compone así.
+    Tiene sentido: los pesos son escalas y se acumulan multiplicando, pero un
+    desfase es una traslación y dos desfases se suman como se sumarían dos husos
+    horarios.
+
+    Redondea al final y no rasgo a rasgo. Con dos rasgos a media intensidad,
+    redondear antes perdería los dos medios ticks por separado en vez de
+    convertirlos en uno.
+    """
+    if not pack.clock.phases:
+        return 0
+    total = sum(
+        pack.trait_by_id[trait_id].phase_shift * traits[trait_id]
+        for trait_id in sorted(traits)
+    )
+    return round(total) % pack.clock.ticks_per_day
+
+
 def urgency(value: float, exponent: float) -> float:
     """Cuánto apremia una necesidad, dado lo llena que está.
 

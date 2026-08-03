@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from agora.engine.disposition import (
     Temperament,
     compose_need_weights,
+    compose_phase_shift,
     compose_tastes,
     compose_temperament,
     compute_strain,
@@ -203,6 +204,13 @@ class AgentState:
     Está aquí y no se recalcula en cada deliberación porque los rasgos cambian
     muy rara vez y se consultan miles de veces."""
 
+    phase_shift: int = 0
+    """DERIVADO de `traits`: cuánto va adelantado el reloj interno, en ticks.
+
+    Vive junto a `need_weights` y se recompone con él, por lo mismo: cambia una
+    vez cada muchos días y se consulta en cada deliberación. 0 si el pack no
+    declara franjas, y entonces todo lo horario queda inerte."""
+
     strain: float = 0.0
     """Desgaste cognitivo en [0, 1]. DERIVADO de las necesidades, se recalcula
     cada tick. 0 entero, 1 al límite.
@@ -311,6 +319,7 @@ class AgentState:
             traits=dict(spec.traits),
             tastes=compose_tastes(spec.tastes),
             need_weights=compose_need_weights(pack, spec.traits),
+            phase_shift=compose_phase_shift(pack, spec.traits),
             strain=strain,
             temperament=compose_temperament(pack, spec.traits, strain),
             busy=None,  # todos deliberan en el tick 0
@@ -474,6 +483,7 @@ class AgentState:
             )
         self.traits[trait] = max(-1.0, min(1.0, self.traits.get(trait, 0.0) + delta))
         self.need_weights = compose_need_weights(pack, self.traits)
+        self.phase_shift = compose_phase_shift(pack, self.traits)
         self.temperament = compose_temperament(pack, self.traits, self.strain)
 
     # -- necesidades ----------------------------------------------------------

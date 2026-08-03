@@ -21,7 +21,7 @@ La fórmula:
     beneficio = suma_necesidades( peso * urgencia * satisface )
     coste     = suma_necesidades( peso * urgencia * cuesta )
 
-    utilidad  = beneficio * descuento_viaje * gustos * compañía - aversion * coste
+    utilidad  = beneficio * descuento_viaje * gustos * compañía * hora - aversion * coste
 
 Tres detalles de esa expresión que no son arbitrarios:
 
@@ -56,6 +56,7 @@ from agora.engine.ontology import (
     ActionSpec,
     AgentId,
     NeedId,
+    PhaseId,
     PlaceId,
     PlaceSpec,
 )
@@ -189,17 +190,38 @@ def companionship(action: ActionSpec, company: float, weight: float) -> float:
     return max(0.0, 1.0 + weight * company_saturation(company))
 
 
+def phase_fit(action: ActionSpec, phase: PhaseId | None) -> float:
+    """Cuánto rinde esta acción en esta franja. 1.0 si el mundo no tiene franjas.
+
+    La franja que se pasa aquí es la **subjetiva**: ya viene rotada por el reloj
+    interno de quien pregunta (ver `candidates`). Por eso esta función no sabe
+    nada de cronotipos — para un ave nocturna, su mañana simplemente cae de
+    madrugada, y todo lo demás se lee igual.
+    """
+    if phase is None:
+        return 1.0
+    return action.phase_multipliers.get(phase, 1.0)
+
+
 def is_available(
     action: ActionSpec,
     place: PlaceSpec,
     company: int | None,
     needs: Mapping[NeedId, float],
+    phase: PhaseId | None = None,
 ) -> bool:
-    """¿Se puede ejecutar esta acción aquí y ahora? Tres puertas duras:
+    """¿Se puede ejecutar esta acción aquí y ahora? Cuatro puertas duras:
 
     - **el lugar** la ofrece (affordance)
+    - **el lugar está abierto** a esta hora (`open_during`)
     - **hay gente** suficiente (`company` = los OTROS, sin contar a quien pregunta)
     - **alcanzan los recursos** (`requires`)
+
+    Cerrar es una puerta y no un descuento por lo mismo que la affordance: la
+    herrería cerrada de noche no es menos atractiva, es que no está. Y cierra
+    **actividades, no el paso**: un lugar cerrado se sigue cruzando, o el mundo
+    dejaría de estar fuertemente conectado a ciertas horas y alguien podría
+    quedarse encerrado lejos de su cama.
 
     `company=None` significa "no lo sé", y se resuelve **a favor**. Un agente que
     no tiene noticia fresca de un sitio va a mirar; suponer vacío haría que nadie
@@ -218,6 +240,8 @@ def is_available(
     if action.requires_affordance is not None and (
         action.requires_affordance not in place.affordances
     ):
+        return False
+    if place.open_during and phase is not None and phase not in place.open_during:
         return False
     if company is not None and company < action.requires_company:
         return False
@@ -251,6 +275,22 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
     tuning = pack.tuning
     horizon = tuning.sighting_horizon
 
+    # DOS relojes, y la distinción es el corazón del cronotipo.
+    #
+    # El del mundo es objetivo: la herrería cierra a la misma hora para todos, y
+    # de él sale `open_during`. El del cuerpo es subjetivo: va rotado por el
+    # `phase_shift` del agente, y de él sale lo que apetece hacer. Para un ave
+    # nocturna su mañana cae de madrugada — trabaja, come y socializa entonces, y
+    # duerme cuando su noche subjetiva coincide con tu tarde.
+    #
+    # Ambas se resuelven UNA vez por deliberación, no por par (lugar, acción). Y
+    # son las del momento de decidir, no las de la llegada: si el sitio ha
+    # cerrado cuando llega, se lleva el chasco — igual que con la compañía, y por
+    # la misma comprobación.
+    clock = pack.clock
+    open_phase = clock.phase_at(world.tick)
+    felt_phase = clock.phase_at(world.tick + agent.phase_shift)
+
     found: list[Decision] = []
     for place in pack.places:
         travel = world.travel.distance(agent.at, place.id)
@@ -281,12 +321,13 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
         )
 
         for action in pack.actions:
-            if not is_available(action, place, headcount, agent.needs):
+            if not is_available(action, place, headcount, agent.needs, open_phase):
                 continue
             reward = benefit(pack, agent, action, weights) * discount * place_taste
             reward *= tastes.get(str(action.id), 1.0)
             reward *= novelty(agent, action.id, tuning.novelty_weight)
             reward *= companionship(action, expected, tuning.companionship_weight)
+            reward *= phase_fit(action, felt_phase)
             # Comprometer tiempo tiene coste: mientras dure, no se atiende nada
             # más. Ese era el punto ciego respecto a la duración.
             reward *= tuning.duration_discount**action.duration_ticks
