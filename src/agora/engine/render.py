@@ -79,6 +79,10 @@ def render_event(pack: ContentPack, event: Event) -> str:
             body = f"coincide  con {other}  ({here})"
         case EventKind.NEED_CRITICAL:
             body = f"!!        {event.data.get('need')} = {event.data.get('value')}"
+        case EventKind.GOAL_ACHIEVED:
+            body = f"LOGRA     {event.data.get('goal')}"
+        case EventKind.GOAL_FAILED:
+            body = f"PIERDE    {event.data.get('goal')}   <- se acabo el plazo"
         case EventKind.IDLE_STALLED:
             body = f"BLOQUEADO sin opciones válidas  ({here})"
 

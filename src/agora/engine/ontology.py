@@ -29,6 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 # ---------------------------------------------------------------------------
 NeedId = NewType("NeedId", str)
 TraitId = NewType("TraitId", str)
+GoalId = NewType("GoalId", str)
 PhaseId = NewType("PhaseId", str)
 ActionId = NewType("ActionId", str)
 PlaceId = NewType("PlaceId", str)
@@ -543,11 +544,106 @@ class TasteSpec(Spec):
 # ---------------------------------------------------------------------------
 # Agentes
 # ---------------------------------------------------------------------------
+class GoalStatus(StrEnum):
+    """En qué anda una meta. Tres estados y no hay más.
+
+    Lo logrado y lo perdido son distintos aunque los dos dejen de empujar: mueven
+    rasgos opuestos, y el narrador no puede contar igual a quien lo consiguió que
+    a quien se quedó a las puertas.
+    """
+
+    ACTIVE = "active"
+    ACHIEVED = "achieved"
+    FAILED = "failed"
+
+
+class GoalSpec(Spec):
+    """Algo que esta persona quiere y todavía no tiene.
+
+    Una necesidad y una meta no son lo mismo, y la diferencia es toda la gracia:
+    la necesidad se agota y se mantiene, la meta se cumple **una vez**. Lo
+    primero produce rutina; lo segundo, historia.
+
+    Y no necesita maquinaria nueva en la fórmula. `need_weights` ya es el dial
+    que dice cuánto le importa algo a alguien; una meta es un **empujón temporal
+    y personal** sobre ese dial que se apaga al lograrse. Toda la urgencia, los
+    costes y las creencias siguen funcionando igual, sin enterarse.
+
+    La regla al escribirlas: **una meta sin obstáculo es una rutina.** "Quiere
+    trabajar" no es meta, lo hace todos los días. "Quiere reunir lo suficiente
+    para irse y no le llega" sí lo es. El obstáculo aquí es el umbral: si
+    `at_least` está al alcance de la rutina normal, no has escrito una meta.
+    """
+
+    id: GoalId
+    label: str
+
+    need: NeedId
+    """Qué eje mide el logro. Es la única forma de medirlo hoy.
+
+    Cubre casi todo lo que se quiere de verdad —dinero, experiencia, despensa,
+    lo que el pack declare— porque una ambición concreta casi siempre se cifra
+    en algo. Lo que NO cubre todavía es querer algo de **alguien**: "que Karla
+    vuelva a hablarle" necesitaría medir un vínculo, y eso llegará. El campo se
+    llama `need` y no `target` para que ese día se vea qué había antes.
+    """
+
+    at_least: float = Field(gt=0.0, le=1.0)
+    """Umbral que cuenta como logrado. **Es el obstáculo, en números.**"""
+
+    weight_multiplier: PositiveFactor = 2.0
+    """Cuánto empuja mientras dura, sobre el peso que ya tuviera ese eje.
+
+    Se compone como los rasgos, multiplicando, así que una meta sobre algo que
+    ya te importaba aprieta más que sobre algo que te daba igual — y eso es lo
+    correcto: querer irse pesa distinto en un avaro que en un manirroto.
+    """
+
+    deadline: int | None = Field(default=None, ge=1)
+    """Tick absoluto en que se da por perdida. `None` = de por vida.
+
+    No es adorno. Una meta cuyo umbral no se alcanza nunca deja al agente
+    permanentemente escorado hacia ese eje, y eso lo distorsiona sin que nada
+    lo resuelva. El plazo es lo que convierte un empujón indefinido en un arco
+    con final, aunque el final sea el malo.
+    """
+
+    on_success: dict[TraitId, float] = Field(default_factory=dict)
+    """Qué le mueve conseguirlo, rasgo a rasgo. Delta en [-2, 2].
+
+    **Esto es lo que separa un logro de un arco.** Sin ello el personaje llega a
+    la meta y sigue siendo exactamente quien era, que es lo contrario de una
+    historia. Se fue del barrio, así que ya no es el que no salía: `arraigo -0.6`.
+    """
+
+    on_failure: dict[TraitId, float] = Field(default_factory=dict)
+    """Y qué le mueve perderlo. Suele ser el material más interesante."""
+
+    @model_validator(mode="after")
+    def _drifts_are_sane(self) -> GoalSpec:
+        """Una deriva mayor que el rango entero del rasgo no significa nada.
+
+        Los rasgos viven en [-1, 1], así que un delta de 2 ya lleva de un extremo
+        al otro. Más que eso es una errata pasando por intensidad dramática.
+        """
+        for campo, derivas in (("on_success", self.on_success), ("on_failure", self.on_failure)):
+            for trait, delta in sorted(derivas.items()):
+                if not -2.0 <= delta <= 2.0:
+                    raise ValueError(
+                        f"meta {self.id!r}.{campo}[{trait!r}] = {delta}, fuera de [-2, 2]; "
+                        f"los rasgos viven en [-1, 1] y un 2 ya cruza el rango entero"
+                    )
+        return self
+
+
 class AgentSpec(Spec):
     id: AgentId
     label: str
     home: PlaceId
     start_at: PlaceId
+
+    goals: tuple[GoalSpec, ...] = ()
+    """Lo que esta persona quiere. Vacío = alguien sin arco, y es legítimo."""
 
     traits: dict[TraitId, float] = Field(default_factory=dict)
     """Rasgo -> intensidad en -1..1. Validado abajo."""

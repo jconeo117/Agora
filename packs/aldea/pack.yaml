@@ -106,6 +106,13 @@ needs:
   initial: 0.05
   base_weight: 0.1
   progression: true
+- id: ahorros
+  label: ahorros
+  decay_per_tick: 0.0
+  urgency_exponent: 1.0
+  initial: 0.0
+  base_weight: 0.08
+  progression: true
 traits:
 - id: sociabilidad
   label: sociabilidad
@@ -257,6 +264,7 @@ actions:
     descanso: -0.2
     estimulo: 0.12
     ep: 0.006
+    ahorros: 0.01
   saturation_gain: 0.08
   phase_multipliers:
     manana: 1.15
@@ -280,6 +288,7 @@ actions:
     descanso: -0.16
     estimulo: 0.14
     ep: 0.005
+    ahorros: 0.007
   saturation_gain: 0.08
   phase_multipliers:
     noche: 1.25
@@ -303,6 +312,7 @@ actions:
     descanso: -0.28
     estimulo: 0.2
     ep: 0.012
+    ahorros: 0.018
   saturation_gain: 0.06
   phase_multipliers:
     manana: 1.15
@@ -335,6 +345,7 @@ actions:
     dinero: 0.26
     descanso: -0.13
     estimulo: 0.04
+    ahorros: 0.006
   phase_multipliers:
     noche: 0.35
 - id: trabajar_en_la_mina
@@ -348,6 +359,7 @@ actions:
   effects:
     dinero: 0.25
     descanso: -0.17
+    ahorros: 0.006
   phase_multipliers:
     noche: 0.35
 - id: trabajar_en_la_granja
@@ -363,6 +375,7 @@ actions:
     dinero: 0.17
     descanso: -0.1
     provisiones: 0.1
+    ahorros: 0.004
   phase_multipliers:
     manana: 1.25
     noche: 0.3
@@ -379,6 +392,7 @@ actions:
     dinero: 0.16
     descanso: -0.1
     vinculo: 0.06
+    ahorros: 0.004
   phase_multipliers:
     manana: 0.55
     noche: 1.45
@@ -587,6 +601,7 @@ agents:
   - target: posada
     multiplier: 0.25
   initial_needs: {}
+  goals: []
 - id: karla
   label: Karla
   home: casa_03
@@ -610,6 +625,7 @@ agents:
   - target: casa_03
     multiplier: 1.7
   initial_needs: {}
+  goals: []
 - id: kiara
   label: Kiara
   home: casa_05
@@ -633,6 +649,18 @@ agents:
   - target: granja
     multiplier: 0.2
   initial_needs: {}
+  goals:
+  - id: saldar_lo_que_debe
+    label: pagar lo que se gasto de mas
+    need: ahorros
+    at_least: 0.2
+    weight_multiplier: 2.8
+    on_success:
+      frugalidad: 0.4
+    on_failure:
+      frugalidad: -0.3
+      hedonismo: 0.4
+    deadline: 11520
 - id: linda
   label: Linda
   home: casa_01
@@ -656,6 +684,7 @@ agents:
   - target: casa_01
     multiplier: 2.0
   initial_needs: {}
+  goals: []
 - id: samantha
   label: Samantha
   home: posada
@@ -679,6 +708,19 @@ agents:
   - target: cocinar
     multiplier: 0.2
   initial_needs: {}
+  goals:
+  - id: salir_de_la_granja
+    label: juntar para no volver a la granja
+    need: ahorros
+    at_least: 0.3
+    weight_multiplier: 2.0
+    on_success:
+      laboriosidad: -0.4
+      hedonismo: 0.3
+    on_failure:
+      impulsividad: -0.3
+      apego_al_hogar: 0.4
+    deadline: 19200
 - id: jack
   label: Jack
   home: posada
@@ -700,6 +742,7 @@ agents:
   - target: charlar
     multiplier: 1.8
   initial_needs: {}
+  goals: []
 - id: leonardo
   label: Leonardo
   home: posada
@@ -723,6 +766,18 @@ agents:
   - target: cocinar
     multiplier: 1.6
   initial_needs: {}
+  goals:
+  - id: maestria
+    label: que el gremio le tome en serio
+    need: ep
+    at_least: 0.75
+    weight_multiplier: 2.2
+    on_success:
+      sociabilidad: 0.3
+      impulsividad: -0.2
+    on_failure:
+      aguante: -0.4
+    deadline: 28800
 - id: arden
   label: Arden
   home: casa_04
@@ -747,6 +802,19 @@ agents:
   - target: granja
     multiplier: 0.3
   initial_needs: {}
+  goals:
+  - id: irse_del_pueblo
+    label: reunir lo suficiente para irse
+    need: ahorros
+    at_least: 0.55
+    weight_multiplier: 2.4
+    on_success:
+      arraigo: -0.7
+      laboriosidad: -0.3
+    on_failure:
+      laboriosidad: -0.5
+      apego_al_hogar: 0.5
+    deadline: 23040
 - id: corin
   label: Corin
   home: posada
@@ -770,6 +838,19 @@ agents:
   - target: cocinar
     multiplier: 0.2
   initial_needs: {}
+  goals:
+  - id: hacerse_un_nombre
+    label: dejar de ser el que no es nadie
+    need: ep
+    at_least: 0.55
+    weight_multiplier: 2.6
+    on_success:
+      ambicion: 0.4
+      arraigo: 0.3
+    on_failure:
+      sociabilidad: -0.4
+      hedonismo: 0.4
+    deadline: 17280
 - id: tym
   label: Tym
   home: casa_02
@@ -796,3 +877,4 @@ agents:
   - target: taberna
     multiplier: 0.1
   initial_needs: {}
+  goals: []

@@ -231,6 +231,61 @@ class ContentPack(Spec):
 
         return problems
 
+    def _check_goal_refs(self) -> list[str]:
+        """Las metas apuntan a cosas que existen, y no se repiten en una ficha.
+
+        La comprobación de ids duplicados es **por agente y no global**: dos
+        vecinos pueden querer lo mismo, y llamarlo igual es lo natural. Lo que no
+        puede es que una persona tenga dos metas con el mismo nombre, porque el
+        estado las colapsaría en una y la segunda no existiría.
+        """
+        needs = frozenset(str(n.id) for n in self.needs)
+        traits = frozenset(str(t.id) for t in self.traits)
+        problems: list[str] = []
+
+        for agent in self.agents:
+            problems += self._duplicates(f"metas de {agent.id!r}", (g.id for g in agent.goals))
+            for goal in agent.goals:
+                if str(goal.need) not in needs:
+                    problems.append(
+                        f"agente {agent.id!r}, meta {goal.id!r}: necesidad "
+                        f"desconocida {goal.need!r}"
+                    )
+                for campo, derivas in (
+                    ("on_success", goal.on_success),
+                    ("on_failure", goal.on_failure),
+                ):
+                    problems += self._unknown_keys(
+                        f"agente {agent.id!r}, meta {goal.id!r}.{campo}",
+                        "rasgo",
+                        derivas,
+                        traits,
+                    )
+        return problems
+
+    def _check_goals_are_reachable(self) -> list[str]:
+        """Ninguna meta apunta por encima del techo de su eje.
+
+        Una necesidad vive en [0, 1], así que pedir `at_least` por encima de lo
+        que la mejor acción del mundo puede dejarla es escribir una frustración
+        garantizada. Aquí solo se caza el caso imposible de verdad: que ninguna
+        acción toque ese eje. Un umbral difícil es diseño; uno inalcanzable es
+        una errata, y sin este aviso se lee igual que lo demás.
+        """
+        movidas = {
+            need
+            for action in self.actions
+            for need, delta in action.effects.items()
+            if delta > 0.0
+        }
+        return [
+            f"agente {agent.id!r}, meta {goal.id!r}: ninguna acción sube "
+            f"{goal.need!r}, así que nunca podrá cumplirse"
+            for agent in self.agents
+            for goal in agent.goals
+            if goal.need not in movidas
+        ]
+
     def _check_elastic_is_coherent(self) -> list[str]:
         """Lo elástico repone su eje por ritmo, no por `effects`.
 
@@ -462,6 +517,8 @@ class ContentPack(Spec):
             *self._check_trait_refs(),
             *self._check_place_refs(),
             *self._check_phase_refs(),
+            *self._check_goal_refs(),
+            *self._check_goals_are_reachable(),
             *self._check_elastic_is_coherent(),
             *self._check_recovery_refs(),
             *self._check_places_are_open_sometime(),

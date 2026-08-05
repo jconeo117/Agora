@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
-from agora.engine.ontology import NeedId, TasteSpec, TemperamentKnob, TraitId
+from agora.engine.ontology import GoalSpec, NeedId, TasteSpec, TemperamentKnob, TraitId
 from agora.engine.pack import ContentPack
 
 _MIN_TEMPERATURE = 1e-6
@@ -23,9 +23,20 @@ elegir siempre lo mejor— pero cero sería una división por cero en el softmax
 
 
 def compose_need_weights(
-    pack: ContentPack, traits: Mapping[TraitId, float]
+    pack: ContentPack,
+    traits: Mapping[TraitId, float],
+    pursuing: Iterable[GoalSpec] = (),
 ) -> dict[NeedId, float]:
     """Cuánto le importa a este agente cada necesidad.
+
+    Dos capas sobre el peso base del pack: **quién es** (rasgos) y **qué quiere
+    ahora** (metas en curso). Las metas entran por el mismo dial a propósito —
+    no hacía falta un término nuevo en la fórmula, porque "cuánto me importa
+    esto" ya existía y una meta es exactamente eso, subido un rato.
+
+    Que multiplique en vez de sumar tiene consecuencia: una meta sobre algo que
+    ya te importaba aprieta más que sobre algo que te daba igual. Querer irse
+    del pueblo pesa distinto en un avaro que en un manirroto, y sale gratis.
 
     La intensidad entra como exponente, no como interpolación:
 
@@ -49,6 +60,12 @@ def compose_need_weights(
         intensity = traits[trait_id]
         for need_id, multiplier in trait.need_weight_multipliers.items():
             weights[need_id] *= multiplier**intensity
+
+    # Ordenadas por id, como los rasgos y por lo mismo: la multiplicación en
+    # coma flotante no es asociativa y dos metas sobre el mismo eje darían
+    # resultados distintos según cómo quedara la tupla.
+    for goal in sorted(pursuing, key=lambda g: g.id):
+        weights[goal.need] *= goal.weight_multiplier
     return weights
 
 

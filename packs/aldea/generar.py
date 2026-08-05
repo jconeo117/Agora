@@ -34,6 +34,12 @@ needs = [
     # emergencia, o el aldeano de nivel bajo soltaria todo para ir a entrenar.
     N("ep", "puntos de existencia", 0.0, 0.75, initial=0.05,
       base_weight=0.10, progression=True),
+    # Lo que se APARTA, distinto de lo que se tiene. `dinero` es un nivel
+    # acotado a 1.0 que sube y baja con el gasto diario, asi que no sabe
+    # expresar "juntar durante anos": medido, una meta de dinero al 0.92 se
+    # cumplia el dia 0. Esto solo sube, y despacio.
+    N("ahorros", "ahorros", 0.0, 1.0, initial=0.0, base_weight=0.08,
+      progression=True),
 ]
 
 traits = []
@@ -97,7 +103,7 @@ actions = [
       satisfies={"dinero": 0.75, "estimulo": 0.25, "ep": 0.30},
       costs={"nucleo": 0.80, "descanso": 0.45},
       effects={"dinero": 0.34, "nucleo": -0.42, "descanso": -0.20, "estimulo": 0.12,
-               "ep": 0.006},
+               "ep": 0.006, "ahorros": 0.01},
       saturation_gain=0.08),
     # --- por tu cuenta: paga menos, nadie te pide permiso ni parte -----------
     A(id="cazar_por_tu_cuenta", label="cazar por tu cuenta", duration_ticks=16,
@@ -105,7 +111,7 @@ actions = [
       satisfies={"dinero": 0.55, "estimulo": 0.30, "ep": 0.26},
       costs={"nucleo": 0.70, "descanso": 0.35},
       effects={"dinero": 0.24, "nucleo": -0.36, "descanso": -0.16, "estimulo": 0.14,
-               "ep": 0.005},
+               "ep": 0.005, "ahorros": 0.007},
       saturation_gain=0.08),
     # Solo para quien ya se ha hecho un nombre. Nadie escribe "sube a 0.45": la
     # urgencia de crecer lo empuja sola, y un dia el gremio le abre esta puerta.
@@ -114,7 +120,7 @@ actions = [
       satisfies={"dinero": 1.0, "estimulo": 0.45, "ep": 0.5},
       costs={"nucleo": 0.95, "descanso": 0.55},
       effects={"dinero": 0.52, "nucleo": -0.58, "descanso": -0.28, "estimulo": 0.20,
-               "ep": 0.012},
+               "ep": 0.012, "ahorros": 0.018},
       saturation_gain=0.06),
     # La via de crecer que NO depende del oficio. Sin ella, EP lo decide la
     # profesion y no el caracter: medido, los cinco cazadores llegaban al tope
@@ -127,17 +133,17 @@ actions = [
       saturation_gain=0.10),
     A(id="trabajar_en_la_herreria", label="trabajar en la herreria", duration_ticks=16,
       requires_affordance="fragua", satisfies={"dinero": 0.50, "estimulo": 0.08},
-      costs={"descanso": 0.30}, effects={"dinero": 0.26, "descanso": -0.13, "estimulo": 0.04}),
+      costs={"descanso": 0.30}, effects={"dinero": 0.26, "descanso": -0.13, "estimulo": 0.04, "ahorros": 0.006}),
     A(id="trabajar_en_la_mina", label="trabajar en la mina", duration_ticks=18,
       requires_affordance="veta", satisfies={"dinero": 0.50}, costs={"descanso": 0.38},
-      effects={"dinero": 0.25, "descanso": -0.17}),
+      effects={"dinero": 0.25, "descanso": -0.17, "ahorros": 0.006}),
     A(id="trabajar_en_la_granja", label="trabajar en la granja", duration_ticks=14,
       requires_affordance="labranza", satisfies={"dinero": 0.35, "provisiones": 0.15},
       costs={"descanso": 0.22},
-      effects={"dinero": 0.17, "descanso": -0.10, "provisiones": 0.10}),
+      effects={"dinero": 0.17, "descanso": -0.10, "provisiones": 0.10, "ahorros": 0.004}),
     A(id="servir_en_la_taberna", label="servir en la taberna", duration_ticks=14,
       requires_affordance="barra", satisfies={"dinero": 0.34, "vinculo": 0.20},
-      costs={"descanso": 0.22}, effects={"dinero": 0.16, "descanso": -0.10, "vinculo": 0.06}),
+      costs={"descanso": 0.22}, effects={"dinero": 0.16, "descanso": -0.10, "vinculo": 0.06, "ahorros": 0.004}),
     A(id="charlar", label="charlar", duration_ticks=5, requires_affordance="corrillo",
       requires_company=1, satisfies={"vinculo": 0.60}, effects={"vinculo": 0.18},
       effects_per_company={"vinculo": 0.50}, saturation_gain=0.14),
@@ -198,6 +204,51 @@ mapa = {"plaza": "plaza", "club": "taberna", "cafe": "taberna", "restaurante": "
         "trabajar_en_taller": None, "trabajar_en_oficina": None,
         "trabajar_en_almacen": None}
 
+# Lo que quiere cada cual. Solo cinco tienen arco: alguien sin metas es
+# legitimo, y un pueblo donde los diez persiguen algo no es un pueblo.
+#
+# El umbral ES el obstaculo. Puesto al alcance de la rutina normal no habrias
+# escrito una meta, habrias escrito una rutina con nombre bonito.
+METAS = {
+    "arden": [{
+        "id": "irse_del_pueblo", "label": "reunir lo suficiente para irse",
+        "need": "ahorros", "at_least": 0.55, "weight_multiplier": 2.4,
+        # Se fue, asi que ya no es el que no salia. Y deja de matarse a trabajar.
+        "on_success": {"arraigo": -0.7, "laboriosidad": -0.3},
+        # Ocho anos y no llego: deja de tener sentido madrugar.
+        "on_failure": {"laboriosidad": -0.5, "apego_al_hogar": 0.5},
+        "deadline": 96 * 240,
+    }],
+    "leonardo": [{
+        "id": "maestria", "label": "que el gremio le tome en serio",
+        "need": "ep", "at_least": 0.75, "weight_multiplier": 2.2,
+        "on_success": {"sociabilidad": 0.3, "impulsividad": -0.2},
+        "on_failure": {"aguante": -0.4},
+        "deadline": 96 * 300,
+    }],
+    "corin": [{
+        "id": "hacerse_un_nombre", "label": "dejar de ser el que no es nadie",
+        "need": "ep", "at_least": 0.55, "weight_multiplier": 2.6,
+        "on_success": {"ambicion": 0.4, "arraigo": 0.3},
+        "on_failure": {"sociabilidad": -0.4, "hedonismo": 0.4},
+        "deadline": 96 * 180,
+    }],
+    "samantha": [{
+        "id": "salir_de_la_granja", "label": "juntar para no volver a la granja",
+        "need": "ahorros", "at_least": 0.30, "weight_multiplier": 2.0,
+        "on_success": {"laboriosidad": -0.4, "hedonismo": 0.3},
+        "on_failure": {"impulsividad": -0.3, "apego_al_hogar": 0.4},
+        "deadline": 96 * 200,
+    }],
+    "kiara": [{
+        "id": "saldar_lo_que_debe", "label": "pagar lo que se gasto de mas",
+        "need": "ahorros", "at_least": 0.20, "weight_multiplier": 2.8,
+        "on_success": {"frugalidad": 0.4},
+        "on_failure": {"frugalidad": -0.3, "hedonismo": 0.4},
+        "deadline": 96 * 120,
+    }],
+}
+
 agents = []
 for a in b["agents"]:
     i = a["id"]
@@ -213,7 +264,8 @@ for a in b["agents"]:
         vistos.add(d)
         gustos.append({"target": d, "multiplier": t["multiplier"]})
     agents.append({"id": i, "label": a["label"], "home": hogar[i], "start_at": hogar[i],
-                   "traits": {**a["traits"], "nocturnidad": CRONOTIPO[i], "sueno_ligero": SUENO[i], "ambicion": AMBICION[i]}, "tastes": gustos, "initial_needs": {}})
+                   "traits": {**a["traits"], "nocturnidad": CRONOTIPO[i], "sueno_ligero": SUENO[i], "ambicion": AMBICION[i]}, "tastes": gustos, "initial_needs": {},
+                   "goals": METAS.get(i, [])})
 
 pack = {"id": "aldea", "label": "La aldea del bosque", "clock": {"minutes_per_tick": 15, "ticks_per_day": 96, "phases": [
             {"id": "manana", "label": "manana", "starts_at": 24},   # 06:00

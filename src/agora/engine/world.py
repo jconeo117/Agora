@@ -26,7 +26,7 @@ from agora.agents.decide import (
     recovery_rate,
 )
 from agora.engine.events import EventKind, EventLog, Payload
-from agora.engine.ontology import ActionId, AgentId, NeedId
+from agora.engine.ontology import ActionId, AgentId, GoalStatus, NeedId
 from agora.engine.outcome import company_premium, contextual_effects, learn
 from agora.engine.pack import ContentPack
 from agora.engine.state import AgentState, Busy, PerformingAction, Traveling, WorldState
@@ -67,13 +67,18 @@ class Simulation:
            todos los agentes decidan sobre el mismo instante. Si el decaimiento
            se intercalara con las acciones, el primer agente de la lista
            decidiría con información medio tick más vieja que el último.
-        3. **Cada agente resuelve su ocupación**, en orden fijo.
-        4. **Se detectan los encuentros**, ya con todos en su sitio final. Si se
-           hiciera durante el paso 3, un agente que aún no se ha movido
+        3. **Se cierran las metas cumplidas o vencidas**, para todos antes de que
+           nadie actúe: los pesos recompuestos valen ya en la decisión de este
+           tick, y quien logró algo no pasa un tick más empujando hacia ello.
+        4. **Cada agente resuelve su ocupación**, en orden fijo.
+        5. **Se detectan los encuentros**, ya con todos en su sitio final. Si se
+           hiciera durante el paso 4, un agente que aún no se ha movido
            generaría un encuentro en un lugar que está a punto de abandonar.
         """
         self.state.tick += 1
         self._decay_everyone()
+        for agent in self.state.agents_in_order():
+            self._settle_goals(agent)
         for agent in self.state.agents_in_order():
             self._resolve(agent)
         self._detect_encounters()
@@ -130,6 +135,45 @@ class Simulation:
                         agent,
                         data={"need": str(need_id), "value": round(value, 4)},
                     )
+
+    def _settle_goals(self, agent: AgentState) -> None:
+        """Cierra las metas que se han cumplido o se han quedado sin plazo.
+
+        Se comprueba **después del decaimiento y antes de deliberar**, para que
+        los pesos recompuestos valgan ya en la decisión de este mismo tick. Al
+        revés, el agente pasaría un tick empujando hacia algo que ya tiene.
+
+        Aquí es donde `drift_trait` se estrena: lleva construido desde F1 y no lo
+        llamaba nadie. Es lo que separa un logro de un arco — sin la deriva, el
+        personaje llega a su meta y sigue siendo exactamente quien era.
+        """
+        spec = self.pack.agent_by_id[agent.spec_id]
+        for goal in spec.goals:
+            if agent.goals.get(goal.id) is not GoalStatus.ACTIVE:
+                continue
+
+            if agent.needs[goal.need] >= goal.at_least:
+                resultado, derivas = GoalStatus.ACHIEVED, goal.on_success
+            elif goal.deadline is not None and self.state.tick >= goal.deadline:
+                resultado, derivas = GoalStatus.FAILED, goal.on_failure
+            else:
+                continue
+
+            agent.goals[goal.id] = resultado
+            self._emit(
+                EventKind.GOAL_ACHIEVED
+                if resultado is GoalStatus.ACHIEVED
+                else EventKind.GOAL_FAILED,
+                agent,
+                data={"goal": str(goal.id), "need": str(goal.need)},
+            )
+            # Ordenadas por id: `drift_trait` recompone en cada llamada y la
+            # multiplicación en coma flotante no es asociativa.
+            for trait in sorted(derivas):
+                agent.drift_trait(self.pack, trait, derivas[trait])
+            # Aunque no hubiera derivas: la meta ha dejado de empujar y el peso
+            # que le prestaba a su eje tiene que devolverse.
+            agent.recompose(self.pack)
 
     def _resolve(self, agent: AgentState) -> None:
         """Consume un tick de lo que el agente esté haciendo y reacciona."""

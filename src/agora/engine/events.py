@@ -47,6 +47,12 @@ class EventKind(StrEnum):
     """Una necesidad cruzó su umbral hacia abajo. Es la señal barata que en F1
     marca recuerdos como importantes: lo que duele, se recuerda."""
 
+    GOAL_ACHIEVED = "goal_achieved"
+    """Alguien consiguió lo que quería. Cierra un arco y mueve sus rasgos."""
+
+    GOAL_FAILED = "goal_failed"
+    """Se le acabó el plazo. Suele ser el material más interesante de los dos."""
+
     IDLE_STALLED = "idle_stalled"
     """Un agente quedó ocioso sin ninguna opción válida. En un motor sano no
     debería aparecer nunca; si aparece en el log, hay un bug de diseño en el

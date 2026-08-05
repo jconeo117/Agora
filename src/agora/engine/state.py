@@ -30,6 +30,9 @@ from agora.engine.ontology import (
     ActionId,
     AgentId,
     AgentSpec,
+    GoalId,
+    GoalSpec,
+    GoalStatus,
     NeedId,
     NeedSpec,
     PlaceId,
@@ -227,6 +230,14 @@ class AgentState:
     importancia al descanso y lo recupera despacio es una persona concreta, no
     una contradicción."""
 
+    goals: dict[GoalId, GoalStatus] = field(default_factory=dict)
+    """En qué anda cada meta de esta persona. Se siembra desde el spec.
+
+    Solo el estado, no la meta: qué quiere lo dice el pack y no cambia; lo que
+    cambia es si lo ha conseguido, lo ha perdido o sigue en ello. Misma
+    separación spec/state que en todo lo demás.
+    """
+
     debt: dict[NeedId, float] = field(default_factory=dict)
     """Lo que el suelo se comió, por necesidad. Siempre >= 0.
 
@@ -348,7 +359,8 @@ class AgentState:
             needs=needs,
             traits=dict(spec.traits),
             tastes=compose_tastes(spec.tastes),
-            need_weights=compose_need_weights(pack, spec.traits),
+            goals={goal.id: GoalStatus.ACTIVE for goal in spec.goals},
+            need_weights=compose_need_weights(pack, spec.traits, spec.goals),
             phase_shift=compose_phase_shift(pack, spec.traits),
             recovery_rates=compose_recovery_rates(pack, spec.traits),
             strain=strain,
@@ -513,7 +525,30 @@ class AgentState:
                 f"declarados: {sorted(pack.trait_by_id)}"
             )
         self.traits[trait] = max(-1.0, min(1.0, self.traits.get(trait, 0.0) + delta))
-        self.need_weights = compose_need_weights(pack, self.traits)
+        self.recompose(pack)
+
+    def pursuing(self, pack: ContentPack) -> tuple[GoalSpec, ...]:
+        """Las metas que este agente persigue ahora mismo.
+
+        Lo logrado y lo perdido dejan de empujar, y eso es la mitad de lo que
+        significa "meta": si siguiera pesando después de conseguirla, sería una
+        necesidad con otro nombre.
+        """
+        return tuple(
+            goal
+            for goal in pack.agent_by_id[self.spec_id].goals
+            if self.goals.get(goal.id) is GoalStatus.ACTIVE
+        )
+
+    def recompose(self, pack: ContentPack) -> None:
+        """Rehace TODO lo derivado de rasgos y metas. Puerta única.
+
+        Existe porque hay dos cosas que pueden mover los pesos —la personalidad
+        y lo que se persigue ahora— y dispersar la recomposición dejaría a un
+        agente decidiendo con los pesos de quien era antes. Ese bug no rompe
+        nada visible: solo hace que la deriva o el logro no surtan efecto.
+        """
+        self.need_weights = compose_need_weights(pack, self.traits, self.pursuing(pack))
         self.phase_shift = compose_phase_shift(pack, self.traits)
         self.recovery_rates = compose_recovery_rates(pack, self.traits)
         self.temperament = compose_temperament(pack, self.traits, self.strain)
