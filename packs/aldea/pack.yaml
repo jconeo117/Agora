@@ -1,0 +1,798 @@
+id: aldea
+label: La aldea del bosque
+clock:
+  minutes_per_tick: 15
+  ticks_per_day: 96
+  phases:
+  - id: manana
+    label: manana
+    starts_at: 24
+  - id: tarde
+    label: tarde
+    starts_at: 52
+  - id: noche
+    label: noche
+    starts_at: 80
+health:
+  days: 7
+  seeds:
+  - 1312
+  - 7
+  - 99
+  min_crisis: 0.05
+  max_crisis: 0.25
+  max_abort_ratio: 0.2
+  max_transit: 0.25
+  min_differentiation: 0.7
+  may_go_unused:
+  - holgazanear
+  - mision_de_rango
+tuning:
+  travel_discount: 0.93
+  candidate_pool: 3
+  temperature: 0.12
+  loss_aversion: 1.0
+  saturation_recovery: 0.004
+  novelty_weight: 0.6
+  switch_cost: 0.8
+  duration_discount: 0.995
+  sighting_horizon: 96
+  learning_rate: 0.1
+  strain_multipliers:
+    temperature: 2.2
+    travel_discount: 0.85
+    critical_need_threshold: 1.5
+  critical_need_threshold: 0.15
+  bond_scale: 0.04
+  bond_rate: 0.15
+  bond_weight: 0.5
+  companionship_weight: 0.4
+  bond_fade: 0.9997
+  bond_horizon: 2880
+needs:
+- id: sustento
+  label: sustento
+  decay_per_tick: 0.007
+  urgency_exponent: 2.5
+  initial: 0.75
+  base_weight: 1.0
+  strain_weight: 0.9
+- id: descanso
+  label: descanso
+  decay_per_tick: 0.007
+  urgency_exponent: 2.2
+  initial: 0.85
+  base_weight: 1.0
+  strain_weight: 1.0
+  max_debt: 1.0
+- id: dinero
+  label: monedas
+  decay_per_tick: 0.0016
+  urgency_exponent: 1.6
+  initial: 0.55
+  base_weight: 0.9
+- id: vinculo
+  label: vinculo
+  decay_per_tick: 0.004
+  urgency_exponent: 1.9
+  initial: 0.6
+  base_weight: 0.75
+  strain_weight: 0.3
+  company_relief: 0.004
+- id: estimulo
+  label: asombro
+  decay_per_tick: 0.004
+  urgency_exponent: 1.7
+  initial: 0.55
+  base_weight: 0.65
+  strain_weight: 0.4
+- id: provisiones
+  label: despensa
+  decay_per_tick: 0.0012
+  urgency_exponent: 1.4
+  initial: 0.7
+  base_weight: 0.5
+- id: nucleo
+  label: estabilidad del nucleo
+  decay_per_tick: 0.0018
+  urgency_exponent: 2.0
+  initial: 0.8
+  base_weight: 0.85
+  strain_weight: 0.8
+- id: ep
+  label: puntos de existencia
+  decay_per_tick: 0.0
+  urgency_exponent: 0.75
+  initial: 0.05
+  base_weight: 0.1
+  progression: true
+traits:
+- id: sociabilidad
+  label: sociabilidad
+  need_weight_multipliers:
+    vinculo: 2.2
+    descanso: 0.9
+- id: laboriosidad
+  label: laboriosidad
+  need_weight_multipliers:
+    dinero: 1.6
+    descanso: 0.75
+- id: hedonismo
+  label: hedonismo
+  need_weight_multipliers:
+    estimulo: 2.4
+    dinero: 0.7
+- id: frugalidad
+  label: frugalidad
+  need_weight_multipliers:
+    dinero: 1.5
+    provisiones: 1.6
+    estimulo: 0.6
+- id: apego_al_hogar
+  label: apego al hogar
+  need_weight_multipliers:
+    descanso: 1.35
+    vinculo: 0.7
+- id: impulsividad
+  label: impulsividad
+  temperament_multipliers:
+    temperature: 3.0
+    loss_aversion: 0.55
+  need_weight_multipliers:
+    nucleo: 0.6
+- id: aguante
+  label: aguante
+  temperament_multipliers:
+    critical_need_threshold: 0.6
+- id: arraigo
+  label: arraigo
+  temperament_multipliers:
+    travel_discount: 0.8
+- id: nocturnidad
+  label: nocturnidad
+  phase_shift: 40
+- id: ambicion
+  label: ambicion
+  need_weight_multipliers:
+    ep: 2.2
+- id: sueno_ligero
+  label: sueno ligero
+  elastic_rate_multipliers:
+    descanso: 0.65
+actions:
+- id: dormir
+  label: dormir
+  duration_ticks: 64
+  requires_affordance: cama
+  elastic:
+    need: descanso
+    per_tick: 0.033
+    min_ticks: 4
+  satisfies:
+    descanso: 0.95
+  effects:
+    nucleo: 0.1
+  phase_multipliers:
+    noche: 1.5
+    manana: 0.7
+    tarde: 0.5
+- id: meditar
+  label: asentar el nucleo
+  duration_ticks: 10
+  requires_affordance: quietud
+  satisfies:
+    nucleo: 0.55
+    estimulo: 0.05
+    ep: 0.12
+  effects:
+    nucleo: 0.38
+    estimulo: 0.03
+    ep: 0.0015
+  saturation_gain: 0.1
+  phase_multipliers:
+    noche: 1.2
+- id: cocinar
+  label: cocinar
+  duration_ticks: 6
+  requires_affordance: fogon
+  requires:
+    provisiones: 0.2
+  satisfies:
+    sustento: 0.75
+  costs:
+    provisiones: 0.35
+  effects:
+    sustento: 0.75
+    provisiones: -0.2
+- id: comer_en_la_taberna
+  label: comer en la taberna
+  duration_ticks: 5
+  requires_affordance: mesa
+  requires:
+    dinero: 0.12
+  satisfies:
+    sustento: 0.7
+    vinculo: 0.15
+  costs:
+    dinero: 0.25
+  effects:
+    sustento: 0.7
+    dinero: -0.07
+    vinculo: 0.05
+  effects_per_company:
+    vinculo: 0.25
+    dinero: -0.03
+  saturation_gain: 0.1
+- id: comprar_provisiones
+  label: comprar en la granja
+  duration_ticks: 5
+  requires_affordance: mercaduria
+  requires:
+    dinero: 0.18
+  satisfies:
+    provisiones: 0.8
+  costs:
+    dinero: 0.6
+  effects:
+    provisiones: 0.8
+    dinero: -0.18
+  phase_multipliers:
+    noche: 0.35
+- id: aceptar_una_mision
+  label: aceptar una mision del gremio
+  duration_ticks: 20
+  requires_affordance: contratos
+  requires:
+    nucleo: 0.42
+  satisfies:
+    dinero: 0.75
+    estimulo: 0.25
+    ep: 0.3
+  costs:
+    nucleo: 0.8
+    descanso: 0.45
+  effects:
+    dinero: 0.34
+    nucleo: -0.42
+    descanso: -0.2
+    estimulo: 0.12
+    ep: 0.006
+  saturation_gain: 0.08
+  phase_multipliers:
+    manana: 1.15
+    noche: 0.8
+- id: cazar_por_tu_cuenta
+  label: cazar por tu cuenta
+  duration_ticks: 16
+  requires_affordance: caza
+  requires:
+    nucleo: 0.36
+  satisfies:
+    dinero: 0.55
+    estimulo: 0.3
+    ep: 0.26
+  costs:
+    nucleo: 0.7
+    descanso: 0.35
+  effects:
+    dinero: 0.24
+    nucleo: -0.36
+    descanso: -0.16
+    estimulo: 0.14
+    ep: 0.005
+  saturation_gain: 0.08
+  phase_multipliers:
+    noche: 1.25
+- id: mision_de_rango
+  label: mision de rango
+  duration_ticks: 28
+  requires_affordance: contratos
+  requires:
+    nucleo: 0.6
+    ep: 0.45
+  satisfies:
+    dinero: 1.0
+    estimulo: 0.45
+    ep: 0.5
+  costs:
+    nucleo: 0.95
+    descanso: 0.55
+  effects:
+    dinero: 0.52
+    nucleo: -0.58
+    descanso: -0.28
+    estimulo: 0.2
+    ep: 0.012
+  saturation_gain: 0.06
+  phase_multipliers:
+    manana: 1.15
+    noche: 0.8
+- id: entrenar
+  label: entrenar
+  duration_ticks: 10
+  requires_affordance: aire
+  satisfies:
+    ep: 0.45
+  costs:
+    descanso: 0.2
+  effects:
+    ep: 0.006
+    descanso: -0.09
+  saturation_gain: 0.1
+  phase_multipliers:
+    manana: 1.2
+    noche: 0.7
+- id: trabajar_en_la_herreria
+  label: trabajar en la herreria
+  duration_ticks: 16
+  requires_affordance: fragua
+  satisfies:
+    dinero: 0.5
+    estimulo: 0.08
+  costs:
+    descanso: 0.3
+  effects:
+    dinero: 0.26
+    descanso: -0.13
+    estimulo: 0.04
+  phase_multipliers:
+    noche: 0.35
+- id: trabajar_en_la_mina
+  label: trabajar en la mina
+  duration_ticks: 18
+  requires_affordance: veta
+  satisfies:
+    dinero: 0.5
+  costs:
+    descanso: 0.38
+  effects:
+    dinero: 0.25
+    descanso: -0.17
+  phase_multipliers:
+    noche: 0.35
+- id: trabajar_en_la_granja
+  label: trabajar en la granja
+  duration_ticks: 14
+  requires_affordance: labranza
+  satisfies:
+    dinero: 0.35
+    provisiones: 0.15
+  costs:
+    descanso: 0.22
+  effects:
+    dinero: 0.17
+    descanso: -0.1
+    provisiones: 0.1
+  phase_multipliers:
+    manana: 1.25
+    noche: 0.3
+- id: servir_en_la_taberna
+  label: servir en la taberna
+  duration_ticks: 14
+  requires_affordance: barra
+  satisfies:
+    dinero: 0.34
+    vinculo: 0.2
+  costs:
+    descanso: 0.22
+  effects:
+    dinero: 0.16
+    descanso: -0.1
+    vinculo: 0.06
+  phase_multipliers:
+    manana: 0.55
+    noche: 1.45
+- id: charlar
+  label: charlar
+  duration_ticks: 5
+  requires_affordance: corrillo
+  requires_company: 1
+  satisfies:
+    vinculo: 0.6
+  effects:
+    vinculo: 0.18
+  effects_per_company:
+    vinculo: 0.5
+  saturation_gain: 0.14
+  phase_multipliers:
+    noche: 1.25
+- id: beber_en_la_taberna
+  label: beber en la taberna
+  duration_ticks: 8
+  requires_affordance: barril
+  requires:
+    dinero: 0.16
+  satisfies:
+    estimulo: 0.6
+    vinculo: 0.3
+  costs:
+    dinero: 0.55
+  effects:
+    estimulo: 0.3
+    vinculo: 0.1
+    dinero: -0.1
+  effects_per_company:
+    vinculo: 0.35
+    estimulo: 0.15
+    dinero: -0.05
+  saturation_gain: 0.16
+  phase_multipliers:
+    manana: 0.4
+    noche: 1.7
+- id: tomar_el_aire
+  label: tomar el aire
+  duration_ticks: 6
+  requires_affordance: aire
+  satisfies:
+    estimulo: 0.35
+  effects:
+    estimulo: 0.26
+  saturation_gain: 0.25
+  phase_multipliers:
+    manana: 1.2
+    noche: 0.8
+- id: holgazanear
+  label: no hacer nada
+  duration_ticks: 4
+  satisfies:
+    estimulo: 0.05
+  effects:
+    estimulo: 0.03
+places:
+- id: plaza
+  label: la plaza
+  affordances:
+  - corrillo
+  - aire
+  - quietud
+  neighbors:
+    taberna: 1
+    posada: 1
+    gremio: 2
+    herreria: 2
+    granja: 3
+    mina: 4
+    casa_01: 1
+    casa_02: 1
+    casa_03: 2
+    casa_04: 2
+    casa_05: 2
+- id: taberna
+  label: la taberna
+  affordances:
+  - corrillo
+  - mesa
+  - barra
+  - barril
+  neighbors:
+    plaza: 1
+    posada: 1
+- id: posada
+  label: la posada grande
+  affordances:
+  - cama
+  - fogon
+  - mesa
+  - quietud
+  neighbors:
+    plaza: 1
+    taberna: 1
+  elastic_rate_multipliers:
+    descanso: 1.15
+- id: gremio
+  label: el gremio de cazadores
+  affordances:
+  - contratos
+  neighbors:
+    plaza: 2
+    bosque: 4
+- id: herreria
+  label: la herreria
+  affordances:
+  - fragua
+  neighbors:
+    plaza: 2
+    mina: 3
+  open_during:
+  - manana
+  - tarde
+- id: mina
+  label: la mina
+  affordances:
+  - veta
+  neighbors:
+    plaza: 4
+    herreria: 3
+  open_during:
+  - manana
+  - tarde
+- id: granja
+  label: la granja
+  affordances:
+  - labranza
+  - mercaduria
+  - aire
+  neighbors:
+    plaza: 3
+    bosque: 3
+- id: bosque
+  label: el bosque magico
+  affordances:
+  - caza
+  - aire
+  neighbors:
+    gremio: 4
+    granja: 3
+- id: casa_01
+  label: la casa 1
+  affordances:
+  - cama
+  - fogon
+  - quietud
+  neighbors:
+    plaza: 1
+- id: casa_02
+  label: la casa 2
+  affordances:
+  - cama
+  - fogon
+  - quietud
+  neighbors:
+    plaza: 1
+- id: casa_03
+  label: la casa 3
+  affordances:
+  - cama
+  - fogon
+  - quietud
+  neighbors:
+    plaza: 2
+- id: casa_04
+  label: la casa 4
+  affordances:
+  - cama
+  - fogon
+  - quietud
+  neighbors:
+    plaza: 2
+- id: casa_05
+  label: la casa 5
+  affordances:
+  - cama
+  - fogon
+  - quietud
+  neighbors:
+    plaza: 2
+agents:
+- id: alexia
+  label: Alexia
+  home: posada
+  start_at: posada
+  traits:
+    sociabilidad: 0.9
+    hedonismo: 0.6
+    apego_al_hogar: -0.8
+    impulsividad: 0.7
+    arraigo: -0.8
+    nocturnidad: 0.6
+    sueno_ligero: 0.3
+    ambicion: 0.4
+  tastes:
+  - target: aceptar_una_mision
+    multiplier: 2.5
+  - target: plaza
+    multiplier: 2.3
+  - target: taberna
+    multiplier: 1.8
+  - target: posada
+    multiplier: 0.25
+  initial_needs: {}
+- id: karla
+  label: Karla
+  home: casa_03
+  start_at: casa_03
+  traits:
+    sociabilidad: -0.7
+    frugalidad: 0.8
+    apego_al_hogar: 0.7
+    impulsividad: -0.6
+    arraigo: 0.6
+    nocturnidad: 0.0
+    sueno_ligero: 0.0
+    ambicion: -0.3
+  tastes:
+  - target: aceptar_una_mision
+    multiplier: 2.5
+  - target: taberna
+    multiplier: 0.1
+  - target: cocinar
+    multiplier: 1.8
+  - target: casa_03
+    multiplier: 1.7
+  initial_needs: {}
+- id: kiara
+  label: Kiara
+  home: casa_05
+  start_at: casa_05
+  traits:
+    sociabilidad: 0.5
+    hedonismo: 0.8
+    frugalidad: -0.8
+    impulsividad: 0.6
+    aguante: 0.5
+    nocturnidad: 0.0
+    sueno_ligero: 0.0
+    ambicion: 0.2
+  tastes:
+  - target: trabajar_en_la_herreria
+    multiplier: 2.5
+  - target: taberna
+    multiplier: 2.1
+  - target: beber_en_la_taberna
+    multiplier: 2.2
+  - target: granja
+    multiplier: 0.2
+  initial_needs: {}
+- id: linda
+  label: Linda
+  home: casa_01
+  start_at: casa_01
+  traits:
+    sociabilidad: -0.9
+    laboriosidad: 0.4
+    apego_al_hogar: 0.9
+    impulsividad: -0.7
+    arraigo: 0.8
+    nocturnidad: 0.0
+    sueno_ligero: -0.5
+    ambicion: -0.6
+  tastes:
+  - target: aceptar_una_mision
+    multiplier: 2.5
+  - target: taberna
+    multiplier: 0.05
+  - target: meditar
+    multiplier: 1.7
+  - target: casa_01
+    multiplier: 2.0
+  initial_needs: {}
+- id: samantha
+  label: Samantha
+  home: posada
+  start_at: posada
+  traits:
+    sociabilidad: 0.8
+    hedonismo: 0.9
+    apego_al_hogar: -0.7
+    impulsividad: 0.9
+    arraigo: -0.7
+    nocturnidad: 0.9
+    sueno_ligero: 0.6
+    ambicion: 0.5
+  tastes:
+  - target: trabajar_en_la_granja
+    multiplier: 2.5
+  - target: taberna
+    multiplier: 2.5
+  - target: charlar
+    multiplier: 2.0
+  - target: cocinar
+    multiplier: 0.2
+  initial_needs: {}
+- id: jack
+  label: Jack
+  home: posada
+  start_at: posada
+  traits:
+    sociabilidad: 0.6
+    laboriosidad: -0.5
+    hedonismo: 0.3
+    impulsividad: 0.2
+    aguante: 0.3
+    nocturnidad: 0.0
+    sueno_ligero: -0.4
+    ambicion: -0.5
+  tastes:
+  - target: trabajar_en_la_mina
+    multiplier: 2.5
+  - target: taberna
+    multiplier: 2.0
+  - target: charlar
+    multiplier: 1.8
+  initial_needs: {}
+- id: leonardo
+  label: Leonardo
+  home: posada
+  start_at: posada
+  traits:
+    sociabilidad: -0.3
+    laboriosidad: 0.8
+    frugalidad: 0.6
+    impulsividad: -0.9
+    aguante: 0.7
+    nocturnidad: 0.0
+    sueno_ligero: -0.2
+    ambicion: 0.7
+  tastes:
+  - target: aceptar_una_mision
+    multiplier: 2.5
+  - target: gremio
+    multiplier: 1.8
+  - target: taberna
+    multiplier: 0.15
+  - target: cocinar
+    multiplier: 1.6
+  initial_needs: {}
+- id: arden
+  label: Arden
+  home: casa_04
+  start_at: casa_04
+  traits:
+    sociabilidad: -0.8
+    laboriosidad: 0.9
+    hedonismo: -0.7
+    frugalidad: 0.5
+    apego_al_hogar: 0.3
+    impulsividad: -0.8
+    aguante: 0.8
+    arraigo: 0.6
+    nocturnidad: 0.0
+    sueno_ligero: 0.2
+    ambicion: 0.8
+  tastes:
+  - target: aceptar_una_mision
+    multiplier: 2.5
+  - target: taberna
+    multiplier: 0.08
+  - target: granja
+    multiplier: 0.3
+  initial_needs: {}
+- id: corin
+  label: Corin
+  home: posada
+  start_at: posada
+  traits:
+    sociabilidad: 0.7
+    laboriosidad: -0.4
+    hedonismo: 0.7
+    impulsividad: 0.5
+    arraigo: -0.8
+    nocturnidad: 0.8
+    sueno_ligero: 0.4
+    ambicion: 0.6
+  tastes:
+  - target: cazar_por_tu_cuenta
+    multiplier: 2.5
+  - target: granja
+    multiplier: 2.0
+  - target: plaza
+    multiplier: 1.8
+  - target: cocinar
+    multiplier: 0.2
+  initial_needs: {}
+- id: tym
+  label: Tym
+  home: casa_02
+  start_at: casa_02
+  traits:
+    sociabilidad: -0.8
+    laboriosidad: 0.5
+    hedonismo: -0.6
+    frugalidad: 0.8
+    apego_al_hogar: 0.8
+    impulsividad: -0.7
+    aguante: 0.6
+    arraigo: 0.7
+    nocturnidad: 0.0
+    sueno_ligero: -0.3
+    ambicion: -0.4
+  tastes:
+  - target: cazar_por_tu_cuenta
+    multiplier: 2.5
+  - target: casa_02
+    multiplier: 2.0
+  - target: cocinar
+    multiplier: 1.8
+  - target: taberna
+    multiplier: 0.1
+  initial_needs: {}

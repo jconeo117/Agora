@@ -40,6 +40,10 @@ plugins = ["pydantic.mypy"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+extend-exclude = ["packs"]
+# Los packs son datos. `generar.py` es la herramienta con la que se construyó
+# uno de ellos y se guarda para poder rehacerlo, no código de librería: pedirle
+# el mismo rigor que al motor solo produce ruido.
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF"]

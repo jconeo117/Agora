@@ -73,8 +73,33 @@ class NeedSpec(Spec):
     label: str
     """Nombre legible, solo para logs y narración. El motor nunca lo lee."""
 
-    decay_per_tick: float = Field(gt=0.0, le=1.0)
-    """Cuánto baja por tick. Calibrar esto ES el trabajo de F0."""
+    decay_per_tick: float = Field(ge=0.0, le=1.0)
+    """Cuánto baja por tick. Calibrar esto ES el trabajo de F0.
+
+    Un 0 describe un eje que no se pierde solo: solo cambia por lo que se hace.
+    Ver `progression`.
+    """
+
+    progression: bool = False
+    """Este eje solo sube: no es una carencia, es lo lejos que se ha llegado.
+
+    Nivel, experiencia, reputación, dominio de un arte. La diferencia con una
+    necesidad no es de grado sino de naturaleza: estar a 0.1 de sustento es una
+    emergencia, y estar a 0.1 de experiencia es ser novato.
+
+    Y por eso hace falta el campo, en vez de deducirlo de `decay_per_tick == 0`.
+    **Un eje de progresión no puede entrar en crisis.** Un personaje que empieza
+    abajo estaría por debajo del umbral crítico durante toda su escalada:
+    soltaría lo que estuviera haciendo para ir a entrenar, y el contrato de salud
+    del pack mediría una emergencia que no existe. Medido con una ganancia
+    realista de 0.004 por sesión, el tiempo en crisis pasa de 0 % a 27.7 %, de
+    sobra para reventar el contrato de un mundo sano.
+
+    Lo que SÍ conserva es la urgencia, y ahí está lo bueno: `(1 - valor) ^ exp`
+    hace que subir apremie mientras se es novato y deje de importar cerca del
+    tope. Querer crecer no necesita un sistema de metas — la fórmula ya sabe
+    querer, y esto solo le da un eje donde hacerlo.
+    """
 
     initial: float = Field(default=1.0, ge=0.0, le=1.0)
 
@@ -140,7 +165,36 @@ class NeedSpec(Spec):
     Exponente 2 = la necesidad es irrelevante hasta que de pronto es crítica.
     Subir esto por necesidad concreta permite que "dormir" apremie distinto
     que "socializar".
+
+    En un eje de progresión conviene lo contrario que en una necesidad: por
+    debajo de 1 el ansia de crecer se mantiene alta hasta cerca del tope, y por
+    encima de 1 se desinfla en cuanto se dan los primeros pasos.
     """
+
+    @model_validator(mode="after")
+    def _progression_is_coherent(self) -> NeedSpec:
+        """Un eje de progresión no admite las mecánicas de la carencia.
+
+        Ninguna de las tres significa nada aquí, y permitirlas en silencio dejaría
+        packs con campos que parecen hacer algo y no lo hacen: no se "pierde
+        nivel" con el tiempo, no se debe experiencia, y ser novato no nubla el
+        juicio ni se cura estando acompañado.
+        """
+        if not self.progression:
+            return self
+        vetados = {
+            "decay_per_tick": self.decay_per_tick,
+            "max_debt": self.max_debt,
+            "company_relief": self.company_relief,
+            "strain_weight": self.strain_weight,
+        }
+        puestos = sorted(name for name, value in vetados.items() if value)
+        if puestos:
+            raise ValueError(
+                f"eje de progresión {self.id!r}: {', '.join(puestos)} no significa "
+                f"nada en algo que solo sube"
+            )
+        return self
 
 
 # ---------------------------------------------------------------------------
