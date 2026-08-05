@@ -251,16 +251,31 @@ class TraitSpec(Spec):
     intensidad de -1 daría un factor negativo, que no significa nada.
     """
 
-    elastic_rate_multipliers: dict[NeedId, PositiveFactor] = Field(default_factory=dict)
-    """Cuarto canal: cuánto rinde a esta persona reponerse.
+    gain_multipliers: dict[NeedId, PositiveFactor] = Field(default_factory=dict)
+    """Cuarto canal: **aptitud**. Cuánto le cunde a esta persona lo que hace.
+
+    Escala lo que un eje GANA, no lo que le importa. Y esa distinción es la que
+    hace falta para modelar que algo se te dé bien:
+
+        need_weight_multipliers  ->  cuánto le IMPORTA
+        gain_multipliers         ->  cuánto le CUNDE
+
+    Son cosas distintas y su combinación describe personas concretas. Quien le da
+    mucha importancia al descanso y lo recupera despacio existe; quien tiene mano
+    para el arcano y le trae sin cuidado, también.
+
+    Sin esto, estudiar rinde lo mismo a todo el mundo y "se le da bien la magia"
+    solo puede significar "le gusta más", que es la mitad de la idea.
 
     Se compone como los pesos —el multiplicador elevado a la intensidad— y
-    multiplica al ritmo base de las acciones elásticas. Es lo que separa a quien
-    duerme dos horas y está entero de quien necesita nueve.
+    multiplica cualquier efecto POSITIVO sobre ese eje: los de una acción
+    terminada y el ritmo de las elásticas, que son la misma pregunta hecha dos
+    veces. Antes eran dos campos (`elastic_rate_multipliers` decía esto mismo
+    solo para el sueño) y dos mecanismos que significan lo mismo son uno de más.
 
-    Y es un RITMO, no un tope. "Duermo poco y me basta" es recuperarse deprisa,
-    no tener un límite bajo; modelarlo como tope dejaría a esa persona sin poder
-    dormir de más cuando de verdad lo necesitara.
+    Y sigue siendo un RITMO, no un tope. "Duermo poco y me basta" es recuperarse
+    deprisa, no tener un límite bajo; modelarlo como tope dejaría a esa persona
+    sin poder dormir de más cuando de verdad lo necesitara.
     """
 
     phase_shift: int = Field(default=0)
@@ -400,6 +415,21 @@ class ActionSpec(Spec):
     nada de lo que dice impedir.
     """
 
+    requires_traits: dict[TraitId, float] = Field(default_factory=dict)
+    """Rasgo mínimo para poder siquiera intentarlo. Cuarta puerta dura.
+
+    `requires` solo sabe mirar necesidades, y hay cosas que no dependen de lo que
+    tengas sino de **quién eres**: un conjuro de fuego pide afinidad con el fuego,
+    y ninguna cantidad de dinero ni de descanso la sustituye.
+
+    Es lo que permite que las clases, los linajes y las afinidades sean rasgos
+    —continuos, componibles, capaces de híbridos— en vez de obligar a inventarse
+    una necesidad por cada categoría.
+
+    Puerta dura, no descuento. Un gusto de 0.05 haría que casi nunca lo hicieras;
+    esto hace que no puedas.
+    """
+
     requires_company: int = Field(default=0, ge=0)
     """Cuántos OTROS agentes hacen falta en el sitio para poder hacer esto.
 
@@ -493,14 +523,17 @@ class PlaceSpec(Spec):
     """Vecino -> ticks de viaje. El grafo es dirigido a propósito: bajar por un
     acantilado puede costar menos que subirlo."""
 
-    elastic_rate_multipliers: dict[NeedId, PositiveFactor] = Field(default_factory=dict)
-    """Cuánto rinde reponerse AQUÍ. Multiplica el ritmo, igual que el rasgo.
+    gain_multipliers: dict[NeedId, PositiveFactor] = Field(default_factory=dict)
+    """Cuánto cunde AQUÍ lo que se hace. Mismo idioma que la aptitud del agente.
 
-    Es la otra mitad de la variación, y se compone con la primera: duerme mal
-    quien tiene mal sueño, quien duerme en mal sitio, y peor quien las dos cosas.
+    La regla completa, y es una sola:
 
-    Aquí es donde una cama de posada se distingue de una noche a la intemperie
-    en el bosque, sin que el motor sepa qué es una cama ni un bosque.
+        lo que rinde algo  =  base  *  aptitud de quien lo hace  *  calidad del sitio
+
+    Es la otra mitad de la variación: duerme mal quien tiene mal sueño, quien
+    duerme en mal sitio, y peor quien las dos cosas. Aquí es donde una cama de
+    posada se distingue de una noche a la intemperie, sin que el motor sepa qué
+    es una cama ni un bosque.
     """
 
     open_during: frozenset[PhaseId] = Field(default_factory=frozenset)

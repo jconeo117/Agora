@@ -69,27 +69,32 @@ def compose_need_weights(
     return weights
 
 
-def compose_recovery_rates(
+def compose_gains(
     pack: ContentPack, traits: Mapping[TraitId, float]
 ) -> dict[NeedId, float]:
-    """Cuánto rinde a este agente reponer cada necesidad. 1.0 = lo normal.
+    """La APTITUD de este agente en cada eje. 1.0 = del montón.
 
     Misma mecánica que `compose_need_weights`, y devuelve todas las necesidades
     del pack por el mismo motivo: un dict incompleto obligaría a cada consumidor
     a inventarse un default y acabarían siendo distintos en dos sitios.
 
-    Ojo con no confundirlo con el peso. `need_weight_multipliers` dice cuánto le
-    IMPORTA algo; esto dice cuánto le CUNDE atenderlo. Alguien puede darle mucha
-    importancia al descanso y recuperarlo despacio — de hecho, esa combinación
-    describe a una persona concreta.
+    Ojo con no confundirlo con el peso, porque son la misma forma y significan
+    cosas opuestas:
+
+        need_weight_multipliers  ->  cuánto le IMPORTA
+        gain_multipliers         ->  cuánto le CUNDE
+
+    Alguien puede darle mucha importancia al descanso y recuperarlo despacio, o
+    tener mano para el arcano y que le traiga sin cuidado. Las dos combinaciones
+    describen personas concretas, y con un solo canal ninguna sería expresable.
     """
-    rates: dict[NeedId, float] = {need.id: 1.0 for need in pack.needs}
+    gains: dict[NeedId, float] = {need.id: 1.0 for need in pack.needs}
     for trait_id in sorted(traits):
         trait = pack.trait_by_id[trait_id]
         intensity = traits[trait_id]
-        for need_id, multiplier in trait.elastic_rate_multipliers.items():
-            rates[need_id] *= multiplier**intensity
-    return rates
+        for need_id, multiplier in trait.gain_multipliers.items():
+            gains[need_id] *= multiplier**intensity
+    return gains
 
 
 def compose_phase_shift(pack: ContentPack, traits: Mapping[TraitId, float]) -> int:

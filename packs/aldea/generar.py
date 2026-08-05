@@ -59,7 +59,7 @@ traits.append({"id": "ambicion", "label": "ambicion",
 AMBICION = {"arden": 0.8, "leonardo": 0.7, "corin": 0.6, "samantha": 0.5, "alexia": 0.4,
             "kiara": 0.2, "karla": -0.3, "tym": -0.4, "jack": -0.5, "linda": -0.6}
 traits.append({"id": "sueno_ligero", "label": "sueno ligero",
-               "elastic_rate_multipliers": {"descanso": 0.65}})
+               "gain_multipliers": {"descanso": 0.65}})
 SUENO = {"samantha": 0.6, "corin": 0.4, "alexia": 0.3, "kiara": 0.0, "jack": -0.4,
          "linda": -0.5, "karla": 0.0, "tym": -0.3, "leonardo": -0.2, "arden": 0.2}
 CRONOTIPO = {"samantha": 0.9, "corin": 0.8, "alexia": 0.6, "kiara": 0.0, "jack": 0.0,
@@ -177,7 +177,7 @@ places = [
     P("taberna", "la taberna", ["corrillo", "mesa", "barra", "barril"],
       {"plaza": 1, "posada": 1}),
     P("posada", "la posada grande", ["cama", "fogon", "mesa", "quietud"],
-      {"plaza": 1, "taberna": 1}) | {"elastic_rate_multipliers": {"descanso": 1.15}},
+      {"plaza": 1, "taberna": 1}) | {"gain_multipliers": {"descanso": 1.15}},
     P("gremio", "el gremio de cazadores", ["contratos"], {"plaza": 2, "bosque": 4}),
     P("herreria", "la herreria", ["fragua"], {"plaza": 2, "mina": 3}) | {"open_during": ["manana", "tarde"]},
     P("mina", "la mina", ["veta"], {"plaza": 4, "herreria": 3}) | {"open_during": ["manana", "tarde"]},

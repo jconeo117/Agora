@@ -19,9 +19,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from agora.engine.disposition import (
     Temperament,
+    compose_gains,
     compose_need_weights,
     compose_phase_shift,
-    compose_recovery_rates,
     compose_tastes,
     compose_temperament,
     compute_strain,
@@ -222,13 +222,14 @@ class AgentState:
     vez cada muchos días y se consulta en cada deliberación. 0 si el pack no
     declara franjas, y entonces todo lo horario queda inerte."""
 
-    recovery_rates: dict[NeedId, float] = field(default_factory=dict)
-    """DERIVADO de `traits`: cuánto le cunde a esta persona reponer cada eje.
+    gains: dict[NeedId, float] = field(default_factory=dict)
+    """DERIVADO de `traits`: la APTITUD de esta persona en cada eje.
 
     Distinto del peso, y conviene no confundirlos: `need_weights` dice cuánto le
-    IMPORTA algo, esto dice cuánto le CUNDE atenderlo. Quien le da mucha
-    importancia al descanso y lo recupera despacio es una persona concreta, no
-    una contradicción."""
+    IMPORTA algo, esto dice cuánto le CUNDE. Quien le da mucha importancia al
+    descanso y lo recupera despacio es una persona concreta, no una
+    contradicción — y quien tiene mano para el arcano sin que le interese,
+    también."""
 
     goals: dict[GoalId, GoalStatus] = field(default_factory=dict)
     """En qué anda cada meta de esta persona. Se siembra desde el spec.
@@ -362,7 +363,7 @@ class AgentState:
             goals={goal.id: GoalStatus.ACTIVE for goal in spec.goals},
             need_weights=compose_need_weights(pack, spec.traits, spec.goals),
             phase_shift=compose_phase_shift(pack, spec.traits),
-            recovery_rates=compose_recovery_rates(pack, spec.traits),
+            gains=compose_gains(pack, spec.traits),
             strain=strain,
             temperament=compose_temperament(pack, spec.traits, strain),
             busy=None,  # todos deliberan en el tick 0
@@ -550,7 +551,7 @@ class AgentState:
         """
         self.need_weights = compose_need_weights(pack, self.traits, self.pursuing(pack))
         self.phase_shift = compose_phase_shift(pack, self.traits)
-        self.recovery_rates = compose_recovery_rates(pack, self.traits)
+        self.gains = compose_gains(pack, self.traits)
         self.temperament = compose_temperament(pack, self.traits, self.strain)
 
     # -- necesidades ----------------------------------------------------------
@@ -593,7 +594,10 @@ class AgentState:
         """
         for need_id, delta in effects.items():
             if delta >= 0.0:
-                self.restore(need_id, delta)
+                # La aptitud escala lo que se GANA, no lo que cuesta. Que se te
+                # dé bien la magia hace que estudiar cunda más; no hace que
+                # trabajar canse menos.
+                self.restore(need_id, delta * self.gains.get(need_id, 1.0))
             else:
                 self._spend(need_id, -delta, need_specs[need_id].max_debt)
 

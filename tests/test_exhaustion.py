@@ -62,7 +62,7 @@ def rest_pack(**overrides: Any) -> ContentPack:
             {
                 "id": "sueno_pesado",
                 "label": "sueno pesado",
-                "elastic_rate_multipliers": {"descanso": 2.0},
+                "gain_multipliers": {"descanso": 2.0},
             }
         ],
         "actions": [
@@ -97,7 +97,7 @@ def rest_pack(**overrides: Any) -> ContentPack:
                 "label": "suelo",
                 "affordances": ["lecho"],
                 "neighbors": {"cama": 1},
-                "elastic_rate_multipliers": {"descanso": 0.45},
+                "gain_multipliers": {"descanso": 0.45},
             },
             {
                 "id": "campo",
@@ -422,7 +422,7 @@ def test_a_floor_above_the_cap_is_rejected() -> None:
         )
 
 
-def test_an_unknown_recovery_need_is_caught() -> None:
+def test_an_unknown_gain_need_is_caught() -> None:
     with pytest.raises(Exception, match="necesidad desconocida"):
         rest_pack(
             places=[
@@ -431,7 +431,7 @@ def test_an_unknown_recovery_need_is_caught() -> None:
                     "label": "cama",
                     "affordances": ["lecho"],
                     "neighbors": {"suelo": 1, "campo": 1},
-                    "elastic_rate_multipliers": {"vigor": 0.5},
+                    "gain_multipliers": {"vigor": 0.5},
                 },
                 {
                     "id": "suelo",

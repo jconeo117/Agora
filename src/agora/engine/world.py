@@ -321,7 +321,9 @@ class Simulation:
         # puede acabar con el sitio ya cerrado, y eso es un chasco legítimo que
         # se lee igual que llegar y no encontrar a nadie.
         phase = self.pack.clock.phase_at(self.state.tick)
-        if is_available(action, self.pack.place_by_id[agent.at], company, agent.needs, phase):
+        if is_available(
+            action, self.pack.place_by_id[agent.at], company, agent.needs, phase, agent.traits
+        ):
             self._start_action(agent, busy.intent, utility=None)
         else:
             # El mundo cambió durante el viaje: normalmente, que la gente por la

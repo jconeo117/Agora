@@ -164,7 +164,7 @@ traits:
     ep: 2.2
 - id: sueno_ligero
   label: sueno ligero
-  elastic_rate_multipliers:
+  gain_multipliers:
     descanso: 0.65
 actions:
 - id: dormir
@@ -491,7 +491,7 @@ places:
   neighbors:
     plaza: 1
     taberna: 1
-  elastic_rate_multipliers:
+  gain_multipliers:
     descanso: 1.15
 - id: gremio
   label: el gremio de cazadores

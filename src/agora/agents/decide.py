@@ -59,6 +59,7 @@ from agora.engine.ontology import (
     PhaseId,
     PlaceId,
     PlaceSpec,
+    TraitId,
 )
 from agora.engine.outcome import company_saturation
 from agora.engine.pack import ContentPack
@@ -193,7 +194,7 @@ def companionship(action: ActionSpec, company: float, weight: float) -> float:
 def recovery_rate(action: ActionSpec, agent: AgentState, place: PlaceSpec) -> float:
     """A qué ritmo repone esta acción, para esta persona, en este sitio.
 
-        ritmo = base * lo_que_le_cunde_a_el * lo_que_rinde_aqui
+        ritmo = base * su_aptitud * la_calidad_del_sitio
 
     Las dos modulaciones se componen, y de ahí sale toda la variación: duerme mal
     quien tiene mal sueño, quien duerme en mal sitio, y peor quien las dos cosas.
@@ -203,10 +204,10 @@ def recovery_rate(action: ActionSpec, agent: AgentState, place: PlaceSpec) -> fl
     elastic = action.elastic
     if elastic is None:  # pragma: no cover - quien llama ya lo comprobó
         return 0.0
-    return (
+    return float(
         elastic.per_tick
-        * agent.recovery_rates.get(elastic.need, 1.0)
-        * place.elastic_rate_multipliers.get(elastic.need, 1.0)
+        * agent.gains.get(elastic.need, 1.0)
+        * place.gain_multipliers.get(elastic.need, 1.0)
     )
 
 
@@ -250,13 +251,20 @@ def is_available(
     company: int | None,
     needs: Mapping[NeedId, float],
     phase: PhaseId | None = None,
+    traits: Mapping[TraitId, float] | None = None,
 ) -> bool:
-    """¿Se puede ejecutar esta acción aquí y ahora? Cuatro puertas duras:
+    """¿Se puede ejecutar esta acción aquí y ahora? Cinco puertas duras:
 
     - **el lugar** la ofrece (affordance)
     - **el lugar está abierto** a esta hora (`open_during`)
     - **hay gente** suficiente (`company` = los OTROS, sin contar a quien pregunta)
     - **alcanzan los recursos** (`requires`)
+    - **eres quien hay que ser** (`requires_traits`)
+
+    La última no mira lo que tienes sino quién eres: un conjuro de fuego pide
+    afinidad con el fuego, y ninguna cantidad de dinero la sustituye. `traits` a
+    `None` la desactiva, para poder preguntar por una acción sin un agente
+    delante.
 
     Cerrar es una puerta y no un descuento por lo mismo que la affordance: la
     herrería cerrada de noche no es menos atractiva, es que no está. Y cierra
@@ -283,6 +291,10 @@ def is_available(
     ):
         return False
     if place.open_during and phase is not None and phase not in place.open_during:
+        return False
+    if traits is not None and any(
+        traits.get(trait, 0.0) < minimum for trait, minimum in action.requires_traits.items()
+    ):
         return False
     if company is not None and company < action.requires_company:
         return False
@@ -362,7 +374,9 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
         )
 
         for action in pack.actions:
-            if not is_available(action, place, headcount, agent.needs, open_phase):
+            if not is_available(
+                action, place, headcount, agent.needs, open_phase, agent.traits
+            ):
                 continue
             reward = benefit(pack, agent, action, weights) * discount * place_taste
             reward *= tastes.get(str(action.id), 1.0)

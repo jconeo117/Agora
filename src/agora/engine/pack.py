@@ -207,13 +207,19 @@ class ContentPack(Spec):
 
     def _check_trait_refs(self) -> list[str]:
         known = frozenset(str(t.id) for t in self.traits)
-        return [
-            problem
-            for agent in self.agents
-            for problem in self._unknown_keys(
+        problems: list[str] = []
+        for agent in self.agents:
+            problems += self._unknown_keys(
                 f"agente {agent.id!r}", "rasgo", agent.traits, known
             )
-        ]
+        # Una errata aquí deja la puerta ABIERTA en silencio: lo ausente no exige
+        # nada, así que el conjuro que creías reservado lo puede lanzar cualquiera
+        # y no hay síntoma salvo leer una semana de log.
+        for action in self.actions:
+            problems += self._unknown_keys(
+                f"acción {action.id!r}.requires_traits", "rasgo", action.requires_traits, known
+            )
+        return problems
 
     def _check_place_refs(self) -> list[str]:
         known = frozenset(str(p.id) for p in self.places)
@@ -320,16 +326,16 @@ class ContentPack(Spec):
                 )
         return problems
 
-    def _check_recovery_refs(self) -> list[str]:
+    def _check_gain_refs(self) -> list[str]:
         known = frozenset(str(n.id) for n in self.needs)
         problems: list[str] = []
         for trait in self.traits:
             problems += self._unknown_keys(
-                f"rasgo {trait.id!r}", "necesidad", trait.elastic_rate_multipliers, known
+                f"rasgo {trait.id!r}", "necesidad", trait.gain_multipliers, known
             )
         for place in self.places:
             problems += self._unknown_keys(
-                f"lugar {place.id!r}", "necesidad", place.elastic_rate_multipliers, known
+                f"lugar {place.id!r}", "necesidad", place.gain_multipliers, known
             )
         return problems
 
@@ -520,7 +526,7 @@ class ContentPack(Spec):
             *self._check_goal_refs(),
             *self._check_goals_are_reachable(),
             *self._check_elastic_is_coherent(),
-            *self._check_recovery_refs(),
+            *self._check_gain_refs(),
             *self._check_places_are_open_sometime(),
             *self._check_taste_refs(),
             *self._check_actions_are_reachable(),
