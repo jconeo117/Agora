@@ -15,11 +15,23 @@ from __future__ import annotations
 from collections import deque
 from collections.abc import Iterable, Mapping
 
-from agora.engine.ontology import PlaceId, PlaceSpec
+from agora.engine.ontology import NeedId, PlaceId, PlaceSpec
 
 INFINITE = 1 << 30
 """Centinela de "inalcanzable". Entero grande en vez de math.inf para que las
 distancias sigan siendo `int` y no se cuelen floats en el motor."""
+
+
+def _add(left: Mapping[NeedId, float], right: Mapping[NeedId, float]) -> dict[NeedId, float]:
+    """Suma dos peajes. Casi siempre uno de los dos está vacío."""
+    if not left:
+        return dict(right)
+    if not right:
+        return dict(left)
+    total = dict(left)
+    for need, amount in right.items():
+        total[need] = total.get(need, 0.0) + amount
+    return total
 
 
 def _reachable(adjacency: Mapping[PlaceId, Iterable[PlaceId]], origin: PlaceId) -> set[PlaceId]:
@@ -75,7 +87,7 @@ class TravelMap:
     cortado, un lugar cerrado de noche) se absorban solos.
     """
 
-    __slots__ = ("_distance", "_first_hop", "_places")
+    __slots__ = ("_distance", "_first_hop", "_places", "_toll")
 
     def __init__(self, places: Iterable[PlaceSpec]) -> None:
         catalog = list(places)
@@ -87,6 +99,13 @@ class TravelMap:
         first_hop: dict[PlaceId, dict[PlaceId, PlaceId | None]] = {
             a: dict.fromkeys(self._places, None) for a in self._places
         }
+        # El peaje viaja en paralelo a la distancia, y NO se optimiza: se acumula
+        # a lo largo de la ruta que ya eligieron los ticks. Buscar la ruta más
+        # barata sería otro grafo —y otro por agente, porque cada cual valora el
+        # dinero distinto—. Aquí la ruta es una, y esto dice lo que cuesta.
+        toll: dict[PlaceId, dict[PlaceId, dict[NeedId, float]]] = {
+            a: {b: {} for b in self._places} for a in self._places
+        }
 
         for place in catalog:
             for neighbor, cost in place.neighbors.items():
@@ -94,6 +113,7 @@ class TravelMap:
                 if cost < distance[place.id][neighbor]:
                     distance[place.id][neighbor] = cost
                     first_hop[place.id][neighbor] = neighbor
+                    toll[place.id][neighbor] = dict(place.tolls.get(neighbor, {}))
 
         for via in self._places:
             for start in self._places:
@@ -105,9 +125,11 @@ class TravelMap:
                         distance[start][goal] = candidate
                         # El primer paso hacia `goal` es el mismo que hacia `via`.
                         first_hop[start][goal] = first_hop[start][via]
+                        toll[start][goal] = _add(toll[start][via], toll[via][goal])
 
         self._distance = distance
         self._first_hop = first_hop
+        self._toll = toll
 
     @property
     def places(self) -> tuple[PlaceId, ...]:
@@ -116,6 +138,15 @@ class TravelMap:
     def distance(self, origin: PlaceId, destination: PlaceId) -> int:
         """Ticks de viaje por la ruta más corta. `INFINITE` si no hay ruta."""
         return self._distance[origin][destination]
+
+    def toll(self, origin: PlaceId, destination: PlaceId) -> Mapping[NeedId, float]:
+        """Lo que cuesta el trayecto además del tiempo. Vacío casi siempre.
+
+        Es el peaje de la ruta MÁS CORTA EN TICKS, no de la más barata. Con eso
+        basta para que el porte sea una decisión —al deliberar, el peaje se resta
+        pesado por la urgencia— sin meter búsqueda de rutas por agente.
+        """
+        return self._toll[origin][destination]
 
     def is_reachable(self, origin: PlaceId, destination: PlaceId) -> bool:
         return self._distance[origin][destination] < INFINITE

@@ -21,7 +21,8 @@ La fórmula:
     beneficio = suma_necesidades( peso * urgencia * satisface )
     coste     = suma_necesidades( peso * urgencia * cuesta )
 
-    utilidad  = beneficio * descuento_viaje * gustos * compañía * hora - aversion * coste
+    utilidad  = beneficio * descuento * gustos * compañía * hora
+              - aversion * (coste + peaje_del_trayecto)
 
 Tres detalles de esa expresión que no son arbitrarios:
 
@@ -232,6 +233,34 @@ def planned_duration(action: ActionSpec, agent: AgentState, place: PlaceSpec) ->
     return max(elastic.min_ticks, min(action.duration_ticks, needed))
 
 
+def toll_cost(
+    pack: ContentPack,
+    agent: AgentState,
+    weights: dict[NeedId, float],
+    toll: Mapping[NeedId, float],
+) -> float:
+    """Cuánto le duele a ESTE agente el peaje del trayecto.
+
+    Se pesa como cualquier otro coste —importancia por urgencia— y ahí está lo
+    que convierte un servicio en una decisión: al que va justo de dinero el porte
+    le duele mucho más que al que va sobrado, así que el pobre camina y el
+    holgado paga. Sin el término, la arista corta ganaría siempre y todo el mundo
+    iría en carro.
+
+    Es un delta real y no una intención en escala 0-1 como `costs`, así que pesa
+    algo menos de lo que su número sugiere. Se aceptó: un peaje es una cantidad
+    concreta que sale del bolsillo, y fingir que es una intención sería peor.
+    """
+    if not toll:
+        return 0.0
+    total = 0.0
+    for need_id, amount in toll.items():
+        need = pack.need_by_id[need_id]
+        pressure = urgency(agent.needs[need_id], need.urgency_exponent)
+        total += weights[need_id] * pressure * amount
+    return total
+
+
 def phase_fit(action: ActionSpec, phase: PhaseId | None) -> float:
     """Cuánto rinde esta acción en esta franja. 1.0 si el mundo no tiene franjas.
 
@@ -351,6 +380,10 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             continue  # imposible con un pack validado, pero el motor no asume
         discount = temperament.travel_discount**travel
         place_taste = tastes.get(str(place.id), 1.0)
+        # El peaje del trayecto es de la RUTA, no de la acción, así que se
+        # calcula una vez por lugar y se suma al precio de todo lo que se haga
+        # allí. Ir a la sima cuesta lo mismo se baje a expoliar o a mirar.
+        peaje = toll_cost(pack, agent, weights, world.travel.toll(agent.at, place.id))
 
         # Quién cree que hay allí. `None` = no tiene noticia, y se supone a favor.
         crowd: frozenset[AgentId] | None
@@ -391,7 +424,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             # castigar una cabezada de una hora como si fueran las ocho del tope
             # haría que nadie echara nunca una cabezada.
             reward *= tuning.duration_discount ** planned_duration(action, agent, place)
-            price = cost(pack, agent, action, weights) * temperament.loss_aversion
+            price = (cost(pack, agent, action, weights) + peaje) * temperament.loss_aversion
             found.append(
                 Decision(
                     action=action.id,

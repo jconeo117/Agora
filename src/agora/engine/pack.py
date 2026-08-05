@@ -187,6 +187,12 @@ class ContentPack(Spec):
                 f"rasgo {trait.id!r}", "necesidad", trait.need_weight_multipliers, known
             )
 
+        for place in self.places:
+            for target, toll in sorted(place.tolls.items()):
+                problems += self._unknown_keys(
+                    f"lugar {place.id!r}.tolls[{target!r}]", "necesidad", toll, known
+                )
+
         for action in self.actions:
             for field, mapping in (
                 ("satisfies", action.satisfies),
@@ -229,6 +235,13 @@ class ContentPack(Spec):
             problems += self._unknown_keys(
                 f"lugar {place.id!r}.neighbors", "lugar", place.neighbors, known
             )
+            # Un peaje hacia un sitio que no es vecino no se cobra nunca: la
+            # arista no existe, así que nadie la cruza. Silencioso y desconcertante.
+            problems += [
+                f"lugar {place.id!r}: peaje hacia {target!r}, que no es vecino suyo"
+                for target in sorted(place.tolls)
+                if target not in place.neighbors
+            ]
 
         for agent in self.agents:
             for field, value in (("home", agent.home), ("start_at", agent.start_at)):

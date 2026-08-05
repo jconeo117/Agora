@@ -523,6 +523,31 @@ class PlaceSpec(Spec):
     """Vecino -> ticks de viaje. El grafo es dirigido a propósito: bajar por un
     acantilado puede costar menos que subirlo."""
 
+    tolls: dict[PlaceId, dict[NeedId, NonNegativeFactor]] = Field(default_factory=dict)
+    """Lo que cuesta tomar esa arista, además del tiempo. Vacío = gratis.
+
+    Es lo que separa un **servicio** de un atajo. Un porte del gremio que deja en
+    la boca de la sima en un tick no es un camino corto: es algo por lo que se
+    paga, y por eso hay quien lo toma y quien va andando. Sin precio siempre
+    ganaría y todo el mundo iría en carro.
+
+    Sirve para cualquier cosa que se cobre por pasar: pasajes, peajes de puente,
+    sobornos a la guardia, portales arcanos. El motor no sabe cuál es cuál.
+
+    **Se declara en el sentido en que se paga.** El grafo es dirigido, así que
+    llevar es una arista y volver es otra, y nada obliga a que cuesten lo mismo:
+
+        gremio:  neighbors: { boca: 1 }
+                 tolls:     { boca: { dinero: 0.12 } }
+        boca:    neighbors: { gremio: 7 }      # la vuelta, andando y gratis
+
+    Dos advertencias sobre cómo se comporta. El peaje **entra en la deliberación**
+    pesado por la urgencia, así que a quien va justo de dinero le duele mucho más
+    —de ahí sale que el pobre camine y el sobrado pague—. Pero **no bloquea el
+    paso**: quien acabe tomando la arista sin fondos paga lo que tenga y llega a
+    cero. Bloquear obligaría a buscar ruta por agente, y eso es otro motor.
+    """
+
     gain_multipliers: dict[NeedId, PositiveFactor] = Field(default_factory=dict)
     """Cuánto cunde AQUÍ lo que se hace. Mismo idioma que la aptitud del agente.
 

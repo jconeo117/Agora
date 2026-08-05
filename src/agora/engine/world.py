@@ -303,6 +303,11 @@ class Simulation:
 
     def _arrive(self, agent: AgentState, busy: Traveling) -> None:
         """Llegada a un nodo: fin de trayecto o siguiente tramo."""
+        # El peaje se cobra al cruzar, tramo a tramo. Antes de mover al agente,
+        # que es cuando `agent.at` todavía dice de dónde viene.
+        peaje = self.pack.place_by_id[agent.at].tolls.get(busy.next_hop)
+        if peaje:
+            agent.apply({need: -amount for need, amount in peaje.items()}, self.pack.need_by_id)
         agent.at = busy.next_hop
 
         if agent.at != busy.destination:
