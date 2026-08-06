@@ -129,6 +129,11 @@ class Simulation:
             # aquí.
             agent.refresh_state(self.pack)
             for need_id, value in agent.needs.items():
+                # Lo que no puede interrumpir tampoco es una alarma. Sin esta
+                # guarda el log grita "crisis" por una bolsa vacia o por ser
+                # novato, y el narrador se lo cree aunque el triaje no.
+                if not specs[need_id].can_be_critical:
+                    continue
                 if before[need_id] >= threshold > value:
                     self._emit(
                         EventKind.NEED_CRITICAL,

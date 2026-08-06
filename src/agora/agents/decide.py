@@ -562,10 +562,14 @@ def critical_needs(world: WorldState, agent: AgentState) -> list[NeedId]:
     threshold = agent.temperament.critical_need_threshold * (
         1.0 - commitment(world, agent) * world.pack.tuning.switch_cost
     )
-    # Los ejes de progresión quedan fuera: ser novato no es una emergencia. Sin
-    # esta guarda, quien empieza abajo pasa toda su escalada bajo el umbral,
+    # Lo que el pack diga que no es una emergencia queda fuera: la progresión
+    # nunca lo es —ser novato no es una crisis— y un inventario tampoco: la bolsa
+    # vacía es un martes, no una urgencia.
+    #
+    # Sin esta guarda, quien empieza abajo pasa toda su escalada bajo el umbral
     # soltando lo que hiciera para ir a entrenar. Medido con una ganancia
-    # realista, el tiempo en crisis del mundo pasa de 0 % a 27.7 %.
+    # realista, el tiempo en crisis del mundo pasa de 0 % a 27.7 %; y con un eje
+    # de botín que arranca vacío, una alumna de magia se va a vivir al bosque.
     #
     # Solo pierden el poder de INTERRUMPIR. La urgencia se les sigue calculando
     # igual, así que crecer sigue apeteciendo más cuanto menos se ha crecido.
@@ -573,7 +577,7 @@ def critical_needs(world: WorldState, agent: AgentState) -> list[NeedId]:
     urgent = [
         need
         for need, value in agent.needs.items()
-        if value < threshold and not by_id[need].progression
+        if value < threshold and by_id[need].can_be_critical
     ]
     return sorted(urgent, key=lambda need: (agent.needs[need], str(need)))
 

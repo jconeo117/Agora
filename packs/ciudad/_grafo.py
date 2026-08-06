@@ -12,7 +12,7 @@ ACADEMIA = [
     P("aca_aulas",     "las aulas",               ["leccion"],        {"aca_patio":1}),
     P("aca_biblioteca","la biblioteca",           ["archivo","quietud"], {"aca_patio":1}),
     P("aca_palestra",  "la palestra",             ["palestra"],       {"aca_patio":1}),
-    P("aca_refectorio","el refectorio",           ["mesa","fogon","corrillo"], {"aca_patio":1}),
+    P("aca_refectorio","el refectorio",           ["rancho","fogon","corrillo"], {"aca_patio":1}),
 ]
 
 CIUDAD = [

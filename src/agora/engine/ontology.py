@@ -102,6 +102,22 @@ class NeedSpec(Spec):
     querer, y esto solo le da un eje donde hacerlo.
     """
 
+    urgent_when_low: bool = True
+    """Si escasear esto es una emergencia que justifica soltarlo todo.
+
+    `progression` lo apagaba de tapadillo, y eran dos conceptos distintos metidos
+    en uno. Hay ejes que no son progresion y a los que tampoco les pega el pánico:
+    un **inventario**. No llevar botin encima es lo normal, no una crisis, y
+    tratarlo como tal produce un agente que interrumpe lo que sea para ir a por
+    material — medido, una alumna de magia se fue a vivir al bosque el primer dia.
+
+    La distincion es entre lo que se AGOTA y lo que se ACUMULA. El hambre a cero
+    es una urgencia; la bolsa vacia es un martes.
+
+    Apagarlo no toca la urgencia: sigue apeteciendo llenarlo, y con la misma
+    curva. Solo pierde el poder de interrumpir.
+    """
+
     initial: float = Field(default=1.0, ge=0.0, le=1.0)
 
     base_weight: float = Field(default=1.0, ge=0.0)
@@ -171,6 +187,11 @@ class NeedSpec(Spec):
     debajo de 1 el ansia de crecer se mantiene alta hasta cerca del tope, y por
     encima de 1 se desinfla en cuanto se dan los primeros pasos.
     """
+
+    @property
+    def can_be_critical(self) -> bool:
+        """Un eje de progresion nunca lo es, digan lo que digan sus campos."""
+        return self.urgent_when_low and not self.progression
 
     @model_validator(mode="after")
     def _progression_is_coherent(self) -> NeedSpec:
