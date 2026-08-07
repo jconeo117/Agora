@@ -95,6 +95,15 @@ traits = [
     # y el mundo se comporta igual que antes: es un eje que solo existe para
     # quien tiene algo que esconder.
     T("reservado", "reservado", need_weight_multipliers={"discrecion": 3.2}),
+    # A quien todo se le da bien, en lo que sea que se le de. Se compone con el
+    # estilo: el prodigio dice CUANTO y el estilo dice EN QUE.
+    #
+    # Fijate en el `curso`: el talento apenas lo acelera. Aprender magia deprisa
+    # no te salta las clases, y ahi esta el arco del prodigio — brillante y sin
+    # graduar, porque el titulo se gana asistiendo y no siendo listo.
+    T("prodigio", "prodigio",
+      gain_multipliers={"arcano": 1.8, "armas": 1.8, "agilidad": 1.8,
+                        "temple": 1.8, "curso": 1.15}),
     T("ambicion", "ambicion",
       need_weight_multipliers={"curso": 2.2, "arcano": 1.8, "armas": 1.8}),
 
@@ -351,6 +360,29 @@ def cazador(i, label, estilo, elemento, casa, oficio, **rasgos):
 
 
 agents = [
+    # Kiara: el talento no se traduce en titulo. Su arcano corre cuatro veces mas
+    # que el de nadie y su curso apenas, porque graduarse se gana yendo a clase.
+    {
+        "id": "kiara", "label": "Kiara Reynolds",
+        "home": "aca_celdas", "start_at": "aca_celdas",
+        "traits": {
+            "alumno": 1.0, "estilo_soporte": 1.0, "elem_agua": 1.0,
+            "prodigio": 0.9,
+            "sociabilidad": 0.5, "laboriosidad": -0.4, "hedonismo": 0.2,
+            "impulsividad": 0.1, "aguante": -0.2,
+        },
+        "tastes": [{"target": "estudiar", "multiplier": 2.5},
+                   {"target": "entrenar", "multiplier": 0.3},
+                   {"target": "asistir_a_leccion", "multiplier": 1.2}],
+        "goals": [{
+            "id": "graduarse", "label": "graduarse", "need": "curso",
+            "at_least": 0.95, "weight_multiplier": 2.0, "deadline": 96 * 900,
+            "on_success": {"graduado": 1.0, "arraigo": -0.4},
+            # El prodigio que descubre que el talento no bastaba, y aprende a
+            # trabajar. Es el final malo y es mejor que el bueno.
+            "on_failure": {"laboriosidad": 0.6, "ambicion": 0.4, "hedonismo": -0.3},
+        }],
+    },
     # Aster: asesino de fuego, y esa combinacion es una contradiccion andante.
     # Su elemento es lo mas llamativo que hay y el quiere no destacar, asi que
     # la piromancia le cuesta el triple de discrecion que a nadie le importa.
@@ -411,11 +443,11 @@ pack = {
         {"id": "tarde", "label": "tarde", "starts_at": 52},
         {"id": "noche", "label": "noche", "starts_at": 80},
     ]},
-    # Veintiun dias y no siete. Este mundo tiene ritmos mas lentos que la aldea
+    # Treinta dias y no siete. Este mundo tiene ritmos mas lentos que la aldea
     # porque los ejes de progresion gatean contenido: en una semana no da tiempo
     # a que nadie llegue a las galerias ni a cuarto curso, y la mitad del pack
     # parece muerto sin estarlo.
-    "health": {"days": 21, "seeds": [1312, 7, 99],
+    "health": {"days": 30, "seeds": [1312, 7, 99],
                "min_crisis": 0.05, "max_crisis": 0.30,
                "max_abort_ratio": 0.25, "max_transit": 0.25,
                "min_differentiation": 0.70,
