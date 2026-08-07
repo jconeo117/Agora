@@ -258,13 +258,17 @@ actions:
   requires_affordance: rancho
   satisfies:
     sustento: 0.7
-    vinculo: 0.15
+    vinculo: 0.2
   effects:
     sustento: 0.7
-    vinculo: 0.05
+    vinculo: 0.06
   effects_per_company:
-    vinculo: 0.25
-  saturation_gain: 0.1
+    vinculo: 0.3
+  saturation_gain: 0.08
+  phase_multipliers:
+    manana: 2.2
+    tarde: 1.6
+    noche: 0.25
 - id: comer_fuera
   label: comer fuera
   duration_ticks: 5

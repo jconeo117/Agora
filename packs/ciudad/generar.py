@@ -121,10 +121,16 @@ actions = [
       elastic={"need": "descanso", "per_tick": 0.033, "min_ticks": 4},
       satisfies={"descanso": 0.95}, effects={"nucleo": 0.10},
       phase_multipliers={"noche": 1.5, "manana": 0.7, "tarde": 0.5}),
+    # Se sirve a sus horas, y eso no es sabor: es lo que hace que el refectorio
+    # arranque. Sin horario todos comian en la taberna —82 veces contra 41—
+    # porque alli habia gente, y donde hay gente comer renta mas. Un bucle que
+    # se realimenta solo y deja el comedor de la academia vacio para siempre.
+    # Concentrar la hora hace que coincidan, y entonces el sitio se sostiene.
     A(id="rancho", label="comer el rancho", duration_ticks=4, requires_affordance="rancho",
-      satisfies={"sustento": 0.70, "vinculo": 0.15},
-      effects={"sustento": 0.70, "vinculo": 0.05},
-      effects_per_company={"vinculo": 0.25}, saturation_gain=0.10),
+      satisfies={"sustento": 0.70, "vinculo": 0.20},
+      effects={"sustento": 0.70, "vinculo": 0.06},
+      effects_per_company={"vinculo": 0.30}, saturation_gain=0.08,
+      phase_multipliers={"manana": 2.2, "tarde": 1.6, "noche": 0.25}),
     A(id="comer_fuera", label="comer fuera", duration_ticks=5, requires_affordance="mesa",
       requires={"dinero": 0.12}, satisfies={"sustento": 0.70, "vinculo": 0.15},
       costs={"dinero": 0.25}, effects={"sustento": 0.70, "dinero": -0.07, "vinculo": 0.05},
