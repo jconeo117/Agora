@@ -107,6 +107,13 @@ needs:
   initial: 0.0
   base_weight: 0.45
   urgent_when_low: false
+- id: discrecion
+  label: discrecion
+  decay_per_tick: 0.0
+  urgency_exponent: 1.5
+  initial: 0.9
+  base_weight: 0.35
+  urgent_when_low: false
 - id: ahorros
   label: ahorros
   decay_per_tick: 0.0
@@ -202,6 +209,10 @@ traits:
   label: curtido
   gain_multipliers:
     descanso: 1.9
+- id: reservado
+  label: reservado
+  need_weight_multipliers:
+    discrecion: 3.2
 - id: ambicion
   label: ambicion
   need_weight_multipliers:
@@ -248,6 +259,7 @@ actions:
     descanso: 0.95
   effects:
     nucleo: 0.1
+    discrecion: 0.05
   phase_multipliers:
     noche: 1.5
     manana: 0.7
@@ -324,8 +336,11 @@ actions:
   requires_company: 1
   satisfies:
     vinculo: 0.6
+  costs:
+    discrecion: 0.06
   effects:
     vinculo: 0.18
+    discrecion: -0.015
   effects_per_company:
     vinculo: 0.5
   saturation_gain: 0.14
@@ -340,10 +355,12 @@ actions:
     vinculo: 0.3
   costs:
     dinero: 0.55
+    discrecion: 0.16
   effects:
     estimulo: 0.3
     vinculo: 0.1
     dinero: -0.1
+    discrecion: -0.015
   effects_per_company:
     vinculo: 0.35
     estimulo: 0.15
@@ -451,10 +468,27 @@ actions:
     agilidad: 0.35
   costs:
     descanso: 0.22
+    discrecion: 0.8
   effects:
     armas: 0.006
     agilidad: 0.005
     descanso: -0.1
+    discrecion: -0.2
+  saturation_gain: 0.1
+- id: entrenar_a_solas
+  label: entrenar a solas
+  duration_ticks: 12
+  requires_affordance: retiro
+  satisfies:
+    armas: 0.3
+    agilidad: 0.25
+  costs:
+    descanso: 0.26
+  effects:
+    armas: 0.0035
+    agilidad: 0.003
+    descanso: -0.12
+    discrecion: 0.01
   saturation_gain: 0.1
 - id: pyromancia
   label: practicar pyromancia
@@ -469,10 +503,12 @@ actions:
     armas: 0.3
   costs:
     nucleo: 0.6
+    discrecion: 0.64
   effects:
     arcano: 0.009
     armas: 0.004
     nucleo: -0.26
+    discrecion: -0.16
   saturation_gain: 0.08
 - id: hidromancia
   label: practicar hidromancia
@@ -483,9 +519,12 @@ actions:
   satisfies:
     arcano: 0.45
     nucleo: 0.2
+  costs:
+    discrecion: 0.016
   effects:
     arcano: 0.006
     nucleo: 0.05
+    discrecion: -0.004
   saturation_gain: 0.08
 - id: geomancia
   label: practicar geomancia
@@ -496,10 +535,13 @@ actions:
   satisfies:
     arcano: 0.35
     temple: 0.45
+  costs:
+    discrecion: 0.08
   effects:
     arcano: 0.004
     temple: 0.007
     nucleo: 0.03
+    discrecion: -0.02
   saturation_gain: 0.08
 - id: aeromancia
   label: practicar aeromancia
@@ -512,10 +554,12 @@ actions:
     agilidad: 0.35
   costs:
     nucleo: 0.25
+    discrecion: 0.016
   effects:
     arcano: 0.005
     agilidad: 0.006
     nucleo: -0.1
+    discrecion: -0.004
   saturation_gain: 0.08
 - id: tasar_botin
   label: tasar el botin
@@ -527,10 +571,12 @@ actions:
     dinero: 0.85
   costs:
     botin: 0.6
+    discrecion: 0.12
   effects:
     dinero: 0.3
     botin: -0.25
     ahorros: 0.012
+    discrecion: -0.012
   phase_multipliers: *id002
 - id: contrato_del_gremio
   label: contrato del gremio
@@ -547,12 +593,14 @@ actions:
   costs:
     nucleo: 0.7
     descanso: 0.4
+    discrecion: 0.28
   effects:
     dinero: 0.34
     nucleo: -0.3
     descanso: -0.18
     temple: 0.006
     ahorros: 0.01
+    discrecion: -0.07
   saturation_gain: 0.08
   phase_multipliers: *id002
 - id: caza_menor
@@ -583,6 +631,7 @@ actions:
   costs:
     descanso: 0.45
     nucleo: 0.3
+    discrecion: 0.12
   effects:
     botin: 0.38
     descanso: -0.2
@@ -590,6 +639,7 @@ actions:
     estimulo: 0.16
     armas: 0.006
     temple: 0.004
+    discrecion: -0.012
   saturation_gain: 0.06
 - id: expoliar_cripta
   label: expoliar la cripta
@@ -627,6 +677,7 @@ actions:
   costs:
     nucleo: 0.85
     descanso: 0.6
+    discrecion: 0.2
   effects:
     botin: 0.42
     nucleo: -0.38
@@ -635,6 +686,7 @@ actions:
     armas: 0.008
     arcano: 0.005
     temple: 0.006
+    discrecion: -0.02
   saturation_gain: 0.06
 - id: expoliar_corazon
   label: bajar al corazon de la sima
@@ -653,6 +705,7 @@ actions:
   costs:
     nucleo: 1.0
     descanso: 0.95
+    discrecion: 0.4
   effects:
     botin: 0.6
     nucleo: -0.58
@@ -662,6 +715,7 @@ actions:
     arcano: 0.008
     temple: 0.012
     ahorros: 0.015
+    discrecion: -0.1
   saturation_gain: 0.05
 - id: salida_de_practica
   label: salida de practica
@@ -692,11 +746,13 @@ actions:
     estimulo: 0.08
   costs:
     descanso: 0.3
+    discrecion: 0.12
   effects:
     dinero: 0.26
     descanso: -0.13
     estimulo: 0.04
     ahorros: 0.006
+    discrecion: -0.012
   phase_multipliers: *id002
 - id: servir_en_la_taberna
   label: servir en la taberna
@@ -707,11 +763,13 @@ actions:
     vinculo: 0.2
   costs:
     descanso: 0.22
+    discrecion: 0.8
   effects:
     dinero: 0.16
     descanso: -0.1
     vinculo: 0.06
     ahorros: 0.004
+    discrecion: -0.02
   phase_multipliers: *id001
 places:
 - id: aca_patio
@@ -732,6 +790,7 @@ places:
   affordances:
   - cama
   - quietud
+  - retiro
   neighbors:
     aca_patio: 1
 - id: aca_aulas
@@ -826,6 +885,7 @@ places:
   affordances:
   - altar
   - quietud
+  - retiro
   neighbors:
     plaza: 2
 - id: barrio_alto
@@ -834,6 +894,7 @@ places:
   - cama
   - fogon
   - quietud
+  - retiro
   neighbors:
     plaza: 2
   gain_multipliers:
@@ -936,6 +997,44 @@ places:
   neighbors:
     galerias: 2
 agents:
+- id: aster
+  label: Aster Collins
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    estilo_asesino: 1.0
+    elem_fuego: 1.0
+    reservado: 0.9
+    ambicion: 0.8
+    sociabilidad: -0.4
+    laboriosidad: 0.8
+    hedonismo: -0.3
+    frugalidad: 0.2
+    apego_al_hogar: 0.3
+    impulsividad: -0.6
+    aguante: 0.9
+    arraigo: 0.0
+  tastes:
+  - target: estudiar
+    multiplier: 2.5
+  - target: asistir_a_leccion
+    multiplier: 1.4
+  - target: beber
+    multiplier: 0.1
+  goals:
+  - id: fuerza_suficiente
+    label: la fuerza que considera suficiente
+    need: agilidad
+    at_least: 0.65
+    weight_multiplier: 2.4
+    deadline: 172800
+    on_success:
+      reservado: -0.7
+      sociabilidad: 0.4
+    on_failure:
+      aguante: -0.4
+      ambicion: -0.3
 - id: sira
   label: Sira
   home: aca_celdas

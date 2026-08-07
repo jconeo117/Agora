@@ -41,6 +41,14 @@ needs = [
     # el bucle economico entero. Decae poquisimo porque el material se estropea.
     N("botin", "botin", 0.0004, 1.2, initial=0.0, base_weight=0.45,
       urgent_when_low=False),
+    # Cuanto pasa desapercibido. No decae sola —la gente no te olvida por si
+    # sola— pero dormir la repone un poco: un dia mas y ya nadie hablaba de ti.
+    # Lo que la gasta es hacerse ver, y ahi esta toda la tension: lo que rinde
+    # es publico. Que ser notado NO sea urgente es deliberado: es una
+    # preferencia, no una emergencia, y tratarla como tal llenaria el mundo de
+    # falsas alarmas para gente a la que le da igual.
+    N("discrecion", "discrecion", 0.0, 1.5, initial=0.90, base_weight=0.35,
+      urgent_when_low=False),
 
     # --- ejes que solo suben --------------------------------------------------
     N("ahorros", "ahorros", 0.0, 1.0, initial=0.0, base_weight=0.08, progression=True),
@@ -83,6 +91,10 @@ traits = [
     # Quien esta hecho a dormir fuera. Compensa el 0.45 de la acampada: un
     # cazador curtido acampando repone casi como en una cama, y un alumno no.
     T("curtido", "curtido", gain_multipliers={"descanso": 1.9}),
+    # A quien le importa no destacar. Sin este rasgo la discrecion no pesa nada
+    # y el mundo se comporta igual que antes: es un eje que solo existe para
+    # quien tiene algo que esconder.
+    T("reservado", "reservado", need_weight_multipliers={"discrecion": 3.2}),
     T("ambicion", "ambicion",
       need_weight_multipliers={"curso": 2.2, "arcano": 1.8, "armas": 1.8}),
 
@@ -119,7 +131,7 @@ actions = [
     # --- lo basico ------------------------------------------------------------
     A(id="dormir", label="dormir", duration_ticks=64, requires_affordance="cama",
       elastic={"need": "descanso", "per_tick": 0.033, "min_ticks": 4},
-      satisfies={"descanso": 0.95}, effects={"nucleo": 0.10},
+      satisfies={"descanso": 0.95}, effects={"nucleo": 0.10, "discrecion": 0.05},
       phase_multipliers={"noche": 1.5, "manana": 0.7, "tarde": 0.5}),
     # Se sirve a sus horas, y eso no es sabor: es lo que hace que el refectorio
     # arranque. Sin horario todos comian en la taberna —82 veces contra 41—
@@ -143,11 +155,11 @@ actions = [
       satisfies={"provisiones": 0.80}, costs={"dinero": 0.60},
       effects={"provisiones": 0.80, "dinero": -0.18}, phase_multipliers=HORARIO_DIA),
     A(id="charlar", label="charlar", duration_ticks=5, requires_affordance="corrillo",
-      requires_company=1, satisfies={"vinculo": 0.60}, effects={"vinculo": 0.18},
+      requires_company=1, satisfies={"vinculo": 0.60}, costs={"discrecion": 0.06}, effects={"vinculo": 0.18, "discrecion": -0.015},
       effects_per_company={"vinculo": 0.50}, saturation_gain=0.14),
     A(id="beber", label="beber en la taberna", duration_ticks=8, requires_affordance="barril",
       requires={"dinero": 0.16}, satisfies={"estimulo": 0.60, "vinculo": 0.30},
-      costs={"dinero": 0.55}, effects={"estimulo": 0.30, "vinculo": 0.10, "dinero": -0.10},
+      costs={"dinero": 0.55, "discrecion": 0.16}, effects={"estimulo": 0.30, "vinculo": 0.10, "dinero": -0.10, "discrecion": -0.015},
       effects_per_company={"vinculo": 0.35, "estimulo": 0.15, "dinero": -0.05},
       saturation_gain=0.16, phase_multipliers=HORARIO_NOCHE),
     A(id="tomar_el_aire", label="tomar el aire", duration_ticks=6, requires_affordance="aire",
@@ -182,41 +194,50 @@ actions = [
       effects={"arcano": 0.011, "descanso": -0.04}, saturation_gain=0.08),
     A(id="entrenar", label="entrenar en la palestra", duration_ticks=10,
       requires_affordance="palestra", satisfies={"armas": 0.45, "agilidad": 0.35},
-      costs={"descanso": 0.22}, effects={"armas": 0.006, "agilidad": 0.005, "descanso": -0.10},
+      costs={"descanso": 0.22, "discrecion": 0.80},
+      effects={"armas": 0.006, "agilidad": 0.005, "descanso": -0.10, "discrecion": -0.20},
+      saturation_gain=0.10),
+    # La otra mitad del trato: rinde bastante menos y no te ve nadie. Sin esto,
+    # querer pasar desapercibido solo se podria expresar como no entrenar.
+    A(id="entrenar_a_solas", label="entrenar a solas", duration_ticks=12,
+      requires_affordance="retiro", satisfies={"armas": 0.30, "agilidad": 0.25},
+      costs={"descanso": 0.26},
+      effects={"armas": 0.0035, "agilidad": 0.003, "descanso": -0.12,
+               "discrecion": 0.01},
       saturation_gain=0.10),
 
     # --- los cuatro elementos. Mismo sitio, cuatro perfiles distintos. --------
     A(id="pyromancia", label="practicar pyromancia", duration_ticks=8,
       requires_affordance="palestra", requires_traits={"elem_fuego": 0.5},
       requires={"nucleo": 0.30},
-      satisfies={"arcano": 0.60, "armas": 0.30}, costs={"nucleo": 0.60},
-      effects={"arcano": 0.009, "armas": 0.004, "nucleo": -0.26}, saturation_gain=0.08),
+      satisfies={"arcano": 0.60, "armas": 0.30}, costs={"nucleo": 0.60, "discrecion": 0.640},
+      effects={"arcano": 0.009, "armas": 0.004, "nucleo": -0.26, "discrecion": -0.16}, saturation_gain=0.08),
     A(id="hidromancia", label="practicar hidromancia", duration_ticks=8,
       requires_affordance="palestra", requires_traits={"elem_agua": 0.5},
       satisfies={"arcano": 0.45, "nucleo": 0.20},
-      effects={"arcano": 0.006, "nucleo": 0.05}, saturation_gain=0.08),
+      costs={"discrecion": 0.016}, effects={"arcano": 0.006, "nucleo": 0.05, "discrecion": -0.004}, saturation_gain=0.08),
     A(id="geomancia", label="practicar geomancia", duration_ticks=10,
       requires_affordance="palestra", requires_traits={"elem_tierra": 0.5},
       satisfies={"arcano": 0.35, "temple": 0.45},
-      effects={"arcano": 0.004, "temple": 0.007, "nucleo": 0.03}, saturation_gain=0.08),
+      costs={"discrecion": 0.080}, effects={"arcano": 0.004, "temple": 0.007, "nucleo": 0.03, "discrecion": -0.02}, saturation_gain=0.08),
     A(id="aeromancia", label="practicar aeromancia", duration_ticks=5,
       requires_affordance="palestra", requires_traits={"elem_viento": 0.5},
-      satisfies={"arcano": 0.40, "agilidad": 0.35}, costs={"nucleo": 0.25},
-      effects={"arcano": 0.005, "agilidad": 0.006, "nucleo": -0.10}, saturation_gain=0.08),
+      satisfies={"arcano": 0.40, "agilidad": 0.35}, costs={"nucleo": 0.25, "discrecion": 0.016},
+      effects={"arcano": 0.005, "agilidad": 0.006, "nucleo": -0.10, "discrecion": -0.004}, saturation_gain=0.08),
 
     # --- el gremio ------------------------------------------------------------
     A(id="tasar_botin", label="tasar el botin", duration_ticks=4,
       requires_affordance="tasacion", requires={"botin": 0.25},
-      satisfies={"dinero": 0.85}, costs={"botin": 0.60},
-      effects={"dinero": 0.30, "botin": -0.25, "ahorros": 0.012},
+      satisfies={"dinero": 0.85}, costs={"botin": 0.60, "discrecion": 0.12},
+      effects={"dinero": 0.30, "botin": -0.25, "ahorros": 0.012, "discrecion": -0.012},
       phase_multipliers=HORARIO_DIA),
     A(id="contrato_del_gremio", label="contrato del gremio", duration_ticks=18,
       requires_affordance="contratos", requires_traits={"graduado": 0.9},
       requires={"nucleo": 0.35},
       satisfies={"dinero": 0.80, "estimulo": 0.25, "temple": 0.30},
-      costs={"nucleo": 0.70, "descanso": 0.40},
+      costs={"nucleo": 0.70, "descanso": 0.40, "discrecion": 0.28},
       effects={"dinero": 0.34, "nucleo": -0.30, "descanso": -0.18, "temple": 0.006,
-               "ahorros": 0.010},
+               "ahorros": 0.010, "discrecion": -0.07},
       saturation_gain=0.08, phase_multipliers=HORARIO_DIA),
 
     # --- el bosque ------------------------------------------------------------
@@ -228,9 +249,9 @@ actions = [
     A(id="caza_mayor", label="batir la espesura", duration_ticks=16,
       requires_affordance="caza_mayor", requires={"armas": 0.25, "descanso": 0.30},
       satisfies={"botin": 0.70, "estimulo": 0.35},
-      costs={"descanso": 0.45, "nucleo": 0.30},
+      costs={"descanso": 0.45, "nucleo": 0.30, "discrecion": 0.12},
       effects={"botin": 0.38, "descanso": -0.20, "nucleo": -0.14, "estimulo": 0.16,
-               "armas": 0.006, "temple": 0.004},
+               "armas": 0.006, "temple": 0.004, "discrecion": -0.012},
       saturation_gain=0.06),
 
     # --- la sima, por profundidad ---------------------------------------------
@@ -245,9 +266,9 @@ actions = [
       requires_affordance="expolio_2", requires={"armas": 0.35, "nucleo": 0.40,
                                                  "descanso": 0.35},
       satisfies={"botin": 0.80, "estimulo": 0.45, "arcano": 0.25},
-      costs={"nucleo": 0.85, "descanso": 0.60},
+      costs={"nucleo": 0.85, "descanso": 0.60, "discrecion": 0.20},
       effects={"botin": 0.42, "nucleo": -0.38, "descanso": -0.30, "estimulo": 0.20,
-               "armas": 0.008, "arcano": 0.005, "temple": 0.006},
+               "armas": 0.008, "arcano": 0.005, "temple": 0.006, "discrecion": -0.02},
       saturation_gain=0.06),
     # Inabandonable: de ahi abajo no se sale a media faena. Es lo que produce la
     # deuda de sueno, y por eso hay que volver arriba a dormir dias.
@@ -256,9 +277,9 @@ actions = [
       requires={"armas": 0.60, "temple": 0.50, "nucleo": 0.60, "descanso": 0.50},
       interruptible=False,
       satisfies={"botin": 1.0, "estimulo": 0.70, "arcano": 0.40},
-      costs={"nucleo": 1.0, "descanso": 0.95},
+      costs={"nucleo": 1.0, "descanso": 0.95, "discrecion": 0.40},
       effects={"botin": 0.60, "nucleo": -0.58, "descanso": -0.48, "estimulo": 0.30,
-               "armas": 0.012, "arcano": 0.008, "temple": 0.012, "ahorros": 0.015},
+               "armas": 0.012, "arcano": 0.008, "temple": 0.012, "ahorros": 0.015, "discrecion": -0.1},
       saturation_gain=0.05),
     # La salida de practica de los mayores. Misma cripta, pero la manda la
     # academia: la puerta es la ANTIGUEDAD, no la competencia.
@@ -273,13 +294,13 @@ actions = [
     # --- oficios de ciudad ----------------------------------------------------
     A(id="trabajar_en_la_fragua", label="trabajar en la fragua", duration_ticks=16,
       requires_affordance="fragua", satisfies={"dinero": 0.50, "estimulo": 0.08},
-      costs={"descanso": 0.30},
-      effects={"dinero": 0.26, "descanso": -0.13, "estimulo": 0.04, "ahorros": 0.006},
+      costs={"descanso": 0.30, "discrecion": 0.12},
+      effects={"dinero": 0.26, "descanso": -0.13, "estimulo": 0.04, "ahorros": 0.006, "discrecion": -0.012},
       phase_multipliers=HORARIO_DIA),
     A(id="servir_en_la_taberna", label="servir en la taberna", duration_ticks=14,
       requires_affordance="barra", satisfies={"dinero": 0.34, "vinculo": 0.20},
-      costs={"descanso": 0.22},
-      effects={"dinero": 0.16, "descanso": -0.10, "vinculo": 0.06, "ahorros": 0.004},
+      costs={"descanso": 0.22, "discrecion": 0.80},
+      effects={"dinero": 0.16, "descanso": -0.10, "vinculo": 0.06, "ahorros": 0.004, "discrecion": -0.02},
       phase_multipliers=HORARIO_NOCHE),
 ]
 
@@ -292,6 +313,10 @@ actions = [
 # -----------------------------------------------------------------------------
 places = [dict(p) for p in LUGARES]
 por_id = {p["id"]: p for p in places}
+# Sitios donde uno se puede encerrar. La plaza tiene `quietud` pero esta llena
+# de gente: meditar en publico vale, entrenar en secreto no.
+for _sitio in ("aca_celdas", "barrio_alto", "templo"):
+    por_id[_sitio]["affordances"] = [*por_id[_sitio]["affordances"], "retiro"]
 por_id["gremio"]["neighbors"]["boca"] = 1
 por_id["gremio"]["tolls"] = {"boca": {"dinero": 0.14}}
 
@@ -326,6 +351,32 @@ def cazador(i, label, estilo, elemento, casa, oficio, **rasgos):
 
 
 agents = [
+    # Aster: asesino de fuego, y esa combinacion es una contradiccion andante.
+    # Su elemento es lo mas llamativo que hay y el quiere no destacar, asi que
+    # la piromancia le cuesta el triple de discrecion que a nadie le importa.
+    {
+        "id": "aster", "label": "Aster Collins",
+        "home": "aca_celdas", "start_at": "aca_celdas",
+        "traits": {
+            "alumno": 1.0, "estilo_asesino": 1.0, "elem_fuego": 1.0,
+            "reservado": 0.9, "ambicion": 0.8,
+            "sociabilidad": -0.4, "laboriosidad": 0.8, "hedonismo": -0.3,
+            "frugalidad": 0.2, "apego_al_hogar": 0.3, "impulsividad": -0.6,
+            "aguante": 0.9, "arraigo": 0.0,
+        },
+        "tastes": [{"target": "estudiar", "multiplier": 2.5},
+                   {"target": "asistir_a_leccion", "multiplier": 1.4},
+                   {"target": "beber", "multiplier": 0.1}],
+        "goals": [{
+            "id": "fuerza_suficiente", "label": "la fuerza que considera suficiente",
+            "need": "agilidad", "at_least": 0.65, "weight_multiplier": 2.4,
+            "deadline": 96 * 1800,
+            # Deja de esconderse: lo unico que el motor entiende de "podra dejar
+            # de ocultar parte de su capacidad".
+            "on_success": {"reservado": -0.7, "sociabilidad": 0.4},
+            "on_failure": {"aguante": -0.4, "ambicion": -0.3},
+        }],
+    },
     alumno("sira", "Sira", "estilo_soporte", "elem_agua",
            sociabilidad=0.4, ambicion=0.7, impulsividad=-0.4, arraigo=0.5),
     alumno("teo", "Teo", "estilo_guerrero", "elem_fuego",
