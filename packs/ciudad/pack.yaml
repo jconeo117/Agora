@@ -446,7 +446,7 @@ actions:
   costs:
     descanso: 0.15
   effects:
-    curso: 0.006
+    curso: 0.00038
     arcano: 0.004
     descanso: -0.06
     vinculo: 0.04
@@ -740,7 +740,7 @@ actions:
     descanso: 0.35
   effects:
     botin: 0.18
-    curso: 0.005
+    curso: 0.00032
     armas: 0.006
     descanso: -0.15
     temple: 0.003
@@ -1265,3 +1265,504 @@ agents:
     multiplier: 2.4
   - target: aca_patio
     multiplier: 0.2
+- id: arthur_leywin
+  label: Arthur Leywin
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    estilo_guerrero: 1.0
+    elem_viento: 1.0
+    sociabilidad: 0.1
+    laboriosidad: 0.9
+    hedonismo: -0.3
+    frugalidad: 0.2
+    impulsividad: -0.4
+    aguante: 0.9
+    arraigo: 0.1
+    prodigio: 0.5
+  tastes:
+  - target: beber
+    multiplier: 0.4
+  - target: entrenar
+    multiplier: 2.5
+  - target: estudiar
+    multiplier: 2.0
+  - target: tomar_el_aire
+    multiplier: 0.4
+  goals:
+  - id: mejorar_sin_techo
+    label: mejorar sin techo
+    need: armas
+    at_least: 0.8
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success:
+      ambicion: 0.3
+      aguante: 0.2
+    on_failure:
+      impulsividad: 0.4
+      aguante: -0.3
+- id: mikasa_lionheart
+  label: Mikasa Lionheart
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    estilo_guerrero: 1.0
+    elem_tierra: 1.0
+    sociabilidad: -0.7
+    laboriosidad: 0.7
+    hedonismo: -0.2
+    frugalidad: 0.3
+    apego_al_hogar: 0.6
+    impulsividad: -0.7
+    aguante: 0.8
+    arraigo: 0.8
+    prodigio: 0.3
+  tastes:
+  - target: beber
+    multiplier: 0.3
+  - target: charlar
+    multiplier: 0.2
+  - target: entrenar
+    multiplier: 2.0
+  - target: estudiar
+    multiplier: 1.8
+  goals:
+  - id: terminar_sin_sobresaltos
+    label: terminar sin sobresaltos
+    need: curso
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success:
+      graduado: 1.0
+      arraigo: -0.2
+    on_failure:
+      apego_al_hogar: 0.5
+      aguante: -0.3
+- id: norman_stark
+  label: Norman Stark
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    estilo_soporte: 1.0
+    elem_agua: 1.0
+    sociabilidad: -0.2
+    laboriosidad: 0.7
+    frugalidad: 0.3
+    apego_al_hogar: 0.1
+    impulsividad: -0.8
+    aguante: 0.5
+    arraigo: 0.2
+    prodigio: 0.4
+  tastes:
+  - target: beber
+    multiplier: 0.6
+  - target: entrenar
+    multiplier: 1.2
+  - target: estudiar
+    multiplier: 2.5
+  - target: meditar
+    multiplier: 1.6
+  goals:
+  - id: comprenderlo_todo
+    label: comprenderlo todo
+    need: arcano
+    at_least: 0.85
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success:
+      sociabilidad: 0.3
+    on_failure:
+      impulsividad: 0.5
+      laboriosidad: -0.2
+- id: albedo_elric
+  label: Albedo Elric
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    estilo_soporte: 1.0
+    elem_fuego: 1.0
+    sociabilidad: 0.1
+    laboriosidad: 0.9
+    hedonismo: -0.2
+    frugalidad: 0.1
+    apego_al_hogar: 0.2
+    impulsividad: -0.3
+    aguante: 0.7
+    arraigo: 0.2
+    prodigio: 0.5
+  tastes:
+  - target: beber
+    multiplier: 0.4
+  - target: entrenar
+    multiplier: 1.8
+  - target: estudiar
+    multiplier: 2.5
+  goals:
+  - id: la_excelencia
+    label: la excelencia
+    need: arcano
+    at_least: 0.9
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success:
+      hedonismo: 0.3
+      laboriosidad: -0.2
+    on_failure:
+      laboriosidad: 0.5
+      aguante: 0.3
+- id: max_andersonn
+  label: Max Andersonn
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    estilo_asesino: 1.0
+    elem_viento: 1.0
+    sociabilidad: 0.9
+    laboriosidad: 0.2
+    hedonismo: 0.8
+    frugalidad: -0.4
+    apego_al_hogar: -0.2
+    impulsividad: 0.7
+    aguante: 0.3
+    arraigo: -0.2
+    prodigio: 0.2
+  tastes:
+  - target: beber
+    multiplier: 2.0
+  - target: charlar
+    multiplier: 2.5
+  - target: entrenar
+    multiplier: 0.7
+  - target: estudiar
+    multiplier: 1.0
+  goals:
+  - id: disfrutarlo
+    label: disfrutarlo
+    need: curso
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success:
+      graduado: 1.0
+      hedonismo: 0.3
+    on_failure:
+      laboriosidad: 0.7
+      hedonismo: -0.5
+- id: alexia_tompson
+  label: Alexia Tompson
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    estilo_soporte: 1.0
+    elem_tierra: 1.0
+    sociabilidad: 0.2
+    laboriosidad: 0.8
+    hedonismo: -0.1
+    frugalidad: 0.1
+    apego_al_hogar: 0.1
+    impulsividad: -0.2
+    aguante: 0.6
+    arraigo: 0.2
+    prodigio: 0.3
+  tastes:
+  - target: beber
+    multiplier: 0.5
+  - target: entrenar
+    multiplier: 1.6
+  - target: estudiar
+    multiplier: 2.5
+  goals:
+  - id: destacar
+    label: destacar
+    need: curso
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success:
+      graduado: 1.0
+      sociabilidad: 0.3
+    on_failure:
+      laboriosidad: 0.5
+      hedonismo: -0.3
+- id: ethan_moore
+  label: Ethan Moore
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    estilo_asesino: 1.0
+    elem_agua: 1.0
+    sociabilidad: 0.1
+    laboriosidad: -0.4
+    hedonismo: 0.3
+    frugalidad: 0.5
+    apego_al_hogar: 0.4
+    impulsividad: -0.2
+    aguante: 0.2
+    arraigo: 0.4
+  tastes:
+  - target: beber
+    multiplier: 1.3
+  - target: entrenar
+    multiplier: 0.4
+  - target: estudiar
+    multiplier: 1.4
+  goals:
+  - id: salir_del_paso
+    label: salir del paso
+    need: curso
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success:
+      graduado: 1.0
+      apego_al_hogar: 0.3
+    on_failure:
+      laboriosidad: 0.6
+      aguante: 0.3
+- id: lena_hartwell
+  label: Lena Hartwell
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    estilo_asesino: 1.0
+    elem_viento: 1.0
+    sociabilidad: 0.5
+    laboriosidad: 0.3
+    hedonismo: 0.5
+    frugalidad: -0.2
+    apego_al_hogar: -0.2
+    impulsividad: 0.8
+    aguante: 0.2
+    arraigo: -0.3
+    prodigio: 0.2
+  tastes:
+  - target: beber
+    multiplier: 1.5
+  - target: entrenar
+    multiplier: 1.0
+  - target: estudiar
+    multiplier: 1.4
+  - target: tomar_el_aire
+    multiplier: 2.0
+- id: darius_cole
+  label: Darius Cole
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    estilo_guerrero: 1.0
+    elem_fuego: 1.0
+    sociabilidad: 0.2
+    laboriosidad: 0.7
+    hedonismo: -0.2
+    frugalidad: 0.3
+    apego_al_hogar: 0.3
+    impulsividad: -0.5
+    aguante: 0.9
+    arraigo: 0.3
+    prodigio: 0.3
+  tastes:
+  - target: beber
+    multiplier: 0.5
+  - target: entrenar
+    multiplier: 2.5
+  - target: estudiar
+    multiplier: 1.7
+  goals:
+  - id: estar_preparado
+    label: estar preparado
+    need: temple
+    at_least: 0.75
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success:
+      sociabilidad: 0.3
+      aguante: 0.2
+    on_failure:
+      aguante: -0.4
+      apego_al_hogar: 0.4
+- id: nora_bellamy
+  label: Nora Bellamy
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    estilo_asesino: 1.0
+    elem_tierra: 1.0
+    sociabilidad: 0.3
+    laboriosidad: 0.4
+    hedonismo: 0.2
+    frugalidad: 0.4
+    impulsividad: 0.2
+    aguante: 0.4
+    arraigo: -0.1
+    prodigio: 0.2
+  tastes:
+  - target: beber
+    multiplier: 1.2
+  - target: entrenar
+    multiplier: 1.1
+  - target: estudiar
+    multiplier: 1.6
+  - target: tomar_el_aire
+    multiplier: 1.7
+- id: silas_reed
+  label: Silas Reed
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    estilo_soporte: 1.0
+    elem_agua: 1.0
+    sociabilidad: -0.9
+    laboriosidad: 0.6
+    hedonismo: -0.2
+    frugalidad: 0.5
+    apego_al_hogar: 0.8
+    impulsividad: -0.5
+    aguante: 0.6
+    arraigo: 0.9
+    reservado: 0.8
+    prodigio: 0.4
+  tastes:
+  - target: beber
+    multiplier: 0.8
+  - target: charlar
+    multiplier: 0.1
+  - target: estudiar
+    multiplier: 2.0
+  - target: tomar_el_aire
+    multiplier: 0.4
+  goals:
+  - id: que_le_dejen_en_paz
+    label: que le dejen en paz
+    need: discrecion
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success:
+      sociabilidad: 0.3
+      arraigo: -0.3
+    on_failure:
+      sociabilidad: -0.4
+      apego_al_hogar: 0.4
+- id: maya_sterling
+  label: Maya Sterling
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    estilo_soporte: 1.0
+    elem_fuego: 1.0
+    sociabilidad: 0.8
+    laboriosidad: 0.5
+    hedonismo: 0.5
+    frugalidad: -0.1
+    apego_al_hogar: 0.4
+    impulsividad: 0.1
+    aguante: 0.3
+    arraigo: 0.4
+    prodigio: 0.1
+  tastes:
+  - target: beber
+    multiplier: 1.7
+  - target: charlar
+    multiplier: 2.5
+  - target: estudiar
+    multiplier: 1.4
+- id: kell
+  label: Kell
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    estilo_guerrero: 1.0
+    elem_fuego: 1.0
+    laboriosidad: 0.5
+    impulsividad: 0.4
+    arraigo: -0.6
+    aguante: 0.5
+    graduado: 1.0
+    curtido: 0.8
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.6
+- id: rhun
+  label: Rhun
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    estilo_asesino: 1.0
+    elem_viento: 1.0
+    sociabilidad: -0.5
+    frugalidad: 0.7
+    arraigo: 0.2
+    aguante: 0.6
+    graduado: 1.0
+    curtido: 0.8
+  tastes:
+  - target: caza_menor
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.6
+- id: dalia
+  label: Dalia
+  home: posada
+  start_at: posada
+  traits:
+    estilo_asesino: 1.0
+    elem_agua: 1.0
+    sociabilidad: 0.6
+    hedonismo: 0.7
+    impulsividad: 0.6
+    nocturnidad: 0.6
+    graduado: 1.0
+    curtido: 0.8
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.6
+- id: bram
+  label: Bram
+  home: barrio_alto
+  start_at: barrio_alto
+  traits:
+    estilo_guerrero: 1.0
+    elem_tierra: 1.0
+    sociabilidad: 0.3
+    laboriosidad: 0.7
+    arraigo: 0.8
+    frugalidad: 0.5
+  tastes:
+  - target: trabajar_en_la_fragua
+    multiplier: 2.3
+  - target: aca_patio
+    multiplier: 0.3
+- id: noe
+  label: Noe
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    estilo_soporte: 1.0
+    elem_agua: 1.0
+    sociabilidad: 0.9
+    hedonismo: 0.4
+    arraigo: 0.6
+    nocturnidad: 0.5
+  tastes:
+  - target: servir_en_la_taberna
+    multiplier: 2.3
+  - target: aca_patio
+    multiplier: 0.3

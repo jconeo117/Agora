@@ -10,6 +10,7 @@ from pathlib import Path
 
 import yaml
 
+from _elenco import fichas  # type: ignore[import-not-found]
 from _grafo import LUGARES  # type: ignore[import-not-found]
 
 S = Path(__file__).parent
@@ -195,7 +196,7 @@ actions = [
       requires_affordance="leccion", requires_traits={"alumno": 0.5},
       satisfies={"curso": 0.55, "arcano": 0.25, "dinero": 0.45},
       costs={"descanso": 0.15},
-      effects={"curso": 0.006, "arcano": 0.004, "descanso": -0.06, "vinculo": 0.04,
+      effects={"curso": 0.00038, "arcano": 0.004, "descanso": -0.06, "vinculo": 0.04,
                "dinero": 0.13},
       phase_multipliers={"manana": 1.6, "tarde": 1.1, "noche": 0.05}),
     A(id="estudiar", label="estudiar", duration_ticks=6, requires_affordance="archivo",
@@ -296,7 +297,7 @@ actions = [
       requires_affordance="expolio_1", requires={"curso": 0.60, "descanso": 0.25},
       satisfies={"botin": 0.40, "curso": 0.30, "armas": 0.30},
       costs={"descanso": 0.35},
-      effects={"botin": 0.18, "curso": 0.005, "armas": 0.006, "descanso": -0.15,
+      effects={"botin": 0.18, "curso": 0.00032, "armas": 0.006, "descanso": -0.15,
                "temple": 0.003},
       saturation_gain=0.06),
 
@@ -435,6 +436,40 @@ agents = [
      "tastes": [{"target": "trabajar_en_la_fragua", "multiplier": 2.4},
                 {"target": "aca_patio", "multiplier": 0.2}]},
 ]
+
+agents += fichas()
+
+# --- la ciudad que sostiene a la academia ------------------------------------
+#
+# Andamio, no elenco: con dieciocho alumnos y cuatro personas mas, el 82 % del
+# mundo hace lo mismo y la diferenciacion se hunde a 0.66. No es colapso, es
+# MONOCULTIVO — medido, entre alumnos da 0.547 y entre los demas 0.680.
+#
+# Y es lo que el propio diseno pedia: la ciudad vive del gasto de los cazadores
+# y de gente de fondo. Sin ellos esto es un campus con una cueva al lado.
+for _i, (_id, _lab, _casa, _oficio, _estilo, _elem, _extra) in enumerate([
+    ("kell", "Kell", "barrio_bajo", "expoliar_cripta", "estilo_guerrero", "elem_fuego",
+     dict(laboriosidad=0.5, impulsividad=0.4, arraigo=-0.6, aguante=0.5)),
+    ("rhun", "Rhun", "barrio_bajo", "caza_menor", "estilo_asesino", "elem_viento",
+     dict(sociabilidad=-0.5, frugalidad=0.7, arraigo=0.2, aguante=0.6)),
+    ("dalia", "Dalia", "posada", "expoliar_cripta", "estilo_asesino", "elem_agua",
+     dict(sociabilidad=0.6, hedonismo=0.7, impulsividad=0.6, nocturnidad=0.6)),
+    ("bram", "Bram", "barrio_alto", "trabajar_en_la_fragua", "estilo_guerrero", "elem_tierra",
+     dict(sociabilidad=0.3, laboriosidad=0.7, arraigo=0.8, frugalidad=0.5)),
+    ("noe", "Noe", "barrio_bajo", "servir_en_la_taberna", "estilo_soporte", "elem_agua",
+     dict(sociabilidad=0.9, hedonismo=0.4, arraigo=0.6, nocturnidad=0.5)),
+]):
+    _t = {_estilo: 1.0, _elem: 1.0, **_extra}
+    if _oficio in ("expoliar_cripta", "caza_menor"):
+        _t.update({"graduado": 1.0, "curtido": 0.8})
+    agents.append({
+        "id": _id, "label": _lab, "home": _casa, "start_at": _casa, "traits": _t,
+        "tastes": [{"target": _oficio, "multiplier": 2.3},
+                   {"target": "tasar_botin", "multiplier": 1.6}]
+        if _oficio in ("expoliar_cripta", "caza_menor")
+        else [{"target": _oficio, "multiplier": 2.3},
+              {"target": "aca_patio", "multiplier": 0.3}],
+    })
 
 pack = {
     "id": "ciudad", "label": "La ciudad y la sima",
