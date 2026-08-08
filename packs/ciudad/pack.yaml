@@ -14,11 +14,9 @@ clock:
     label: noche
     starts_at: 80
 health:
-  days: 30
+  days: 21
   seeds:
   - 1312
-  - 7
-  - 99
   min_crisis: 0.05
   max_crisis: 0.3
   max_abort_ratio: 0.25
@@ -252,6 +250,8 @@ traits:
   label: afinidad de viento
 - id: alumno
   label: alumno de la academia
+- id: profesor
+  label: profesor de la academia
 - id: graduado
   label: graduado
 actions:
@@ -439,6 +439,7 @@ actions:
   requires_affordance: leccion
   requires_traits:
     alumno: 0.5
+  requires_company: 1
   satisfies:
     curso: 0.55
     arcano: 0.25
@@ -453,6 +454,32 @@ actions:
     dinero: 0.13
   phase_multipliers:
     manana: 1.6
+    tarde: 1.1
+    noche: 0.05
+- id: dar_clase
+  label: dar clase
+  duration_ticks: 14
+  requires_affordance: leccion
+  requires_traits:
+    profesor: 0.5
+  satisfies:
+    dinero: 0.6
+    arcano: 0.25
+    vinculo: 0.2
+  costs:
+    descanso: 0.2
+    discrecion: 0.1
+  effects:
+    dinero: 0.22
+    arcano: 0.002
+    descanso: -0.09
+    vinculo: 0.05
+    discrecion: -0.025
+    ahorros: 0.006
+  effects_per_company:
+    vinculo: 0.2
+  phase_multipliers:
+    manana: 1.7
     tarde: 1.1
     noche: 0.05
 - id: estudiar
@@ -1680,6 +1707,2504 @@ agents:
     multiplier: 2.5
   - target: estudiar
     multiplier: 1.4
+- id: fenris_quicksilver
+  label: Fenris Quicksilver
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.48
+    alumno: 1.0
+    curtido: 1.0
+    elem_agua: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.28
+    hedonismo: -0.27
+    impulsividad: -0.85
+    sueno_ligero: -0.49
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.05
+  goals:
+  - id: que_le_dejen_en_paz
+    label: que le dejen en paz
+    need: discrecion
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: &id008
+      sociabilidad: 0.3
+      arraigo: -0.3
+    on_failure: &id009
+      sociabilidad: -0.4
+      apego_al_hogar: 0.4
+- id: lira_brannigan
+  label: Lira Brannigan
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    apego_al_hogar: 0.16
+    arraigo: -0.08
+    elem_fuego: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.49
+    impulsividad: 0.25
+    sociabilidad: -0.24
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.05
+  goals:
+  - id: que_su_promocion_le_recuerde
+    label: que su promocion le recuerde
+    need: curso
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: &id006
+      graduado: 1.0
+      sociabilidad: 0.4
+    on_failure: &id007
+      sociabilidad: -0.4
+      apego_al_hogar: 0.4
+- id: kessia_sunder
+  label: Kessia Sunder
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: -0.42
+    alumno: 1.0
+    apego_al_hogar: 0.67
+    arraigo: 0.68
+    elem_agua: 1.0
+    estilo_asesino: 1.0
+    frugalidad: -0.4
+    hedonismo: 0.84
+    impulsividad: 0.65
+    reservado: 0.58
+    sociabilidad: -0.15
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.05
+- id: mira_norwick
+  label: Mira Norwick
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.37
+    alumno: 1.0
+    elem_agua: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.66
+    impulsividad: -0.79
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.05
+  goals:
+  - id: dominar_su_elemento_antes_que_nadie
+    label: dominar su elemento antes que nadie
+    need: arcano
+    at_least: 0.85
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: &id004
+      ambicion: 0.3
+      sociabilidad: 0.2
+    on_failure: &id005
+      ambicion: -0.4
+      hedonismo: 0.3
+- id: ardith_saltmarsh
+  label: Ardith Saltmarsh
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    apego_al_hogar: 0.7
+    arraigo: 0.6
+    elem_agua: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.07
+    hedonismo: 0.98
+    impulsividad: 0.54
+    sociabilidad: -0.22
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.05
+  goals:
+  - id: dominar_su_elemento_antes_que_nadie
+    label: dominar su elemento antes que nadie
+    need: arcano
+    at_least: 0.85
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id004
+    on_failure: *id005
+- id: ragnar_ironvale
+  label: Ragnar Ironvale
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.43
+    alumno: 1.0
+    curtido: 0.87
+    elem_fuego: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.68
+    hedonismo: -0.27
+    impulsividad: -0.74
+    sueno_ligero: -0.5
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.05
+  goals:
+  - id: que_su_promocion_le_recuerde
+    label: que su promocion le recuerde
+    need: curso
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id006
+    on_failure: *id007
+- id: haldor_winterfell
+  label: Haldor Winterfell
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 1.0
+    alumno: 1.0
+    elem_tierra: 1.0
+    estilo_soporte: 1.0
+    frugalidad: -0.72
+    hedonismo: 0.22
+    impulsividad: -0.07
+    sociabilidad: -0.3
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.05
+  goals:
+  - id: dominar_su_elemento_antes_que_nadie
+    label: dominar su elemento antes que nadie
+    need: arcano
+    at_least: 0.85
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id004
+    on_failure: *id005
+- id: varek_rimefell
+  label: Varek Rimefell
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.62
+    alumno: 1.0
+    elem_tierra: 1.0
+    estilo_asesino: 1.0
+    hedonismo: 0.32
+    impulsividad: -0.4
+    laboriosidad: 0.81
+    nocturnidad: 0.7
+    sociabilidad: -0.14
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.05
+- id: fenna_hartwell
+  label: Fenna Hartwell
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.52
+    alumno: 1.0
+    ambicion: 0.7
+    elem_fuego: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.52
+    hedonismo: -0.16
+    impulsividad: -0.73
+    laboriosidad: 0.65
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.25
+  goals:
+  - id: dominar_su_elemento_antes_que_nadie
+    label: dominar su elemento antes que nadie
+    need: arcano
+    at_least: 0.85
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id004
+    on_failure: *id005
+- id: saoirse_cassel
+  label: Saoirse Cassel
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.41
+    alumno: 1.0
+    ambicion: 0.83
+    elem_tierra: 1.0
+    estilo_asesino: 1.0
+    frugalidad: 0.3
+    hedonismo: -0.23
+    impulsividad: -0.92
+    laboriosidad: 0.53
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.25
+- id: yara_peregrine
+  label: Yara Peregrine
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    apego_al_hogar: 0.78
+    arraigo: 0.63
+    elem_tierra: 1.0
+    estilo_asesino: 1.0
+    frugalidad: -0.02
+    hedonismo: 0.97
+    impulsividad: 0.52
+    sociabilidad: -0.13
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.25
+  goals:
+  - id: que_le_dejen_en_paz
+    label: que le dejen en paz
+    need: discrecion
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id008
+    on_failure: *id009
+- id: morwen_ravencroft
+  label: Morwen Ravencroft
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    apego_al_hogar: 0.72
+    arraigo: 0.8
+    elem_agua: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: -0.11
+    hedonismo: 1.0
+    impulsividad: 0.43
+    sociabilidad: -0.12
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.25
+- id: alwin_hallward
+  label: Alwin Hallward
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.38
+    alumno: 1.0
+    apego_al_hogar: 0.78
+    arraigo: 0.65
+    elem_tierra: 1.0
+    estilo_asesino: 1.0
+    frugalidad: 0.73
+    impulsividad: -0.61
+    sociabilidad: -0.18
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.25
+  goals:
+  - id: dominar_su_elemento_antes_que_nadie
+    label: dominar su elemento antes que nadie
+    need: arcano
+    at_least: 0.85
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id004
+    on_failure: *id005
+- id: oren_grimshaw
+  label: Oren Grimshaw
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.65
+    alumno: 1.0
+    elem_tierra: 1.0
+    estilo_soporte: 1.0
+    hedonismo: 0.32
+    impulsividad: -0.57
+    laboriosidad: 0.82
+    nocturnidad: 0.82
+    sociabilidad: 0.06
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.25
+  goals:
+  - id: que_su_promocion_le_recuerde
+    label: que su promocion le recuerde
+    need: curso
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id006
+    on_failure: *id007
+- id: ysander_wardstone
+  label: Ysander Wardstone
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: -0.42
+    alumno: 1.0
+    apego_al_hogar: 0.81
+    arraigo: 0.04
+    elem_tierra: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.57
+    hedonismo: 0.2
+    impulsividad: 0.82
+    sociabilidad: -0.2
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.25
+  goals:
+  - id: que_su_promocion_le_recuerde
+    label: que su promocion le recuerde
+    need: curso
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id006
+    on_failure: *id007
+- id: marek_tidewater
+  label: Marek Tidewater
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.82
+    alumno: 1.0
+    apego_al_hogar: 0.73
+    arraigo: 0.73
+    elem_tierra: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.67
+    hedonismo: -0.27
+    impulsividad: -0.34
+    sociabilidad: -0.21
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.25
+  goals:
+  - id: dominar_su_elemento_antes_que_nadie
+    label: dominar su elemento antes que nadie
+    need: arcano
+    at_least: 0.85
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id004
+    on_failure: *id005
+- id: esme_marrow
+  label: Esme Marrow
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.34
+    alumno: 1.0
+    ambicion: 0.74
+    apego_al_hogar: 0.34
+    elem_tierra: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.88
+    hedonismo: -0.25
+    laboriosidad: 0.63
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.45
+  goals:
+  - id: que_le_dejen_en_paz
+    label: que le dejen en paz
+    need: discrecion
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id008
+    on_failure: *id009
+- id: cedric_quicksilver
+  label: Cedric Quicksilver
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.17
+    alumno: 1.0
+    arraigo: -0.42
+    elem_tierra: 1.0
+    estilo_asesino: 1.0
+    hedonismo: 0.39
+    impulsividad: 0.12
+    laboriosidad: 0.8
+    sociabilidad: -0.41
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.45
+  goals:
+  - id: que_su_promocion_le_recuerde
+    label: que su promocion le recuerde
+    need: curso
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id006
+    on_failure: *id007
+- id: torvald_mareshade
+  label: Torvald Mareshade
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.47
+    alumno: 1.0
+    apego_al_hogar: -0.31
+    elem_fuego: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.4
+    hedonismo: 0.23
+    impulsividad: -0.77
+    sociabilidad: 0.84
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.45
+  goals:
+  - id: que_le_dejen_en_paz
+    label: que le dejen en paz
+    need: discrecion
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id008
+    on_failure: *id009
+- id: magnus_winterfell
+  label: Magnus Winterfell
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: -0.51
+    alumno: 1.0
+    apego_al_hogar: 0.63
+    arraigo: 0.02
+    elem_fuego: 1.0
+    estilo_soporte: 1.0
+    hedonismo: 0.27
+    impulsividad: 0.7
+    reservado: 0.52
+    sociabilidad: -0.85
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.45
+- id: aisling_cinderfall
+  label: Aisling Cinderfall
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    apego_al_hogar: 0.17
+    arraigo: 0.05
+    elem_agua: 1.0
+    estilo_asesino: 1.0
+    impulsividad: 0.34
+    reservado: 0.56
+    sociabilidad: -0.91
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.45
+  goals:
+  - id: dominar_su_elemento_antes_que_nadie
+    label: dominar su elemento antes que nadie
+    need: arcano
+    at_least: 0.85
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id004
+    on_failure: *id005
+- id: galena_highgarden
+  label: Galena Highgarden
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.98
+    alumno: 1.0
+    apego_al_hogar: 0.39
+    elem_tierra: 1.0
+    estilo_asesino: 1.0
+    frugalidad: 0.89
+    hedonismo: -0.41
+    impulsividad: -0.31
+    sociabilidad: -0.2
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.45
+- id: orin_cassel
+  label: Orin Cassel
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.47
+    alumno: 1.0
+    apego_al_hogar: 0.67
+    arraigo: 0.62
+    elem_fuego: 1.0
+    estilo_asesino: 1.0
+    frugalidad: 0.33
+    impulsividad: -0.78
+    reservado: 0.61
+    sociabilidad: -0.79
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.45
+- id: lyra_galewood
+  label: Lyra Galewood
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.2
+    alumno: 1.0
+    curtido: 1.0
+    elem_agua: 1.0
+    estilo_soporte: 1.0
+    frugalidad: -0.44
+    hedonismo: 0.39
+    impulsividad: 0.63
+    sociabilidad: 0.52
+    sueno_ligero: -0.3
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.45
+  goals:
+  - id: dominar_su_elemento_antes_que_nadie
+    label: dominar su elemento antes que nadie
+    need: arcano
+    at_least: 0.85
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id004
+    on_failure: *id005
+- id: einar_quicksilver
+  label: Einar Quicksilver
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.29
+    alumno: 1.0
+    elem_tierra: 1.0
+    estilo_asesino: 1.0
+    frugalidad: -0.57
+    hedonismo: 0.37
+    impulsividad: 0.25
+    sociabilidad: 0.12
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.65
+  goals:
+  - id: graduarse_con_honores
+    label: graduarse con honores
+    need: curso
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: &id010
+      graduado: 1.0
+      ambicion: 0.3
+    on_failure: &id011
+      laboriosidad: 0.5
+      hedonismo: -0.3
+- id: dagen_cairnholt
+  label: Dagen Cairnholt
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: -0.41
+    alumno: 1.0
+    arraigo: -0.48
+    elem_fuego: 1.0
+    estilo_soporte: 1.0
+    frugalidad: -0.58
+    hedonismo: 0.51
+    impulsividad: 0.59
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.65
+- id: dorian_ashgrove
+  label: Dorian Ashgrove
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: -0.39
+    alumno: 1.0
+    apego_al_hogar: -0.29
+    elem_viento: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: -0.56
+    hedonismo: 0.55
+    impulsividad: 0.72
+    sociabilidad: 0.71
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.65
+  goals:
+  - id: que_le_dejen_en_paz
+    label: que le dejen en paz
+    need: discrecion
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id008
+    on_failure: *id009
+- id: ysolde_forgehand
+  label: Ysolde Forgehand
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.47
+    alumno: 1.0
+    apego_al_hogar: 0.38
+    elem_tierra: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.48
+    hedonismo: -0.52
+    impulsividad: -0.87
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.65
+  goals:
+  - id: dominar_su_elemento_antes_que_nadie
+    label: dominar su elemento antes que nadie
+    need: arcano
+    at_least: 0.85
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id004
+    on_failure: *id005
+- id: ulrika_vireth
+  label: Ulrika Vireth
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.37
+    alumno: 1.0
+    ambicion: 0.82
+    elem_tierra: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.75
+    hedonismo: -0.3
+    impulsividad: -0.78
+    laboriosidad: 0.63
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.65
+- id: selwyn_torrent
+  label: Selwyn Torrent
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.68
+    alumno: 1.0
+    curtido: 0.93
+    elem_agua: 1.0
+    estilo_asesino: 1.0
+    hedonismo: -0.36
+    impulsividad: -0.29
+    sociabilidad: -0.16
+    sueno_ligero: -0.5
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.65
+  goals:
+  - id: graduarse_con_honores
+    label: graduarse con honores
+    need: curso
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id010
+    on_failure: *id011
+- id: thorin_fairwind
+  label: Thorin Fairwind
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.61
+    alumno: 1.0
+    elem_viento: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: -0.5
+    hedonismo: 0.98
+    impulsividad: -0.11
+    laboriosidad: 0.73
+    sociabilidad: -0.24
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.65
+- id: osric_ashford
+  label: Osric Ashford
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    apego_al_hogar: 0.19
+    arraigo: 0.75
+    elem_agua: 1.0
+    estilo_guerrero: 1.0
+    hedonismo: 0.39
+    reservado: 0.61
+    sociabilidad: -0.02
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.65
+- id: jessa_nightingale
+  label: Jessa Nightingale
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: -0.02
+    alumno: 1.0
+    elem_fuego: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.04
+    hedonismo: 0.75
+    impulsividad: -0.16
+    sociabilidad: 0.44
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.85
+  goals:
+  - id: dominar_su_elemento_antes_que_nadie
+    label: dominar su elemento antes que nadie
+    need: arcano
+    at_least: 0.85
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id004
+    on_failure: *id005
+- id: aldric_cairnholt
+  label: Aldric Cairnholt
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.81
+    alumno: 1.0
+    elem_viento: 1.0
+    estilo_asesino: 1.0
+    hedonismo: -0.35
+    impulsividad: -0.37
+    laboriosidad: 0.82
+    sociabilidad: -0.34
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.85
+- id: isolde_farrow
+  label: Isolde Farrow
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.29
+    alumno: 1.0
+    ambicion: 0.77
+    apego_al_hogar: -0.53
+    arraigo: -0.8
+    elem_tierra: 1.0
+    estilo_soporte: 1.0
+    hedonismo: -0.27
+    impulsividad: 0.22
+    laboriosidad: 0.64
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.85
+- id: iona_falkenrath
+  label: Iona Falkenrath
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.73
+    alumno: 1.0
+    apego_al_hogar: 0.74
+    arraigo: 0.59
+    elem_viento: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.66
+    impulsividad: -0.4
+    laboriosidad: 0.71
+    sociabilidad: -0.18
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.85
+  goals:
+  - id: que_su_promocion_le_recuerde
+    label: que su promocion le recuerde
+    need: curso
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id006
+    on_failure: *id007
+- id: wendel_palefire
+  label: Wendel Palefire
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    alumno: 1.0
+    apego_al_hogar: 0.36
+    elem_agua: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.89
+    hedonismo: -0.07
+    nocturnidad: 0.86
+    sociabilidad: 0.17
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.85
+  goals:
+  - id: que_su_promocion_le_recuerde
+    label: que su promocion le recuerde
+    need: curso
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id006
+    on_failure: *id007
+- id: petra_cassel
+  label: Petra Cassel
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.48
+    alumno: 1.0
+    elem_agua: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: -0.12
+    hedonismo: 0.83
+    impulsividad: -0.16
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.85
+  goals:
+  - id: que_le_dejen_en_paz
+    label: que le dejen en paz
+    need: discrecion
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id008
+    on_failure: *id009
+- id: odessa_galewood
+  label: Odessa Galewood
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.79
+    alumno: 1.0
+    elem_tierra: 1.0
+    estilo_asesino: 1.0
+    frugalidad: 0.41
+    hedonismo: -0.21
+    impulsividad: -0.57
+    sociabilidad: -0.1
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.85
+  goals:
+  - id: que_su_promocion_le_recuerde
+    label: que su promocion le recuerde
+    need: curso
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id006
+    on_failure: *id007
+- id: auria_wolfmarch
+  label: Auria Wolfmarch
+  home: aca_celdas
+  start_at: aca_celdas
+  traits:
+    aguante: 0.68
+    alumno: 1.0
+    apego_al_hogar: -0.4
+    curtido: 0.78
+    elem_agua: 1.0
+    estilo_asesino: 1.0
+    hedonismo: 0.04
+    sociabilidad: 0.81
+    sueno_ligero: -0.34
+  tastes:
+  - target: asistir_a_leccion
+    multiplier: 2.3
+  initial_needs:
+    curso: 0.85
+  goals:
+  - id: graduarse_con_honores
+    label: graduarse con honores
+    need: curso
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id010
+    on_failure: *id011
+- id: finnian_sorrengale
+  label: Finnian Sorrengale
+  home: barrio_alto
+  start_at: barrio_alto
+  traits:
+    aguante: -0.35
+    apego_al_hogar: 0.79
+    arraigo: 0.73
+    elem_fuego: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: -0.02
+    graduado: 1.0
+    hedonismo: 0.74
+    impulsividad: 0.72
+    profesor: 1.0
+    sociabilidad: 0.11
+  tastes:
+  - target: dar_clase
+    multiplier: 2.3
+  goals:
+  - id: que_su_nombre_quede_en_la_academia
+    label: que su nombre quede en la academia
+    need: arcano
+    at_least: 0.9
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: &id012
+      sociabilidad: 0.3
+      ambicion: 0.2
+    on_failure: &id013
+      ambicion: -0.5
+      apego_al_hogar: 0.4
+- id: gorm_cinderfall
+  label: Gorm Cinderfall
+  home: barrio_alto
+  start_at: barrio_alto
+  traits:
+    apego_al_hogar: 0.26
+    arraigo: 0.03
+    elem_tierra: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.71
+    graduado: 1.0
+    impulsividad: 0.21
+    profesor: 1.0
+    sociabilidad: -0.16
+  tastes:
+  - target: dar_clase
+    multiplier: 2.3
+  goals:
+  - id: que_su_nombre_quede_en_la_academia
+    label: que su nombre quede en la academia
+    need: arcano
+    at_least: 0.9
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id012
+    on_failure: *id013
+- id: landon_kestrelwing
+  label: Landon Kestrelwing
+  home: barrio_alto
+  start_at: barrio_alto
+  traits:
+    aguante: 0.02
+    elem_fuego: 1.0
+    estilo_soporte: 1.0
+    frugalidad: -0.02
+    graduado: 1.0
+    hedonismo: 0.78
+    impulsividad: 0.08
+    profesor: 1.0
+    sociabilidad: 0.44
+  tastes:
+  - target: dar_clase
+    multiplier: 2.3
+  goals:
+  - id: que_su_nombre_quede_en_la_academia
+    label: que su nombre quede en la academia
+    need: arcano
+    at_least: 0.9
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id012
+    on_failure: *id013
+- id: ivo_highgarden
+  label: Ivo Highgarden
+  home: barrio_alto
+  start_at: barrio_alto
+  traits:
+    aguante: 0.45
+    elem_fuego: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.47
+    graduado: 1.0
+    hedonismo: 0.27
+    impulsividad: -0.83
+    nocturnidad: 0.78
+    profesor: 1.0
+    sociabilidad: 0.18
+  tastes:
+  - target: dar_clase
+    multiplier: 2.3
+- id: kael_morrow
+  label: Kael Morrow
+  home: barrio_alto
+  start_at: barrio_alto
+  traits:
+    aguante: 0.78
+    elem_fuego: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: -0.61
+    graduado: 1.0
+    hedonismo: 0.93
+    impulsividad: -0.1
+    laboriosidad: 0.77
+    profesor: 1.0
+    sociabilidad: -0.41
+  tastes:
+  - target: dar_clase
+    multiplier: 2.3
+- id: anwen_shadewell
+  label: Anwen Shadewell
+  home: barrio_alto
+  start_at: barrio_alto
+  traits:
+    aguante: 0.48
+    ambicion: 0.68
+    elem_viento: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.44
+    graduado: 1.0
+    hedonismo: -0.21
+    impulsividad: -0.71
+    laboriosidad: 0.7
+    profesor: 1.0
+  tastes:
+  - target: dar_clase
+    multiplier: 2.3
+  goals:
+  - id: que_su_nombre_quede_en_la_academia
+    label: que su nombre quede en la academia
+    need: arcano
+    at_least: 0.9
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id012
+    on_failure: *id013
+- id: halvard_aldenar
+  label: Halvard Aldenar
+  home: barrio_alto
+  start_at: barrio_alto
+  traits:
+    aguante: 0.26
+    arraigo: -0.62
+    elem_fuego: 1.0
+    estilo_guerrero: 1.0
+    graduado: 1.0
+    hedonismo: 0.09
+    impulsividad: 0.23
+    profesor: 1.0
+    sociabilidad: -0.14
+  tastes:
+  - target: dar_clase
+    multiplier: 2.3
+  goals:
+  - id: que_su_nombre_quede_en_la_academia
+    label: que su nombre quede en la academia
+    need: arcano
+    at_least: 0.9
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id012
+    on_failure: *id013
+- id: corwyn_hartwell
+  label: Corwyn Hartwell
+  home: barrio_alto
+  start_at: barrio_alto
+  traits:
+    aguante: 0.37
+    ambicion: 0.69
+    apego_al_hogar: 0.51
+    elem_tierra: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.69
+    graduado: 1.0
+    hedonismo: -0.24
+    laboriosidad: 0.64
+    profesor: 1.0
+  tastes:
+  - target: dar_clase
+    multiplier: 2.3
+  goals:
+  - id: que_su_nombre_quede_en_la_academia
+    label: que su nombre quede en la academia
+    need: arcano
+    at_least: 0.9
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id012
+    on_failure: *id013
+- id: vesna_galewood
+  label: Vesna Galewood
+  home: barrio_alto
+  start_at: barrio_alto
+  traits:
+    aguante: 0.65
+    apego_al_hogar: -0.57
+    arraigo: -0.79
+    elem_tierra: 1.0
+    estilo_asesino: 1.0
+    graduado: 1.0
+    impulsividad: -0.02
+    laboriosidad: 0.85
+    profesor: 1.0
+    sociabilidad: -0.2
+  tastes:
+  - target: dar_clase
+    multiplier: 2.3
+  goals:
+  - id: que_su_nombre_quede_en_la_academia
+    label: que su nombre quede en la academia
+    need: arcano
+    at_least: 0.9
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id012
+    on_failure: *id013
+- id: elsa_boldrock
+  label: Elsa Boldrock
+  home: barrio_alto
+  start_at: barrio_alto
+  traits:
+    aguante: 0.52
+    apego_al_hogar: 0.43
+    elem_agua: 1.0
+    estilo_asesino: 1.0
+    frugalidad: 0.6
+    graduado: 1.0
+    hedonismo: -0.46
+    impulsividad: -0.85
+    profesor: 1.0
+  tastes:
+  - target: dar_clase
+    multiplier: 2.3
+  goals:
+  - id: que_su_nombre_quede_en_la_academia
+    label: que su nombre quede en la academia
+    need: arcano
+    at_least: 0.9
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id012
+    on_failure: *id013
+- id: ulric_kesteven
+  label: Ulric Kesteven
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.27
+    ambicion: 0.7
+    curtido: 0.7
+    elem_tierra: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.63
+    graduado: 1.0
+    hedonismo: -0.28
+    impulsividad: -0.66
+    laboriosidad: 0.61
+  tastes:
+  - target: caza_menor
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: que_le_dejen_en_paz
+    label: que le dejen en paz
+    need: discrecion
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id008
+    on_failure: *id009
+- id: erek_stonefell
+  label: Erek Stonefell
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    apego_al_hogar: 0.68
+    arraigo: 0.69
+    curtido: 0.7
+    elem_tierra: 1.0
+    estilo_soporte: 1.0
+    graduado: 1.0
+    hedonismo: 0.25
+    nocturnidad: 0.72
+    reservado: 0.43
+    sociabilidad: -0.4
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: hacerse_un_nombre_en_el_gremio
+    label: hacerse un nombre en el gremio
+    need: armas
+    at_least: 0.7
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: &id014
+      ambicion: 0.3
+      sociabilidad: 0.3
+    on_failure: &id015
+      aguante: -0.4
+      apego_al_hogar: 0.4
+- id: rhona_greenholt
+  label: Rhona Greenholt
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.2
+    apego_al_hogar: 0.84
+    arraigo: 0.66
+    curtido: 0.7
+    elem_agua: 1.0
+    estilo_asesino: 1.0
+    frugalidad: 0.65
+    graduado: 1.0
+    impulsividad: -0.73
+    sociabilidad: -0.24
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: hacerse_un_nombre_en_el_gremio
+    label: hacerse un nombre en el gremio
+    need: armas
+    at_least: 0.7
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id014
+    on_failure: *id015
+- id: nils_darrow
+  label: Nils Darrow
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.6
+    curtido: 0.7
+    elem_agua: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.43
+    graduado: 1.0
+    hedonismo: 0.24
+    impulsividad: -0.77
+    nocturnidad: 0.78
+    sociabilidad: 0.22
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+- id: irsa_corwin
+  label: Irsa Corwin
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.57
+    curtido: 0.7
+    elem_agua: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.64
+    graduado: 1.0
+    hedonismo: -0.19
+    impulsividad: -0.61
+    sociabilidad: -0.25
+  tastes:
+  - target: caza_menor
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: saldar_una_deuda_con_el_gremio
+    label: saldar una deuda con el gremio
+    need: ahorros
+    at_least: 0.45
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: &id016
+      frugalidad: -0.4
+      hedonismo: 0.3
+    on_failure: &id017
+      frugalidad: 0.5
+      sociabilidad: -0.3
+- id: sigrun_fletcher
+  label: Sigrun Fletcher
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    apego_al_hogar: 0.07
+    arraigo: 0.72
+    curtido: 0.7
+    elem_viento: 1.0
+    estilo_guerrero: 1.0
+    graduado: 1.0
+    hedonismo: 0.41
+    reservado: 0.56
+    sociabilidad: -0.03
+  tastes:
+  - target: caza_menor
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: que_le_dejen_en_paz
+    label: que le dejen en paz
+    need: discrecion
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id008
+    on_failure: *id009
+- id: lorna_mercer
+  label: Lorna Mercer
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.77
+    curtido: 0.7
+    elem_fuego: 1.0
+    estilo_asesino: 1.0
+    graduado: 1.0
+    hedonismo: -0.19
+    impulsividad: -0.35
+    laboriosidad: 0.77
+    sociabilidad: -0.19
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: hacerse_un_nombre_en_el_gremio
+    label: hacerse un nombre en el gremio
+    need: armas
+    at_least: 0.7
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id014
+    on_failure: *id015
+- id: enna_deepwood
+  label: Enna Deepwood
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: -0.3
+    apego_al_hogar: -0.56
+    arraigo: -0.9
+    curtido: 0.7
+    elem_tierra: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: -0.43
+    graduado: 1.0
+    hedonismo: 0.68
+    impulsividad: 0.52
+    sociabilidad: 0.47
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: saldar_una_deuda_con_el_gremio
+    label: saldar una deuda con el gremio
+    need: ahorros
+    at_least: 0.45
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id016
+    on_failure: *id017
+- id: theron_eastfell
+  label: Theron Eastfell
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.45
+    ambicion: 0.88
+    curtido: 0.85
+    elem_viento: 1.0
+    estilo_soporte: 1.0
+    graduado: 1.0
+    hedonismo: -0.19
+    laboriosidad: 0.53
+    sueno_ligero: -0.37
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: volver_a_entrar_donde_le_echaron
+    label: volver a entrar donde le echaron
+    need: ahorros
+    at_least: 0.55
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: &id020
+      sociabilidad: 0.4
+      arraigo: 0.3
+    on_failure: &id021
+      sociabilidad: -0.5
+      impulsividad: 0.4
+- id: zarah_underhill
+  label: Zarah Underhill
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.6
+    ambicion: 0.82
+    curtido: 0.7
+    elem_fuego: 1.0
+    estilo_guerrero: 1.0
+    graduado: 1.0
+    hedonismo: -0.32
+    impulsividad: -0.5
+    laboriosidad: 0.52
+    sociabilidad: -0.13
+  tastes:
+  - target: caza_menor
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+- id: quill_brannigan
+  label: Quill Brannigan
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.34
+    ambicion: 0.86
+    apego_al_hogar: 0.66
+    arraigo: 0.76
+    curtido: 0.7
+    elem_agua: 1.0
+    estilo_asesino: 1.0
+    graduado: 1.0
+    hedonismo: -0.23
+    laboriosidad: 0.57
+    reservado: 0.42
+    sociabilidad: -0.83
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: saldar_una_deuda_con_el_gremio
+    label: saldar una deuda con el gremio
+    need: ahorros
+    at_least: 0.45
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id016
+    on_failure: *id017
+- id: rhian_fallowmoor
+  label: Rhian Fallowmoor
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: -0.27
+    apego_al_hogar: 0.64
+    arraigo: 0.79
+    curtido: 0.7
+    elem_fuego: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: -0.61
+    graduado: 1.0
+    hedonismo: 0.7
+    impulsividad: 0.66
+    reservado: 0.45
+    sociabilidad: -0.14
+  tastes:
+  - target: caza_menor
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: saldar_una_deuda_con_el_gremio
+    label: saldar una deuda con el gremio
+    need: ahorros
+    at_least: 0.45
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id016
+    on_failure: *id017
+- id: gwyneth_millstone
+  label: Gwyneth Millstone
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.01
+    arraigo: -0.42
+    curtido: 0.85
+    elem_agua: 1.0
+    estilo_soporte: 1.0
+    graduado: 1.0
+    hedonismo: 0.03
+    impulsividad: 0.82
+    sueno_ligero: -0.46
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: llegar_al_fondo_de_la_sima
+    label: llegar al fondo de la sima
+    need: temple
+    at_least: 0.7
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: &id018
+      impulsividad: 0.3
+      arraigo: -0.3
+    on_failure: &id019
+      aguante: -0.5
+      arraigo: 0.4
+- id: jareth_longmire
+  label: Jareth Longmire
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.62
+    apego_al_hogar: 0.45
+    curtido: 0.7
+    elem_viento: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.84
+    graduado: 1.0
+    hedonismo: -0.38
+    impulsividad: -0.54
+    laboriosidad: 0.91
+    sociabilidad: -0.26
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: hacerse_un_nombre_en_el_gremio
+    label: hacerse un nombre en el gremio
+    need: armas
+    at_least: 0.7
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id014
+    on_failure: *id015
+- id: rowan_kesteven
+  label: Rowan Kesteven
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.39
+    apego_al_hogar: -0.4
+    curtido: 0.7
+    elem_tierra: 1.0
+    estilo_asesino: 1.0
+    frugalidad: 0.41
+    graduado: 1.0
+    hedonismo: 0.25
+    impulsividad: -0.83
+    sociabilidad: 0.94
+  tastes:
+  - target: caza_menor
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+- id: kaela_quicksilver
+  label: Kaela Quicksilver
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.42
+    curtido: 0.7
+    elem_tierra: 1.0
+    estilo_soporte: 1.0
+    frugalidad: -0.44
+    graduado: 1.0
+    hedonismo: 0.31
+    impulsividad: 0.05
+    sociabilidad: 0.06
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: llegar_al_fondo_de_la_sima
+    label: llegar al fondo de la sima
+    need: temple
+    at_least: 0.7
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id018
+    on_failure: *id019
+- id: nerys_rimefell
+  label: Nerys Rimefell
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.13
+    arraigo: -0.44
+    curtido: 0.7
+    elem_agua: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.28
+    graduado: 1.0
+    hedonismo: 0.24
+    impulsividad: 0.11
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+- id: elric_ravencroft
+  label: Elric Ravencroft
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.61
+    apego_al_hogar: 0.66
+    arraigo: 0.74
+    curtido: 0.7
+    elem_agua: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.29
+    graduado: 1.0
+    impulsividad: -0.84
+    reservado: 0.5
+    sociabilidad: -0.81
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+- id: leif_emberlyn
+  label: Leif Emberlyn
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    apego_al_hogar: 0.49
+    curtido: 0.7
+    elem_fuego: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.87
+    graduado: 1.0
+    hedonismo: -0.12
+    nocturnidad: 0.82
+    sociabilidad: 0.26
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: volver_a_entrar_donde_le_echaron
+    label: volver a entrar donde le echaron
+    need: ahorros
+    at_least: 0.55
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id020
+    on_failure: *id021
+- id: lorcan_greenholt
+  label: Lorcan Greenholt
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.2
+    apego_al_hogar: 0.64
+    arraigo: 0.79
+    curtido: 0.7
+    elem_fuego: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.71
+    graduado: 1.0
+    impulsividad: -0.64
+    reservado: 0.38
+    sociabilidad: -0.93
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: saldar_una_deuda_con_el_gremio
+    label: saldar una deuda con el gremio
+    need: ahorros
+    at_least: 0.45
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id016
+    on_failure: *id017
+- id: amara_falkenrath
+  label: Amara Falkenrath
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.2
+    apego_al_hogar: 0.92
+    arraigo: 0.76
+    curtido: 0.7
+    elem_agua: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.72
+    graduado: 1.0
+    impulsividad: -0.62
+    sociabilidad: -0.16
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+- id: bergen_kestrelwing
+  label: Bergen Kestrelwing
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.41
+    ambicion: 0.83
+    curtido: 0.7
+    elem_fuego: 1.0
+    estilo_asesino: 1.0
+    graduado: 1.0
+    hedonismo: 0.15
+    laboriosidad: 0.55
+    nocturnidad: 0.82
+    sociabilidad: 0.16
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+- id: roderic_lowford
+  label: Roderic Lowford
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.44
+    curtido: 0.7
+    elem_fuego: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.61
+    graduado: 1.0
+    impulsividad: -0.63
+    laboriosidad: 0.74
+    sociabilidad: -0.33
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+- id: aelira_fenwick
+  label: Aelira Fenwick
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.55
+    ambicion: 0.9
+    curtido: 0.98
+    elem_tierra: 1.0
+    estilo_guerrero: 1.0
+    graduado: 1.0
+    hedonismo: -0.24
+    laboriosidad: 0.5
+    sueno_ligero: -0.51
+  tastes:
+  - target: caza_menor
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: hacerse_un_nombre_en_el_gremio
+    label: hacerse un nombre en el gremio
+    need: armas
+    at_least: 0.7
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id014
+    on_failure: *id015
+- id: zorion_lowford
+  label: Zorion Lowford
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.67
+    curtido: 0.7
+    elem_viento: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: -0.66
+    graduado: 1.0
+    hedonismo: 0.91
+    impulsividad: -0.04
+    laboriosidad: 0.74
+    sociabilidad: -0.3
+  tastes:
+  - target: caza_menor
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: saldar_una_deuda_con_el_gremio
+    label: saldar una deuda con el gremio
+    need: ahorros
+    at_least: 0.45
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id016
+    on_failure: *id017
+- id: fiora_glasswright
+  label: Fiora Glasswright
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.46
+    ambicion: 0.78
+    curtido: 0.96
+    elem_tierra: 1.0
+    estilo_guerrero: 1.0
+    graduado: 1.0
+    hedonismo: -0.11
+    laboriosidad: 0.52
+    sueno_ligero: -0.44
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: saldar_una_deuda_con_el_gremio
+    label: saldar una deuda con el gremio
+    need: ahorros
+    at_least: 0.45
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id016
+    on_failure: *id017
+- id: halwen_westgate
+  label: Halwen Westgate
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: -0.45
+    apego_al_hogar: -0.28
+    arraigo: -0.61
+    curtido: 0.7
+    elem_agua: 1.0
+    estilo_soporte: 1.0
+    graduado: 1.0
+    hedonismo: 0.28
+    impulsividad: 0.82
+    sociabilidad: 1.0
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: llegar_al_fondo_de_la_sima
+    label: llegar al fondo de la sima
+    need: temple
+    at_least: 0.7
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id018
+    on_failure: *id019
+- id: elowen_millward
+  label: Elowen Millward
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.8
+    apego_al_hogar: -0.28
+    curtido: 0.7
+    elem_fuego: 1.0
+    estilo_soporte: 1.0
+    graduado: 1.0
+    hedonismo: 0.08
+    impulsividad: -0.46
+    sociabilidad: 0.31
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: hacerse_un_nombre_en_el_gremio
+    label: hacerse un nombre en el gremio
+    need: armas
+    at_least: 0.7
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id014
+    on_failure: *id015
+- id: freya_valemoor
+  label: Freya Valemoor
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.41
+    ambicion: 0.78
+    apego_al_hogar: 0.38
+    curtido: 0.7
+    elem_agua: 1.0
+    estilo_asesino: 1.0
+    frugalidad: 0.84
+    graduado: 1.0
+    hedonismo: -0.36
+    laboriosidad: 0.66
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+- id: sylas_wildmoor
+  label: Sylas Wildmoor
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.72
+    curtido: 0.7
+    elem_viento: 1.0
+    estilo_asesino: 1.0
+    frugalidad: 0.48
+    graduado: 1.0
+    impulsividad: -0.54
+    laboriosidad: 0.85
+    sociabilidad: -0.23
+  tastes:
+  - target: expoliar_cripta
+    multiplier: 2.3
+  - target: tasar_botin
+    multiplier: 1.7
+  goals:
+  - id: hacerse_un_nombre_en_el_gremio
+    label: hacerse un nombre en el gremio
+    need: armas
+    at_least: 0.7
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id014
+    on_failure: *id015
+- id: hadria_kesteven
+  label: Hadria Kesteven
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.41
+    apego_al_hogar: 0.51
+    arraigo: 0.7
+    elem_viento: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.7
+    impulsividad: -0.61
+    reservado: 0.41
+    sociabilidad: -0.98
+  tastes:
+  - target: trabajar_en_la_fragua
+    multiplier: 2.3
+- id: darius_ustmark
+  label: Darius Ustmark
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: -0.41
+    apego_al_hogar: 0.58
+    arraigo: 0.13
+    elem_viento: 1.0
+    estilo_asesino: 1.0
+    hedonismo: 0.3
+    impulsividad: 0.81
+    reservado: 0.42
+    sociabilidad: -0.8
+  tastes:
+  - target: servir_en_la_taberna
+    multiplier: 2.3
+  goals:
+  - id: saldar_una_deuda_con_el_gremio
+    label: saldar una deuda con el gremio
+    need: ahorros
+    at_least: 0.45
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id016
+    on_failure: *id017
+- id: elandra_quicksilver
+  label: Elandra Quicksilver
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 1.0
+    apego_al_hogar: -0.22
+    elem_agua: 1.0
+    estilo_soporte: 1.0
+    hedonismo: -0.03
+    impulsividad: -0.35
+    sociabilidad: 0.27
+  tastes:
+  - target: servir_en_la_taberna
+    multiplier: 2.3
+  goals:
+  - id: que_le_dejen_en_paz
+    label: que le dejen en paz
+    need: discrecion
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id008
+    on_failure: *id009
+- id: wren_swiftwind
+  label: Wren Swiftwind
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.3
+    ambicion: 0.69
+    apego_al_hogar: -0.41
+    elem_viento: 1.0
+    estilo_asesino: 1.0
+    hedonismo: 0.01
+    laboriosidad: 0.54
+    sociabilidad: 0.94
+  tastes:
+  - target: trabajar_en_la_fragua
+    multiplier: 2.3
+- id: nadira_peregrine
+  label: Nadira Peregrine
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: -0.45
+    apego_al_hogar: 0.91
+    arraigo: 0.12
+    elem_viento: 1.0
+    estilo_asesino: 1.0
+    frugalidad: 0.58
+    hedonismo: 0.26
+    impulsividad: 0.78
+    sociabilidad: -0.25
+  tastes:
+  - target: servir_en_la_taberna
+    multiplier: 2.3
+  goals:
+  - id: juntar_para_montar_su_propio_taller
+    label: juntar para montar su propio taller
+    need: ahorros
+    at_least: 0.5
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: &id022
+      arraigo: 0.4
+      laboriosidad: -0.3
+    on_failure: &id023
+      laboriosidad: 0.5
+      hedonismo: -0.3
+- id: roland_foxglen
+  label: Roland Foxglen
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.45
+    elem_fuego: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.62
+    impulsividad: -0.66
+  tastes:
+  - target: trabajar_en_la_fragua
+    multiplier: 2.3
+  goals:
+  - id: volver_a_entrar_donde_le_echaron
+    label: volver a entrar donde le echaron
+    need: ahorros
+    at_least: 0.55
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id020
+    on_failure: *id021
+- id: vidar_aldenar
+  label: Vidar Aldenar
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: -0.04
+    arraigo: -0.61
+    elem_tierra: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: 0.7
+    hedonismo: 0.33
+    impulsividad: 0.14
+  tastes:
+  - target: servir_en_la_taberna
+    multiplier: 2.3
+  goals:
+  - id: que_le_dejen_en_paz
+    label: que le dejen en paz
+    need: discrecion
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id008
+    on_failure: *id009
+- id: eriel_stonefell
+  label: Eriel Stonefell
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.81
+    elem_agua: 1.0
+    estilo_guerrero: 1.0
+    hedonismo: 0.19
+    impulsividad: -0.51
+    laboriosidad: 0.89
+    nocturnidad: 0.86
+    sociabilidad: -0.11
+  tastes:
+  - target: trabajar_en_la_fragua
+    multiplier: 2.3
+  goals:
+  - id: juntar_para_montar_su_propio_taller
+    label: juntar para montar su propio taller
+    need: ahorros
+    at_least: 0.5
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id022
+    on_failure: *id023
+- id: kestrel_winterfell
+  label: Kestrel Winterfell
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    apego_al_hogar: 0.08
+    elem_fuego: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.88
+    hedonismo: -0.21
+    sociabilidad: 0.8
+  tastes:
+  - target: trabajar_en_la_fragua
+    multiplier: 2.3
+- id: dagny_fallowmoor
+  label: Dagny Fallowmoor
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    apego_al_hogar: 0.79
+    arraigo: 0.75
+    elem_agua: 1.0
+    estilo_guerrero: 1.0
+    frugalidad: -0.12
+    hedonismo: 0.79
+    impulsividad: 0.44
+    sociabilidad: -0.31
+  tastes:
+  - target: trabajar_en_la_fragua
+    multiplier: 2.3
+  goals:
+  - id: que_su_taller_sobreviva_a_el
+    label: que su taller sobreviva a el
+    need: ahorros
+    at_least: 0.65
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success:
+      apego_al_hogar: 0.3
+      sociabilidad: 0.3
+    on_failure:
+      laboriosidad: 0.4
+      sociabilidad: -0.3
+- id: dara_darrow
+  label: Dara Darrow
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    apego_al_hogar: -0.33
+    arraigo: -0.68
+    elem_agua: 1.0
+    estilo_guerrero: 1.0
+    hedonismo: 0.34
+    impulsividad: 0.2
+    sociabilidad: 0.9
+  tastes:
+  - target: servir_en_la_taberna
+    multiplier: 2.3
+  goals:
+  - id: saldar_una_deuda_con_el_gremio
+    label: saldar una deuda con el gremio
+    need: ahorros
+    at_least: 0.45
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id016
+    on_failure: *id017
+- id: senna_hartwell
+  label: Senna Hartwell
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.92
+    apego_al_hogar: 0.9
+    arraigo: 0.81
+    elem_tierra: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.59
+    hedonismo: -0.25
+    impulsividad: -0.29
+    sociabilidad: -0.14
+  tastes:
+  - target: servir_en_la_taberna
+    multiplier: 2.3
+  goals:
+  - id: juntar_para_montar_su_propio_taller
+    label: juntar para montar su propio taller
+    need: ahorros
+    at_least: 0.5
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id022
+    on_failure: *id023
+- id: alenya_tanglewood
+  label: Alenya Tanglewood
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.47
+    apego_al_hogar: -0.35
+    elem_viento: 1.0
+    estilo_asesino: 1.0
+    frugalidad: 0.34
+    hedonismo: 0.27
+    impulsividad: -0.74
+    sociabilidad: 0.81
+  tastes:
+  - target: trabajar_en_la_fragua
+    multiplier: 2.3
+- id: cael_galewood
+  label: Cael Galewood
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.6
+    ambicion: 0.76
+    elem_agua: 1.0
+    estilo_soporte: 1.0
+    hedonismo: -0.19
+    impulsividad: -0.43
+    laboriosidad: 0.73
+    sociabilidad: -0.33
+  tastes:
+  - target: servir_en_la_taberna
+    multiplier: 2.3
+- id: bren_ustmark
+  label: Bren Ustmark
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.85
+    elem_tierra: 1.0
+    estilo_guerrero: 1.0
+    hedonismo: -0.36
+    impulsividad: -0.5
+    laboriosidad: 0.76
+    sociabilidad: -0.13
+  tastes:
+  - target: servir_en_la_taberna
+    multiplier: 2.3
+  goals:
+  - id: forjar_un_arma_que_nadie_mas_pueda_hacer
+    label: forjar un arma que nadie mas pueda hacer
+    need: armas
+    at_least: 0.6
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success:
+      ambicion: 0.3
+      sociabilidad: 0.2
+    on_failure:
+      ambicion: -0.4
+      aguante: -0.3
+- id: caspian_larkspur
+  label: Caspian Larkspur
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    apego_al_hogar: -0.52
+    arraigo: -0.7
+    elem_viento: 1.0
+    estilo_asesino: 1.0
+    hedonismo: 0.24
+    impulsividad: 0.34
+    sociabilidad: 0.98
+  tastes:
+  - target: trabajar_en_la_fragua
+    multiplier: 2.3
+- id: corin_vireth
+  label: Corin Vireth
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.21
+    apego_al_hogar: 0.91
+    arraigo: 0.63
+    elem_agua: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.66
+    impulsividad: -0.78
+    sociabilidad: -0.3
+  tastes:
+  - target: servir_en_la_taberna
+    multiplier: 2.3
+- id: merek_swiftwind
+  label: Merek Swiftwind
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.81
+    apego_al_hogar: -0.44
+    arraigo: -0.86
+    elem_agua: 1.0
+    estilo_soporte: 1.0
+    laboriosidad: 0.76
+    sociabilidad: -0.27
+  tastes:
+  - target: servir_en_la_taberna
+    multiplier: 2.3
+  goals:
+  - id: juntar_para_montar_su_propio_taller
+    label: juntar para montar su propio taller
+    need: ahorros
+    at_least: 0.5
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id022
+    on_failure: *id023
+- id: sigurd_longmire
+  label: Sigurd Longmire
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.24
+    ambicion: 0.82
+    elem_tierra: 1.0
+    estilo_soporte: 1.0
+    frugalidad: 0.73
+    hedonismo: -0.2
+    impulsividad: -0.79
+    laboriosidad: 0.53
+  tastes:
+  - target: trabajar_en_la_fragua
+    multiplier: 2.3
+- id: bastian_quarrow
+  label: Bastian Quarrow
+  home: barrio_bajo
+  start_at: barrio_bajo
+  traits:
+    aguante: 0.15
+    arraigo: -0.4
+    curtido: 1.0
+    elem_fuego: 1.0
+    estilo_asesino: 1.0
+    hedonismo: 0.07
+    impulsividad: 0.88
+    sueno_ligero: -0.36
+  tastes:
+  - target: servir_en_la_taberna
+    multiplier: 2.3
+  goals:
+  - id: que_le_dejen_en_paz
+    label: que le dejen en paz
+    need: discrecion
+    at_least: 0.95
+    weight_multiplier: 2.2
+    deadline: 207360
+    on_success: *id008
+    on_failure: *id009
 - id: kell
   label: Kell
   home: barrio_bajo

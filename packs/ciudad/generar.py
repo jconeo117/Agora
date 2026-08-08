@@ -11,6 +11,7 @@ from pathlib import Path
 import yaml
 
 from _elenco import fichas  # type: ignore[import-not-found]
+from _generador import poblar  # type: ignore[import-not-found]
 from _grafo import LUGARES  # type: ignore[import-not-found]
 
 S = Path(__file__).parent
@@ -122,6 +123,9 @@ traits = [
     # Quien esta matriculado. Abre las aulas Y el estipendio: el gremio paga a
     # los alumnos que patrocina, y por eso pueden vivir sin bajar a la sima.
     T("alumno", "alumno de la academia"),
+    # Quien da las clases. Abre `dar_clase` y nada mas: un profesor es un
+    # ciudadano con una llave distinta.
+    T("profesor", "profesor de la academia"),
     # Se gana cumpliendo la meta de graduarse, y abre los contratos serios.
     T("graduado", "graduado"),
 ]
@@ -194,11 +198,20 @@ actions = [
     # medido, Sira se fue a vivir al bosque el primer dia y no piso un aula.
     A(id="asistir_a_leccion", label="asistir a leccion", duration_ticks=12,
       requires_affordance="leccion", requires_traits={"alumno": 0.5},
+      requires_company=1,
       satisfies={"curso": 0.55, "arcano": 0.25, "dinero": 0.45},
       costs={"descanso": 0.15},
       effects={"curso": 0.00038, "arcano": 0.004, "descanso": -0.06, "vinculo": 0.04,
                "dinero": 0.13},
       phase_multipliers={"manana": 1.6, "tarde": 1.1, "noche": 0.05}),
+    A(id="dar_clase", label="dar clase", duration_ticks=14,
+      requires_affordance="leccion", requires_traits={"profesor": 0.5},
+      satisfies={"dinero": 0.60, "arcano": 0.25, "vinculo": 0.20},
+      costs={"descanso": 0.20, "discrecion": 0.10},
+      effects={"dinero": 0.22, "arcano": 0.002, "descanso": -0.09, "vinculo": 0.05,
+               "discrecion": -0.025, "ahorros": 0.006},
+      effects_per_company={"vinculo": 0.20},
+      phase_multipliers={"manana": 1.7, "tarde": 1.1, "noche": 0.05}),
     A(id="estudiar", label="estudiar", duration_ticks=6, requires_affordance="archivo",
       satisfies={"arcano": 0.75}, costs={"descanso": 0.10},
       effects={"arcano": 0.011, "descanso": -0.04}, saturation_gain=0.08),
@@ -438,6 +451,7 @@ agents = [
 ]
 
 agents += fichas()
+agents += poblar()
 
 # --- la ciudad que sostiene a la academia ------------------------------------
 #
@@ -482,7 +496,12 @@ pack = {
     # porque los ejes de progresion gatean contenido: en una semana no da tiempo
     # a que nadie llegue a las galerias ni a cuarto curso, y la mitad del pack
     # parece muerto sin estarlo.
-    "health": {"days": 30, "seeds": [1312, 7, 99],
+    # UNA semilla, y no tres. Con ciento veintisiete habitantes una corrida son
+    # doscientos cincuenta mil agente-ticks: la muestra ya es grande dentro de la
+    # propia corrida, y tres semillas costarian dos minutos por cada `--health`.
+    # El aviso de "una corrida es una muestra, no un resultado" se escribio para
+    # mundos de diez.
+    "health": {"days": 21, "seeds": [1312],
                "min_crisis": 0.05, "max_crisis": 0.30,
                "max_abort_ratio": 0.25, "max_transit": 0.25,
                "min_differentiation": 0.70,
