@@ -3,6 +3,8 @@
     uv run agora
     uv run agora --days 3 --seed 99
     uv run agora --jsonl corrida.jsonl
+    uv run agora --days 180 --save ano1.json
+    uv run agora --load ano1.json --days 180 --save ano2.json
 
 Sin UI y sin colores a propósito. En F0 la única forma de saber si el mundo
 funciona es leer texto y comparar corridas con `diff`.
@@ -36,6 +38,14 @@ def main() -> None:
     )
     parser.add_argument("--quiet", action="store_true", help="solo el resumen")
     parser.add_argument(
+        "--load", type=Path, default=None,
+        help="reanuda una partida guardada en vez de empezar en el tick cero",
+    )
+    parser.add_argument(
+        "--save", type=Path, default=None,
+        help="guarda el estado al terminar, para seguir desde ahi",
+    )
+    parser.add_argument(
         "--health",
         action="store_true",
         help="mide la salud del mundo sobre varias semillas y contrasta el "
@@ -48,7 +58,11 @@ def main() -> None:
     if args.health:
         _report_health(pack)
         return
-    sim = Simulation(pack, seed=args.seed)
+    if args.load is not None:
+        sim = Simulation.resume(args.load, pack)
+        print(f"# reanudado desde {args.load}  (tick {sim.state.tick})")
+    else:
+        sim = Simulation(pack, seed=args.seed)
     ticks = args.days * pack.clock.ticks_per_day
 
     print(f"# pack   {pack.label}  {dict(describe_pack(pack))}")
@@ -72,6 +86,10 @@ def main() -> None:
     for line in render_activity_summary(pack, sim.log):
         print(line)
     print(f"\n# {len(sim.log)} eventos")
+
+    if args.save is not None:
+        sim.save(args.save)
+        print(f"# partida -> {args.save}  (tick {sim.state.tick})")
 
     if args.jsonl is not None:
         args.jsonl.write_text("\n".join(sim.log.to_jsonl()) + "\n", encoding="utf-8")

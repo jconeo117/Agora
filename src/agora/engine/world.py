@@ -14,6 +14,7 @@ Dos invariantes que sostienen el determinismo:
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import assert_never
 
 from agora.agents.decide import (
@@ -25,6 +26,7 @@ from agora.agents.decide import (
     planned_duration,
     recovery_rate,
 )
+from agora.engine import persistence
 from agora.engine.events import EventKind, EventLog, Payload
 from agora.engine.ontology import ActionId, AgentId, GoalStatus, NeedId
 from agora.engine.outcome import company_premium, contextual_effects, learn
@@ -48,6 +50,34 @@ class Simulation:
     @property
     def pack(self) -> ContentPack:
         return self.state.pack
+
+    # -------------------------------------------------------------------------
+    # Guardar y reanudar
+    # -------------------------------------------------------------------------
+
+    def save(self, path: Path) -> None:
+        """Vuelca la partida. El LOG NO VA: es historia, no estado.
+
+        Un ano de ciento veintisiete agentes son cientos de megas de eventos. Al
+        reanudar, el mundo es el mismo pero nadie recuerda como llego ahi.
+        """
+        persistence.save(self.state, self._together, path)
+
+    @classmethod
+    def resume(cls, path: Path, pack: ContentPack) -> Simulation:
+        """Reanuda sobre el pack dado, que no tiene por que ser el de antes.
+
+        Reanudar en el tick N da EXACTAMENTE lo mismo que no haber parado, y no
+        es suerte: `RngSource` sortea con `blake2b(semilla, agente, tick)`, asi
+        que ningun sorteo depende de cuantos hubo antes. Se decidio en F0 y esta
+        es la primera vez que se cobra.
+        """
+        state, together = persistence.load(path, pack)
+        sim = cls.__new__(cls)
+        sim.state = state
+        sim.log = EventLog()
+        sim._together = together
+        return sim
 
     # -------------------------------------------------------------------------
     # Bucle
