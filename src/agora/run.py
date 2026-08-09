@@ -5,6 +5,7 @@
     uv run agora --jsonl corrida.jsonl
     uv run agora --days 180 --save ano1.json
     uv run agora --load ano1.json --days 180 --save ano2.json
+    uv run agora --days 1800 --skip 7 --quiet --save graduados.json
 
 Sin UI y sin colores a propósito. En F0 la única forma de saber si el mundo
 funciona es leer texto y comparar corridas con `diff`.
@@ -17,6 +18,7 @@ from pathlib import Path
 
 from agora.engine.pack import ContentPack, describe_pack, load_pack
 from agora.engine.render import render_activity_summary, render_log, render_state
+from agora.engine.timeskip import saltar
 from agora.engine.world import Simulation
 from agora.health import check, measure
 
@@ -40,6 +42,11 @@ def main() -> None:
     parser.add_argument(
         "--load", type=Path, default=None,
         help="reanuda una partida guardada en vez de empezar en el tick cero",
+    )
+    parser.add_argument(
+        "--skip", type=int, default=1, metavar="N",
+        help="salto temporal: simula un dia de cada N y da la zancada a los ejes "
+        "de progresion. 1 = sin atajo",
     )
     parser.add_argument(
         "--save", type=Path, default=None,
@@ -73,7 +80,12 @@ def main() -> None:
         print(line)
     print()
 
-    sim.run(ticks)
+    if args.skip > 1:
+        salto = saltar(sim, args.days, args.skip)
+        print(f"# salto x{salto.factor}: {salto.dias_simulados} dias simulados "
+              f"de {salto.dias_pedidos}  ({salto.ahorro:.1f}x)")
+    else:
+        sim.run(ticks)
 
     if not args.quiet:
         for line in render_log(pack, sim.log):
