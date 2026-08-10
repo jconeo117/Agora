@@ -83,6 +83,12 @@ def render_event(pack: ContentPack, event: Event) -> str:
             body = f"LOGRA     {event.data.get('goal')}"
         case EventKind.GOAL_FAILED:
             body = f"PIERDE    {event.data.get('goal')}   <- se acabo el plazo"
+        case EventKind.SITUATION_BEGAN:
+            ticks = event.data.get("ticks")
+            plazo = "" if ticks == -1 else f"   {ticks}t"
+            body = f"EMPIEZA   {event.data.get('situation')}{plazo}"
+        case EventKind.SITUATION_ENDED:
+            body = f"ACABA     {event.data.get('situation')}"
         case EventKind.IDLE_STALLED:
             body = f"BLOQUEADO sin opciones válidas  ({here})"
 
@@ -99,7 +105,11 @@ def render_log(pack: ContentPack, log: EventLog) -> Iterator[str]:
 def render_state(world: WorldState) -> Iterator[str]:
     """Foto del estado actual. Útil como cabecera y como cierre de una corrida."""
     pack = world.pack
-    yield f"tick {world.tick}  ({format_time(world.tick, pack.clock)})  seed={world.seed}"
+    activas = world.active_situations()
+    pasando = ""
+    if activas:
+        pasando = "  [" + ", ".join(pack.situation_by_id[s].label for s in activas) + "]"
+    yield f"tick {world.tick}  ({format_time(world.tick, pack.clock)})  seed={world.seed}{pasando}"
     for agent in world.agents_in_order():
         spec = pack.agent_by_id[agent.spec_id]
         needs = "  ".join(f"{need}={value:.2f}" for need, value in agent.needs.items())

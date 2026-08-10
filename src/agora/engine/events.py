@@ -66,6 +66,13 @@ class EventKind(StrEnum):
     GOAL_FAILED = "goal_failed"
     """Se le acabó el plazo. Suele ser el material más interesante de los dos."""
 
+    SITUATION_BEGAN = "situation_began"
+    """Al mundo le empezó a pasar algo. Solo las eventuales lo emiten: una
+    periódica es una función del reloj y anunciarla sería anunciar que amaneció
+    cada mañana."""
+
+    SITUATION_ENDED = "situation_ended"
+
     IDLE_STALLED = "idle_stalled"
     """Un agente quedó ocioso sin ninguna opción válida. En un motor sano no
     debería aparecer nunca; si aparece en el log, hay un bug de diseño en el

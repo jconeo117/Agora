@@ -28,7 +28,7 @@ from agora.agents.decide import (
 )
 from agora.engine import persistence
 from agora.engine.events import EventKind, EventLog, Payload
-from agora.engine.ontology import ActionId, AgentId, GoalStatus, NeedId
+from agora.engine.ontology import ActionId, AgentId, GoalStatus, NeedId, SituationId
 from agora.engine.outcome import company_premium, contextual_effects, learn
 from agora.engine.pack import ContentPack
 from agora.engine.state import AgentState, Busy, PerformingAction, Traveling, WorldState
@@ -129,12 +129,79 @@ class Simulation:
            generaría un encuentro en un lugar que está a punto de abandonar.
         """
         self.state.tick += 1
+        self._expire_situations()
         self._decay_everyone()
         for agent in self.state.agents_in_order():
             self._settle_goals(agent)
         for agent in self.state.agents_in_order():
             self._resolve(agent)
         self._detect_encounters()
+
+    # -------------------------------------------------------------------------
+    # Situaciones
+    # -------------------------------------------------------------------------
+
+    def begin_situation(self, situation: SituationId, ticks: int | None = None) -> None:
+        """Que le empiece a pasar algo al mundo. `ticks` a `None` = hasta que se
+        apague.
+
+        Es la puerta por la que entran la guerra, el derrumbe y la oleada: cosas
+        que ocurren PORQUE algo las provoca, no porque toque en el calendario. Lo
+        que toca en el calendario se declara periódico en el pack y no pasa por
+        aquí.
+
+        Encender una periódica se rechaza en vez de ignorarse: querría decir que
+        quien llama cree que es eventual, y ese malentendido no se ve en el log.
+        """
+        spec = self.pack.situation_by_id.get(situation)
+        if spec is None:
+            raise KeyError(f"situación desconocida {situation!r}")
+        if spec.periodic:
+            raise ValueError(
+                f"situación {situation!r} es periódica (cada {spec.every} ticks): "
+                f"va sola y no se enciende a mano"
+            )
+        if situation in self.state.situations:
+            return
+        self.state.situations[situation] = (
+            None if ticks is None else self.state.tick + ticks
+        )
+        self.log.emit(
+            tick=self.state.tick,
+            kind=EventKind.SITUATION_BEGAN,
+            data={"situation": str(situation), "ticks": -1 if ticks is None else ticks},
+        )
+
+    def end_situation(self, situation: SituationId) -> None:
+        """Que deje de pasar. Silencioso si no estaba pasando."""
+        if situation not in self.state.situations:
+            return
+        del self.state.situations[situation]
+        self.log.emit(
+            tick=self.state.tick,
+            kind=EventKind.SITUATION_ENDED,
+            data={"situation": str(situation)},
+        )
+
+    def _expire_situations(self) -> None:
+        """Apaga las que se les acabó el plazo.
+
+        Va al principio del tick y antes del decaimiento, por lo mismo que el
+        reloj: todo lo que ocurra en este tick tiene que ver el mundo en un solo
+        estado. Si expirasen a mitad, los agentes del principio de la lista
+        decidirían con la guerra puesta y los del final sin ella.
+
+        Se recorre ordenado, que aquí no es por los floats sino por el log: el
+        orden de un `dict` es de inserción, así que dos partidas con la misma
+        semilla podrían apagar lo mismo en distinto orden si se hubieran
+        encendido en distinto orden.
+        """
+        vencidas = sorted(
+            s for s, hasta in self.state.situations.items()
+            if hasta is not None and hasta <= self.state.tick
+        )
+        for situation in vencidas:
+            self.end_situation(situation)
 
     # -------------------------------------------------------------------------
     # Fases
@@ -313,10 +380,13 @@ class Simulation:
         received = contextual_effects(spec, company)
 
         before = dict(agent.needs)
-        agent.apply(received, self.pack.need_by_id)
+        # Lo que el sitio y lo que le pase al mundo hacen rendir. Se resuelve una
+        # vez y sirve para las dos vías, la normal y la elástica.
+        world_gains = self.state.gains_at(agent.at)
+        agent.apply(received, self.pack.need_by_id, world_gains)
 
         if spec.elastic is not None and done > 0:
-            rate = recovery_rate(spec, agent, self.pack.place_by_id[agent.at])
+            rate = recovery_rate(spec, agent, world_gains)
             agent.restore(spec.elastic.need, rate * done)
 
         learn(
@@ -380,12 +450,19 @@ class Simulation:
         # agente parecería incapaz de terminar nada.
         action = self.pack.action_by_id[busy.intent]
         company = len(self.state.others_at(agent))
-        # La franja es la de AHORA, no la de cuando se decidió: un viaje largo
-        # puede acabar con el sitio ya cerrado, y eso es un chasco legítimo que
-        # se lee igual que llegar y no encontrar a nadie.
+        # La franja y la situación son las de AHORA, no las de cuando se decidió:
+        # un viaje largo puede acabar con el sitio ya cerrado o con la mina ya
+        # derrumbada, y eso es un chasco legítimo que se lee igual que llegar y
+        # no encontrar a nadie.
         phase = self.pack.clock.phase_at(self.state.tick)
         if is_available(
-            action, self.pack.place_by_id[agent.at], company, agent.needs, phase, agent.traits
+            action,
+            self.pack.place_by_id[agent.at],
+            company,
+            agent.needs,
+            phase,
+            agent.traits,
+            self.state.situations_at(agent.at),
         ):
             self._start_action(agent, busy.intent, utility=None)
         else:
@@ -422,7 +499,7 @@ class Simulation:
             spec = self.pack.action_by_id[busy.action]
             hechos = busy.total_ticks - busy.ticks_remaining
             if spec.elastic is not None and hechos > 0:
-                rate = recovery_rate(spec, agent, self.pack.place_by_id[agent.at])
+                rate = recovery_rate(spec, agent, self.state.gains_at(agent.at))
                 agent.restore(spec.elastic.need, rate * hechos)
         self._emit(
             EventKind.ACTION_ABORTED,
@@ -451,7 +528,7 @@ class Simulation:
         # La duración se fija AQUÍ y se guarda: con lo elástico sale del déficit
         # de este agente en este sitio, y el pack ya no la sabe. Recalcularla por
         # tick alargaría el sueño cada vez que el agente se repone un poco.
-        ticks = planned_duration(spec, agent, self.pack.place_by_id[agent.at])
+        ticks = planned_duration(spec, agent, self.state.gains_at(agent.at))
         agent.busy = PerformingAction(action=action, ticks_remaining=ticks, total_ticks=ticks)
         data: Payload = {} if utility is None else {"utility": round(utility, 4)}
         if spec.elastic is not None:

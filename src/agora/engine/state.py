@@ -12,7 +12,7 @@ ya nadie vuelve a comprobar.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -37,6 +37,7 @@ from agora.engine.ontology import (
     NeedSpec,
     PlaceId,
     PlaceSpec,
+    SituationId,
     TraitId,
 )
 from agora.engine.outcome import company_saturation
@@ -581,7 +582,10 @@ class AgentState:
             self._spend(need_id, drop, spec.max_debt)
 
     def apply(
-        self, effects: Mapping[NeedId, float], need_specs: Mapping[NeedId, NeedSpec]
+        self,
+        effects: Mapping[NeedId, float],
+        need_specs: Mapping[NeedId, NeedSpec],
+        world_gains: Mapping[NeedId, float] | None = None,
     ) -> None:
         """Suma los deltas de una acción completada. Resultado en [0, 1].
 
@@ -591,13 +595,20 @@ class AgentState:
         Lo positivo **paga la deuda antes de subir el valor** y lo negativo la
         acumula al pasarse de rosca. Toda reposición pasa por ahí, no solo la del
         sueño: si te has quedado sin comer días, el primer plato salda y no llena.
+
+        `world_gains` es lo que el sitio y la situación hacen rendir
+        (`WorldState.gains_at`). Hasta que existieron las situaciones esto solo
+        se aplicaba a lo elástico, así que la calidad de un lugar no tocaba a una
+        acción normal — la regla que el pack anunciaba solo era cierta a medias.
         """
         for need_id, delta in effects.items():
             if delta >= 0.0:
                 # La aptitud escala lo que se GANA, no lo que cuesta. Que se te
                 # dé bien la magia hace que estudiar cunda más; no hace que
-                # trabajar canse menos.
-                self.restore(need_id, delta * self.gains.get(need_id, 1.0))
+                # trabajar canse menos. Lo mismo vale para el sitio y para cómo
+                # esté el mundo: una hambruna quita alimento, no ganas de comer.
+                contexto = 1.0 if world_gains is None else world_gains.get(need_id, 1.0)
+                self.restore(need_id, delta * self.gains.get(need_id, 1.0) * contexto)
             else:
                 self._spend(need_id, -delta, need_specs[need_id].max_debt)
 
@@ -723,6 +734,16 @@ class WorldState:
     O(1) por id, y orden estable. `dict` da ambas desde 3.7. Un `set` rompe el
     determinismo en silencio y sin aviso."""
 
+    situations: dict[SituationId, int | None] = field(default_factory=dict)
+    """Las situaciones EVENTUALES encendidas -> hasta qué tick, o `None` si es
+    hasta que alguien la apague.
+
+    Las periódicas no están aquí a propósito: son una función del reloj, así que
+    guardarlas sería guardar algo que ya se sabe calcular, y en un salto temporal
+    habría que arrastrarlas. Estar aquí es exactamente lo que distingue una
+    guerra —que empieza cuando empieza— de un invierno.
+    """
+
     rng: RngSource = field(default_factory=lambda: RngSource(0))
     """La fuente de aleatoriedad vive AQUÍ y se pasa explícitamente a quien la
     necesite. Nunca `import random; random.choice(...)` a nivel de módulo: eso
@@ -751,6 +772,52 @@ class WorldState:
             agents=agents,
             rng=RngSource(seed),
         )
+
+    # -- situaciones ----------------------------------------------------------
+
+    def active_situations(self) -> tuple[SituationId, ...]:
+        """Lo que le pasa al mundo ahora mismo, **ordenado**.
+
+        Tupla ordenada y no `frozenset`, y no es manía: los multiplicadores se
+        multiplican entre sí, la multiplicación de floats no es asociativa y el
+        orden de iteración de un `frozenset` depende del hash. Sería la tercera
+        vez que ese par rompe el determinismo en este motor.
+        """
+        activas = [
+            spec.id
+            for spec in self.pack.situations
+            if spec.active_at(self.tick) or spec.id in self.situations
+        ]
+        return tuple(sorted(activas))
+
+    def situations_at(self, place: PlaceId) -> tuple[SituationId, ...]:
+        """Las que alcanzan a este sitio. Una sin `places` alcanza a todos."""
+        by_id = self.pack.situation_by_id
+        return tuple(s for s in self.active_situations() if by_id[s].reaches(place))
+
+    def gains_at(
+        self, place: PlaceId, situations: Sequence[SituationId] | None = None
+    ) -> dict[NeedId, float]:
+        """Cuánto cunde aquí y ahora lo que se haga, sin contar quién lo hace.
+
+        El sitio y lo que le pasa al mundo entran por la MISMA puerta porque son
+        lo mismo a dos escalas: dormir a la intemperie, y dormir a la intemperie
+        en pleno invierno. Componerlos en dos sitios distintos sería la manera de
+        que uno acabara aplicándose donde el otro no.
+
+        Se itera ordenado porque multiplicar floats no es asociativo.
+
+        `situations` se puede pasar ya resuelto. La deliberación recorre los
+        veinticinco lugares y volver a filtrar las activas en cada uno sería
+        rehacer el mismo trabajo veinticinco veces por agente y por decisión.
+        """
+        gains = dict(self.pack.place_by_id[place].gain_multipliers)
+        by_id = self.pack.situation_by_id
+        aqui = self.situations_at(place) if situations is None else situations
+        for situation in aqui:
+            for need, multiplier in sorted(by_id[situation].gain_multipliers.items()):
+                gains[need] = gains.get(need, 1.0) * multiplier
+        return gains
 
     def agents_in_order(self) -> list[AgentState]:
         """Los agentes en orden fijo y reproducible.

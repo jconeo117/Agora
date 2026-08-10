@@ -28,7 +28,16 @@ import json
 from pathlib import Path
 from typing import Any
 
-from agora.engine.ontology import ActionId, AgentId, GoalId, GoalStatus, NeedId, PlaceId, TraitId
+from agora.engine.ontology import (
+    ActionId,
+    AgentId,
+    GoalId,
+    GoalStatus,
+    NeedId,
+    PlaceId,
+    SituationId,
+    TraitId,
+)
 from agora.engine.pack import ContentPack
 from agora.engine.state import AgentState, Bond, PerformingAction, Traveling, WorldState
 
@@ -105,6 +114,13 @@ def save(world: WorldState, together: set[tuple[AgentId, AgentId]], path: Path) 
         # Sin esto, al reanudar se emitiria un encuentro por cada par que ya
         # estaba junto: el mundo cargado se saludaria entero de golpe.
         "together": sorted([str(a), str(b)] for a, b in together),
+        # Solo las EVENTUALES: una periódica es una función del reloj, así que
+        # guardarla sería guardar algo que ya se sabe calcular — y peor, al
+        # reanudar sobre un pack retocado se contradiría con lo que el pack dice.
+        "situations": sorted(
+            [str(s), -1 if hasta is None else hasta]
+            for s, hasta in world.situations.items()
+        ),
         "agents": [_agente_a_dict(a) for a in world.agents_in_order()],
     }
     path.write_text(json.dumps(datos, indent=1, ensure_ascii=False), encoding="utf-8")
@@ -217,6 +233,14 @@ def load(path: Path, pack: ContentPack) -> tuple[WorldState, set[tuple[AgentId, 
 
     world = WorldState.new(pack, seed=datos["seed"])
     world.tick = datos["tick"]
+    # Una situación borrada del pack no vuelve, igual que un rasgo o un agente:
+    # `gains_at` la buscaría en `situation_by_id` y reventaria con un KeyError.
+    conocidas = frozenset(str(s.id) for s in pack.situations)
+    world.situations = {
+        SituationId(s): (None if hasta == -1 else int(hasta))
+        for s, hasta in datos.get("situations", [])
+        if s in conocidas
+    }
     # Los que el pack tiene y el guardado no —fichas nuevas— entran frescos, tal
     # y como los dejo `WorldState.new`. Asi se puede ampliar el elenco sin
     # perder la partida.

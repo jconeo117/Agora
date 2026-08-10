@@ -140,7 +140,7 @@ def test_it_reaches_the_elastic_rate_too() -> None:
     pack = con_rasgos(don_arcano=0.0)
     world = WorldState.new(pack, seed=1)
     dormir, aula = pack.action_by_id[ActionId("dormir")], pack.place_by_id[AULA]
-    assert recovery_rate(dormir, world.agents[AG1], aula) == pytest.approx(0.03)
+    assert recovery_rate(dormir, world.agents[AG1], aula.gain_multipliers) == pytest.approx(0.03)
 
 
 def test_person_and_place_compose() -> None:
@@ -156,8 +156,8 @@ def test_person_and_place_compose() -> None:
     world = WorldState.new(pack, seed=1)
     dormir = pack.action_by_id[ActionId("dormir")]
     aula, campo = pack.place_by_id[AULA], pack.place_by_id[CAMPO]
-    assert recovery_rate(dormir, world.agents[AG1], aula) == pytest.approx(0.06)
-    assert recovery_rate(dormir, world.agents[AG1], campo) == pytest.approx(0.03)
+    assert recovery_rate(dormir, world.agents[AG1], aula.gain_multipliers) == pytest.approx(0.06)
+    assert recovery_rate(dormir, world.agents[AG1], campo.gain_multipliers) == pytest.approx(0.03)
 
 
 def test_a_gift_shortens_the_elastic_duration() -> None:
@@ -177,8 +177,8 @@ def test_a_gift_shortens_the_elastic_duration() -> None:
     dormir, aula = pack.action_by_id[ActionId("dormir")], pack.place_by_id[AULA]
     for a in world.agents.values():
         a.needs[VIGOR] = 0.0
-    assert planned_duration(dormir, world.agents[AG1], aula) < planned_duration(
-        dormir, world.agents[AG2], aula
+    assert planned_duration(dormir, world.agents[AG1], aula.gain_multipliers) < planned_duration(
+        dormir, world.agents[AG2], aula.gain_multipliers
     )
 
 

@@ -47,7 +47,7 @@ bloqueo: es alguien que decide que no le compensa moverse.
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import assert_never
 
@@ -60,6 +60,7 @@ from agora.engine.ontology import (
     PhaseId,
     PlaceId,
     PlaceSpec,
+    SituationId,
     TraitId,
 )
 from agora.engine.outcome import company_saturation
@@ -192,15 +193,21 @@ def companionship(action: ActionSpec, company: float, weight: float) -> float:
     return max(0.0, 1.0 + weight * company_saturation(company))
 
 
-def recovery_rate(action: ActionSpec, agent: AgentState, place: PlaceSpec) -> float:
-    """A qué ritmo repone esta acción, para esta persona, en este sitio.
+def recovery_rate(
+    action: ActionSpec, agent: AgentState, world_gains: Mapping[NeedId, float]
+) -> float:
+    """A qué ritmo repone esta acción, para esta persona, aquí y ahora.
 
-        ritmo = base * su_aptitud * la_calidad_del_sitio
+        ritmo = base * su_aptitud * lo_que_da_el_mundo
 
-    Las dos modulaciones se componen, y de ahí sale toda la variación: duerme mal
+    Las modulaciones se componen, y de ahí sale toda la variación: duerme mal
     quien tiene mal sueño, quien duerme en mal sitio, y peor quien las dos cosas.
     Las quince horas del guerrero no son un caso especial — son el ritmo de la
     intemperie aplicado a un déficit grande.
+
+    `world_gains` es la calidad del sitio ya combinada con lo que le pase al
+    mundo (`WorldState.gains_at`). Van juntas porque son lo mismo visto a dos
+    escalas: dormir a la intemperie y dormir a la intemperie en pleno invierno.
     """
     elastic = action.elastic
     if elastic is None:  # pragma: no cover - quien llama ya lo comprobó
@@ -208,11 +215,13 @@ def recovery_rate(action: ActionSpec, agent: AgentState, place: PlaceSpec) -> fl
     return float(
         elastic.per_tick
         * agent.gains.get(elastic.need, 1.0)
-        * place.gain_multipliers.get(elastic.need, 1.0)
+        * world_gains.get(elastic.need, 1.0)
     )
 
 
-def planned_duration(action: ActionSpec, agent: AgentState, place: PlaceSpec) -> int:
+def planned_duration(
+    action: ActionSpec, agent: AgentState, world_gains: Mapping[NeedId, float]
+) -> int:
     """Cuánto va a durar esto de verdad. Para lo no elástico, lo que dice el pack.
 
         ticks = acotado( déficit / ritmo,  min_ticks,  duration_ticks )
@@ -228,7 +237,7 @@ def planned_duration(action: ActionSpec, agent: AgentState, place: PlaceSpec) ->
     if elastic is None:
         return action.duration_ticks
 
-    rate = recovery_rate(action, agent, place)
+    rate = recovery_rate(action, agent, world_gains)
     needed = math.ceil(agent.deficit(elastic.need) / rate) if rate > 0.0 else action.duration_ticks
     return max(elastic.min_ticks, min(action.duration_ticks, needed))
 
@@ -274,6 +283,24 @@ def phase_fit(action: ActionSpec, phase: PhaseId | None) -> float:
     return action.phase_multipliers.get(phase, 1.0)
 
 
+def situation_fit(action: ActionSpec, situations: Sequence[SituationId]) -> float:
+    """Cuánto apetece esta acción con el mundo así. 1.0 si no pasa nada.
+
+    A diferencia de la franja, aquí pueden aplicarse VARIAS y se multiplican
+    entre sí: feria y tormenta el mismo día se pisan, que es lo correcto.
+
+    `situations` llega ya ordenada, y no es cosmético: multiplicar floats no es
+    asociativo, así que un orden que dependa del hash daría resultados distintos
+    entre procesos. Ver `WorldState.active_situations`.
+    """
+    if not action.situation_multipliers:
+        return 1.0
+    total = 1.0
+    for situation in situations:
+        total *= action.situation_multipliers.get(situation, 1.0)
+    return total
+
+
 def is_available(
     action: ActionSpec,
     place: PlaceSpec,
@@ -281,11 +308,13 @@ def is_available(
     needs: Mapping[NeedId, float],
     phase: PhaseId | None = None,
     traits: Mapping[TraitId, float] | None = None,
+    situations: Sequence[SituationId] = (),
 ) -> bool:
-    """¿Se puede ejecutar esta acción aquí y ahora? Cinco puertas duras:
+    """¿Se puede ejecutar esta acción aquí y ahora? Seis puertas duras:
 
     - **el lugar** la ofrece (affordance)
     - **el lugar está abierto** a esta hora (`open_during`)
+    - **el lugar no está cerrado** por lo que pasa (`closed_during`)
     - **hay gente** suficiente (`company` = los OTROS, sin contar a quien pregunta)
     - **alcanzan los recursos** (`requires`)
     - **eres quien hay que ser** (`requires_traits`)
@@ -320,6 +349,8 @@ def is_available(
     ):
         return False
     if place.open_during and phase is not None and phase not in place.open_during:
+        return False
+    if place.closed_during and any(s in place.closed_during for s in situations):
         return False
     if traits is not None and any(
         traits.get(trait, 0.0) < minimum for trait, minimum in action.requires_traits.items()
@@ -373,6 +404,12 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
     open_phase = clock.phase_at(world.tick)
     felt_phase = clock.phase_at(world.tick + agent.phase_shift)
 
+    # Cómo está el mundo. Se resuelve una vez y luego se filtra por lugar: una
+    # guerra alcanza a todos, una feria solo a la plaza. No hay reloj subjetivo
+    # aquí — que haya guerra no depende de a qué hora se levante uno.
+    situations = world.active_situations()
+    by_situation = pack.situation_by_id
+
     found: list[Decision] = []
     for place in pack.places:
         travel = world.travel.distance(agent.at, place.id)
@@ -406,9 +443,12 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             )
         )
 
+        aqui = tuple(s for s in situations if by_situation[s].reaches(place.id))
+        gains_aqui = world.gains_at(place.id, aqui) if aqui else place.gain_multipliers
+
         for action in pack.actions:
             if not is_available(
-                action, place, headcount, agent.needs, open_phase, agent.traits
+                action, place, headcount, agent.needs, open_phase, agent.traits, aqui
             ):
                 continue
             reward = benefit(pack, agent, action, weights) * discount * place_taste
@@ -416,6 +456,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             reward *= novelty(agent, action.id, tuning.novelty_weight)
             reward *= companionship(action, expected, tuning.companionship_weight)
             reward *= phase_fit(action, felt_phase)
+            reward *= situation_fit(action, aqui)
             # Comprometer tiempo tiene coste: mientras dure, no se atiende nada
             # más. Ese era el punto ciego respecto a la duración.
             #
@@ -423,7 +464,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             # el tope de una acción elástica es lo que dura en el peor caso, y
             # castigar una cabezada de una hora como si fueran las ocho del tope
             # haría que nadie echara nunca una cabezada.
-            reward *= tuning.duration_discount ** planned_duration(action, agent, place)
+            reward *= tuning.duration_discount ** planned_duration(action, agent, gains_aqui)
             price = (cost(pack, agent, action, weights) + peaje) * temperament.loss_aversion
             found.append(
                 Decision(

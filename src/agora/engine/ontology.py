@@ -31,6 +31,7 @@ NeedId = NewType("NeedId", str)
 TraitId = NewType("TraitId", str)
 GoalId = NewType("GoalId", str)
 PhaseId = NewType("PhaseId", str)
+SituationId = NewType("SituationId", str)
 ActionId = NewType("ActionId", str)
 PlaceId = NewType("PlaceId", str)
 AgentId = NewType("AgentId", str)
@@ -513,6 +514,20 @@ class ActionSpec(Spec):
     conducta sale sola en vez de declararse.
     """
 
+    situation_multipliers: dict[SituationId, PositiveFactor] = Field(default_factory=dict)
+    """Cuánto apetece esto según cómo esté el mundo. Lo ausente vale 1.0.
+
+    Gemelo exacto de `phase_multipliers` —multiplica el beneficio, no el neto—
+    con una diferencia: pueden aplicarse **varias a la vez**, y entonces se
+    multiplican entre sí. Feria y tormenta el mismo día se pisan, y eso es lo
+    correcto: la feria bajo la lluvia luce menos.
+
+    Ojo con la misma trampa que las franjas: no se lo pongas a lo fisiológico.
+    Si comer valiera más durante la hambruna, la gente comería más justo cuando
+    hay menos. Lo que baja durante una hambruna es lo que la comida RINDE
+    (`SituationSpec.gain_multipliers`), no las ganas de comer.
+    """
+
     saturation_gain: float = Field(default=0.0, ge=0.0)
     """Cuánto hastía una repetición de esto. 0 = nunca cansa.
 
@@ -592,6 +607,19 @@ class PlaceSpec(Spec):
     **Cierra actividades, no el paso.** Un lugar cerrado se sigue cruzando: si
     cerrar cortara aristas, el mundo dejaría de estar fuertemente conectado a
     ciertas horas y alguien podría quedarse encerrado lejos de su cama.
+    """
+
+    closed_during: frozenset[SituationId] = Field(default_factory=frozenset)
+    """Situaciones que cierran este sitio. Vacío = no lo cierra ninguna.
+
+    Gemelo de `open_during` y con el mismo carácter: puerta dura, no desánimo.
+    La mina derrumbada no es menos atractiva, es que no está.
+
+    Se declara al revés que `open_during` —lo que CIERRA, no lo que abre— porque
+    una situación es la excepción y una franja es la norma: un sitio está
+    normalmente abierto y una crisis lo cierra, mientras que un horario dice
+    cuándo se abre. Escribirlo del otro modo obligaría a listar en cada lugar
+    todas las situaciones del mundo que no le afectan.
     """
 
     tags: frozenset[Tag] = Field(default_factory=frozenset)
@@ -871,6 +899,115 @@ class ClockSpec(Spec):
                 break
             chosen = phase
         return chosen.id
+
+
+# ---------------------------------------------------------------------------
+# Situaciones: cómo está el mundo
+# ---------------------------------------------------------------------------
+class SituationSpec(Spec):
+    """Un estado del mundo con nombre, que va y viene, y cambia lo que se hace.
+
+    Una franja es una función del tick: cíclica, siempre hay exactamente una, y
+    no se puede empezar ni terminar. Eso sirve para la noche y no sirve para una
+    guerra. **Una situación es lo mismo un escalón más arriba: tiene principio y
+    final, pueden coincidir varias, y algunas no se sabe cuándo llegan.**
+
+    Con una sola primitiva salen el clima, las ferias, las cosechas, las crisis,
+    las guerras y las oleadas de monstruos. El motor no sabe cuál es cuál: sabe
+    que hay estados con nombre que multiplican cosas.
+
+    Dos formas de estar activa, y hacen falta las dos:
+
+    - **Periódica** (`every` + `lasts`): función del tick, igual que una franja.
+      Las estaciones, la feria de cada primavera, la luna llena. No guarda
+      estado, así que sale gratis y sobrevive al salto temporal sin tocar nada.
+    - **Eventual** (ni `every` ni `lasts`): solo está activa si alguien la
+      enciende. La guerra, el derrumbe, la oleada. Esa sí es estado mutable, se
+      guarda en la partida y emite eventos al empezar y al acabar.
+
+    Y tres formas de afectar, cada una copiada de donde ya existía:
+
+    - `gain_multipliers`, igual que en un lugar o un rasgo: lo que de verdad
+      rinde. Una hambruna hace que comer alimente menos, que es lo que ES una
+      hambruna.
+    - `ActionSpec.situation_multipliers`, igual que `phase_multipliers`: lo
+      atractivo que resulta hacer algo. Durante la feria apetece salir.
+    - `PlaceSpec.closed_during`, igual que `open_during`: puerta dura. La mina
+      derrumbada no es menos atractiva, es que no está.
+    """
+
+    id: SituationId
+    label: str
+
+    places: frozenset[PlaceId] = Field(default_factory=frozenset)
+    """Dónde alcanza. **Vacío = en todo el mundo**, como `open_during` vacío es
+    siempre abierto.
+
+    Es lo que separa una guerra —que lo tiñe todo— de una feria en la plaza. El
+    alcance se declara aquí y no al encenderla: así el pack dice de una vez qué
+    clase de cosa es, y encenderla es solo encenderla.
+    """
+
+    every: int = Field(default=0, ge=0)
+    """Cada cuántos ticks vuelve. 0 = no es periódica, hay que encenderla.
+
+    Es `PhaseSpec.starts_at` a otra escala, y no es casualidad: una estación es
+    una franja de un ciclo más largo. Por eso no hace falta un mecanismo nuevo.
+    """
+
+    lasts: int = Field(default=0, ge=0)
+    """Cuánto dura cada vez que vuelve, en ticks. Solo cuenta si `every` > 0."""
+
+    starts_at: int = Field(default=0, ge=0)
+    """En qué punto del ciclo largo empieza. Para que el invierno no caiga
+    siempre en el tick 0 del año."""
+
+    gain_multipliers: dict[NeedId, PositiveFactor] = Field(default_factory=dict)
+    """Cuánto cunde lo que se hace mientras esto pasa. Lo ausente vale 1.0.
+
+    Cuarto y último factor de la regla que ya gobernaba el rendimiento:
+
+        lo que rinde algo  =  base * aptitud de quien lo hace
+                                   * calidad del sitio
+                                   * cómo está el mundo
+    """
+
+    @model_validator(mode="after")
+    def _periodic_situations_actually_happen(self) -> SituationSpec:
+        if self.every and not self.lasts:
+            raise ValueError(
+                f"situación {self.id!r}: vuelve cada {self.every} ticks pero dura 0, "
+                f"así que no llega a ocurrir nunca"
+            )
+        if self.every and self.lasts >= self.every:
+            raise ValueError(
+                f"situación {self.id!r}: dura {self.lasts} y vuelve cada {self.every}, "
+                f"así que no se apaga jamás; déjala eventual si es permanente"
+            )
+        if self.lasts and not self.every:
+            raise ValueError(
+                f"situación {self.id!r}: declara `lasts` sin `every`. Una situación "
+                f"eventual dura lo que se le diga al encenderla"
+            )
+        return self
+
+    @property
+    def periodic(self) -> bool:
+        return self.every > 0
+
+    def reaches(self, place: PlaceId) -> bool:
+        return not self.places or place in self.places
+
+    def active_at(self, tick: int) -> bool:
+        """Si es periódica, si toca ahora. Una eventual nunca lo está por sí sola.
+
+        Se pregunta al tick y no se guarda: una situación periódica es una
+        función del reloj, igual que una franja, así que no hay estado que
+        persistir ni que arrastrar en un salto temporal.
+        """
+        if not self.periodic:
+            return False
+        return (tick - self.starts_at) % self.every < self.lasts
 
 
 # ---------------------------------------------------------------------------

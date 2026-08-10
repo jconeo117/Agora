@@ -127,13 +127,13 @@ def test_a_fixed_action_keeps_its_duration() -> None:
     """Lo no elástico no se entera de que esto existe."""
     pack = rest_pack()
     accion = pack.action_by_id[ActionId("holgazanear")]
-    assert planned_duration(accion, guerrero(), pack.place_by_id[CAMA]) == 4
+    assert planned_duration(accion, guerrero(), pack.place_by_id[CAMA].gain_multipliers) == 4
 
 
 def test_the_less_tired_sleep_less() -> None:
     """Ya es por persona sin declarar nada por persona: sale del déficit."""
     pack = rest_pack()
-    dormir, cama = pack.action_by_id[DORMIR], pack.place_by_id[CAMA]
+    dormir, cama = pack.action_by_id[DORMIR], pack.place_by_id[CAMA].gain_multipliers
     assert planned_duration(dormir, guerrero(0.9), cama) == 4  # el suelo de min_ticks
     assert planned_duration(dormir, guerrero(0.5), cama) == 16
     assert planned_duration(dormir, guerrero(0.0), cama) == 31  # ~7h45
@@ -142,13 +142,13 @@ def test_the_less_tired_sleep_less() -> None:
 def test_the_floor_stops_a_pointless_nap() -> None:
     """Nadie se acuesta para quince minutos, aunque le sobre con eso."""
     pack = rest_pack()
-    dormir, cama = pack.action_by_id[DORMIR], pack.place_by_id[CAMA]
+    dormir, cama = pack.action_by_id[DORMIR], pack.place_by_id[CAMA].gain_multipliers
     assert planned_duration(dormir, guerrero(0.99), cama) == 4
 
 
 def test_the_cap_holds() -> None:
     pack = rest_pack()
-    dormir, cama = pack.action_by_id[DORMIR], pack.place_by_id[CAMA]
+    dormir, cama = pack.action_by_id[DORMIR], pack.place_by_id[CAMA].gain_multipliers
     assert planned_duration(dormir, guerrero(0.0, debt=5.0), cama) == 64
 
 
@@ -156,8 +156,10 @@ def test_a_bad_place_slows_the_rate() -> None:
     """Dormir mal es tener mal ritmo, no tener un tope bajo."""
     pack = rest_pack()
     dormir = pack.action_by_id[DORMIR]
-    assert recovery_rate(dormir, guerrero(), pack.place_by_id[CAMA]) == pytest.approx(0.033)
-    assert recovery_rate(dormir, guerrero(), pack.place_by_id[SUELO]) == pytest.approx(0.01485)
+    cama = pack.place_by_id[CAMA].gain_multipliers
+    suelo = pack.place_by_id[SUELO].gain_multipliers
+    assert recovery_rate(dormir, guerrero(), cama) == pytest.approx(0.033)
+    assert recovery_rate(dormir, guerrero(), suelo) == pytest.approx(0.01485)
 
 
 def test_a_trait_speeds_it_up() -> None:
@@ -177,8 +179,8 @@ def test_a_trait_speeds_it_up() -> None:
     agente = world.agents[AG1]
     agente.needs[DESCANSO] = 0.0
     dormir, cama = pack.action_by_id[DORMIR], pack.place_by_id[CAMA]
-    assert recovery_rate(dormir, agente, cama) == pytest.approx(0.066)
-    assert planned_duration(dormir, agente, cama) == 16
+    assert recovery_rate(dormir, agente, cama.gain_multipliers) == pytest.approx(0.066)
+    assert planned_duration(dormir, agente, cama.gain_multipliers) == 16
 
 
 def test_person_and_place_compose() -> None:
@@ -197,7 +199,7 @@ def test_person_and_place_compose() -> None:
     world = WorldState.new(pack, seed=1)
     agente = world.agents[AG1]
     assert recovery_rate(
-        pack.action_by_id[DORMIR], agente, pack.place_by_id[SUELO]
+        pack.action_by_id[DORMIR], agente, pack.place_by_id[SUELO].gain_multipliers
     ) == pytest.approx(0.033 * 2.0 * 0.45)
 
 
@@ -267,7 +269,8 @@ def test_the_warrior_needs_fifteen_hours() -> None:
     assert a.needs[DESCANSO] == 0.0
     assert a.debt[DESCANSO] == pytest.approx(1.0)
 
-    horas = planned_duration(pack.action_by_id[DORMIR], a, pack.place_by_id[CAMA]) / 4
+    cama = pack.place_by_id[CAMA].gain_multipliers
+    horas = planned_duration(pack.action_by_id[DORMIR], a, cama) / 4
     assert horas == pytest.approx(15.25, abs=0.5)
 
 

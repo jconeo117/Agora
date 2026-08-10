@@ -485,8 +485,70 @@ for _i, (_id, _lab, _casa, _oficio, _estilo, _elem, _extra) in enumerate([
               {"target": "aca_patio", "multiplier": 0.3}],
     })
 
+# ---------------------------------------------------------------------------
+# Situaciones: como esta el mundo.
+#
+# Un ano son doce meses de treinta dias: 360 * 96 = 34560 ticks. Las periodicas
+# se cuelgan de ese ciclo y no guardan estado, igual que una franja del dia.
+#
+# Ninguna de las dos periodicas cae dentro de los primeros veintiun dias, que es
+# lo que mide --health. Es a proposito: el contrato de salud describe una semana
+# cualquiera de la ciudad, y una semana cualquiera no es la feria.
+# ---------------------------------------------------------------------------
+ANO = 360 * 96
+
+situations = [
+    # ESTACION. El cuarto ultimo del ano. Global: el invierno no es de un sitio.
+    {"id": "invierno", "label": "invierno",
+     "every": ANO, "lasts": 90 * 96, "starts_at": 270 * 96,
+     # Lo que de verdad se recoge, no las ganas de recogerlo.
+     "gain_multipliers": {"provisiones": 0.6}},
+
+    # FIESTA. Una semana en primavera, y solo donde se celebra.
+    {"id": "feria", "label": "feria de primavera",
+     "every": ANO, "lasts": 7 * 96, "starts_at": 90 * 96,
+     "places": ["plaza", "mercado", "taberna"]},
+
+    # CLIMA. Eventual y local: se enciende cuando el narrador quiera.
+    {"id": "ventisca", "label": "ventisca",
+     "places": ["camino_bosque", "bosque", "espesura", "sendero", "boca"],
+     "gain_multipliers": {"descanso": 0.5}},
+
+    # PELIGRO. Eventual, en la sima. Cierra el fondo y el gremio paga mejor.
+    {"id": "oleada", "label": "oleada de la sima",
+     "places": ["boca", "cripta", "galerias", "nucleo_sima"]},
+]
+
+# Y como se nota cada una. Se declara aparte del catalogo de acciones para que
+# se lea de un vistazo que hace cada situacion, en vez de repartido en treinta.
+_efectos = {
+    "caza_menor": {"invierno": 0.55},
+    "caza_mayor": {"invierno": 0.5, "ventisca": 0.4},
+    "tomar_el_aire": {"invierno": 0.45, "ventisca": 0.2, "feria": 1.6},
+    "velar_el_fuego": {"invierno": 1.7, "ventisca": 2.0},
+    "charlar": {"feria": 1.8},
+    "beber": {"feria": 1.9},
+    "comprar_provisiones": {"feria": 1.4, "invierno": 1.3},
+    "expoliar_cripta": {"oleada": 0.5},
+    "expoliar_galerias": {"oleada": 0.4},
+    "salida_de_practica": {"oleada": 0.2},
+    "contrato_del_gremio": {"oleada": 2.2},
+}
+for _a in actions:
+    if _a["id"] in _efectos:
+        _a["situation_multipliers"] = _efectos[_a["id"]]
+
+# Puertas duras. La espesura con ventisca y el fondo de la sima con oleada no
+# son menos atractivos: es que no se puede.
+for _p in places:
+    if _p["id"] == "espesura":
+        _p["closed_during"] = ["ventisca"]
+    if _p["id"] == "nucleo_sima":
+        _p["closed_during"] = ["oleada"]
+
 pack = {
     "id": "ciudad", "label": "La ciudad y la sima",
+    "situations": situations,
     "clock": {"minutes_per_tick": 15, "ticks_per_day": 96, "phases": [
         {"id": "manana", "label": "manana", "starts_at": 24},
         {"id": "tarde", "label": "tarde", "starts_at": 52},

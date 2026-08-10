@@ -35,6 +35,8 @@ from agora.engine.ontology import (
     NeedSpec,
     PlaceId,
     PlaceSpec,
+    SituationId,
+    SituationSpec,
     Spec,
     TraitId,
     TraitSpec,
@@ -61,6 +63,10 @@ class ContentPack(Spec):
     health: HealthSpec = Field(default_factory=HealthSpec)
     """Contrato de salud: qué clase de mundo dice ser este pack. Lo verifica
     `agora.health`, y lo comprueba la batería de tests sobre todos los packs."""
+
+    situations: tuple[SituationSpec, ...] = ()
+    """Cómo puede estar el mundo. Vacío = el mundo no tiene estados, y entonces
+    todo lo que dependa de ellos queda inerte, igual que sin franjas."""
 
     clock: ClockSpec = Field(default_factory=ClockSpec)
     """Cómo se leen los ticks. Solo lo usa la presentación; el motor cuenta
@@ -108,6 +114,10 @@ class ContentPack(Spec):
         return {agent.id: agent for agent in self.agents}
 
     @cached_property
+    def situation_by_id(self) -> dict[SituationId, SituationSpec]:
+        return {situation.id: situation for situation in self.situations}
+
+    @cached_property
     def offered_affordances(self) -> frozenset[str]:
         """Todo lo que se puede hacer en algún sitio del mundo."""
         return frozenset(aff for place in self.places for aff in place.affordances)
@@ -152,6 +162,7 @@ class ContentPack(Spec):
             *self._duplicates("acciones", (a.id for a in self.actions)),
             *self._duplicates("lugares", (p.id for p in self.places)),
             *self._duplicates("agentes", (a.id for a in self.agents)),
+            *self._duplicates("situaciones", (s.id for s in self.situations)),
         ]
 
     def _check_global_id_collisions(self) -> list[str]:
@@ -350,7 +361,73 @@ class ContentPack(Spec):
             problems += self._unknown_keys(
                 f"lugar {place.id!r}", "necesidad", place.gain_multipliers, known
             )
+        for situation in self.situations:
+            problems += self._unknown_keys(
+                f"situación {situation.id!r}", "necesidad", situation.gain_multipliers, known
+            )
         return problems
+
+    def _check_situation_refs(self) -> list[str]:
+        """Toda situación mencionada existe, y alcanza a algún sitio real.
+
+        Misma clase de errata que con las franjas y con el mismo síntoma: none.
+        Lo ausente vale 1.0, así que una situación mal escrita no hace nada y no
+        se distingue de una que sí funciona pero nunca se ha encendido.
+        """
+        known = frozenset(str(s.id) for s in self.situations)
+        conocidos_lugar = frozenset(str(p.id) for p in self.places)
+        problems: list[str] = []
+
+        for action in self.actions:
+            problems += self._unknown_keys(
+                f"acción {action.id!r}", "situación", action.situation_multipliers, known
+            )
+        for place in self.places:
+            problems += [
+                f"lugar {place.id!r}.closed_during: situación desconocida {s!r}"
+                for s in sorted(place.closed_during)
+                if str(s) not in known
+            ]
+        for situation in self.situations:
+            problems += [
+                f"situación {situation.id!r}.places: lugar desconocido {p!r}"
+                for p in sorted(situation.places)
+                if str(p) not in conocidos_lugar
+            ]
+        return problems
+
+    def _check_situations_do_something(self) -> list[str]:
+        """Una situación que no afecta a nada es contenido muerto.
+
+        Se lee como contenido vivo —tiene nombre, se enciende, sale en el log—
+        y no cambia una sola decisión. Es exactamente el error que este motor no
+        detecta solo: no revienta, simplemente no pasa nada.
+        """
+        con_efecto = {str(s) for a in self.actions for s in a.situation_multipliers}
+        con_efecto |= {str(s) for p in self.places for s in p.closed_during}
+        return [
+            f"situación {situation.id!r}: no la menciona ninguna acción ni cierra "
+            f"ningún lugar, y no cambia lo que rinde nada; no hace absolutamente nada"
+            for situation in self.situations
+            if str(situation.id) not in con_efecto and not situation.gain_multipliers
+        ]
+
+    def _check_places_are_open_sometime_despite_situations(self) -> list[str]:
+        """Ningún lugar lo cierra una situación periódica permanente.
+
+        Una periódica que dura tanto como su ciclo la rechaza `SituationSpec`,
+        así que aquí solo queda el caso compuesto: varias periódicas que entre
+        todas cubren el ciclo entero. No se persigue —haría falta resolver
+        solapes— pero sí el caso de una sola, que es el que se comete.
+        """
+        by_id = self.situation_by_id
+        return [
+            f"lugar {place.id!r}: la situación {s!r} lo cierra siempre "
+            f"(es periódica y cubre todo su ciclo), así que es inalcanzable"
+            for place in self.places
+            for s in sorted(place.closed_during)
+            if s in by_id and by_id[s].periodic and by_id[s].lasts >= by_id[s].every
+        ]
 
     def _check_phase_refs(self) -> list[str]:
         """Toda franja mencionada existe en el reloj.
@@ -536,6 +613,9 @@ class ContentPack(Spec):
             *self._check_trait_refs(),
             *self._check_place_refs(),
             *self._check_phase_refs(),
+            *self._check_situation_refs(),
+            *self._check_situations_do_something(),
+            *self._check_places_are_open_sometime_despite_situations(),
             *self._check_goal_refs(),
             *self._check_goals_are_reachable(),
             *self._check_elastic_is_coherent(),

@@ -1,5 +1,39 @@
 id: ciudad
 label: La ciudad y la sima
+situations:
+- id: invierno
+  label: invierno
+  every: 34560
+  lasts: 8640
+  starts_at: 25920
+  gain_multipliers:
+    provisiones: 0.6
+- id: feria
+  label: feria de primavera
+  every: 34560
+  lasts: 672
+  starts_at: 8640
+  places:
+  - plaza
+  - mercado
+  - taberna
+- id: ventisca
+  label: ventisca
+  places:
+  - camino_bosque
+  - bosque
+  - espesura
+  - sendero
+  - boca
+  gain_multipliers:
+    descanso: 0.5
+- id: oleada
+  label: oleada de la sima
+  places:
+  - boca
+  - cripta
+  - galerias
+  - nucleo_sima
 clock:
   minutes_per_tick: 15
   ticks_per_day: 96
@@ -337,6 +371,9 @@ actions:
   phase_multipliers: &id002
     manana: 1.2
     noche: 0.35
+  situation_multipliers:
+    feria: 1.4
+    invierno: 1.3
 - id: charlar
   label: charlar
   duration_ticks: 5
@@ -352,6 +389,8 @@ actions:
   effects_per_company:
     vinculo: 0.5
   saturation_gain: 0.14
+  situation_multipliers:
+    feria: 1.8
 - id: beber
   label: beber en la taberna
   duration_ticks: 8
@@ -377,6 +416,8 @@ actions:
   phase_multipliers: &id001
     manana: 0.35
     noche: 1.6
+  situation_multipliers:
+    feria: 1.9
 - id: tomar_el_aire
   label: tomar el aire
   duration_ticks: 6
@@ -386,6 +427,10 @@ actions:
   effects:
     estimulo: 0.26
   saturation_gain: 0.25
+  situation_multipliers:
+    invierno: 0.45
+    ventisca: 0.2
+    feria: 1.6
 - id: meditar
   label: asentar el nucleo
   duration_ticks: 10
@@ -426,6 +471,9 @@ actions:
     vinculo: 0.4
   saturation_gain: 0.12
   phase_multipliers: *id001
+  situation_multipliers:
+    invierno: 1.7
+    ventisca: 2.0
 - id: holgazanear
   label: no hacer nada
   duration_ticks: 4
@@ -638,6 +686,8 @@ actions:
     discrecion: -0.07
   saturation_gain: 0.08
   phase_multipliers: *id002
+  situation_multipliers:
+    oleada: 2.2
 - id: caza_menor
   label: cazar en el bosque
   duration_ticks: 12
@@ -653,6 +703,8 @@ actions:
     estimulo: 0.1
     armas: 0.003
   saturation_gain: 0.06
+  situation_multipliers:
+    invierno: 0.55
 - id: caza_mayor
   label: batir la espesura
   duration_ticks: 16
@@ -676,6 +728,9 @@ actions:
     temple: 0.004
     discrecion: -0.012
   saturation_gain: 0.06
+  situation_multipliers:
+    invierno: 0.5
+    ventisca: 0.4
 - id: expoliar_cripta
   label: expoliar la cripta
   duration_ticks: 12
@@ -697,6 +752,8 @@ actions:
     armas: 0.005
     temple: 0.004
   saturation_gain: 0.06
+  situation_multipliers:
+    oleada: 0.5
 - id: expoliar_galerias
   label: expoliar las galerias
   duration_ticks: 16
@@ -723,6 +780,8 @@ actions:
     temple: 0.006
     discrecion: -0.02
   saturation_gain: 0.06
+  situation_multipliers:
+    oleada: 0.4
 - id: expoliar_corazon
   label: bajar al corazon de la sima
   duration_ticks: 24
@@ -772,6 +831,8 @@ actions:
     descanso: -0.15
     temple: 0.003
   saturation_gain: 0.06
+  situation_multipliers:
+    oleada: 0.2
 - id: trabajar_en_la_fragua
   label: trabajar en la fragua
   duration_ticks: 16
@@ -991,6 +1052,8 @@ places:
   - caza_mayor
   neighbors:
     bosque: 3
+  closed_during:
+  - ventisca
 - id: sendero
   label: el sendero de piedra
   affordances:
@@ -1031,6 +1094,8 @@ places:
   - expolio_3
   neighbors:
     galerias: 2
+  closed_during:
+  - oleada
 agents:
 - id: kiara
   label: Kiara Reynolds
