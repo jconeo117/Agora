@@ -103,22 +103,17 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
                 if urgent:
                     crisis += 1
 
-        for event in sim.log:
-            match event.kind:
-                case EventKind.ACTION_COMPLETED:
-                    completed += 1
-                    if event.action is not None:
-                        used.add(event.action)
-                        if event.actor is not None:
-                            profiles[event.actor][event.action] += 1
-                case EventKind.ACTION_ABORTED:
-                    aborted += 1
-                case EventKind.IDLE_STALLED:
-                    stalls += 1
-                case EventKind.TRAVEL_STARTED:
-                    transit += int(event.data.get("ticks", 0))
-                case _:
-                    pass
+        # Del recuento y no de los eventos: son los totales de la corrida entera
+        # aunque el log conserve solo una ventana. Recorrer dos millones de
+        # eventos para sacar treinta números tampoco tenía defensa.
+        recuento = sim.log.recuento
+        completed += recuento.por_tipo[EventKind.ACTION_COMPLETED]
+        aborted += recuento.por_tipo[EventKind.ACTION_ABORTED]
+        stalls += recuento.por_tipo[EventKind.IDLE_STALLED]
+        transit += recuento.ticks_de_viaje
+        for actor, acciones in recuento.por_agente_accion.items():
+            profiles[actor].update(acciones)
+            used.update(acciones)
 
         for agent in sim.state.agents_in_order():
             for need, value in agent.needs.items():

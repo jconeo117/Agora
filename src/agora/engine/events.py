@@ -15,8 +15,9 @@ reordena ni se reutiliza jamás.
 from __future__ import annotations
 
 import json
+from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
 from typing import Any
@@ -129,6 +130,45 @@ class Event:
         return json.dumps(campos, separators=(",", ":"), ensure_ascii=False)
 
 
+@dataclass(slots=True)
+class Recuento:
+    """Los totales de la corrida, acumulados al emitir.
+
+    Existe por dos razones y la segunda es la importante.
+
+    La barata: `health` y el resumen de actividad recorrían dos millones de
+    eventos para producir treinta números. Contar al emitir cuesta cero.
+
+    **La que manda: hace que los totales no dependan de lo que el log conserve.**
+    En cuanto haya ventana, `of_kind` solo ve el tramo retenido, y un resumen
+    calculado sobre él *mentiría* en vez de fallar. Por eso esto va ANTES que la
+    ventana y no después.
+
+    Tres campos con nombre y no un contador genérico: cada uno responde a una
+    pregunta concreta que ya se hace hoy.
+    """
+
+    por_tipo: Counter[EventKind] = field(default_factory=Counter)
+    """Cuántos de cada clase. Completadas, abortadas y bloqueos salen de aquí."""
+
+    por_agente_accion: dict[AgentId, Counter[ActionId]] = field(default_factory=dict)
+    """Quién completó qué, y cuántas veces. Es el perfil con el que se mide la
+    diferenciación: si dos agentes tienen el mismo, el pack no los distingue."""
+
+    ticks_de_viaje: int = 0
+    """Tiempo total en tránsito. El único campo que lee dentro de un payload
+    (`ticks` de TRAVEL_STARTED), porque el dato no cabe en el propio evento."""
+
+    def anotar(self, event: Event) -> None:
+        self.por_tipo[event.kind] += 1
+        if event.kind is EventKind.ACTION_COMPLETED:
+            if event.actor is not None and event.action is not None:
+                self.por_agente_accion.setdefault(event.actor, Counter())[event.action] += 1
+        elif event.kind is EventKind.TRAVEL_STARTED:
+            ticks = event.data.get("ticks", 0)
+            self.ticks_de_viaje += int(ticks) if isinstance(ticks, int | float) else 0
+
+
 class EventLog:
     """Append-only, con índices para las consultas que el motor hará de verdad.
 
@@ -138,12 +178,13 @@ class EventLog:
     después obliga a recorrer el log entero en cada consulta.
     """
 
-    __slots__ = ("_by_actor", "_by_place", "_events")
+    __slots__ = ("_by_actor", "_by_place", "_events", "recuento")
 
     def __init__(self) -> None:
         self._events: list[Event] = []
         self._by_actor: dict[AgentId, list[int]] = {}
         self._by_place: dict[PlaceId, list[int]] = {}
+        self.recuento = Recuento()
 
     def emit(
         self,
@@ -172,6 +213,7 @@ class EventLog:
             data=data if data else SIN_DATOS,
         )
         self._events.append(event)
+        self.recuento.anotar(event)
 
         if event.actor is not None:
             self._by_actor.setdefault(event.actor, []).append(event.seq)

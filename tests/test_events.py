@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from agora.engine.events import EventKind, EventLog
-from agora.engine.ontology import AgentId, PlaceId
+from agora.engine.ontology import ActionId, AgentId, PlaceId
 
 ALFA = AgentId("alfa")
 BETA = AgentId("beta")
@@ -56,6 +56,28 @@ def test_events_are_immutable() -> None:
     except Exception:
         return
     raise AssertionError("el pasado no debería poder reescribirse")
+
+
+def test_the_tally_matches_walking_the_log() -> None:
+    """Mientras no haya ventana, contar al emitir y contar recorriendo tienen
+    que dar lo mismo. Es lo que hace creíble al recuento cuando ya no se pueda
+    comprobar así."""
+    log = EventLog()
+    log.emit(tick=1, kind=EventKind.ACTION_COMPLETED, actor=ALFA, action=ActionId("comer"))
+    log.emit(tick=1, kind=EventKind.ACTION_COMPLETED, actor=ALFA, action=ActionId("comer"))
+    log.emit(tick=2, kind=EventKind.ACTION_COMPLETED, actor=BETA, action=ActionId("comer"))
+    log.emit(tick=2, kind=EventKind.ACTION_ABORTED, actor=BETA)
+    log.emit(tick=3, kind=EventKind.TRAVEL_STARTED, actor=ALFA, data={"ticks": 4})
+    log.emit(tick=4, kind=EventKind.TRAVEL_STARTED, actor=ALFA, data={"ticks": 6})
+
+    recuento = log.recuento
+    assert recuento.por_tipo[EventKind.ACTION_COMPLETED] == len(
+        log.of_kind(EventKind.ACTION_COMPLETED)
+    )
+    assert recuento.por_tipo[EventKind.ACTION_ABORTED] == 1
+    assert recuento.por_agente_accion[ALFA][ActionId("comer")] == 2
+    assert recuento.por_agente_accion[BETA][ActionId("comer")] == 1
+    assert recuento.ticks_de_viaje == 10
 
 
 def test_jsonl_is_stable_for_determinism_diffs() -> None:

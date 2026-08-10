@@ -123,14 +123,15 @@ def render_activity_summary(pack: ContentPack, log: EventLog) -> Iterator[str]:
 
     Es el resumen que más rápido delata una mala calibración: si un agente comió
     40 veces y trabajó 2, los números del pack están mal, no el motor.
-    """
-    tally: dict[tuple[str, str], int] = {}
-    for event in log.of_kind(EventKind.ACTION_COMPLETED):
-        if event.actor is None or event.action is None:
-            continue
-        key = (pack.agent_by_id[event.actor].label, pack.action_by_id[event.action].label)
-        tally[key] = tally.get(key, 0) + 1
 
+    Se lee del `recuento` y no de los eventos: así sigue siendo el resumen de la
+    corrida ENTERA aunque el log solo conserve los últimos días.
+    """
+    tally = {
+        (pack.agent_by_id[agent].label, pack.action_by_id[action].label): count
+        for agent, acciones in log.recuento.por_agente_accion.items()
+        for action, count in acciones.items()
+    }
     yield "acciones completadas:"
     for (actor, action), count in sorted(tally.items()):
         yield f"  {actor:<7} {action:<22} {count:>4}"
