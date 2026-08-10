@@ -209,6 +209,12 @@ class EventLog:
     - `recuento` sigue siendo el de la corrida entera. Por eso se construyó
       antes que esto.
 
+    Ojo a cómo se combina con el salto temporal: la ventana cuenta en tiempo del
+    MUNDO, no en días simulados. Con `--skip 14 --window 7` el reloj avanza trece
+    días de golpe entre tramo y tramo, así que lo que queda retenido es el último
+    día simulado y no siete. Es correcto —el mundo sí pasó por esos días— pero no
+    es lo que sugiere el número.
+
     **El vertido.** Con `sink`, cada evento se escribe según se genera. Es lo que
     hace inocua a la ventana: la historia entera queda en el fichero y en memoria
     solo vive lo reciente. Antes el volcado se hacía al final, así que para
