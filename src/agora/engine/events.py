@@ -14,10 +14,12 @@ reordena ni se reutiliza jamás.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Iterator, Mapping
+from dataclasses import dataclass
 from enum import StrEnum
-
-from pydantic import BaseModel, ConfigDict, Field
+from types import MappingProxyType
+from typing import Any
 
 from agora.engine.ontology import ActionId, AgentId, PlaceId
 
@@ -25,6 +27,13 @@ type Payload = Mapping[str, str | int | float | bool]
 """Datos extra del evento. Deliberadamente plano y sin objetos: el log debe
 poder serializarse a JSONL sin ceremonia, y un briefing para un modelo pequeño
 se construye mucho mejor desde valores escalares."""
+
+SIN_DATOS: Payload = MappingProxyType({})
+"""El payload de los eventos que no llevan ninguno, que son el 90%.
+
+Un `default_factory=dict` alojaba un diccionario vacío nuevo por evento: 64
+bytes por cada uno de los dos millones de una carrera larga, para no guardar
+nada. Compartir uno inmutable cuesta cero y no se puede mutar por accidente."""
 
 
 class EventKind(StrEnum):
@@ -59,13 +68,28 @@ class EventKind(StrEnum):
     pack (falta la acción de red de seguridad) o en la deliberación."""
 
 
-class Event(BaseModel):
-    """Un hecho ocurrido. Inmutable: el pasado no se reescribe."""
+@dataclass(frozen=True, slots=True)
+class Event:
+    """Un hecho ocurrido. Inmutable: el pasado no se reescribe.
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    **No es un modelo de pydantic, y la distinción es de fondo:** pydantic
+    existe para validar lo que escribe el humano —el YAML del pack, que puede
+    estar mal—. Un evento lo construye el motor con datos que él mismo acaba de
+    calcular. Validarlo es pagar por comprobar lo que ya sabemos.
 
-    seq: int = Field(ge=0)
-    tick: int = Field(ge=0)
+    El precio era literal. Medido, doscientos mil eventos de cada:
+
+        pydantic (frozen)      1176 B/evento    6.84 us/emision
+        dataclass + slots       136 B/evento    3.83 us/emision
+
+    Un `BaseModel` congelado arrastra `__dict__`, `__pydantic_extra__`,
+    `__pydantic_private__` y `__pydantic_fields_set__` —este último un *set*,
+    que solo él ya pesa mas que el evento entero—. Con `slots` no hay ninguno de
+    los cuatro. En una carrera de cinco años son treinta gigas contra cuatro.
+    """
+
+    seq: int
+    tick: int
     kind: EventKind
     actor: AgentId | None = None
     place: PlaceId | None = None
@@ -73,7 +97,36 @@ class Event(BaseModel):
     subject: AgentId | None = None
     """El otro agente implicado, cuando lo hay (encuentros, y en F2 diálogo)."""
 
-    data: Payload = Field(default_factory=dict)
+    data: Payload = SIN_DATOS
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> Event:
+        """Se devuelve a sí mismo, y no es un atajo sucio: es la consecuencia de
+        ser inmutable. Copiar un hecho pasado no puede producir nada distinto.
+
+        Lo destapó `error_de_salto`, que clona la simulación dos veces: estaba
+        deep-copiando dos millones de eventos uno a uno para volver a tener
+        exactamente los mismos.
+        """
+        return self
+
+    def __copy__(self) -> Event:
+        return self
+
+    def to_json(self) -> str:
+        """Una línea JSONL. Se omite lo que no lleva valor, incluido el payload
+        vacío: en el 90% de los eventos `"data":{}` era ruido puro."""
+        campos: dict[str, Any] = {"seq": self.seq, "tick": self.tick, "kind": self.kind.value}
+        if self.actor is not None:
+            campos["actor"] = self.actor
+        if self.place is not None:
+            campos["place"] = self.place
+        if self.action is not None:
+            campos["action"] = self.action
+        if self.subject is not None:
+            campos["subject"] = self.subject
+        if self.data:
+            campos["data"] = dict(self.data)
+        return json.dumps(campos, separators=(",", ":"), ensure_ascii=False)
 
 
 class EventLog:
@@ -116,7 +169,7 @@ class EventLog:
             place=place,
             action=action,
             subject=subject,
-            data=data or {},
+            data=data if data else SIN_DATOS,
         )
         self._events.append(event)
 
@@ -169,4 +222,4 @@ class EventLog:
         El test de determinismo compara exactamente esto: mismo seed, mismo
         JSONL, byte a byte.
         """
-        return (event.model_dump_json(exclude_none=True) for event in self._events)
+        return (event.to_json() for event in self._events)
