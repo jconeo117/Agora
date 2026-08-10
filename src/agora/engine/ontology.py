@@ -32,6 +32,7 @@ TraitId = NewType("TraitId", str)
 GoalId = NewType("GoalId", str)
 PhaseId = NewType("PhaseId", str)
 SituationId = NewType("SituationId", str)
+RelationId = NewType("RelationId", str)
 ActionId = NewType("ActionId", str)
 PlaceId = NewType("PlaceId", str)
 AgentId = NewType("AgentId", str)
@@ -514,6 +515,20 @@ class ActionSpec(Spec):
     conducta sale sola en vez de declararse.
     """
 
+    requires_relation: RelationId | None = None
+    """Solo se puede hacer con alguien de los tuyos delante. `None` = con
+    cualquiera, o a solas.
+
+    Sexta puerta dura, hermana de `requires_company`, y la diferencia entre las
+    dos es exactamente la que hay entre un vínculo y una relación: aquella
+    cuenta CABEZAS —una fiesta necesita cuerpos— y esta pregunta QUIÉN. Cenar en
+    familia no se arregla con más gente.
+
+    Es lo que impide que la capa relacional se quede en tintar números. Sin una
+    puerta, tener una pareja solo haría que ciertos sitios apeteciesen un poco
+    más; con ella hay cosas que solo existen si esa persona está.
+    """
+
     situation_multipliers: dict[SituationId, PositiveFactor] = Field(default_factory=dict)
     """Cuánto apetece esto según cómo esté el mundo. Lo ausente vale 1.0.
 
@@ -759,11 +774,39 @@ class AgentSpec(Spec):
     initial_needs: dict[NeedId, float] = Field(default_factory=dict)
     """Override del `initial` de cada NeedSpec. Lo que falte usa el default."""
 
+    relations: dict[RelationId, frozenset[AgentId]] = Field(default_factory=dict)
+    """De quién es qué. Se declara UNA vez y el motor pone la otra mitad.
+
+    Simétricas e inversas se materializan solas al construir el mundo, así que
+    escribir la hermandad de A con B ya hace a B hermano de A. Obligar a
+    escribirlo dos veces garantizaría que antes o después falte una de las dos.
+    """
+
+    initial_bonds: dict[AgentId, float] = Field(default_factory=dict)
+    """Aprecio de partida hacia otros. Vacío = el mundo empieza sin conocerse.
+
+    Es la otra mitad de lo que hacía falta para un mundo con historia previa.
+    Una relación dice QUÉ son el uno del otro; esto dice CÓMO se llevan, que no
+    es lo mismo y a menudo no coincide: dos hermanos que se detestan son dos
+    hermanos, y el pack tiene que poder escribirlo.
+
+    Sin esto, cualquier mundo empezaba con todos siendo desconocidos entre sí,
+    y las primeras semanas de cualquier corrida eran el mundo presentándose.
+    """
+
     @model_validator(mode="after")
     def _traits_in_range(self) -> AgentSpec:
         for trait, value in self.traits.items():
             if not -1.0 <= value <= 1.0:
                 raise ValueError(f"rasgo {trait!r} = {value}, fuera de [-1, 1]")
+        for other, regard in self.initial_bonds.items():
+            if not -1.0 <= regard <= 1.0:
+                raise ValueError(f"aprecio inicial hacia {other!r} = {regard}, fuera de [-1, 1]")
+        for relation, quienes in self.relations.items():
+            if self.id in quienes:
+                raise ValueError(f"relación {relation!r}: {self.id!r} lo es de sí mismo")
+        if self.id in self.initial_bonds:
+            raise ValueError(f"agente {self.id!r}: aprecio inicial hacia sí mismo")
         return self
 
 
@@ -899,6 +942,99 @@ class ClockSpec(Spec):
                 break
             chosen = phase
         return chosen.id
+
+
+# ---------------------------------------------------------------------------
+# Relaciones: qué es uno de otro
+# ---------------------------------------------------------------------------
+class RelationSpec(Spec):
+    """Un lazo con nombre entre dos personas. El motor no sabe qué es un hermano.
+
+    **Un vínculo es lo que sientes; una relación es lo que ERES de alguien.** La
+    distinción es de fondo y por eso son dos cosas y no una:
+
+    - `Bond` es emergente, asimétrico, gradual y se olvida. Sale de compartir
+      ratos y se desdibuja si dejas de verte.
+    - Una relación es un HECHO. No crece con el trato ni se disuelve por dejar
+      de verse. Tu hermano sigue siendo tu hermano el año que no lo visitas, y
+      lo sigue siendo el día que lo detestas.
+
+    Meterlo dentro de `Bond` habría sido tentador y habría hecho imposible
+    justamente eso: un aprecio con nombre se disolvería con el aprecio.
+
+    De aquí salen la pareja, la familia, el maestro y el discípulo, la deuda y
+    la enemistad declarada — y es la pieza que faltaba para que más adelante
+    haya descendencia, porque nacer es exactamente crear dos relaciones.
+
+    Una relación puede no hacer NADA mecánicamente y seguir siendo legítima.
+    Eso la separa de una situación, que si no afecta a nada es contenido muerto:
+    aquí el hecho ya vale por sí solo — es lo que el narrador necesita saber y
+    lo que la descendencia va a leer.
+    """
+
+    id: RelationId
+    label: str
+
+    symmetric: bool = False
+    """Si vale en los dos sentidos con el mismo nombre. Hermano sí, maestro no.
+
+    Declararla una vez basta: el motor pone la otra mitad. Si no, el pack
+    tendría que escribir cada hermandad dos veces y una de las dos acabaría
+    faltando — un mundo donde A es hermano de B pero B no lo es de A.
+    """
+
+    inverse: RelationId | None = None
+    """La que se crea del otro lado cuando es dirigida: maestro <-> discípulo.
+
+    Alternativa a `symmetric`, no complemento: una relación o vale igual en
+    ambos sentidos o se llama distinto en cada uno.
+    """
+
+    exclusive: bool = False
+    """Como mucho una persona. Pareja sí, hermano no.
+
+    Se comprueba al declararla y al crearla en marcha, porque es el invariante
+    que va a sostener la descendencia: dos parejas simultáneas no es una regla
+    moral, es un árbol genealógico que deja de poder leerse.
+    """
+
+    regard_floor: float | None = Field(default=None, ge=-1.0, le=1.0)
+    """Suelo del aprecio hacia esa persona. `None` = ninguno.
+
+    **`None` y `0.0` no son lo mismo**, y confundirlos costó un test: un suelo en
+    cero aplasta el aprecio negativo, así que una relación sin suelo declarado
+    haría imposible detestar a un hermano. `None` no toca nada; `0.0` es un
+    suelo de verdad, el de quien nunca llega a caerte mal del todo.
+
+    Es lo que hace que una relación se NOTE sin convertirla en un vínculo: el
+    aprecio sigue subiendo y bajando con lo que se comparte, pero no cae por
+    debajo de aquí. La familia se aguanta.
+
+    También es el punto de partida: quien empieza siendo pareja de alguien no
+    empieza siendo un desconocido.
+    """
+
+    company_multiplier: PositiveFactor = 1.0
+    """Cuánto pesa su presencia frente a la de un desconocido de igual aprecio.
+
+    Multiplica dentro de `effective_company`, así que un plan donde estará tu
+    pareja atrae más que el mismo plan con alguien que te cae igual de bien. Es
+    la diferencia entre apreciar a alguien y que ese alguien sea de los tuyos.
+    """
+
+    @model_validator(mode="after")
+    def _one_way_of_being_two_sided(self) -> RelationSpec:
+        if self.symmetric and self.inverse is not None:
+            raise ValueError(
+                f"relación {self.id!r}: es simétrica y además declara `inverse` "
+                f"{self.inverse!r}. O vale igual en ambos sentidos, o se llama "
+                f"distinto en cada uno"
+            )
+        if self.inverse == self.id:
+            raise ValueError(
+                f"relación {self.id!r}: su propia inversa. Eso es `symmetric: true`"
+            )
+        return self
 
 
 # ---------------------------------------------------------------------------

@@ -35,6 +35,8 @@ from agora.engine.ontology import (
     NeedSpec,
     PlaceId,
     PlaceSpec,
+    RelationId,
+    RelationSpec,
     SituationId,
     SituationSpec,
     Spec,
@@ -63,6 +65,10 @@ class ContentPack(Spec):
     health: HealthSpec = Field(default_factory=HealthSpec)
     """Contrato de salud: qué clase de mundo dice ser este pack. Lo verifica
     `agora.health`, y lo comprueba la batería de tests sobre todos los packs."""
+
+    relations: tuple[RelationSpec, ...] = ()
+    """Qué puede ser una persona de otra. Vacío = un mundo de desconocidos, que
+    es donde estaba el motor hasta ahora."""
 
     situations: tuple[SituationSpec, ...] = ()
     """Cómo puede estar el mundo. Vacío = el mundo no tiene estados, y entonces
@@ -114,6 +120,10 @@ class ContentPack(Spec):
         return {agent.id: agent for agent in self.agents}
 
     @cached_property
+    def relation_by_id(self) -> dict[RelationId, RelationSpec]:
+        return {relation.id: relation for relation in self.relations}
+
+    @cached_property
     def situation_by_id(self) -> dict[SituationId, SituationSpec]:
         return {situation.id: situation for situation in self.situations}
 
@@ -163,6 +173,7 @@ class ContentPack(Spec):
             *self._duplicates("lugares", (p.id for p in self.places)),
             *self._duplicates("agentes", (a.id for a in self.agents)),
             *self._duplicates("situaciones", (s.id for s in self.situations)),
+            *self._duplicates("relaciones", (r.id for r in self.relations)),
         ]
 
     def _check_global_id_collisions(self) -> list[str]:
@@ -366,6 +377,89 @@ class ContentPack(Spec):
                 f"situación {situation.id!r}", "necesidad", situation.gain_multipliers, known
             )
         return problems
+
+    def _check_relation_refs(self) -> list[str]:
+        """Toda relación mencionada existe, va a alguien que existe, y las
+        inversas se corresponden.
+
+        Lo último es lo que más cuesta ver a ojo y lo que peor falla: si
+        `maestro.inverse` es `discipulo` pero `discipulo.inverse` es otra cosa,
+        el mundo se construye sin protestar y queda medio torcido.
+        """
+        known = frozenset(str(r.id) for r in self.relations)
+        conocidos_agente = frozenset(str(a.id) for a in self.agents)
+        by_id = self.relation_by_id
+        problems: list[str] = []
+
+        for relation in self.relations:
+            if relation.inverse is None:
+                continue
+            if str(relation.inverse) not in known:
+                problems.append(
+                    f"relación {relation.id!r}.inverse: desconocida {relation.inverse!r}"
+                )
+            elif by_id[relation.inverse].inverse != relation.id:
+                problems.append(
+                    f"relación {relation.id!r}: dice que su inversa es "
+                    f"{relation.inverse!r}, pero {relation.inverse!r} no dice lo mismo "
+                    f"de ella. Las inversas se declaran en los dos lados"
+                )
+
+        for action in self.actions:
+            if action.requires_relation is not None and (
+                str(action.requires_relation) not in known
+            ):
+                problems.append(
+                    f"acción {action.id!r}.requires_relation: relación desconocida "
+                    f"{action.requires_relation!r}"
+                )
+
+        for agent in self.agents:
+            problems += self._unknown_keys(
+                f"agente {agent.id!r}", "relación", agent.relations, known
+            )
+            for rel, quienes in sorted(agent.relations.items()):
+                problems += [
+                    f"agente {agent.id!r}, relación {rel!r}: agente desconocido {otro!r}"
+                    for otro in sorted(quienes)
+                    if str(otro) not in conocidos_agente
+                ]
+            problems += [
+                f"agente {agent.id!r}.initial_bonds: agente desconocido {otro!r}"
+                for otro in sorted(agent.initial_bonds)
+                if str(otro) not in conocidos_agente
+            ]
+        return problems
+
+    def _check_exclusive_relations(self) -> list[str]:
+        """Nadie tiene dos parejas.
+
+        No es una regla moral: es el invariante que va a sostener la
+        descendencia. Dos parejas simultáneas es un árbol genealógico que deja
+        de poder leerse, y conviene que reviente ahora y no al tercer hijo.
+
+        Se cuenta después de cerrar las simetrías —a mano, porque el estado aún
+        no existe— o se escaparía el caso de dos personas declarando pareja a la
+        misma tercera, que es el que de verdad se comete.
+        """
+        by_id = self.relation_by_id
+        cuenta: dict[tuple[str, RelationId], set[str]] = {}
+        for agent in self.agents:
+            for rel, quienes in agent.relations.items():
+                if rel not in by_id or not by_id[rel].exclusive:
+                    continue
+                regla = by_id[rel]
+                for otro in quienes:
+                    cuenta.setdefault((str(agent.id), rel), set()).add(str(otro))
+                    if regla.symmetric:
+                        cuenta.setdefault((str(otro), rel), set()).add(str(agent.id))
+
+        return [
+            f"agente {quien!r}: la relación {rel!r} es exclusiva y tiene "
+            f"{len(otros)} ({', '.join(sorted(otros))})"
+            for (quien, rel), otros in sorted(cuenta.items())
+            if len(otros) > 1
+        ]
 
     def _check_situation_refs(self) -> list[str]:
         """Toda situación mencionada existe, y alcanza a algún sitio real.
@@ -613,6 +707,8 @@ class ContentPack(Spec):
             *self._check_trait_refs(),
             *self._check_place_refs(),
             *self._check_phase_refs(),
+            *self._check_relation_refs(),
+            *self._check_exclusive_relations(),
             *self._check_situation_refs(),
             *self._check_situations_do_something(),
             *self._check_places_are_open_sometime_despite_situations(),

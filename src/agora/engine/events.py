@@ -66,6 +66,13 @@ class EventKind(StrEnum):
     GOAL_FAILED = "goal_failed"
     """Se le acabó el plazo. Suele ser el material más interesante de los dos."""
 
+    RELATION_BEGAN = "relation_began"
+    """Dos personas pasan a ser algo el uno del otro. Casarse, tomar un
+    discipulo, declararse enemigos — y mas adelante nacer, que no es otra cosa
+    que crear dos relaciones de golpe."""
+
+    RELATION_ENDED = "relation_ended"
+
     SITUATION_BEGAN = "situation_began"
     """Al mundo le empezó a pasar algo. Solo las eventuales lo emiten: una
     periódica es una función del reloj y anunciarla sería anunciar que amaneció

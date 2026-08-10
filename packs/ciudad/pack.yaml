@@ -1,5 +1,26 @@
 id: ciudad
 label: La ciudad y la sima
+relations:
+- id: pareja
+  label: pareja
+  symmetric: true
+  exclusive: true
+  regard_floor: 0.45
+  company_multiplier: 2.0
+- id: hermano
+  label: hermano
+  symmetric: true
+  company_multiplier: 1.5
+- id: maestro
+  label: maestro de
+  inverse: discipulo
+  regard_floor: 0.2
+  company_multiplier: 1.4
+- id: discipulo
+  label: discipulo de
+  inverse: maestro
+  regard_floor: 0.3
+  company_multiplier: 1.6
 situations:
 - id: invierno
   label: invierno
@@ -867,6 +888,27 @@ actions:
     ahorros: 0.004
     discrecion: -0.02
   phase_multipliers: *id001
+- id: cenar_con_los_tuyos
+  label: cenar con los tuyos
+  duration_ticks: 5
+  requires_affordance: mesa
+  requires_relation: pareja
+  requires:
+    dinero: 0.1
+  satisfies:
+    vinculo: 0.9
+    sustento: 0.7
+  costs:
+    dinero: 0.22
+  effects:
+    vinculo: 0.3
+    sustento: 0.45
+    dinero: -0.06
+  effects_per_company:
+    vinculo: 0.1
+  phase_multipliers:
+    noche: 1.8
+    tarde: 1.2
 places:
 - id: aca_patio
   label: el patio de la academia
@@ -1132,6 +1174,8 @@ agents:
       laboriosidad: 0.6
       ambicion: 0.4
       hedonismo: -0.3
+  initial_bonds:
+    aster: 0.1
 - id: aster
   label: Aster Collins
   home: aca_celdas
@@ -1170,6 +1214,11 @@ agents:
     on_failure:
       aguante: -0.4
       ambicion: -0.3
+  relations:
+    discipulo:
+    - kiara
+  initial_bonds:
+    kiara: 0.35
 - id: sira
   label: Sira
   home: aca_celdas
@@ -1199,6 +1248,9 @@ agents:
     on_failure:
       ambicion: -0.5
       apego_al_hogar: 0.4
+  relations:
+    hermano:
+    - teo
 - id: teo
   label: Teo
   home: aca_celdas
@@ -1257,6 +1309,9 @@ agents:
     on_failure:
       ambicion: -0.5
       apego_al_hogar: 0.4
+  relations:
+    hermano:
+    - orso
 - id: orso
   label: Orso
   home: aca_celdas
@@ -1305,6 +1360,11 @@ agents:
     multiplier: 2.2
   - target: tasar_botin
     multiplier: 1.8
+  relations:
+    hermano:
+    - vela
+  initial_bonds:
+    vela: -0.55
 - id: vela
   label: Vela
   home: barrio_bajo
@@ -1324,6 +1384,9 @@ agents:
     multiplier: 2.2
   - target: tasar_botin
     multiplier: 1.8
+  initial_bonds:
+    brac: -0.45
+    dalia: 0.5
 - id: hult
   label: Hult
   home: posada
@@ -1342,6 +1405,9 @@ agents:
     multiplier: 2.2
   - target: tasar_botin
     multiplier: 1.8
+  relations:
+    pareja:
+    - dalia
 - id: mira
   label: Mira
   home: barrio_alto
@@ -1357,6 +1423,11 @@ agents:
     multiplier: 2.4
   - target: aca_patio
     multiplier: 0.2
+  relations:
+    pareja:
+    - bram
+  initial_bonds:
+    bram: 0.75
 - id: arthur_leywin
   label: Arthur Leywin
   home: aca_celdas
@@ -1395,6 +1466,9 @@ agents:
     on_failure:
       impulsividad: 0.4
       aguante: -0.3
+  relations:
+    hermano:
+    - mikasa_lionheart
 - id: mikasa_lionheart
   label: Mikasa Lionheart
   home: aca_celdas
@@ -1471,6 +1545,9 @@ agents:
     on_failure:
       impulsividad: 0.5
       laboriosidad: -0.2
+  relations:
+    hermano:
+    - albedo_elric
 - id: albedo_elric
   label: Albedo Elric
   home: aca_celdas
@@ -1547,6 +1624,9 @@ agents:
     on_failure:
       laboriosidad: 0.7
       hedonismo: -0.5
+  relations:
+    hermano:
+    - alexia_tompson
 - id: alexia_tompson
   label: Alexia Tompson
   home: aca_celdas
@@ -1620,6 +1700,9 @@ agents:
     on_failure:
       laboriosidad: 0.6
       aguante: 0.3
+  relations:
+    hermano:
+    - lena_hartwell
 - id: lena_hartwell
   label: Lena Hartwell
   home: aca_celdas
@@ -1683,6 +1766,9 @@ agents:
     on_failure:
       aguante: -0.4
       apego_al_hogar: 0.4
+  relations:
+    hermano:
+    - nora_bellamy
 - id: nora_bellamy
   label: Nora Bellamy
   home: aca_celdas
@@ -1748,6 +1834,9 @@ agents:
     on_failure:
       sociabilidad: -0.4
       apego_al_hogar: 0.4
+  relations:
+    hermano:
+    - maya_sterling
 - id: maya_sterling
   label: Maya Sterling
   home: aca_celdas
@@ -1804,6 +1893,9 @@ agents:
     on_failure: &id009
       sociabilidad: -0.4
       apego_al_hogar: 0.4
+  relations:
+    hermano:
+    - lira_brannigan
 - id: lira_brannigan
   label: Lira Brannigan
   home: aca_celdas
@@ -1856,6 +1948,9 @@ agents:
     multiplier: 2.3
   initial_needs:
     curso: 0.05
+  relations:
+    hermano:
+    - mira_norwick
 - id: mira_norwick
   label: Mira Norwick
   home: aca_celdas
@@ -2223,6 +2318,8 @@ agents:
     deadline: 207360
     on_success: *id008
     on_failure: *id009
+  initial_bonds:
+    finnian_sorrengale: 0.35
 - id: cedric_quicksilver
   label: Cedric Quicksilver
   home: aca_celdas
@@ -2251,6 +2348,8 @@ agents:
     deadline: 207360
     on_success: *id006
     on_failure: *id007
+  initial_bonds:
+    finnian_sorrengale: 0.35
 - id: torvald_mareshade
   label: Torvald Mareshade
   home: aca_celdas
@@ -2279,6 +2378,8 @@ agents:
     deadline: 207360
     on_success: *id008
     on_failure: *id009
+  initial_bonds:
+    gorm_cinderfall: 0.35
 - id: magnus_winterfell
   label: Magnus Winterfell
   home: aca_celdas
@@ -2299,6 +2400,8 @@ agents:
     multiplier: 2.3
   initial_needs:
     curso: 0.45
+  initial_bonds:
+    gorm_cinderfall: 0.35
 - id: aisling_cinderfall
   label: Aisling Cinderfall
   home: aca_celdas
@@ -2326,6 +2429,8 @@ agents:
     deadline: 207360
     on_success: *id004
     on_failure: *id005
+  initial_bonds:
+    landon_kestrelwing: 0.35
 - id: galena_highgarden
   label: Galena Highgarden
   home: aca_celdas
@@ -2345,6 +2450,8 @@ agents:
     multiplier: 2.3
   initial_needs:
     curso: 0.45
+  initial_bonds:
+    landon_kestrelwing: 0.35
 - id: orin_cassel
   label: Orin Cassel
   home: aca_celdas
@@ -2365,6 +2472,8 @@ agents:
     multiplier: 2.3
   initial_needs:
     curso: 0.45
+  initial_bonds:
+    ivo_highgarden: 0.35
 - id: lyra_galewood
   label: Lyra Galewood
   home: aca_celdas
@@ -2394,6 +2503,8 @@ agents:
     deadline: 207360
     on_success: *id004
     on_failure: *id005
+  initial_bonds:
+    ivo_highgarden: 0.35
 - id: einar_quicksilver
   label: Einar Quicksilver
   home: aca_celdas
@@ -2425,6 +2536,8 @@ agents:
     on_failure: &id011
       laboriosidad: 0.5
       hedonismo: -0.3
+  initial_bonds:
+    kael_morrow: 0.35
 - id: dagen_cairnholt
   label: Dagen Cairnholt
   home: aca_celdas
@@ -2443,6 +2556,8 @@ agents:
     multiplier: 2.3
   initial_needs:
     curso: 0.65
+  initial_bonds:
+    kael_morrow: 0.35
 - id: dorian_ashgrove
   label: Dorian Ashgrove
   home: aca_celdas
@@ -2471,6 +2586,8 @@ agents:
     deadline: 207360
     on_success: *id008
     on_failure: *id009
+  initial_bonds:
+    anwen_shadewell: 0.35
 - id: ysolde_forgehand
   label: Ysolde Forgehand
   home: aca_celdas
@@ -2498,6 +2615,8 @@ agents:
     deadline: 207360
     on_success: *id004
     on_failure: *id005
+  initial_bonds:
+    anwen_shadewell: 0.35
 - id: ulrika_vireth
   label: Ulrika Vireth
   home: aca_celdas
@@ -2517,6 +2636,8 @@ agents:
     multiplier: 2.3
   initial_needs:
     curso: 0.65
+  initial_bonds:
+    halvard_aldenar: 0.35
 - id: selwyn_torrent
   label: Selwyn Torrent
   home: aca_celdas
@@ -2545,6 +2666,8 @@ agents:
     deadline: 207360
     on_success: *id010
     on_failure: *id011
+  initial_bonds:
+    halvard_aldenar: 0.35
 - id: thorin_fairwind
   label: Thorin Fairwind
   home: aca_celdas
@@ -2564,6 +2687,8 @@ agents:
     multiplier: 2.3
   initial_needs:
     curso: 0.65
+  initial_bonds:
+    corwyn_hartwell: 0.35
 - id: osric_ashford
   label: Osric Ashford
   home: aca_celdas
@@ -2582,6 +2707,8 @@ agents:
     multiplier: 2.3
   initial_needs:
     curso: 0.65
+  initial_bonds:
+    corwyn_hartwell: 0.35
 - id: jessa_nightingale
   label: Jessa Nightingale
   home: aca_celdas
@@ -2609,6 +2736,8 @@ agents:
     deadline: 207360
     on_success: *id004
     on_failure: *id005
+  initial_bonds:
+    vesna_galewood: 0.35
 - id: aldric_cairnholt
   label: Aldric Cairnholt
   home: aca_celdas
@@ -2627,6 +2756,8 @@ agents:
     multiplier: 2.3
   initial_needs:
     curso: 0.85
+  initial_bonds:
+    vesna_galewood: 0.35
 - id: isolde_farrow
   label: Isolde Farrow
   home: aca_celdas
@@ -2647,6 +2778,8 @@ agents:
     multiplier: 2.3
   initial_needs:
     curso: 0.85
+  initial_bonds:
+    elsa_boldrock: 0.35
 - id: iona_falkenrath
   label: Iona Falkenrath
   home: aca_celdas
@@ -2676,6 +2809,8 @@ agents:
     deadline: 207360
     on_success: *id006
     on_failure: *id007
+  initial_bonds:
+    elsa_boldrock: 0.35
 - id: wendel_palefire
   label: Wendel Palefire
   home: aca_celdas
@@ -2816,6 +2951,13 @@ agents:
     on_failure: &id013
       ambicion: -0.5
       apego_al_hogar: 0.4
+  relations:
+    maestro:
+    - esme_marrow
+    - cedric_quicksilver
+  initial_bonds:
+    esme_marrow: 0.3
+    cedric_quicksilver: 0.3
 - id: gorm_cinderfall
   label: Gorm Cinderfall
   home: barrio_alto
@@ -2842,6 +2984,13 @@ agents:
     deadline: 207360
     on_success: *id012
     on_failure: *id013
+  relations:
+    maestro:
+    - torvald_mareshade
+    - magnus_winterfell
+  initial_bonds:
+    torvald_mareshade: 0.3
+    magnus_winterfell: 0.3
 - id: landon_kestrelwing
   label: Landon Kestrelwing
   home: barrio_alto
@@ -2868,6 +3017,13 @@ agents:
     deadline: 207360
     on_success: *id012
     on_failure: *id013
+  relations:
+    maestro:
+    - aisling_cinderfall
+    - galena_highgarden
+  initial_bonds:
+    aisling_cinderfall: 0.3
+    galena_highgarden: 0.3
 - id: ivo_highgarden
   label: Ivo Highgarden
   home: barrio_alto
@@ -2886,6 +3042,13 @@ agents:
   tastes:
   - target: dar_clase
     multiplier: 2.3
+  relations:
+    maestro:
+    - orin_cassel
+    - lyra_galewood
+  initial_bonds:
+    orin_cassel: 0.3
+    lyra_galewood: 0.3
 - id: kael_morrow
   label: Kael Morrow
   home: barrio_alto
@@ -2904,6 +3067,13 @@ agents:
   tastes:
   - target: dar_clase
     multiplier: 2.3
+  relations:
+    maestro:
+    - einar_quicksilver
+    - dagen_cairnholt
+  initial_bonds:
+    einar_quicksilver: 0.3
+    dagen_cairnholt: 0.3
 - id: anwen_shadewell
   label: Anwen Shadewell
   home: barrio_alto
@@ -2931,6 +3101,13 @@ agents:
     deadline: 207360
     on_success: *id012
     on_failure: *id013
+  relations:
+    maestro:
+    - dorian_ashgrove
+    - ysolde_forgehand
+  initial_bonds:
+    dorian_ashgrove: 0.3
+    ysolde_forgehand: 0.3
 - id: halvard_aldenar
   label: Halvard Aldenar
   home: barrio_alto
@@ -2957,6 +3134,13 @@ agents:
     deadline: 207360
     on_success: *id012
     on_failure: *id013
+  relations:
+    maestro:
+    - ulrika_vireth
+    - selwyn_torrent
+  initial_bonds:
+    ulrika_vireth: 0.3
+    selwyn_torrent: 0.3
 - id: corwyn_hartwell
   label: Corwyn Hartwell
   home: barrio_alto
@@ -2984,6 +3168,13 @@ agents:
     deadline: 207360
     on_success: *id012
     on_failure: *id013
+  relations:
+    maestro:
+    - thorin_fairwind
+    - osric_ashford
+  initial_bonds:
+    thorin_fairwind: 0.3
+    osric_ashford: 0.3
 - id: vesna_galewood
   label: Vesna Galewood
   home: barrio_alto
@@ -3011,6 +3202,13 @@ agents:
     deadline: 207360
     on_success: *id012
     on_failure: *id013
+  relations:
+    maestro:
+    - jessa_nightingale
+    - aldric_cairnholt
+  initial_bonds:
+    jessa_nightingale: 0.3
+    aldric_cairnholt: 0.3
 - id: elsa_boldrock
   label: Elsa Boldrock
   home: barrio_alto
@@ -3037,6 +3235,13 @@ agents:
     deadline: 207360
     on_success: *id012
     on_failure: *id013
+  relations:
+    maestro:
+    - isolde_farrow
+    - iona_falkenrath
+  initial_bonds:
+    isolde_farrow: 0.3
+    iona_falkenrath: 0.3
 - id: ulric_kesteven
   label: Ulric Kesteven
   home: barrio_bajo
@@ -3066,6 +3271,11 @@ agents:
     deadline: 207360
     on_success: *id008
     on_failure: *id009
+  relations:
+    pareja:
+    - bastian_quarrow
+  initial_bonds:
+    bastian_quarrow: 0.55
 - id: erek_stonefell
   label: Erek Stonefell
   home: barrio_bajo
@@ -3099,6 +3309,11 @@ agents:
     on_failure: &id015
       aguante: -0.4
       apego_al_hogar: 0.4
+  relations:
+    pareja:
+    - sigurd_longmire
+  initial_bonds:
+    sigurd_longmire: 0.55
 - id: rhona_greenholt
   label: Rhona Greenholt
   home: barrio_bajo
@@ -3128,6 +3343,11 @@ agents:
     deadline: 207360
     on_success: *id014
     on_failure: *id015
+  relations:
+    pareja:
+    - merek_swiftwind
+  initial_bonds:
+    merek_swiftwind: 0.55
 - id: nils_darrow
   label: Nils Darrow
   home: barrio_bajo
@@ -3148,6 +3368,11 @@ agents:
     multiplier: 2.3
   - target: tasar_botin
     multiplier: 1.7
+  relations:
+    pareja:
+    - corin_vireth
+  initial_bonds:
+    corin_vireth: 0.55
 - id: irsa_corwin
   label: Irsa Corwin
   home: barrio_bajo
@@ -3180,6 +3405,11 @@ agents:
     on_failure: &id017
       frugalidad: 0.5
       sociabilidad: -0.3
+  relations:
+    pareja:
+    - caspian_larkspur
+  initial_bonds:
+    caspian_larkspur: 0.55
 - id: sigrun_fletcher
   label: Sigrun Fletcher
   home: barrio_bajo
@@ -3208,6 +3438,11 @@ agents:
     deadline: 207360
     on_success: *id008
     on_failure: *id009
+  relations:
+    pareja:
+    - bren_ustmark
+  initial_bonds:
+    bren_ustmark: 0.55
 - id: lorna_mercer
   label: Lorna Mercer
   home: barrio_bajo
@@ -3236,6 +3471,11 @@ agents:
     deadline: 207360
     on_success: *id014
     on_failure: *id015
+  relations:
+    pareja:
+    - cael_galewood
+  initial_bonds:
+    cael_galewood: 0.55
 - id: enna_deepwood
   label: Enna Deepwood
   home: barrio_bajo
@@ -3266,6 +3506,11 @@ agents:
     deadline: 207360
     on_success: *id016
     on_failure: *id017
+  relations:
+    pareja:
+    - alenya_tanglewood
+  initial_bonds:
+    alenya_tanglewood: 0.55
 - id: theron_eastfell
   label: Theron Eastfell
   home: barrio_bajo
@@ -3298,6 +3543,11 @@ agents:
     on_failure: &id021
       sociabilidad: -0.5
       impulsividad: 0.4
+  relations:
+    pareja:
+    - senna_hartwell
+  initial_bonds:
+    senna_hartwell: 0.55
 - id: zarah_underhill
   label: Zarah Underhill
   home: barrio_bajo
@@ -3318,6 +3568,11 @@ agents:
     multiplier: 2.3
   - target: tasar_botin
     multiplier: 1.7
+  relations:
+    pareja:
+    - dara_darrow
+  initial_bonds:
+    dara_darrow: 0.55
 - id: quill_brannigan
   label: Quill Brannigan
   home: barrio_bajo
@@ -3349,6 +3604,11 @@ agents:
     deadline: 207360
     on_success: *id016
     on_failure: *id017
+  relations:
+    pareja:
+    - dagny_fallowmoor
+  initial_bonds:
+    dagny_fallowmoor: 0.55
 - id: rhian_fallowmoor
   label: Rhian Fallowmoor
   home: barrio_bajo
@@ -3380,6 +3640,11 @@ agents:
     deadline: 207360
     on_success: *id016
     on_failure: *id017
+  relations:
+    pareja:
+    - kestrel_winterfell
+  initial_bonds:
+    kestrel_winterfell: 0.55
 - id: gwyneth_millstone
   label: Gwyneth Millstone
   home: barrio_bajo
@@ -3412,6 +3677,11 @@ agents:
     on_failure: &id019
       aguante: -0.5
       arraigo: 0.4
+  relations:
+    pareja:
+    - eriel_stonefell
+  initial_bonds:
+    eriel_stonefell: 0.55
 - id: jareth_longmire
   label: Jareth Longmire
   home: barrio_bajo
@@ -3442,6 +3712,11 @@ agents:
     deadline: 207360
     on_success: *id014
     on_failure: *id015
+  relations:
+    pareja:
+    - vidar_aldenar
+  initial_bonds:
+    vidar_aldenar: 0.55
 - id: rowan_kesteven
   label: Rowan Kesteven
   home: barrio_bajo
@@ -3996,6 +4271,8 @@ agents:
     deadline: 207360
     on_success: *id008
     on_failure: *id009
+  initial_bonds:
+    jareth_longmire: 0.5
 - id: eriel_stonefell
   label: Eriel Stonefell
   home: barrio_bajo
@@ -4021,6 +4298,8 @@ agents:
     deadline: 207360
     on_success: *id022
     on_failure: *id023
+  initial_bonds:
+    gwyneth_millstone: 0.5
 - id: kestrel_winterfell
   label: Kestrel Winterfell
   home: barrio_bajo
@@ -4035,6 +4314,8 @@ agents:
   tastes:
   - target: trabajar_en_la_fragua
     multiplier: 2.3
+  initial_bonds:
+    rhian_fallowmoor: 0.5
 - id: dagny_fallowmoor
   label: Dagny Fallowmoor
   home: barrio_bajo
@@ -4064,6 +4345,8 @@ agents:
     on_failure:
       laboriosidad: 0.4
       sociabilidad: -0.3
+  initial_bonds:
+    quill_brannigan: 0.5
 - id: dara_darrow
   label: Dara Darrow
   home: barrio_bajo
@@ -4088,6 +4371,8 @@ agents:
     deadline: 207360
     on_success: *id016
     on_failure: *id017
+  initial_bonds:
+    zarah_underhill: 0.5
 - id: senna_hartwell
   label: Senna Hartwell
   home: barrio_bajo
@@ -4114,6 +4399,8 @@ agents:
     deadline: 207360
     on_success: *id022
     on_failure: *id023
+  initial_bonds:
+    theron_eastfell: 0.5
 - id: alenya_tanglewood
   label: Alenya Tanglewood
   home: barrio_bajo
@@ -4130,6 +4417,8 @@ agents:
   tastes:
   - target: trabajar_en_la_fragua
     multiplier: 2.3
+  initial_bonds:
+    enna_deepwood: 0.5
 - id: cael_galewood
   label: Cael Galewood
   home: barrio_bajo
@@ -4146,6 +4435,8 @@ agents:
   tastes:
   - target: servir_en_la_taberna
     multiplier: 2.3
+  initial_bonds:
+    lorna_mercer: 0.5
 - id: bren_ustmark
   label: Bren Ustmark
   home: barrio_bajo
@@ -4174,6 +4465,8 @@ agents:
     on_failure:
       ambicion: -0.4
       aguante: -0.3
+  initial_bonds:
+    sigrun_fletcher: 0.5
 - id: caspian_larkspur
   label: Caspian Larkspur
   home: barrio_bajo
@@ -4189,6 +4482,8 @@ agents:
   tastes:
   - target: trabajar_en_la_fragua
     multiplier: 2.3
+  initial_bonds:
+    irsa_corwin: 0.5
 - id: corin_vireth
   label: Corin Vireth
   home: barrio_bajo
@@ -4205,6 +4500,8 @@ agents:
   tastes:
   - target: servir_en_la_taberna
     multiplier: 2.3
+  initial_bonds:
+    nils_darrow: 0.5
 - id: merek_swiftwind
   label: Merek Swiftwind
   home: barrio_bajo
@@ -4229,6 +4526,8 @@ agents:
     deadline: 207360
     on_success: *id022
     on_failure: *id023
+  initial_bonds:
+    rhona_greenholt: 0.5
 - id: sigurd_longmire
   label: Sigurd Longmire
   home: barrio_bajo
@@ -4245,6 +4544,8 @@ agents:
   tastes:
   - target: trabajar_en_la_fragua
     multiplier: 2.3
+  initial_bonds:
+    erek_stonefell: 0.5
 - id: bastian_quarrow
   label: Bastian Quarrow
   home: barrio_bajo
@@ -4270,6 +4571,8 @@ agents:
     deadline: 207360
     on_success: *id008
     on_failure: *id009
+  initial_bonds:
+    ulric_kesteven: 0.5
 - id: kell
   label: Kell
   home: barrio_bajo
@@ -4288,6 +4591,9 @@ agents:
     multiplier: 2.3
   - target: tasar_botin
     multiplier: 1.6
+  relations:
+    hermano:
+    - rhun
 - id: rhun
   label: Rhun
   home: barrio_bajo
@@ -4340,6 +4646,8 @@ agents:
     multiplier: 2.3
   - target: aca_patio
     multiplier: 0.3
+  initial_bonds:
+    mira: 0.7
 - id: noe
   label: Noe
   home: barrio_bajo
@@ -4356,3 +4664,9 @@ agents:
     multiplier: 2.3
   - target: aca_patio
     multiplier: 0.3
+  relations:
+    hermano:
+    - dalia
+  initial_bonds:
+    dalia: 0.6
+    hult: 0.3

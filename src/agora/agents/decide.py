@@ -60,6 +60,7 @@ from agora.engine.ontology import (
     PhaseId,
     PlaceId,
     PlaceSpec,
+    RelationId,
     SituationId,
     TraitId,
 )
@@ -309,15 +310,23 @@ def is_available(
     phase: PhaseId | None = None,
     traits: Mapping[TraitId, float] | None = None,
     situations: Sequence[SituationId] = (),
+    kin: Mapping[RelationId, int] | None = None,
 ) -> bool:
-    """¿Se puede ejecutar esta acción aquí y ahora? Seis puertas duras:
+    """¿Se puede ejecutar esta acción aquí y ahora? Siete puertas duras:
 
     - **el lugar** la ofrece (affordance)
     - **el lugar está abierto** a esta hora (`open_during`)
     - **el lugar no está cerrado** por lo que pasa (`closed_during`)
     - **hay gente** suficiente (`company` = los OTROS, sin contar a quien pregunta)
+    - **está QUIEN tiene que estar** (`requires_relation`)
     - **alcanzan los recursos** (`requires`)
     - **eres quien hay que ser** (`requires_traits`)
+
+    Las dos de gente no son la misma pregunta, y confundirlas sería el error
+    fácil: `requires_company` cuenta CABEZAS —una fiesta necesita cuerpos— y
+    `requires_relation` pregunta QUIÉN. Cenar en familia no se arregla con más
+    gente. `kin` a `None` es "no lo sé" y se resuelve a favor, igual que
+    `company`.
 
     La última no mira lo que tienes sino quién eres: un conjuro de fuego pide
     afinidad con el fuego, y ninguna cantidad de dinero la sustituye. `traits` a
@@ -357,6 +366,12 @@ def is_available(
     ):
         return False
     if company is not None and company < action.requires_company:
+        return False
+    if (
+        action.requires_relation is not None
+        and kin is not None
+        and kin.get(action.requires_relation, 0) < 1
+    ):
         return False
     return all(needs[need] >= minimum for need, minimum in action.requires.items())
 
@@ -439,16 +454,19 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             0.0
             if crowd is None
             else agent.effective_company(
-                crowd, world.tick, tuning.bond_weight, tuning.bond_fade
+                crowd, world.tick, tuning.bond_weight, tuning.bond_fade, pack
             )
         )
+        # Quién de los tuyos cree que estará. `None` cuando no tiene noticia del
+        # sitio, y se resuelve a favor: va a mirar, como con la compañía.
+        kin = None if crowd is None else agent.kin_present(crowd)
 
         aqui = tuple(s for s in situations if by_situation[s].reaches(place.id))
         gains_aqui = world.gains_at(place.id, aqui) if aqui else place.gain_multipliers
 
         for action in pack.actions:
             if not is_available(
-                action, place, headcount, agent.needs, open_phase, agent.traits, aqui
+                action, place, headcount, agent.needs, open_phase, agent.traits, aqui, kin
             ):
                 continue
             reward = benefit(pack, agent, action, weights) * discount * place_taste

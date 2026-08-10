@@ -28,7 +28,14 @@ from agora.agents.decide import (
 )
 from agora.engine import persistence
 from agora.engine.events import EventKind, EventLog, Payload
-from agora.engine.ontology import ActionId, AgentId, GoalStatus, NeedId, SituationId
+from agora.engine.ontology import (
+    ActionId,
+    AgentId,
+    GoalStatus,
+    NeedId,
+    RelationId,
+    SituationId,
+)
 from agora.engine.outcome import company_premium, contextual_effects, learn
 from agora.engine.pack import ContentPack
 from agora.engine.state import AgentState, Busy, PerformingAction, Traveling, WorldState
@@ -138,6 +145,79 @@ class Simulation:
         self._detect_encounters()
 
     # -------------------------------------------------------------------------
+    # Relaciones
+    # -------------------------------------------------------------------------
+
+    def begin_relation(self, one: AgentId, other: AgentId, relation: RelationId) -> None:
+        """`one` pasa a ser `relation` de `other`. Cierra el otro lado solo.
+
+        Casarse, adoptar un discípulo, declararse enemigo — y más adelante
+        nacer, que no es otra cosa que crear dos relaciones de golpe. Por eso
+        existe como API y no solo como declaración en el pack.
+
+        Lo exclusivo se comprueba aquí y revienta: dos parejas simultáneas no es
+        una regla moral, es un árbol genealógico que deja de poder leerse, y más
+        vale que salte al casarse que al tercer hijo.
+        """
+        spec = self.pack.relation_by_id.get(relation)
+        if spec is None:
+            raise KeyError(f"relación desconocida {relation!r}")
+        if one == other:
+            raise ValueError(f"{one!r} no puede ser {relation!r} de sí mismo")
+        for quien in (one, other):
+            if quien not in self.state.agents:
+                raise KeyError(f"agente desconocido {quien!r}")
+
+        suyas = self.state.agents[one].relations.setdefault(relation, set())
+        if other in suyas:
+            return
+        if spec.exclusive and suyas:
+            raise ValueError(
+                f"{one!r} ya tiene {relation!r} ({', '.join(sorted(suyas))}) y es "
+                f"exclusiva; rómpela antes"
+            )
+        suyas.add(other)
+
+        # El otro lado. Una simétrica se replica con su nombre; una dirigida
+        # crea su inversa. Sin esto quedaría un mundo donde A es hermano de B
+        # pero B no lo es de A, que no falla en ninguna parte: solo se comporta
+        # raro.
+        if spec.symmetric:
+            self.state.agents[other].relations.setdefault(relation, set()).add(one)
+        elif spec.inverse is not None:
+            self.state.agents[other].relations.setdefault(spec.inverse, set()).add(one)
+
+        self.log.emit(
+            tick=self.state.tick,
+            kind=EventKind.RELATION_BEGAN,
+            actor=one,
+            subject=other,
+            data={"relation": str(relation)},
+        )
+
+    def end_relation(self, one: AgentId, other: AgentId, relation: RelationId) -> None:
+        """Deja de serlo. Silencioso si no lo era. Rompe también el otro lado."""
+        spec = self.pack.relation_by_id.get(relation)
+        if spec is None:
+            raise KeyError(f"relación desconocida {relation!r}")
+        suyas = self.state.agents[one].relations.get(relation)
+        if suyas is None or other not in suyas:
+            return
+        suyas.discard(other)
+
+        del_otro = relation if spec.symmetric else spec.inverse
+        if del_otro is not None:
+            self.state.agents[other].relations.get(del_otro, set()).discard(one)
+
+        self.log.emit(
+            tick=self.state.tick,
+            kind=EventKind.RELATION_ENDED,
+            actor=one,
+            subject=other,
+            data={"relation": str(relation)},
+        )
+
+    # -------------------------------------------------------------------------
     # Situaciones
     # -------------------------------------------------------------------------
 
@@ -239,7 +319,7 @@ class Simulation:
             agent.decay(
                 specs,
                 company=agent.effective_company(
-                    others, tick, tuning.bond_weight, tuning.bond_fade
+                    others, tick, tuning.bond_weight, tuning.bond_fade, self.pack
                 ),
             )
             agent.recover_novelty(self.pack.tuning.saturation_recovery)
@@ -376,7 +456,9 @@ class Simulation:
         tick = self.state.tick
 
         others = [other.spec_id for other in self.state.others_at(agent)]
-        company = agent.effective_company(others, tick, tuning.bond_weight, tuning.bond_fade)
+        company = agent.effective_company(
+            others, tick, tuning.bond_weight, tuning.bond_fade, self.pack
+        )
         received = contextual_effects(spec, company)
 
         before = dict(agent.needs)
@@ -449,7 +531,8 @@ class Simulation:
         # que otra necesidad hubiera subido un poco durante el trayecto, y el
         # agente parecería incapaz de terminar nada.
         action = self.pack.action_by_id[busy.intent]
-        company = len(self.state.others_at(agent))
+        presentes = [other.spec_id for other in self.state.others_at(agent)]
+        company = len(presentes)
         # La franja y la situación son las de AHORA, no las de cuando se decidió:
         # un viaje largo puede acabar con el sitio ya cerrado o con la mina ya
         # derrumbada, y eso es un chasco legítimo que se lee igual que llegar y
@@ -463,6 +546,7 @@ class Simulation:
             phase,
             agent.traits,
             self.state.situations_at(agent.at),
+            agent.kin_present(presentes),
         ):
             self._start_action(agent, busy.intent, utility=None)
         else:

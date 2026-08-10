@@ -35,6 +35,7 @@ from agora.engine.ontology import (
     GoalStatus,
     NeedId,
     PlaceId,
+    RelationId,
     SituationId,
     TraitId,
 )
@@ -88,6 +89,15 @@ def _agente_a_dict(agent: AgentState) -> dict[str, Any]:
             for a, creencias in agent.cost_beliefs.items()
         },
         "bonds": {str(k): _bond_a_dict(v) for k, v in agent.bonds.items()},
+        # Las relaciones SI se guardan, y las simetrias tambien: cerrarlas al
+        # cargar como hace `WorldState.new` reconstruiria solo lo que el pack
+        # declaro, y perderia las que nacieron durante la partida — que son
+        # justo las interesantes.
+        "relations": {
+            str(rel): sorted(str(x) for x in quienes)
+            for rel, quienes in sorted(agent.relations.items())
+            if quienes
+        },
         # El `frozenset` no es JSON. Se ordena al escribir, no por estetica: sin
         # orden fijo dos guardados del mismo mundo diferirian byte a byte y
         # compararlos con `diff` dejaria de servir.
@@ -147,6 +157,7 @@ def _reconciliar_necesidades(
 
 
 def _dict_a_agente(datos: dict[str, Any], pack: ContentPack) -> AgentState:
+    conocidos_relacion = frozenset(str(r.id) for r in pack.relations)
     conocidos_accion = frozenset(str(a.id) for a in pack.actions)
     conocidos_need = frozenset(str(n.id) for n in pack.needs)
     conocidos_lugar = frozenset(str(p.id) for p in pack.places)
@@ -188,6 +199,11 @@ def _dict_a_agente(datos: dict[str, Any], pack: ContentPack) -> AgentState:
             AgentId(k): Bond(regard=v["regard"], encounters=v["encounters"],
                              last_seen=v["last_seen"])
             for k, v in datos["bonds"].items()
+        },
+        relations={
+            RelationId(rel): {AgentId(x) for x in quienes}
+            for rel, quienes in datos.get("relations", {}).items()
+            if rel in conocidos_relacion
         },
         sightings={
             PlaceId(sitio): (tick, frozenset(AgentId(x) for x in quienes))

@@ -486,6 +486,122 @@ for _i, (_id, _lab, _casa, _oficio, _estilo, _elem, _extra) in enumerate([
     })
 
 # ---------------------------------------------------------------------------
+# Relaciones: quien es que de quien.
+#
+# La ciudad llevaba ciento veintisiete desconocidos que se iban conociendo desde
+# cero cada corrida. Las primeras dos semanas de cualquier partida eran el mundo
+# presentandose.
+#
+# El vocabulario es del pack, no del motor: aqui hay pareja, hermano y maestro
+# porque esta ambientacion los tiene. Otra tendria vasallo, cofrade o deudor.
+# ---------------------------------------------------------------------------
+relations = [
+    # Exclusiva y con suelo alto: es la que va a sostener la descendencia.
+    {"id": "pareja", "label": "pareja", "symmetric": True, "exclusive": True,
+     "regard_floor": 0.45, "company_multiplier": 2.0},
+    # Sin suelo A PROPOSITO. Un hermano puede caerte fatal, y el pack tiene que
+    # poder escribirlo; lo que no puede es dejar de ser tu hermano.
+    {"id": "hermano", "label": "hermano", "symmetric": True,
+     "company_multiplier": 1.5},
+    {"id": "maestro", "label": "maestro de", "inverse": "discipulo",
+     "regard_floor": 0.2, "company_multiplier": 1.4},
+    {"id": "discipulo", "label": "discipulo de", "inverse": "maestro",
+     "regard_floor": 0.3, "company_multiplier": 1.6},
+]
+
+# Y cenar en familia: la puerta dura. Sin una accion que EXIJA a los tuyos, la
+# capa relacional solo tinta numeros y no se ve nada.
+actions.append(A(
+    id="cenar_con_los_tuyos", label="cenar con los tuyos", duration_ticks=5,
+    requires_affordance="mesa", requires_relation="pareja",
+    requires={"dinero": 0.10},
+    satisfies={"vinculo": 0.9, "sustento": 0.7}, costs={"dinero": 0.22},
+    effects={"vinculo": 0.30, "sustento": 0.45, "dinero": -0.06},
+    effects_per_company={"vinculo": 0.10},
+    phase_multipliers={"noche": 1.8, "tarde": 1.2},
+))
+
+# Quien es que de quien. Se declara UNA vez: el motor pone la otra mitad.
+_lazos = {
+    "brac": {"hermano": ["vela"]},          # los dos del barrio bajo, a la cripta
+    "mira": {"pareja": ["bram"]},           # la fragua, en casa y en el trabajo
+    "hult": {"pareja": ["dalia"]},          # posada
+    "kell": {"hermano": ["rhun"]},
+    "aster": {"discipulo": ["kiara"]},      # ella va por delante y el lo sabe
+    "noe": {"hermano": ["dalia"]},
+}
+# Y el aprecio de partida, que es OTRA cosa: la relacion dice que son el uno del
+# otro, esto dice como se llevan. Brac y Vela son hermanos y se detestan.
+_aprecios = {
+    "brac": {"vela": -0.55},
+    "vela": {"brac": -0.45, "dalia": 0.5},
+    "mira": {"bram": 0.75},
+    "bram": {"mira": 0.7},
+    "aster": {"kiara": 0.35},
+    "kiara": {"aster": 0.1},
+    "noe": {"dalia": 0.6, "hult": 0.3},
+}
+for _a in agents:
+    if _a["id"] in _lazos:
+        _a["relations"] = _lazos[_a["id"]]
+    if _a["id"] in _aprecios:
+        _a["initial_bonds"] = _aprecios[_a["id"]]
+
+# Y la poblacion generada. Con seis parejas escritas a mano sobre ciento
+# veintisiete habitantes la muestra no dice nada —medido: cuatro con pareja
+# frente a ciento veintitres sin ella—, asi que la ciudad se empareja tambien.
+#
+# El emparejado es DETERMINISTA por posicion, sin sorteo: dos corridas con la
+# misma semilla tienen que dar el mismo arbol. Y respeta el grupo: los adultos
+# de fuera se emparejan entre ellos y los alumnos son hermanos entre ellos,
+# porque un alumno interno casado con una tabernera no es esta ambientacion.
+_ya_atados = {_id for _id in _lazos} | {
+    _o for _v in _lazos.values() for _q in _v.values() for _o in _q
+}
+
+
+def _grupo(ficha):
+    _t = ficha.get("traits", {})
+    if _t.get("alumno"):
+        return "alumno"
+    return "profesor" if _t.get("profesor") else "fuera"
+
+
+_libres = {"alumno": [], "profesor": [], "fuera": []}
+for _a in agents:
+    if _a["id"] not in _ya_atados:
+        _libres[_grupo(_a)].append(_a)
+
+_por_id = {_a["id"]: _a for _a in agents}
+
+# Catorce parejas entre los de fuera. Se toman de los extremos hacia el centro
+# para que no salgan siempre vecinos de la misma cohorte del generador.
+_fuera = _libres["fuera"]
+for _k in range(min(14, len(_fuera) // 2)):
+    _uno, _otro = _fuera[_k], _fuera[-1 - _k]
+    _uno.setdefault("relations", {}).setdefault("pareja", []).append(_otro["id"])
+    _uno.setdefault("initial_bonds", {})[_otro["id"]] = 0.55
+    _otro.setdefault("initial_bonds", {})[_uno["id"]] = 0.50
+
+# Diez hermandades entre alumnos: familias que mandan a mas de un hijo.
+_alu = _libres["alumno"]
+for _k in range(0, min(20, len(_alu) - 1), 2):
+    _uno, _otro = _alu[_k], _alu[_k + 1]
+    _uno.setdefault("relations", {}).setdefault("hermano", []).append(_otro["id"])
+    # Sin aprecio de partida: son hermanos, ya se veran. El suelo de `hermano`
+    # es None a proposito, asi que estos empiezan de cero y se ganan lo que
+    # sientan — que es la mitad de la gracia de separar las dos cosas.
+
+# Y el claustro: cada profesor toma dos discipulos de los cursos altos.
+_prof = _libres["profesor"]
+_altos = [_a for _a in _alu if _a.get("initial_needs", {}).get("curso", 0.0) >= 0.4]
+for _k, _p in enumerate(_prof):
+    for _d in _altos[_k * 2: _k * 2 + 2]:
+        _p.setdefault("relations", {}).setdefault("maestro", []).append(_d["id"])
+        _p.setdefault("initial_bonds", {})[_d["id"]] = 0.3
+        _d.setdefault("initial_bonds", {})[_p["id"]] = 0.35
+
+# ---------------------------------------------------------------------------
 # Situaciones: como esta el mundo.
 #
 # Un ano son doce meses de treinta dias: 360 * 96 = 34560 ticks. Las periodicas
@@ -548,6 +664,7 @@ for _p in places:
 
 pack = {
     "id": "ciudad", "label": "La ciudad y la sima",
+    "relations": relations,
     "situations": situations,
     "clock": {"minutes_per_tick": 15, "ticks_per_day": 96, "phases": [
         {"id": "manana", "label": "manana", "starts_at": 24},

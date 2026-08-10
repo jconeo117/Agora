@@ -83,6 +83,12 @@ def render_event(pack: ContentPack, event: Event) -> str:
             body = f"LOGRA     {event.data.get('goal')}"
         case EventKind.GOAL_FAILED:
             body = f"PIERDE    {event.data.get('goal')}   <- se acabo el plazo"
+        case EventKind.RELATION_BEGAN:
+            otro = pack.agent_by_id[event.subject].label if event.subject else "?"
+            body = f"AHORA ES  {event.data.get('relation')} de {otro}"
+        case EventKind.RELATION_ENDED:
+            otro = pack.agent_by_id[event.subject].label if event.subject else "?"
+            body = f"YA NO ES  {event.data.get('relation')} de {otro}"
         case EventKind.SITUATION_BEGAN:
             ticks = event.data.get("ticks")
             plazo = "" if ticks == -1 else f"   {ticks}t"

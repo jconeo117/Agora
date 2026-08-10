@@ -37,6 +37,7 @@ from agora.engine.ontology import (
     NeedSpec,
     PlaceId,
     PlaceSpec,
+    RelationId,
     SituationId,
     TraitId,
 )
@@ -308,6 +309,15 @@ class AgentState:
     permite que esto escale a un mundo poblado.
     """
 
+    relations: dict[RelationId, set[AgentId]] = field(default_factory=dict)
+    """De quién es qué. Al lado de `bonds` y a propósito NO dentro.
+
+    Un vínculo es lo que sientes; una relación es lo que ERES de alguien. El
+    primero es emergente, gradual y **se olvida**; la segunda es un hecho y no
+    se olvida jamás — `forget_bonds` respeta a los tuyos aunque lleves un año
+    sin verlos, que es la mitad de lo que hace que esto sea otra cosa.
+    """
+
     sightings: dict[PlaceId, tuple[int, frozenset[AgentId]]] = field(default_factory=dict)
     """Lo último que este agente vio en cada sitio: `(tick, quiénes)`.
 
@@ -367,6 +377,13 @@ class AgentState:
             gains=compose_gains(pack, spec.traits),
             strain=strain,
             temperament=compose_temperament(pack, spec.traits, strain),
+            # Lo declarado, tal cual. Las simetrías las cierra `WorldState.new`,
+            # que es quien ve a los dos lados; desde aquí solo se ve uno.
+            relations={rel: set(quienes) for rel, quienes in spec.relations.items()},
+            bonds={
+                other: Bond(regard=regard, encounters=1)
+                for other, regard in spec.initial_bonds.items()
+            },
             busy=None,  # todos deliberan en el tick 0
         )
 
@@ -394,15 +411,71 @@ class AgentState:
             return None
         return seen[1]
 
-    # -- vínculos -------------------------------------------------------------
+    # -- relaciones -----------------------------------------------------------
 
-    def regard_for(self, other: AgentId, tick: int, fade: float) -> float:
-        """Aprecio actual hacia alguien. Un desconocido vale 0."""
+    def related_to(self, other: AgentId) -> tuple[RelationId, ...]:
+        """Qué es esta persona de él. Ordenado, que aquí se multiplican floats."""
+        return tuple(
+            sorted(rel for rel, quienes in self.relations.items() if other in quienes)
+        )
+
+    def kin_present(self, others: Collection[AgentId]) -> dict[RelationId, int]:
+        """Cuántos de los tuyos hay delante, por relación.
+
+        Es lo que responde `requires_relation`, y la diferencia con contar
+        cabezas es toda la gracia: cenar en familia no se arregla con más gente.
+        """
+        cuenta: dict[RelationId, int] = {}
+        presentes = set(others)
+        for rel, quienes in self.relations.items():
+            n = len(quienes & presentes)
+            if n:
+                cuenta[rel] = n
+        return cuenta
+
+    def relation_floor(self, pack: ContentPack, other: AgentId) -> float | None:
+        """El aprecio mínimo que le tiene por ser lo que es suyo. `None` = ninguno.
+
+        Devolver 0.0 en vez de `None` cuando no hay suelo aplastaría el aprecio
+        negativo, y entonces sería imposible detestar a nadie.
+        """
+        by_id = pack.relation_by_id
+        suelos = [
+            by_id[rel].regard_floor
+            for rel in self.related_to(other)
+            if by_id[rel].regard_floor is not None
+        ]
+        return max(s for s in suelos if s is not None) if suelos else None
+
+    def relation_weight(self, pack: ContentPack, other: AgentId) -> float:
+        """Cuánto pesa su presencia por ser de los tuyos. 1.0 si no lo es."""
+        by_id = pack.relation_by_id
+        total = 1.0
+        for rel in self.related_to(other):
+            total *= by_id[rel].company_multiplier
+        return total
+
+    def regard_for(
+        self, other: AgentId, tick: int, fade: float, floor: float | None = None
+    ) -> float:
+        """Aprecio actual hacia alguien. Un desconocido vale 0.
+
+        `floor` es lo que aporta la relación: el aprecio sigue subiendo y
+        bajando con lo que se comparte, pero no cae por debajo. La familia se
+        aguanta — y se aguanta también contra el desdibujado por no verse, que
+        es lo que impide que un hermano ausente acabe valiendo lo que un extraño.
+        """
         bond = self.bonds.get(other)
-        return 0.0 if bond is None else bond.regard_at(tick, fade)
+        sentido = 0.0 if bond is None else bond.regard_at(tick, fade)
+        return sentido if floor is None else max(sentido, floor)
 
     def effective_company(
-        self, others: Collection[AgentId], tick: int, weight: float, fade: float
+        self,
+        others: Collection[AgentId],
+        tick: int,
+        weight: float,
+        fade: float,
+        pack: ContentPack | None = None,
     ) -> float:
         """Cuánta compañía es esa gente PARA ESTE AGENTE.
 
@@ -426,12 +499,23 @@ class AgentState:
         Sin ordenar, dos corridas con el mismo seed en dos procesos distintos
         pueden diferir en el último bit y de ahí en el log entero. Es la misma
         razón por la que los rasgos se recorren ordenados en `disposition.py`.
+
+        Con `pack`, la presencia de los tuyos pesa distinto que la de un
+        desconocido de igual aprecio: es la diferencia entre apreciar a alguien y
+        que ese alguien sea de los tuyos. Sin `pack` no hay relaciones que mirar
+        y se comporta exactamente como antes.
         """
         if weight <= 0.0:
             return float(len(others))
-        return sum(
-            1.0 + weight * self.regard_for(other, tick, fade) for other in sorted(others)
-        )
+        if pack is None or not self.relations:
+            return sum(
+                1.0 + weight * self.regard_for(other, tick, fade) for other in sorted(others)
+            )
+        total = 0.0
+        for other in sorted(others):
+            aprecio = self.regard_for(other, tick, fade, self.relation_floor(pack, other))
+            total += (1.0 + weight * aprecio) * self.relation_weight(pack, other)
+        return total
 
     def remember_company(
         self, others: Collection[AgentId], premium: float, rate: float, tick: int
@@ -484,13 +568,19 @@ class AgentState:
 
         Que además se lea bien —pierdes el trato y acabas por no acordarte— es
         buena señal, pero no es el motivo.
+
+        **A los tuyos no se les olvida**, y ahí está la mitad de lo que separa
+        una relación de un vínculo. Un hermano al que no ves en un año sigue
+        siendo tu hermano; si esto lo borrase, la relación se evaporaría por no
+        usarla y sería un aprecio con nombre.
         """
         if horizon <= 0:
             return
+        de_los_mios = {other for quienes in self.relations.values() for other in quienes}
         for other in [
             other
             for other, bond in self.bonds.items()
-            if tick - bond.last_seen > horizon
+            if tick - bond.last_seen > horizon and other not in de_los_mios
         ]:
             del self.bonds[other]
 
@@ -716,6 +806,32 @@ class AgentState:
         return self.busy is None or self.busy.ticks_remaining == 0
 
 
+def _close_relations(pack: ContentPack, agents: dict[AgentId, AgentState]) -> None:
+    """Pone la otra mitad de cada relación declarada.
+
+    El pack escribe la hermandad UNA vez y aquí se cierra: la simétrica se
+    replica con su mismo nombre, la dirigida crea su inversa del otro lado.
+    Obligar al pack a escribirlo dos veces garantizaría que antes o después
+    falte una de las dos, y un mundo donde A es hermano de B pero B no lo es de
+    A no falla en ninguna parte — simplemente se comporta raro.
+
+    Se recorre en orden de pack y ordenado dentro de cada relación, porque el
+    resultado alimenta sumas y productos de floats.
+    """
+    by_id = pack.relation_by_id
+    for spec in pack.agents:
+        agente = agents[spec.id]
+        for rel in sorted(agente.relations):
+            regla = by_id[rel]
+            for otro in sorted(agente.relations[rel]):
+                if otro not in agents:  # ya lo señaló la validación del pack
+                    continue
+                if regla.symmetric:
+                    agents[otro].relations.setdefault(rel, set()).add(spec.id)
+                elif regla.inverse is not None:
+                    agents[otro].relations.setdefault(regla.inverse, set()).add(spec.id)
+
+
 # -----------------------------------------------------------------------------
 # Estado del mundo
 # -----------------------------------------------------------------------------
@@ -764,6 +880,7 @@ class WorldState:
         """Construye el estado inicial desde un pack ya validado."""
         # El orden del pack fija el orden del mundo.
         agents = {spec.id: AgentState.from_spec(pack, spec) for spec in pack.agents}
+        _close_relations(pack, agents)
 
         return cls(
             pack=pack,
