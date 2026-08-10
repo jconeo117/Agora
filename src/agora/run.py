@@ -6,6 +6,7 @@
     uv run agora --days 180 --save ano1.json
     uv run agora --load ano1.json --days 180 --save ano2.json
     uv run agora --days 1800 --skip 7 --quiet --save graduados.json
+    uv run agora --days 1800 --skip 14 --window 7 --jsonl cinco-anos.jsonl
 
 Sin UI y sin colores a propósito. En F0 la única forma de saber si el mundo
 funciona es leer texto y comparar corridas con `diff`.
@@ -14,13 +15,18 @@ funciona es leer texto y comparar corridas con `diff`.
 from __future__ import annotations
 
 import argparse
+from contextlib import ExitStack
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from agora.engine.pack import ContentPack, describe_pack, load_pack
 from agora.engine.render import render_activity_summary, render_log, render_state
 from agora.engine.timeskip import saltar
 from agora.engine.world import Simulation
 from agora.health import check, measure
+
+if TYPE_CHECKING:
+    from typing import TextIO
 
 DEFAULT_PACK = Path("packs/barrio/pack.yaml")
 """El mundo de trabajo. `dark_fantasy` existe para probar el agnosticismo del
@@ -36,7 +42,8 @@ def main() -> None:
         "--jsonl",
         type=Path,
         default=None,
-        help="vuelca el log crudo, para comparar dos corridas byte a byte",
+        help="vierte el log crudo segun ocurre, para comparar dos corridas byte "
+        "a byte. Se escribe en streaming: no se retiene nada para escribirlo",
     )
     parser.add_argument("--quiet", action="store_true", help="solo el resumen")
     parser.add_argument(
@@ -47,6 +54,12 @@ def main() -> None:
         "--skip", type=int, default=1, metavar="N",
         help="salto temporal: simula un dia de cada N y da la zancada a los ejes "
         "de progresion. 1 = sin atajo",
+    )
+    parser.add_argument(
+        "--window", type=int, default=0, metavar="DIAS",
+        help="el log conserva solo los ultimos DIAS y descarta lo viejo. "
+        "0 = sin limite. Combinado con --jsonl no se pierde nada: la historia "
+        "entera va al fichero y la memoria queda acotada",
     )
     parser.add_argument(
         "--save", type=Path, default=None,
@@ -65,11 +78,30 @@ def main() -> None:
     if args.health:
         _report_health(pack)
         return
+    ventana = args.window * pack.clock.ticks_per_day if args.window > 0 else None
+    # El fichero se abre ANTES de correr y se cierra después: el log se vierte
+    # según ocurre. Volcarlo al final obligaría a retenerlo entero para escribirlo,
+    # que es justo lo que la ventana viene a evitar.
+    with ExitStack() as stack:
+        sink = (
+            stack.enter_context(args.jsonl.open("w", encoding="utf-8"))
+            if args.jsonl is not None
+            else None
+        )
+        _correr(args, pack, ventana, sink)
+
+
+def _correr(
+    args: argparse.Namespace,
+    pack: ContentPack,
+    ventana: int | None,
+    sink: TextIO | None,
+) -> None:
     if args.load is not None:
-        sim = Simulation.resume(args.load, pack)
+        sim = Simulation.resume(args.load, pack, log_window=ventana, log_sink=sink)
         print(f"# reanudado desde {args.load}  (tick {sim.state.tick})")
     else:
-        sim = Simulation(pack, seed=args.seed)
+        sim = Simulation(pack, seed=args.seed, log_window=ventana, log_sink=sink)
     ticks = args.days * pack.clock.ticks_per_day
 
     print(f"# pack   {pack.label}  {dict(describe_pack(pack))}")
@@ -97,15 +129,20 @@ def main() -> None:
     print()
     for line in render_activity_summary(pack, sim.log):
         print(line)
-    print(f"\n# {len(sim.log)} eventos")
+    # Si la ventana descarto algo hay que decirlo: un log recortado en silencio
+    # se lee igual que uno completo, y no lo es.
+    if sim.log.desalojados:
+        print(f"\n# {sim.log.emitidos} eventos  ({len(sim.log)} en ventana, "
+              f"{sim.log.desalojados} descartados)")
+    else:
+        print(f"\n# {len(sim.log)} eventos")
 
     if args.save is not None:
         sim.save(args.save)
         print(f"# partida -> {args.save}  (tick {sim.state.tick})")
 
     if args.jsonl is not None:
-        args.jsonl.write_text("\n".join(sim.log.to_jsonl()) + "\n", encoding="utf-8")
-        print(f"# log crudo -> {args.jsonl}")
+        print(f"# log crudo -> {args.jsonl}  ({sim.log.emitidos} lineas)")
 
 
 def _report_health(pack: ContentPack) -> None:

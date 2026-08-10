@@ -15,7 +15,7 @@ Dos invariantes que sostienen el determinismo:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import assert_never
+from typing import TYPE_CHECKING, assert_never
 
 from agora.agents.decide import (
     Decision,
@@ -33,15 +33,32 @@ from agora.engine.outcome import company_premium, contextual_effects, learn
 from agora.engine.pack import ContentPack
 from agora.engine.state import AgentState, Busy, PerformingAction, Traveling, WorldState
 
+if TYPE_CHECKING:
+    from typing import TextIO
+
 
 class Simulation:
     """Un mundo corriendo. Estado mutable + su registro de eventos."""
 
     __slots__ = ("_together", "log", "state")
 
-    def __init__(self, pack: ContentPack, seed: int) -> None:
+    def __init__(
+        self,
+        pack: ContentPack,
+        seed: int,
+        log_window: int | None = None,
+        log_sink: TextIO | None = None,
+    ) -> None:
+        """`log_window` en ticks: el log conserva solo eso y descarta lo viejo.
+        `log_sink`: fichero abierto donde verter cada evento según ocurre.
+
+        Por omisión no hay ni una cosa ni la otra y se guarda todo en memoria,
+        que es lo que quiere una corrida corta de calibración. Los dos juntos
+        son lo que hace posible una carrera de cinco años sin perder nada: la
+        historia entera en el fichero, la memoria acotada a la ventana.
+        """
         self.state = WorldState.new(pack, seed)
-        self.log = EventLog()
+        self.log = EventLog(log_window, log_sink)
         self._together: set[tuple[AgentId, AgentId]] = set()
         """Quién estaba con quién el tick pasado. Sirve para emitir un
         encuentro cuando se produce y no en cada uno de los ticks que dos
@@ -64,7 +81,13 @@ class Simulation:
         persistence.save(self.state, self._together, path)
 
     @classmethod
-    def resume(cls, path: Path, pack: ContentPack) -> Simulation:
+    def resume(
+        cls,
+        path: Path,
+        pack: ContentPack,
+        log_window: int | None = None,
+        log_sink: TextIO | None = None,
+    ) -> Simulation:
         """Reanuda sobre el pack dado, que no tiene por que ser el de antes.
 
         Reanudar en el tick N da EXACTAMENTE lo mismo que no haber parado, y no
@@ -75,7 +98,7 @@ class Simulation:
         state, together = persistence.load(path, pack)
         sim = cls.__new__(cls)
         sim.state = state
-        sim.log = EventLog()
+        sim.log = EventLog(log_window, log_sink)
         sim._together = together
         return sim
 
