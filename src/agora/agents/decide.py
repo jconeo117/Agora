@@ -169,7 +169,9 @@ def novelty(agent: AgentState, action: ActionId, weight: float) -> float:
     return 1.0 - agent.saturation.get(action, 0.0) * weight
 
 
-def companionship(action: ActionSpec, company: float, weight: float) -> float:
+def companionship(
+    action: ActionSpec, company: float, weight: float, scale: float = 1.0
+) -> float:
     """Cuánto más (o menos) apetece este plan por la gente que habrá.
 
         factor = 1 + peso * saturación(compañía_efectiva)
@@ -191,7 +193,7 @@ def companionship(action: ActionSpec, company: float, weight: float) -> float:
     """
     if weight <= 0.0 or (not action.effects_per_company and action.requires_company == 0):
         return 1.0
-    return max(0.0, 1.0 + weight * company_saturation(company))
+    return max(0.0, 1.0 + weight * company_saturation(company, scale))
 
 
 def recovery_rate(
@@ -472,7 +474,9 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             reward = benefit(pack, agent, action, weights) * discount * place_taste
             reward *= tastes.get(str(action.id), 1.0)
             reward *= novelty(agent, action.id, tuning.novelty_weight)
-            reward *= companionship(action, expected, tuning.companionship_weight)
+            reward *= companionship(
+                action, expected, tuning.companionship_weight, tuning.company_scale
+            )
             reward *= phase_fit(action, felt_phase)
             reward *= situation_fit(action, aqui)
             # Comprometer tiempo tiene coste: mientras dure, no se atiende nada

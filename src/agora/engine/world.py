@@ -321,6 +321,7 @@ class Simulation:
                 company=agent.effective_company(
                     others, tick, tuning.bond_weight, tuning.bond_fade, self.pack
                 ),
+                company_scale=tuning.company_scale,
             )
             agent.recover_novelty(self.pack.tuning.saturation_recovery)
             # Después del decaimiento: el desgaste y el temperamento que se
@@ -459,7 +460,7 @@ class Simulation:
         company = agent.effective_company(
             others, tick, tuning.bond_weight, tuning.bond_fade, self.pack
         )
-        received = contextual_effects(spec, company)
+        received = contextual_effects(spec, company, tuning.company_scale)
 
         before = dict(agent.needs)
         # Lo que el sitio y lo que le pase al mundo hacen rendir. Se resuelve una
@@ -469,7 +470,7 @@ class Simulation:
 
         if spec.elastic is not None and done > 0:
             rate = recovery_rate(spec, agent, world_gains)
-            agent.restore(spec.elastic.need, rate * done)
+            agent.gain(spec.elastic.need, rate * done)
 
         learn(
             agent.gain_beliefs.setdefault(action_id, {}),
@@ -501,6 +502,7 @@ class Simulation:
                     before,
                     company,
                     tuning.bond_scale,
+                    tuning.company_scale,
                 ),
                 tuning.bond_rate,
                 tick,
@@ -584,7 +586,7 @@ class Simulation:
             hechos = busy.total_ticks - busy.ticks_remaining
             if spec.elastic is not None and hechos > 0:
                 rate = recovery_rate(spec, agent, self.state.gains_at(agent.at))
-                agent.restore(spec.elastic.need, rate * hechos)
+                agent.gain(spec.elastic.need, rate * hechos)
         self._emit(
             EventKind.ACTION_ABORTED,
             agent,

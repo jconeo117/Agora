@@ -23,34 +23,60 @@ from agora.engine.disposition import urgency
 from agora.engine.ontology import ActionSpec, NeedId, NeedSpec
 
 
-def company_saturation(company: float) -> float:
-    """Rendimiento decreciente de la compañía, en (-1, 1).
+def signed_saturation(x: float, scale: float = 1.0) -> float:
+    """La curva, a secas. Rendimiento decreciente firmado, en (-1, 1).
 
-        saturación(x) = x / (|x| + 1)
-
-    Uno da la mitad del máximo, tres tres cuartos, una multitud nunca más que el
-    tope. Sin saturar, una sala llena volvería cualquier efecto social absurdo.
+        saturación(x) = x / (|x| + escala)
 
     **Está firmada**, y el valor absoluto del denominador es lo que la hace
-    simétrica en vez de aplastar el lado negativo. Con los vínculos, la compañía
-    dejó de ser un recuento: cada presente vale `1 + peso * aprecio`, y una
-    persona a la que se detesta lo bastante aporta un número negativo. Que el
-    resultado pueda ser negativo es lo que permite que una mala compañía haga
-    daño en vez de simplemente no ayudar — un cuarto con alguien que no soportas
-    es más solitario que un cuarto vacío.
+    simétrica en vez de aplastar el lado negativo. Que el resultado pueda ser
+    negativo es lo que permite que una mala compañía haga daño en vez de
+    simplemente no ayudar — un cuarto con alguien que no soportas es más
+    solitario que un cuarto vacío.
 
-    Para valores no negativos es idéntica a como era, así que nada de lo
-    calibrado hasta ahora se mueve.
+    Es matemática pura y no sabe de qué se le pasa. Quien la usa le da sentido:
+    `company_saturation` la aplica a la gente, `company_premium` la aplica a una
+    cantidad de utilidad. **Son dos cosas distintas y por eso están separadas** —
+    ver la nota en `company_saturation`.
+    """
+    return x / (abs(x) + scale)
+
+
+def company_saturation(company: float, scale: float = 1.0) -> float:
+    """Rendimiento decreciente de la COMPAÑÍA. `scale` = qué es una multitud aquí.
+
+    Con `scale` a 1, uno da la mitad del máximo y tres tres cuartos. Ese era el
+    único comportamiento posible hasta ahora, y se calibró para una aldea donde
+    tres personas ya eran mucha gente. **Medido en la ciudad, la ocupación media
+    es de 14.4**, y con la curva clavada en 1 eso da 0.933: todos los mecanismos
+    sociales pegados a su techo, y las gradaciones que el pack escribe con
+    cuidado —0.25 por compañía en una comida, 0.50 en una charla— dejan de
+    discriminar porque el multiplicador es el mismo en ambos casos.
+
+              personas    scale 1    scale 4    scale 8
+                     2      0.667      0.333      0.200
+                     5      0.833      0.556      0.385
+                    14      0.933      0.778      0.636
+
+    De ahí la perilla: **qué es "mucha gente" no es universal, es del mundo**. Un
+    pueblo de diez y una ciudad de ciento veintisiete no pueden compartirla.
+
+    Separada de `signed_saturation` a propósito. `company_premium` usa la misma
+    curva para normalizar una cantidad de utilidad, que no es gente: si
+    compartieran función, esta perilla se filtraría al aprecio en silencio y
+    movería una calibración que costó una medición encontrar.
 
     Vive aquí y no repetida en tres sitios porque la curva la usan el alivio
     pasivo de las necesidades, la escala de los efectos y el atractivo de un
     plan acompañado. Tienen que ser la misma, o tres mecanismos que dicen medir
     lo mismo divergen.
     """
-    return company / (abs(company) + 1.0)
+    return signed_saturation(company, scale)
 
 
-def contextual_effects(action: ActionSpec, company: float) -> dict[NeedId, float]:
+def contextual_effects(
+    action: ActionSpec, company: float, company_scale: float = 1.0
+) -> dict[NeedId, float]:
     """Lo que la acción da REALMENTE, dadas las circunstancias.
 
     El pack declara un efecto base y, opcionalmente, cuánto añade la compañía.
@@ -63,7 +89,7 @@ def contextual_effects(action: ActionSpec, company: float) -> dict[NeedId, float
     if not action.effects_per_company:
         return dict(action.effects)
 
-    bonus = company_saturation(company)
+    bonus = company_saturation(company, company_scale)
     result = dict(action.effects)
     for need_id, extra in action.effects_per_company.items():
         result[need_id] = result.get(need_id, 0.0) + extra * bonus
@@ -77,6 +103,7 @@ def company_premium(
     before: Mapping[NeedId, float],
     company: float,
     scale: float,
+    company_scale: float = 1.0,
 ) -> float:
     """Cuánto le aportó la compañía a ESTE agente, ya en escala de aprecio.
 
@@ -109,10 +136,16 @@ def company_premium(
     significado cosas distintas en cada ambientación, y eso rompe lo único que
     el motor no puede permitirse.
 
-    La curva es la misma saturación firmada de la compañía, y por eso `scale` se
-    lee como "cuánto premio equivale a medio aprecio". Es un número de la escala
-    del pack, así que vive en el pack. **Mídelo, no lo adivines**: pon el rate a
-    lo que quieras, corre una semana y mira dónde se estancan los aprecios.
+    La curva es la misma —`signed_saturation`— pero **no la misma función que la
+    de la compañía**, y la distinción no es cosmética: aquí se satura una
+    cantidad de UTILIDAD, allí se saturan PERSONAS. Compartir función haría que
+    `company_scale`, que dice qué es una multitud, moviera de rebote la escala
+    del aprecio. En silencio.
+
+    `scale` se lee como "cuánto premio equivale a medio aprecio". Es un número de
+    la escala del pack, así que vive en el pack. **Mídelo, no lo adivines**: pon
+    el rate a lo que quieras, corre una semana y mira dónde se estancan los
+    aprecios.
 
     Devuelve 0.0 para las acciones que no declaran `effects_per_company`. Estar
     en la misma sala mientras cada uno trabaja lo suyo no acerca a nadie, y eso
@@ -121,12 +154,12 @@ def company_premium(
     if not action.effects_per_company or scale <= 0.0:
         return 0.0
 
-    bonus = company_saturation(company)
+    bonus = company_saturation(company, company_scale)
     total = 0.0
     for need_id, extra in action.effects_per_company.items():
         pressure = urgency(before[need_id], need_specs[need_id].urgency_exponent)
         total += weights[need_id] * pressure * extra * bonus
-    return company_saturation(total / scale)
+    return signed_saturation(total / scale)
 
 
 def learn(

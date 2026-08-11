@@ -144,13 +144,20 @@ class NeedSpec(Spec):
     Estar rodeado de gente alivia la soledad aunque no hables con nadie, y da
     igual quién sea. Modela eso sin necesidad de relaciones.
 
-    El alivio satura: `relief * n/(n+1)`. Una persona da la mitad del máximo,
-    tres dan tres cuartos, y una multitud nunca da más que el tope. Sin saturar,
-    una sala llena volvería la necesidad irrelevante.
+    El alivio satura: `relief * n/(n+company_scale)`. Con la escala a 1 una
+    persona da la mitad del máximo y tres dan tres cuartos; en un mundo poblado
+    hay que subirla, o una sala llena vuelve la necesidad irrelevante. **Ese fue
+    exactamente el fallo del vínculo en la ciudad**: con ocupación media de 14.4
+    y escala 1, el alivio pasivo cubría el 94% del decaimiento y la soledad no
+    llegó a apretar ni una vez en 256 000 muestras.
 
-    Puesto igual al `decay_per_tick`, la compañía **frena** la necesidad pero
-    nunca la llena: para eso hay que actuar. Es la diferencia entre estar
-    acompañado y estar acompañado por alguien.
+    **Nunca por encima del `decay_per_tick`**, y lo comprueba el validador. Igual
+    es el máximo útil: la compañía **frena** la necesidad pero nunca la llena, y
+    para llenarla hay que actuar. Por encima, la necesidad SUBIRÍA sola por estar
+    en una multitud, dejaría de ser satisfacible por acciones y el bucle social
+    entero moriría sin que nada fallase.
+
+    Es la diferencia entre estar acompañado y estar acompañado por alguien.
     """
 
     max_debt: float = Field(default=0.0, ge=0.0)
@@ -1308,6 +1315,42 @@ class TuningSpec(Spec):
     clase de coincidencia que indica que el modelo va por buen sitio.
 
     0 desactiva el borrado: nadie olvida a nadie nunca.
+    """
+
+    company_scale: float = Field(default=1.0, gt=0.0)
+    """Qué es "mucha gente" en ESTE mundo.
+
+        saturación(n) = n / (|n| + company_scale)
+
+    Gobierna las tres cosas que dependen de cuánta gente hay delante a la vez: el
+    alivio pasivo de las necesidades, el tamaño de los efectos compartidos y lo
+    que atrae un plan acompañado. Una sola perilla porque son la misma pregunta.
+
+    Existe porque la curva estuvo clavada en 1.0 y **eso es una aldea**. Con esa
+    escala, tres personas ya dan tres cuartos del máximo y a partir de ahí la
+    curva es casi plana:
+
+              personas    scale 1    scale 4    scale 8
+                     2      0.667      0.333      0.200
+                     5      0.833      0.556      0.385
+                    14      0.933      0.778      0.636
+
+    Medido en la ciudad, la ocupación media es de **14.4 personas**, así que todo
+    lo social vivía pegado al techo: el pack distinguía con cuidado 0.25 por
+    compañía en una comida y 0.50 en una charla, y las dos se multiplicaban por
+    0.93. Las gradaciones no discriminaban nada. El síntoma medible era que el
+    vínculo **nunca** llegó a ser urgente —cero veces en 256 000 muestras— y que
+    `charlar` se completó nueve veces en tres semanas entre ciento veintisiete
+    personas.
+
+    A 1.0 no cambia absolutamente nada, así que ningún pack calibrado se mueve.
+    Súbela en un mundo poblado hasta que la diferencia entre dos y diez personas
+    vuelva a verse.
+
+    **No toca el aprecio.** `bond_scale` normaliza una cantidad de utilidad, no
+    personas, y por eso son dos perillas y dos funciones (`signed_saturation`
+    frente a `company_saturation`). Compartirlas haría que decir "aquí una
+    multitud son ocho" moviera de rebote la escala de los vínculos, en silencio.
     """
 
     companionship_weight: float = Field(default=0.0, ge=0.0)

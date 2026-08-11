@@ -23,8 +23,9 @@ from itertools import combinations
 
 from agora.agents.decide import critical_needs
 from agora.engine.events import EventKind
-from agora.engine.ontology import ActionId, AgentId
+from agora.engine.ontology import ActionId, AgentId, NeedId
 from agora.engine.pack import ContentPack
+from agora.engine.state import Ledger
 from agora.engine.world import Simulation
 
 
@@ -51,9 +52,30 @@ class HealthReport:
     unused: frozenset[ActionId] = field(default_factory=frozenset)
     out_of_bounds: tuple[str, ...] = ()
 
+    supply: dict[NeedId, float] = field(default_factory=dict)
+    """Oferta/demanda de cada eje: cuánto se repuso frente a cuánto decayó.
+
+    **La medida que faltaba, y la que habría cantado el problema del vínculo el
+    primer día.** `crisis_time` es un agregado: un eje que nunca aprieta se
+    esconde detrás de los que sí, y el panel se ve sano mientras media docena de
+    mecanismos están muertos.
+
+    Se lee como un ratio. 1.0 es un eje al filo. Por encima de ~1.3 el eje está
+    resuelto y **no está decidiendo nada**: lo que el pack escribió alrededor de
+    él —las acciones que lo satisfacen, los rasgos que lo pesan— es decorado.
+
+    Un eje de progresión no tiene demanda y sale como infinito; se marca aparte
+    en vez de ensuciar la columna con un número sin sentido.
+    """
+
+    lonely: dict[NeedId, float] = field(default_factory=dict)
+    """Qué fracción de la oferta de cada eje llega SIN hacer nada, por
+    `company_relief`. Alto significa que la necesidad se cubre por estar en la
+    sala, y entonces ninguna acción social decide nada."""
+
     def lines(self) -> list[str]:
         """Panel legible. Es lo que se mira mientras se calibra."""
-        return [
+        salida = [
             f"  {self.days} días · {self.agents} agentes · semillas {list(self.seeds)}",
             "",
             f"  tiempo en crisis        {self.crisis_time:6.1%}",
@@ -65,6 +87,14 @@ class HealthReport:
             f"  bloqueos                {self.stalls:6}",
             f"  acciones sin usar       {sorted(self.unused) if self.unused else '—'}",
         ]
+        if self.supply:
+            salida += ["", "  oferta/demanda por eje   (>1.3 = el eje no decide nada)"]
+            for need, ratio in sorted(self.supply.items(), key=lambda kv: -kv[1]):
+                pasivo = self.lonely.get(need, 0.0)
+                nota = f"   de gorra {pasivo:.0%}" if pasivo > 0.0 else ""
+                marca = "  <-- muerto" if ratio > 1.3 else ""
+                salida.append(f"    {need!s:<14} {ratio:6.2f}{nota}{marca}")
+        return salida
 
 
 def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] | None = None
@@ -92,8 +122,14 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
     profiles: dict[AgentId, Counter[ActionId]] = {a.id: Counter() for a in pack.agents}
     out_of_bounds: list[str] = []
 
+    libros: list[Ledger] = []
     for seed in seeds:
         sim = Simulation(pack, seed=seed)
+        # Se enciende la contabilidad. Solo aqui: una corrida de juego no paga
+        # por instrumentarse, y una de calibracion tiene que poder responder si
+        # un eje decide algo o es decorado.
+        for agent in sim.state.agents_in_order():
+            agent.ledger = Ledger()
         for _ in range(ticks):
             sim.tick()
             for agent in sim.state.agents_in_order():
@@ -119,6 +155,8 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
             for need, value in agent.needs.items():
                 if not 0.0 <= value <= 1.0:
                     out_of_bounds.append(f"{agent.spec_id}.{need} = {value}")
+            if agent.ledger is not None:
+                libros.append(agent.ledger)
 
     return HealthReport(
         days=days,
@@ -134,7 +172,41 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
         stalls=stalls,
         unused=frozenset(a.id for a in pack.actions) - used,
         out_of_bounds=tuple(out_of_bounds),
+        **_supply_and_demand(pack, libros),
     )
+
+
+def _supply_and_demand(
+    pack: ContentPack, libros: list[Ledger]
+) -> dict[str, dict[NeedId, float]]:
+    """Oferta frente a demanda, eje por eje.
+
+    Un eje de progresion no tiene demanda —solo sube— asi que dividir daria
+    infinito. Se omite en vez de ensuciar la columna con un numero sin sentido:
+    la pregunta "decide algo?" no aplica a un eje que nadie puede perder.
+    """
+    demanda: dict[NeedId, float] = {}
+    pasivo: dict[NeedId, float] = {}
+    activo: dict[NeedId, float] = {}
+    for libro in libros:
+        for destino, origen in ((demanda, libro.demanda), (pasivo, libro.pasivo),
+                                (activo, libro.activo)):
+            for need, cuanto in origen.items():
+                destino[need] = destino.get(need, 0.0) + cuanto
+
+    supply: dict[NeedId, float] = {}
+    lonely: dict[NeedId, float] = {}
+    for spec in pack.needs:
+        if spec.progression:
+            continue
+        pide = demanda.get(spec.id, 0.0)
+        if pide <= 0.0:
+            continue
+        da = pasivo.get(spec.id, 0.0) + activo.get(spec.id, 0.0)
+        supply[spec.id] = da / pide
+        if da > 0.0:
+            lonely[spec.id] = pasivo.get(spec.id, 0.0) / da
+    return {"supply": supply, "lonely": lonely}
 
 
 def _differentiation(profiles: dict[AgentId, Counter[ActionId]]) -> float:

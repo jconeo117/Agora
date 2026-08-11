@@ -378,6 +378,26 @@ class ContentPack(Spec):
             )
         return problems
 
+    def _check_company_relief_is_a_brake(self) -> list[str]:
+        """El alivio pasivo frena una necesidad; nunca la llena.
+
+        Por encima del decaimiento, la necesidad SUBIRÍA sola por estar en una
+        multitud. Dejaría de ser satisfacible por acciones, nadie la perseguiría
+        nunca, y el bucle social entero moriría **sin que nada fallase**: es
+        exactamente la clase de bug que este motor no detecta solo.
+
+        Costó descubrirlo con el vínculo de la ciudad, que ni siquiera estaba
+        por encima —estaba igual— y aun así el alivio cubría el 94 % del
+        decaimiento porque la escala de multitud era la de una aldea.
+        """
+        return [
+            f"necesidad {need.id!r}: `company_relief` ({need.company_relief}) supera "
+            f"al `decay_per_tick` ({need.decay_per_tick}), así que sube sola estando "
+            f"en compañía y ninguna acción hace falta para llenarla"
+            for need in self.needs
+            if need.company_relief > need.decay_per_tick
+        ]
+
     def _check_relation_refs(self) -> list[str]:
         """Toda relación mencionada existe, va a alguien que existe, y las
         inversas se corresponden.
@@ -704,6 +724,7 @@ class ContentPack(Spec):
             *self._check_unique_ids(),
             *self._check_global_id_collisions(),
             *self._check_need_refs(),
+            *self._check_company_relief_is_a_brake(),
             *self._check_trait_refs(),
             *self._check_place_refs(),
             *self._check_phase_refs(),

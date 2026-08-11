@@ -171,6 +171,36 @@ class Bond:
         return self.regard * fade ** max(0, tick - self.last_seen)
 
 
+@dataclass(slots=True)
+class Ledger:
+    """Cuánto se ofrece y cuánto se pide de cada eje. Solo para calibrar.
+
+    Existe porque `crisis_time` es un agregado y **un eje que nunca aprieta se
+    esconde detrás de los que sí**. El panel se ve sano mientras media docena de
+    mecanismos están muertos, y eso ya pasó: el vínculo de la ciudad no llegó a
+    ser urgente ni una vez en 256 000 muestras y nada lo decía.
+
+    Se anota lo NOMINAL, no lo que cabe. Una reposición que se pierde contra el
+    techo cuenta igual, porque la pregunta es cuánto hay en oferta — y el
+    excedente es justamente la señal de que el eje está resuelto.
+
+    Apagado por omisión (`ledger is None`): una corrida normal no paga por esto.
+    """
+
+    demanda: dict[NeedId, float] = field(default_factory=dict)
+    """Lo que se pierde: decaimiento bruto más lo que cuestan las acciones."""
+
+    pasivo: dict[NeedId, float] = field(default_factory=dict)
+    """Lo que llega sin hacer nada, por `company_relief`. Puede ser negativo con
+    mala compañía."""
+
+    activo: dict[NeedId, float] = field(default_factory=dict)
+    """Lo que llega por actuar. Es lo único que una decisión puede mover."""
+
+    def anotar(self, libro: dict[NeedId, float], need: NeedId, cuanto: float) -> None:
+        libro[need] = libro.get(need, 0.0) + cuanto
+
+
 # -----------------------------------------------------------------------------
 # Estado de un agente
 # -----------------------------------------------------------------------------
@@ -348,6 +378,11 @@ class AgentState:
 
     busy: Busy | None = None
     """`None` = ocioso. Este agente delibera en el tick actual."""
+
+    ledger: Ledger | None = None
+    """Contabilidad de oferta y demanda por eje. `None` = apagada, y esa es la
+    normal: una corrida de juego no paga por instrumentarse. La enciende
+    `health` para poder responder si un eje decide algo o es decorado."""
 
     @classmethod
     def from_spec(cls, pack: ContentPack, spec: AgentSpec) -> AgentState:
@@ -647,14 +682,21 @@ class AgentState:
 
     # -- necesidades ----------------------------------------------------------
 
-    def decay(self, need_specs: Mapping[NeedId, NeedSpec], company: float = 0.0) -> None:
+    def decay(
+        self,
+        need_specs: Mapping[NeedId, NeedSpec],
+        company: float = 0.0,
+        company_scale: float = 1.0,
+    ) -> None:
         """Baja cada necesidad según su propia tasa. Resultado en [0, 1].
 
         `company` es la compañía **efectiva**: los otros presentes, ya pesados
         por lo que este agente siente por cada uno (ver `effective_company`).
         Las necesidades que declaren `company_relief` decaen más despacio estando
-        acompañado, con saturación `n/(n+1)`: uno da la mitad del alivio, tres
-        tres cuartos, una multitud nunca más que el tope.
+        acompañado, con saturación `n/(n+escala)`. La escala la pone el pack
+        (`company_scale`) y dice qué es una multitud aquí: con 1.0 tres personas
+        ya dan tres cuartos del alivio, que es una aldea. Ver la nota en
+        `company_saturation`.
 
         Y puede ir al revés. Con compañía efectiva negativa el alivio se vuelve
         castigo y la necesidad decae MÁS DEPRISA que a solas: un cuarto con
@@ -665,11 +707,18 @@ class AgentState:
         quiero que reviente aquí, ruidosamente, y no que se propague un default
         inventado. El invariante lo garantiza `WorldState.new`.
         """
-        crowd = company_saturation(company)
+        crowd = company_saturation(company, company_scale)
 
+        libro = self.ledger
         for need_id, spec in need_specs.items():
-            drop = spec.decay_per_tick - spec.company_relief * crowd
-            self._spend(need_id, drop, spec.max_debt)
+            relief = spec.company_relief * crowd
+            if libro is not None:
+                # Bruto y alivio SEPARADOS, no el neto: el neto esconde
+                # exactamente lo que se quiere ver, que es cuanta de la oferta
+                # llega por estar en la sala sin hacer nada.
+                libro.anotar(libro.demanda, need_id, spec.decay_per_tick)
+                libro.anotar(libro.pasivo, need_id, relief)
+            self._spend(need_id, spec.decay_per_tick - relief, spec.max_debt)
 
     def apply(
         self,
@@ -698,8 +747,10 @@ class AgentState:
                 # trabajar canse menos. Lo mismo vale para el sitio y para cómo
                 # esté el mundo: una hambruna quita alimento, no ganas de comer.
                 contexto = 1.0 if world_gains is None else world_gains.get(need_id, 1.0)
-                self.restore(need_id, delta * self.gains.get(need_id, 1.0) * contexto)
+                self.gain(need_id, delta * self.gains.get(need_id, 1.0) * contexto)
             else:
+                if self.ledger is not None:
+                    self.ledger.anotar(self.ledger.demanda, need_id, -delta)
                 self._spend(need_id, -delta, need_specs[need_id].max_debt)
 
     # -- deuda ----------------------------------------------------------------
@@ -718,6 +769,15 @@ class AgentState:
         if raw < 0.0 and max_debt > 0.0:
             self.debt[need_id] = min(max_debt, self.debt.get(need_id, 0.0) - raw)
         self.needs[need_id] = self._clamp(raw)
+
+    def gain(self, need_id: NeedId, amount: float) -> float:
+        """`restore` anotando en el libro. Es la puerta por la que entra lo que
+        se GANA ACTUANDO, y por eso la usan tambien las acciones elasticas: sin
+        ella, dormir —que repone por otra via— no aparecia en la contabilidad y
+        el descanso salia con la mitad de oferta de la que tiene."""
+        if self.ledger is not None:
+            self.ledger.anotar(self.ledger.activo, need_id, amount)
+        return self.restore(need_id, amount)
 
     def restore(self, need_id: NeedId, amount: float) -> float:
         """Repone, saldando primero. Devuelve lo que llegó a la necesidad.
