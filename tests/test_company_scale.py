@@ -125,14 +125,48 @@ def test_a_bigger_scale_makes_the_axis_scarcer() -> None:
     assert floja.supply[SED] > dura.supply[SED]
 
 
-def test_it_cuts_what_arrives_for_free() -> None:
-    """El alivio pasivo es lo que más se lleva la escala: con la curva de aldea,
-    estar rodeado cubre casi todo el decaimiento sin hacer nada."""
+def test_the_knob_only_cuts_the_conditional_part() -> None:
+    """**El límite de la perilla, y por eso hace falta la fase 2.**
+
+    `company_scale` solo toca lo que depende de la gente: el alivio pasivo y
+    `effects_per_company`. Los efectos BASE los regala la acción se esté solo o
+    acompañado, y ahí no llega.
+
+    Consecuencia medible y contraintuitiva: subir la escala hace que la fracción
+    que llega SIN CONDICIÓN **suba**, porque se recorta el denominador y no el
+    numerador. Este banco de pruebas da +0.4 de `sed` a solas, así que a escala 8
+    el 82 % de la oferta es incondicional. El número no está mal: está delatando
+    que el pack regala el eje, que es justo lo que la métrica existe para ver.
+    """
     floja = measure(scale_pack(), days=4, seeds=(1312,))
     dura = measure(
         scale_pack(tuning={"bond_weight": 0.0, "company_scale": 8.0}), days=4, seeds=(1312,)
     )
-    assert floja.lonely[SED] > dura.lonely[SED]
+    assert dura.supply[SED] < floja.supply[SED], "la oferta total sí baja"
+    assert dura.lonely[SED] > floja.lonely[SED], "y lo que queda es más incondicional"
+
+
+def test_free_supply_is_counted_only_when_ungated() -> None:
+    """Lo que separa "lo da a solas" de "lo da por cumplir la condición".
+
+    `cenar_con_los_tuyos` da +0.30 de vínculo de base y está bien: exige una
+    pareja delante. La misma cifra en `beber`, que no exige a nadie, es el eje
+    regalado.
+    """
+    suelto = measure(scale_pack(), days=4, seeds=(1312,))
+    gateado = measure(
+        scale_pack(
+            actions=[
+                {"id": "beber", "label": "beber", "duration_ticks": 2,
+                 "requires_company": 1,
+                 "satisfies": {"sed": 0.9}, "effects": {"sed": 0.4},
+                 "effects_per_company": {"sed": 0.3}},
+            ]
+        ),
+        days=4,
+        seeds=(1312,),
+    )
+    assert gateado.lonely[SED] < suelto.lonely[SED]
 
 
 # --- el instrumento -----------------------------------------------------------

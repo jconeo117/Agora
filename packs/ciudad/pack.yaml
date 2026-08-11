@@ -97,6 +97,7 @@ tuning:
   bond_rate: 0.15
   bond_weight: 0.5
   companionship_weight: 0.4
+  company_scale: 8.0
   bond_fade: 0.9997
   bond_horizon: 2880
   strain_multipliers:
@@ -132,7 +133,7 @@ needs:
   initial: 0.6
   base_weight: 0.75
   strain_weight: 0.3
-  company_relief: 0.004
+  company_relief: 0.0014
 - id: estimulo
   label: asombro
   decay_per_tick: 0.004
@@ -336,9 +337,9 @@ actions:
     vinculo: 0.2
   effects:
     sustento: 0.7
-    vinculo: 0.06
+    vinculo: 0.015
   effects_per_company:
-    vinculo: 0.3
+    vinculo: 0.16
   saturation_gain: 0.08
   phase_multipliers:
     manana: 2.2
@@ -358,9 +359,9 @@ actions:
   effects:
     sustento: 0.7
     dinero: -0.07
-    vinculo: 0.05
+    vinculo: 0.012
   effects_per_company:
-    vinculo: 0.25
+    vinculo: 0.14
     dinero: -0.03
   saturation_gain: 0.1
 - id: cocinar
@@ -408,7 +409,7 @@ actions:
     vinculo: 0.18
     discrecion: -0.015
   effects_per_company:
-    vinculo: 0.5
+    vinculo: 0.24
   saturation_gain: 0.14
   situation_multipliers:
     feria: 1.8
@@ -426,11 +427,11 @@ actions:
     discrecion: 0.16
   effects:
     estimulo: 0.3
-    vinculo: 0.1
+    vinculo: 0.02
     dinero: -0.1
     discrecion: -0.015
   effects_per_company:
-    vinculo: 0.35
+    vinculo: 0.2
     estimulo: 0.15
     dinero: -0.05
   saturation_gain: 0.16
@@ -474,9 +475,9 @@ actions:
   effects:
     nucleo: 0.6
     temple: 0.004
-    vinculo: 0.06
+    vinculo: 0.02
   effects_per_company:
-    vinculo: 0.2
+    vinculo: 0.12
   saturation_gain: 0.1
 - id: velar_el_fuego
   label: velar junto al fuego
@@ -486,10 +487,10 @@ actions:
     vinculo: 0.45
     temple: 0.2
   effects:
-    vinculo: 0.15
+    vinculo: 0.035
     temple: 0.003
   effects_per_company:
-    vinculo: 0.4
+    vinculo: 0.5
   saturation_gain: 0.12
   phase_multipliers: *id001
   situation_multipliers:
@@ -519,8 +520,10 @@ actions:
     curso: 0.00038
     arcano: 0.004
     descanso: -0.06
-    vinculo: 0.04
+    vinculo: 0.01
     dinero: 0.13
+  effects_per_company:
+    vinculo: 0.035
   phase_multipliers:
     manana: 1.6
     tarde: 1.1
@@ -542,11 +545,10 @@ actions:
     dinero: 0.22
     arcano: 0.002
     descanso: -0.09
-    vinculo: 0.05
     discrecion: -0.025
     ahorros: 0.006
   effects_per_company:
-    vinculo: 0.2
+    vinculo: 0.14
   phase_multipliers:
     manana: 1.7
     tarde: 1.1
@@ -884,9 +886,10 @@ actions:
   effects:
     dinero: 0.16
     descanso: -0.1
-    vinculo: 0.06
     ahorros: 0.004
     discrecion: -0.02
+  effects_per_company:
+    vinculo: 0.12
   phase_multipliers: *id001
 - id: cenar_con_los_tuyos
   label: cenar con los tuyos

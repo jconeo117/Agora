@@ -69,9 +69,14 @@ class HealthReport:
     """
 
     lonely: dict[NeedId, float] = field(default_factory=dict)
-    """Qué fracción de la oferta de cada eje llega SIN hacer nada, por
-    `company_relief`. Alto significa que la necesidad se cubre por estar en la
-    sala, y entonces ninguna acción social decide nada."""
+    """Qué fracción de la oferta de cada eje llega **sin cumplir la condición
+    que el pack dice que importa**: el alivio pasivo por estar en la sala, más
+    los efectos base de acciones sociales que no exigen a nadie.
+
+    Es la columna que dice DÓNDE cortar. Un eje con oferta alta y `de gorra`
+    alto no se arregla encareciéndolo: mientras la oferta sea incondicional,
+    subir el precio solo hace que la gente se quede quieta en la multitud que
+    ya tiene."""
 
     def lines(self) -> list[str]:
         """Panel legible. Es lo que se mira mientras se calibra."""
@@ -188,9 +193,10 @@ def _supply_and_demand(
     demanda: dict[NeedId, float] = {}
     pasivo: dict[NeedId, float] = {}
     activo: dict[NeedId, float] = {}
+    gratis: dict[NeedId, float] = {}
     for libro in libros:
         for destino, origen in ((demanda, libro.demanda), (pasivo, libro.pasivo),
-                                (activo, libro.activo)):
+                                (activo, libro.activo), (gratis, libro.incondicional)):
             for need, cuanto in origen.items():
                 destino[need] = destino.get(need, 0.0) + cuanto
 
@@ -205,7 +211,8 @@ def _supply_and_demand(
         da = pasivo.get(spec.id, 0.0) + activo.get(spec.id, 0.0)
         supply[spec.id] = da / pide
         if da > 0.0:
-            lonely[spec.id] = pasivo.get(spec.id, 0.0) / da
+            sin_condicion = pasivo.get(spec.id, 0.0) + gratis.get(spec.id, 0.0)
+            lonely[spec.id] = sin_condicion / da
     return {"supply": supply, "lonely": lonely}
 
 

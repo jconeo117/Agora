@@ -30,6 +30,7 @@ from agora.engine import persistence
 from agora.engine.events import EventKind, EventLog, Payload
 from agora.engine.ontology import (
     ActionId,
+    ActionSpec,
     AgentId,
     GoalStatus,
     NeedId,
@@ -466,6 +467,8 @@ class Simulation:
         # Lo que el sitio y lo que le pase al mundo hacen rendir. Se resuelve una
         # vez y sirve para las dos vías, la normal y la elástica.
         world_gains = self.state.gains_at(agent.at)
+        if agent.ledger is not None:
+            self._anotar_lo_incondicional(agent, spec)
         agent.apply(received, self.pack.need_by_id, world_gains)
 
         if spec.elastic is not None and done > 0:
@@ -677,6 +680,28 @@ class Simulation:
         self._together = current
 
     # -------------------------------------------------------------------------
+
+    def _anotar_lo_incondicional(self, agent: AgentState, spec: ActionSpec) -> None:
+        """Cuánto de lo que se acaba de ganar llegaba igual estando solo.
+
+        Un eje **social** es el que declara `company_relief`: el propio pack dice
+        que la compañía lo alivia. Si una acción lo satisface con efectos BASE y
+        no exige ni compañía ni relación, ese eje se cubre sin nadie delante, y
+        entonces todo lo que el pack escribió alrededor —las acciones sociales,
+        los rasgos que las pesan— es decorado.
+
+        Solo se cuenta la parte base. `effects_per_company` ya vale cero a
+        solas, que es exactamente la forma correcta de escribir "esto necesita
+        gente", y por eso no entra aquí.
+        """
+        libro = agent.ledger
+        if libro is None:  # pragma: no cover - quien llama ya lo comprobó
+            return
+        if spec.requires_company > 0 or spec.requires_relation is not None:
+            return  # está gateado: lo que da, lo da por cumplir la condición
+        for need_id, delta in spec.effects.items():
+            if delta > 0.0 and self.pack.need_by_id[need_id].company_relief > 0.0:
+                libro.anotar(libro.incondicional, need_id, delta)
 
     def _emit(
         self,

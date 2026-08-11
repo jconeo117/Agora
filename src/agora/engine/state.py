@@ -197,6 +197,18 @@ class Ledger:
     activo: dict[NeedId, float] = field(default_factory=dict)
     """Lo que llega por actuar. Es lo único que una decisión puede mover."""
 
+    incondicional: dict[NeedId, float] = field(default_factory=dict)
+    """La parte del `activo` que llega **sin cumplir la condición que el pack
+    dice que importa**: efectos base sobre un eje social, en una acción que no
+    exige ni compañía ni relación.
+
+    Es el subconjunto que hace inerte a un eje sin que nada falle. Medido en la
+    ciudad: siete de las diez acciones que dan vínculo lo daban a solas —beber
+    solo curaba la soledad— y entre eso y el alivio pasivo, `charlar` era
+    decorado. Que sea un contador aparte y no una resta es lo que permite
+    verificar un recorte en vez de suponerlo.
+    """
+
     def anotar(self, libro: dict[NeedId, float], need: NeedId, cuanto: float) -> None:
         libro[need] = libro.get(need, 0.0) + cuanto
 
