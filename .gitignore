@@ -8,3 +8,7 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Plan de frentes: mapa de trabajo, no producto. Vive en la carpeta pero no
+# en la historia del repositorio.
+PLAN.md
