@@ -150,6 +150,7 @@ class Temperament:
     loss_aversion: float
     critical_need_threshold: float
     travel_discount: float
+    companionship_weight: float
 
 
 def compute_strain(pack: ContentPack, needs: Mapping[NeedId, float]) -> float:
@@ -236,6 +237,12 @@ def compose_temperament(
         travel_discount=min(
             1.0, tuning.travel_discount * factors[TemperamentKnob.TRAVEL_DISCOUNT]
         ),
+        # Sin techo, como `loss_aversion`: que a alguien le tire el bullicio el
+        # triple describe a un juerguista, que es un caracter valido. Y si el
+        # mundo lo puso a 0, ningun rasgo puede resucitarlo — un mundo donde la
+        # gente no atrae no se vuelve gregario porque alguien sea sociable.
+        companionship_weight=tuning.companionship_weight
+        * factors[TemperamentKnob.COMPANIONSHIP],
     )
 
 

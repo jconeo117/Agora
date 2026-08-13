@@ -255,6 +255,16 @@ class TemperamentKnob(StrEnum):
     TRAVEL_DISCOUNT = "travel_discount"
     """Cuánto pesa la distancia. Alto: se mueve. Bajo: arraigado."""
 
+    COMPANIONSHIP = "companionship_weight"
+    """Cuánto atrae la gente. Alto: busca el bullicio. Bajo: le da igual.
+
+    Era la única de las cinco que el mundo fijaba **para todos por igual**: una
+    taberna llena atraía exactamente lo mismo a un juerguista que a un ermitaño,
+    y el pack no tenía forma de decir lo contrario. Con la soledad barata daba
+    igual; en cuanto el eje social empieza a apretar, un empuje universal hacia
+    el bullicio es la receta del rebaño.
+    """
+
 
 # ---------------------------------------------------------------------------
 # Rasgos: multiplicadores estables de personalidad

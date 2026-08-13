@@ -305,7 +305,9 @@ class AgentState:
     está mal. Se guarda además de usarse porque en F2 va a ser una de las
     primeras cosas que el narrador necesite saber."""
 
-    temperament: Temperament = field(default_factory=lambda: Temperament(0.15, 1.0, 0.15, 0.95))
+    temperament: Temperament = field(
+        default_factory=lambda: Temperament(0.15, 1.0, 0.15, 0.95, 0.0)
+    )
     """DERIVADO de `traits`, del `tuning` del pack y del `strain` actual. Cómo
     decide esta persona hoy: su impulsividad, su aversión al precio, su aguante
     y su arraigo.

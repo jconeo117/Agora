@@ -123,6 +123,11 @@ def temperament_pack(**tuning: float) -> ContentPack:
                 "label": "arraigo",
                 "temperament_multipliers": {"travel_discount": 0.8},
             },
+            {
+                "id": "sociabilidad",
+                "label": "sociabilidad",
+                "temperament_multipliers": {"companionship_weight": 3.0},
+            },
         ],
     )
 
@@ -130,6 +135,28 @@ def temperament_pack(**tuning: float) -> ContentPack:
 IMPULSO = TraitId("impulsividad")
 AGUANTE = TraitId("aguante")
 ARRAIGO = TraitId("arraigo")
+SOCIABLE = TraitId("sociabilidad")
+
+
+# --- cuanto atrae la gente, que era lo unico universal -----------------------
+
+
+def test_crowd_pull_is_a_character_trait() -> None:
+    """Era la unica de las cinco perillas que el mundo fijaba PARA TODOS: una
+    taberna llena atraia lo mismo a un juerguista que a un ermitano, y el pack
+    no tenia forma de decir lo contrario."""
+    mundo = temperament_pack(companionship_weight=0.4)
+    assert compose_temperament(mundo, {}).companionship_weight == pytest.approx(0.4)
+    assert compose_temperament(mundo, {SOCIABLE: 1.0}).companionship_weight == pytest.approx(1.2)
+    ermitano = compose_temperament(mundo, {SOCIABLE: -1.0}).companionship_weight
+    assert ermitano == pytest.approx(0.4 / 3.0)
+
+
+def test_a_world_without_crowd_pull_cannot_be_revived_by_a_trait() -> None:
+    """Si el mundo lo puso a 0, ser sociable no lo resucita: un mundo donde la
+    gente no atrae no se vuelve gregario porque alguien lo sea."""
+    mundo = temperament_pack(companionship_weight=0.0)
+    assert compose_temperament(mundo, {SOCIABLE: 1.0}).companionship_weight == 0.0
 
 
 def test_no_traits_leaves_the_world_values() -> None:

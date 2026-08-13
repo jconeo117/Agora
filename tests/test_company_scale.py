@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 
-from agora.engine.ontology import NeedId
+from agora.engine.ontology import ActionId, NeedId
 from agora.engine.outcome import company_saturation, signed_saturation
 from agora.engine.pack import ContentPack
 from agora.engine.state import Ledger
@@ -246,3 +246,35 @@ def test_relief_equal_to_decay_is_allowed() -> None:
     llena, y para llenarla hay que actuar."""
     pack = scale_pack()
     assert pack.need_by_id[SED].company_relief == pack.need_by_id[SED].decay_per_tick
+
+
+# --- que la gente atraiga distinto a cada cual --------------------------------
+
+
+def test_the_crowd_pull_follows_the_agent_not_the_world() -> None:
+    """El agujero que cerraba la fase 3.
+
+    `companionship` usaba el peso del MUNDO, así que un ermitaño y un juerguista
+    encontraban igual de atractiva una taberna llena. Con la soledad barata daba
+    igual; en cuanto el eje social aprieta, un empuje universal hacia el bullicio
+    es exactamente la receta del rebaño que este proyecto ya se comió una vez.
+    """
+    from agora.agents.decide import companionship
+
+    pack = scale_pack()
+    beber = pack.action_by_id[ActionId("beber")]
+    juerguista = companionship(beber, 6.0, weight=1.2)
+    ermitano = companionship(beber, 6.0, weight=0.13)
+    assert juerguista > ermitano > 1.0
+
+
+def test_it_is_still_only_for_actions_where_people_matter() -> None:
+    """El filtro que impide que alguien prefiera dormir rodeado de gente."""
+    from agora.agents.decide import companionship
+    from agora.engine.ontology import ActionSpec
+
+    solitaria = ActionSpec.model_validate(
+        {"id": "dormir", "label": "dormir", "duration_ticks": 4,
+         "satisfies": {"sed": 0.5}, "effects": {"sed": 0.2}}
+    )
+    assert companionship(solitaria, 20.0, weight=5.0) == 1.0

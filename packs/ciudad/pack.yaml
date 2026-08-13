@@ -216,6 +216,8 @@ traits:
   need_weight_multipliers:
     vinculo: 2.2
     descanso: 0.9
+  temperament_multipliers:
+    companionship_weight: 3.2
 - id: laboriosidad
   label: laboriosidad
   need_weight_multipliers:

@@ -475,7 +475,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             reward *= tastes.get(str(action.id), 1.0)
             reward *= novelty(agent, action.id, tuning.novelty_weight)
             reward *= companionship(
-                action, expected, tuning.companionship_weight, tuning.company_scale
+                action, expected, temperament.companionship_weight, tuning.company_scale
             )
             reward *= phase_fit(action, felt_phase)
             reward *= situation_fit(action, aqui)

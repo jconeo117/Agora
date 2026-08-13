@@ -76,7 +76,12 @@ def T(i, l, **k):
 # que se le da bien aprender; el elemento dice que puede canalizar.
 # -----------------------------------------------------------------------------
 traits = [
-    T("sociabilidad", "sociabilidad", need_weight_multipliers={"vinculo": 2.2, "descanso": 0.9}),
+    # Dos canales, y hacen cosas distintas. El peso dice cuanto le IMPORTA la
+    # soledad; el temperamento dice cuanto le TIRA el bullicio. Un ermitaño
+    # puede echar de menos a alguien concreto y aun asi no querer entrar en una
+    # taberna llena, y sin el segundo canal eso no se podia escribir.
+    T("sociabilidad", "sociabilidad", need_weight_multipliers={"vinculo": 2.2, "descanso": 0.9},
+      temperament_multipliers={"companionship_weight": 3.2}),
     T("laboriosidad", "laboriosidad", need_weight_multipliers={"dinero": 1.6, "descanso": 0.75}),
     T("hedonismo", "hedonismo", need_weight_multipliers={"estimulo": 2.4, "dinero": 0.7}),
     T("frugalidad", "frugalidad",
