@@ -27,7 +27,9 @@ from agora.agents.decide import (
     recovery_rate,
 )
 from agora.engine import persistence
-from agora.engine.events import EventKind, EventLog, Payload
+from agora.engine.disposition import urgency
+from agora.engine.events import Event, EventKind, EventLog, Payload
+from agora.engine.memory import importancia_de
 from agora.engine.ontology import (
     ActionId,
     ActionSpec,
@@ -337,10 +339,18 @@ class Simulation:
                 if not specs[need_id].can_be_critical:
                     continue
                 if before[need_id] >= threshold > value:
-                    self._emit(
+                    event = self._emit(
                         EventKind.NEED_CRITICAL,
                         agent,
                         data={"need": str(need_id), "value": round(value, 4)},
+                    )
+                    # *Lo que duele, se recuerda* — la frase con la que se
+                    # declaró este evento en F0, cobrada por fin. Sin sorpresa:
+                    # hundirse no desmiente ninguna expectativa, duele y ya.
+                    self._grabar(
+                        agent,
+                        event,
+                        urgencia=urgency(value, specs[need_id].urgency_exponent),
                     )
 
     def _settle_goals(self, agent: AgentState) -> None:
@@ -367,12 +377,29 @@ class Simulation:
                 continue
 
             agent.goals[goal.id] = resultado
-            self._emit(
+            event = self._emit(
                 EventKind.GOAL_ACHIEVED
                 if resultado is GoalStatus.ACHIEVED
                 else EventKind.GOAL_FAILED,
                 agent,
                 data={"goal": str(goal.id), "need": str(goal.need)},
+            )
+            # Una meta que se cierra marca por lo que EXIGÍA, no por cómo anda
+            # ahora ese eje. Medir el eje sería medir lo contrario de lo que se
+            # quiere: cumplir una meta lo deja lleno, urgencia cero, y el logro
+            # de una vida se grabaría con la misma fuerza que una siesta.
+            #
+            # `urgency` mide la presión de un déficit, así que se le pasa el
+            # déficit que la meta consideraba inaceptable — `1 - at_least`. Una
+            # meta que pedía llenar el eje al 90 % pesa mucho; una que se
+            # conformaba con el 20 %, poco. La curva es la misma del pack, así
+            # que un mundo de necesidades tiránicas también tiene metas tiránicas.
+            self._grabar(
+                agent,
+                event,
+                urgencia=urgency(
+                    1.0 - goal.at_least, self.pack.need_by_id[goal.need].urgency_exponent
+                ),
             )
             # Ordenadas por id: `drift_trait` recompone en cada llamada y la
             # multiplicación en coma flotante no es asociativa.
@@ -475,7 +502,9 @@ class Simulation:
             rate = recovery_rate(spec, agent, world_gains)
             agent.gain(spec.elastic.need, rate * done)
 
-        learn(
+        # La sorpresa se cobra aquí y la usa la memoria más abajo. Antes se
+        # calculaba dentro de `learn` y se tiraba.
+        sorpresa = learn(
             agent.gain_beliefs.setdefault(action_id, {}),
             agent.cost_beliefs.setdefault(action_id, {}),
             spec,
@@ -513,7 +542,23 @@ class Simulation:
         agent.saturate(action_id, spec.saturation_gain)
 
         data: Payload = {"company": round(company, 4)} if spec.effects_per_company else {}
-        self._emit(EventKind.ACTION_COMPLETED, agent, action=action_id, data=data)
+        event = self._emit(EventKind.ACTION_COMPLETED, agent, action=action_id, data=data)
+        # Lo que apretaba al empezar, no lo que queda después de saciarlo: es la
+        # misma regla que gobierna `learn` y `company_premium`, y por lo mismo —
+        # lo que valió el rato lo decide la necesidad que traías.
+        apretaba = max(
+            (
+                urgency(before[need], self.pack.need_by_id[need].urgency_exponent)
+                for need in spec.satisfies
+            ),
+            default=0.0,
+        )
+        # `testigos` explícito y no recontado: aquí ya se sabe quién estaba, y
+        # volver a preguntarlo daría otro número — entre aplicar los efectos y
+        # esta línea nadie se ha movido, pero depender de eso sería frágil.
+        self._grabar(
+            agent, event, urgencia=apretaba, sorpresa=sorpresa, testigos=len(others)
+        )
         agent.busy = None
 
     def _arrive(self, agent: AgentState, busy: Traveling) -> None:
@@ -710,13 +755,61 @@ class Simulation:
         *,
         action: ActionId | None = None,
         data: Payload | None = None,
-    ) -> None:
-        """Atajo: casi todos los eventos son "este agente, aquí, ahora"."""
-        self.log.emit(
+    ) -> Event:
+        """Atajo: casi todos los eventos son "este agente, aquí, ahora".
+
+        Devuelve el evento ya sellado porque la memoria episódica necesita el
+        hecho entero, no su id: el recuerdo se lleva una copia de lo saliente
+        para sobrevivir a la ventana del log y a un `save`/`load`.
+        """
+        return self.log.emit(
             tick=self.state.tick,
             kind=kind,
             actor=agent.spec_id,
             place=agent.at,
             action=action,
             data=data,
+        )
+
+    # -------------------------------------------------------------------------
+    # Memoria episódica
+    # -------------------------------------------------------------------------
+
+    def _grabar(
+        self,
+        agent: AgentState,
+        event: Event,
+        *,
+        urgencia: float,
+        sorpresa: float = 0.0,
+        testigos: int | None = None,
+    ) -> None:
+        """Pasa un hecho por la regla de importancia y, si marca, lo graba.
+
+        Existe como un solo sitio y no repartido por los tres emisores porque la
+        regla es una: si cada punto de grabación compusiera su propia
+        importancia, calibrar `memory_scale` dejaría de significar nada.
+
+        `testigos` a `None` se cuenta aquí — casi siempre es "los que están
+        delante", y el único caso que no lo es (el fin de una acción, donde ya se
+        computó la compañía) lo pasa explícito.
+        """
+        memoria = self.state.memoria
+        if memoria.capacidad <= 0:
+            return
+        if testigos is None:
+            testigos = len(self.state.others_at(agent))
+        tuning = self.pack.tuning
+        memoria.remember(
+            agent.spec_id,
+            event,
+            importancia_de(
+                urgencia,
+                sorpresa,
+                testigos,
+                peso_urgencia=tuning.memory_urgency_weight,
+                peso_sorpresa=tuning.memory_surprise_weight,
+                peso_testigos=tuning.memory_witness_weight,
+                escala=tuning.memory_scale,
+            ),
         )

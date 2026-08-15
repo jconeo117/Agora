@@ -169,10 +169,23 @@ def learn(
     received: Mapping[NeedId, float],
     before: Mapping[NeedId, float],
     rate: float,
-) -> None:
+) -> float:
     """Corrige las expectativas con lo que acaba de pasar. Muta los dos dicts.
 
         creencia <- creencia + alfa * (recibido/prometido - creencia)
+
+    **Devuelve la sorpresa**: el mayor error de predicción en valor absoluto,
+    `max |recibido/prometido - creencia|` sobre lo que sí se aprendió. Ese número
+    ya se calculaba aquí y se tiraba; es lo que la memoria episódica usa para
+    decidir qué marca y qué no (`memory.importancia_de`).
+
+    Se toma el **máximo y no la suma** por legibilidad: la suma crece con cuántas
+    necesidades toque la acción, así que una acción compleja saldría siempre más
+    sorprendente que una simple aunque nada la desviara. El máximo se puede
+    señalar con el dedo — *esperaba esto de aquel eje y salió lo otro*.
+
+    Devuelve 0.0 cuando no hay nada que aprender, que es también lo que
+    corresponde: sin expectativa no hay sorpresa.
 
     Se aprende en las dos direcciones: cuánto da algo de verdad y cuánto cuesta
     de verdad. La creencia es un **multiplicador** sobre `satisfies` o sobre
@@ -201,8 +214,9 @@ def learn(
     `rate` a 0 desactiva el aprendizaje sin código condicional en el motor.
     """
     if rate <= 0.0:
-        return
+        return 0.0
 
+    sorpresa = 0.0
     for need_id, promised in action.effects.items():
         if promised > 0.0 and need_id in action.satisfies:
             room = 1.0 - before[need_id]
@@ -222,4 +236,8 @@ def learn(
             continue  # efecto colateral: no se perseguía ni se anticipaba
 
         current = store.get(need_id, 1.0)
-        store[need_id] = current + rate * (realized - current)
+        error = realized - current
+        sorpresa = max(sorpresa, abs(error))
+        store[need_id] = current + rate * error
+
+    return sorpresa

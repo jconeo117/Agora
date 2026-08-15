@@ -11,9 +11,16 @@ una clase la cumple sin que esta herede de nada.
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from agora.engine.ontology import ActionId, AgentId
+
+if TYPE_CHECKING:
+    # Solo para tipar. En runtime un `Protocol` marcado como `runtime_checkable`
+    # comprueba nombres de método, no firmas, así que importar de verdad aquí
+    # solo serviría para acoplar el puerto a su implementación.
+    from agora.engine.events import Event
+    from agora.engine.memory import Cue, Recuerdo
 
 
 class Outcome(StrEnum):
@@ -62,20 +69,39 @@ class CognitionProvider(Protocol):
 
 @runtime_checkable
 class MemoryStore(Protocol):
-    """Memoria episódica por agente. Entra en F1.
+    """Memoria episódica por agente. Implementada en F1.12.
 
-    En F1 la implementación es una lista en Python. La interfaz existe para
-    que cambiar a sqlite-vec o Qdrant sea sustituir una clase, no un refactor.
+    La implementación es una lista en Python (`engine/memory.py`). La interfaz
+    existe para que cambiar a sqlite-vec o Qdrant sea sustituir una clase, no un
+    refactor.
 
     El parámetro `owner` es obligatorio a propósito: hace imposible consultar
     memoria sin decir de quién es, y con ello imposible el bug de omnisciencia
     (un NPC recordando lo que solo presenció otro).
+
+    **La firma cambió al implementarla, y merece quedar escrito por qué.** Se
+    declaró como `remember(owner, event_id, ...)` con `recall` devolviendo ids y
+    un `cue: str`. Las tres piezas estaban mal, y ninguna se descubrió pensando:
+
+    - Un **id no es un recuerdo**. El log tiene ventana, así que `log[seq]` de
+      algo viejo levanta `EventoDesalojadoError`; y `persistence` no guarda la
+      historia, así que al reanudar los punteros no apuntan a nada. El recuerdo
+      lleva su propia copia de lo saliente.
+    - Un **`cue` de texto libre** invita a vocabulario de ambientación dentro del
+      motor —prohibido y verificado por AST— y a similitud vectorial, que rompe
+      el determinismo y la legibilidad. La señal es estructural.
+    - Por lo mismo, la **relevancia no es coseno**: es coincidencia contada sobre
+      ids del propio motor, y por eso se puede explicar por qué salió un recuerdo
+      y no otro.
+
+    Un puerto declarado antes de tiempo acierta la costura y se equivoca en los
+    tipos. Acertar la costura era lo que importaba: nada tuvo que reescribirse.
     """
 
-    def remember(self, owner: AgentId, event_id: int, importance: float) -> None: ...
+    def remember(self, owner: AgentId, event: Event, importancia: float) -> Recuerdo | None: ...
 
-    def recall(self, owner: AgentId, cue: str, limit: int) -> list[int]:
-        """Devuelve ids de evento, ordenados por
-        `recencia * importancia * relevancia`. La similitud vectorial es solo
-        el tercer factor: un vector store crudo no basta."""
+    def recall(self, owner: AgentId, cue: Cue, limit: int) -> tuple[Recuerdo, ...]:
+        """Devuelve recuerdos, ordenados por `relevancia * valor`, donde el valor
+        es la importancia desdibujada por el tiempo. Los dos factores multiplican:
+        lo que no viene a cuento no sale por muy grabado que esté."""
         ...

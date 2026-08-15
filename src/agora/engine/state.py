@@ -26,6 +26,7 @@ from agora.engine.disposition import (
     compose_temperament,
     compute_strain,
 )
+from agora.engine.memory import MemoriaEpisodica
 from agora.engine.ontology import (
     ActionId,
     AgentId,
@@ -943,6 +944,13 @@ class WorldState:
     pide el suyo con `rng.stream(...)`, y así el resultado no depende de cuántos
     sorteos hubo antes."""
 
+    memoria: MemoriaEpisodica = field(default_factory=MemoriaEpisodica)
+    """Lo que recuerda cada agente. Estado del mundo y no del agente, aunque sea
+    por agente, y la razón es la política de olvido: repartida entre los sitios
+    que graban recuerdos habría tres copias de la misma regla divergiendo.
+
+    Apagada mientras `memory_capacity` valga 0, que es el defecto."""
+
     @property
     def seed(self) -> int:
         """Se escribe en la primera línea del log. Un bug se reproduce corriendo
@@ -962,6 +970,13 @@ class WorldState:
             tick=0,
             agents=agents,
             rng=RngSource(seed),
+            # La capacidad y el desdibujado salen del pack de HOY, igual que todo
+            # lo demás derivado: al reanudar sobre un pack retocado manda el
+            # nuevo, no el que se guardó.
+            memoria=MemoriaEpisodica(
+                capacidad=pack.tuning.memory_capacity,
+                fade=pack.tuning.memory_fade,
+            ),
         )
 
     # -- situaciones ----------------------------------------------------------

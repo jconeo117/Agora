@@ -100,6 +100,9 @@ tuning:
   company_scale: 8.0
   bond_fade: 0.9997
   bond_horizon: 2880
+  memory_capacity: 40
+  memory_scale: 1.0
+  memory_fade: 0.9995
   strain_multipliers:
     temperature: 2.2
     travel_discount: 0.85

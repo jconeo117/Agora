@@ -1448,3 +1448,65 @@ class TuningSpec(Spec):
     0.0 desactiva las interrupciones: los agentes terminan siempre lo que
     empiezan, aunque se estén muriendo.
     """
+
+    memory_capacity: int = Field(default=0, ge=0)
+    """Cuántos recuerdos retiene cada agente. **0 desactiva la memoria episódica.**
+
+    Apagada por defecto, como `bond_rate` y `sighting_horizon`: un pack que no la
+    pide no paga por ella, y estrenar el mecanismo no puede mover ningún contrato
+    de salud ya medido.
+
+    Cuando se llena no se descarta el más viejo sino el de menor valor retenido
+    —importancia por desdibujado—. Con FIFO, cualquier cosa memorable queda
+    enterrada por la rutina de los días siguientes, que es justo al revés de como
+    funciona una biografía.
+    """
+
+    memory_fade: float = Field(default=1.0, gt=0.0, le=1.0)
+    """Cuánto se desdibuja un recuerdo por tick: `importancia * fade ** edad`.
+
+    Misma forma y mismo significado que `bond_fade`, y a propósito: dos
+    mecanismos que dicen medir el paso del tiempo tienen que medirlo igual.
+
+    Ojo a la escala. Con 96 ticks por día, 0.999 deja un recuerdo al 91 % al día
+    siguiente y al 53 % a la semana. 1.0 = nada se desvanece nunca.
+    """
+
+    memory_urgency_weight: float = Field(default=1.0, ge=0.0)
+    """Cuánto pesa, al grabar, lo que apretaba la necesidad en ese momento.
+
+    Comer con hambre se recuerda; picar algo por costumbre, no. Es la misma
+    `urgency` con la que se decidió y con la que se valoró el rato: una sola vara
+    en todo el motor.
+    """
+
+    memory_surprise_weight: float = Field(default=1.0, ge=0.0)
+    """Cuánto pesa que algo se desvíe de lo esperado.
+
+    Sale gratis: `learn` ya calcula ese error de predicción para corregir las
+    creencias, y hasta ahora lo tiraba. Se toma en **valor absoluto** — marca
+    igual que algo salga mucho mejor que mucho peor. El signo es cosa del
+    arrepentimiento y se guarda aparte.
+    """
+
+    memory_witness_weight: float = Field(default=0.5, ge=0.0)
+    """Cuánto pesa que hubiera alguien delante.
+
+    Se satura antes de pesarse: la diferencia entre solo y acompañado es enorme,
+    la que va de cuatro a cinco personas no existe.
+    """
+
+    memory_scale: float = Field(default=1.0, gt=0.0)
+    """Cuánto bruto equivale a media importancia.
+
+        importancia = bruto / (bruto + memory_scale)
+
+    Existe por lo mismo que `bond_scale`: el bruto está en las unidades del pack
+    y la importancia está acotada a [0, 1). Sin el divisor, el mecanismo sería
+    inerte en un pack de números pequeños y estaría pegado al techo en uno de
+    números grandes — y entonces `memory_capacity` significaría cosas distintas
+    en cada ambientación, que es lo único que el motor no puede permitirse.
+
+    **Mídelo, no lo adivines**: corre una semana y mira la distribución de
+    importancias que salen.
+    """

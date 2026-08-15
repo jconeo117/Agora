@@ -28,6 +28,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from agora.engine.events import EventKind
+from agora.engine.memory import Recuerdo
 from agora.engine.ontology import (
     ActionId,
     AgentId,
@@ -60,7 +62,28 @@ def _bond_a_dict(bond: Bond) -> dict[str, Any]:
     return {"regard": bond.regard, "encounters": bond.encounters, "last_seen": bond.last_seen}
 
 
-def _agente_a_dict(agent: AgentState) -> dict[str, Any]:
+def _recuerdo_a_lista(r: Recuerdo) -> list[Any]:
+    """Un recuerdo como lista posicional: `[seq, tick, kind, place, action, about,
+    importancia]`.
+
+    Lista y no diccionario por tamaño, que aquí sí importa. Con ciento veintisiete
+    agentes y capacidad de doscientos son veinticinco mil recuerdos, y el volcado
+    va con `indent=1`: en forma de diccionario son diez líneas cada uno —un cuarto
+    de millón de líneas para el mismo dato—. Sigue siendo diffeable, que es lo que
+    el guardado tiene que ser.
+    """
+    return [
+        r.seq,
+        r.tick,
+        r.kind.value,
+        None if r.place is None else str(r.place),
+        None if r.action is None else str(r.action),
+        None if r.about is None else str(r.about),
+        r.importancia,
+    ]
+
+
+def _agente_a_dict(agent: AgentState, recuerdos: tuple[Recuerdo, ...]) -> dict[str, Any]:
     """Solo lo que no se puede recalcular.
 
     Fuera quedan `need_weights`, `gains`, `phase_shift`, `temperament` y
@@ -107,6 +130,14 @@ def _agente_a_dict(agent: AgentState) -> dict[str, Any]:
         },
         "saturation": {str(k): v for k, v in agent.saturation.items()},
         "busy": busy,
+        # **Aquí se salda la deuda que dejó escrita el docstring de este módulo.**
+        # Decía que al recuperar una partida el mundo es el mismo pero *nadie
+        # recuerda cómo llegó ahí*, y que eso tendría que resolverlo la memoria
+        # episódica cuando existiera. Se resuelve porque un `Recuerdo` es
+        # autónomo: si guardara ids de evento, esto no serviría de nada — la
+        # historia sigue sin guardarse y los punteros no apuntarían a ningún
+        # sitio.
+        "memorias": [_recuerdo_a_lista(r) for r in recuerdos],
     }
 
 
@@ -131,7 +162,9 @@ def save(world: WorldState, together: set[tuple[AgentId, AgentId]], path: Path) 
             [str(s), -1 if hasta is None else hasta]
             for s, hasta in world.situations.items()
         ),
-        "agents": [_agente_a_dict(a) for a in world.agents_in_order()],
+        "agents": [
+            _agente_a_dict(a, world.memoria.de(a.spec_id)) for a in world.agents_in_order()
+        ],
     }
     path.write_text(json.dumps(datos, indent=1, ensure_ascii=False), encoding="utf-8")
 
@@ -154,6 +187,36 @@ def _reconciliar_necesidades(
     return {
         need.id: guardadas.get(str(need.id), need.initial) for need in pack.needs
     }
+
+
+def _lista_a_recuerdo(
+    fila: list[Any],
+    lugares: frozenset[str],
+    acciones: frozenset[str],
+    agentes: frozenset[str],
+) -> Recuerdo:
+    """Reconstruye un recuerdo, limpiando lo que el pack de hoy ya no tiene.
+
+    **Aquí la reconciliación va al revés que en el resto del módulo, y es
+    deliberado.** A un rasgo o a una necesidad borrados hay que dejarlos caer
+    porque el motor los indexa directo y reventaría con un `KeyError`. A un lugar
+    borrado dentro de un recuerdo no lo indexa nadie: solo se compara por
+    igualdad al recuperar. Así que dejar caer el recuerdo entero costaría
+    biografía sin ganar nada.
+
+    Se anula la referencia muerta y el recuerdo sobrevive. Lo que le pasó a
+    alguien le pasó, aunque la taberna ya no exista.
+    """
+    seq, tick, kind, place, action, about, importancia = fila
+    return Recuerdo(
+        seq=int(seq),
+        tick=int(tick),
+        kind=EventKind(kind),
+        place=PlaceId(place) if place in lugares else None,
+        action=ActionId(action) if action in acciones else None,
+        about=AgentId(about) if about in agentes else None,
+        importancia=float(importancia),
+    )
 
 
 def _dict_a_agente(datos: dict[str, Any], pack: ContentPack) -> AgentState:
@@ -249,6 +312,23 @@ def load(path: Path, pack: ContentPack) -> tuple[WorldState, set[tuple[AgentId, 
 
     world = WorldState.new(pack, seed=datos["seed"])
     world.tick = datos["tick"]
+
+    # `.get` y no `[...]`, a diferencia del resto de campos, y no es descuido:
+    # un guardado anterior a la memoria episódica se lee perfectamente como
+    # alguien que no recuerda nada, que es exactamente lo que era. Bajar
+    # `FORMATO` a rechazarlo invalidaría todas las partidas guardadas por un
+    # campo que solo añade.
+    lugares = frozenset(str(p.id) for p in pack.places)
+    acciones = frozenset(str(a.id) for a in pack.actions)
+    for guardado in datos["agents"]:
+        if guardado["spec_id"] not in conocidos:
+            continue
+        filas = guardado.get("memorias", ())
+        if filas:
+            world.memoria.cargar(
+                AgentId(guardado["spec_id"]),
+                (_lista_a_recuerdo(f, lugares, acciones, conocidos) for f in filas),
+            )
     # Una situación borrada del pack no vuelve, igual que un rasgo o un agente:
     # `gains_at` la buscaría en `situation_by_id` y reventaria con un KeyError.
     conocidas = frozenset(str(s.id) for s in pack.situations)

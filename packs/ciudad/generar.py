@@ -701,6 +701,22 @@ pack = {
         "sighting_horizon": 96, "learning_rate": 0.10,
         "bond_scale": 0.04, "bond_rate": 0.15, "bond_weight": 0.5,
         "companionship_weight": 0.4, "company_scale": 8.0, "bond_fade": 0.9997, "bond_horizon": 2880,
+        # Memoria episodica. La capacidad es lo que separa una biografia de un
+        # archivo: en veintiun dias un habitante completa unas ciento cincuenta
+        # acciones, asi que cuarenta recuerdos son los dos por dia que de verdad
+        # marcaron. Con capacidad alta esto seria el log otra vez, y el log ya
+        # existe.
+        #
+        # La escala salio de medir, no de adivinar (ver el docstring de
+        # `memory_scale`). Con 21 dias y 1312: a 0.25 las importancias retenidas
+        # se apinyan entre 0.65 y 0.98 —todo importa, o sea nada—; a 1.0 van de
+        # 0.42 a 0.92, con mediana 0.67. Es la que discrimina.
+        #
+        # El desdibujado deja un recuerdo al 95% al dia siguiente y al 37% a las
+        # tres semanas. Del mismo orden que `bond_fade` a proposito: dos
+        # mecanismos que dicen medir el paso del tiempo no pueden medirlo
+        # distinto.
+        "memory_capacity": 40, "memory_scale": 1.0, "memory_fade": 0.9995,
         "strain_multipliers": {"temperature": 2.2, "travel_discount": 0.85,
                                "critical_need_threshold": 1.5},
     },
