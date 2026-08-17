@@ -18,12 +18,13 @@ al borde del colapso no tienen por qué querer lo mismo.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from itertools import combinations
 
 from agora.agents.decide import critical_needs
 from agora.engine.events import EventKind
-from agora.engine.ontology import ActionId, AgentId, NeedId
+from agora.engine.ontology import ActionId, AgentId, NeedId, PlaceId
 from agora.engine.pack import ContentPack
 from agora.engine.state import Ledger
 from agora.engine.world import Simulation
@@ -46,10 +47,36 @@ class HealthReport:
     differentiation: float
     """Distancia L1 media entre los perfiles de actividad de cada par."""
 
-    completed: int
-    aborted: int
-    stalls: int
+    geography: float = 0.0
+    """Lo mismo, pero sobre **dónde pasa el tiempo cada quién**.
+
+    Mide una pregunta que `differentiation` no puede: dos habitantes que hacen
+    exactamente lo mismo en sitios distintos salen idénticos en actividad y
+    distintos aquí. Sin este número, un mapa que no decide nada es invisible —
+    veinticinco lugares que se usan igual son veinticinco copias del mismo sitio,
+    y el mismo diagnóstico que destapó el vínculo muerto se aplica tal cual.
+
+    Se muestrea la **ocupación por tick**, no los eventos. Quien duerme ocho
+    horas en un sitio y hace cinco recados fuera está, sobre todo, en su cama;
+    contar eventos diría lo contrario.
+    """
+
+    completed: int = 0
+    aborted: int = 0
+    stalls: int = 0
     unused: frozenset[ActionId] = field(default_factory=frozenset)
+
+    deserted: frozenset[PlaceId] = field(default_factory=frozenset)
+    """Lugares donde no estuvo nadie ni un tick. El gemelo geográfico de
+    `unused`, y el mismo defecto: lo que el pack escribió alrededor de ese sitio
+    —sus affordances, sus horarios, sus vecinos— es decorado.
+
+    No entra en el contrato. Un lugar puede estar legítimamente desierto porque
+    es solo un cruce de caminos, y exigir lo contrario obligaría a declarar
+    excepciones en los cuatro packs por un instrumento que acaba de nacer. Se
+    informa; decidir si molesta es de quien calibra.
+    """
+
     out_of_bounds: tuple[str, ...] = ()
 
     supply: dict[NeedId, float] = field(default_factory=dict)
@@ -89,8 +116,10 @@ class HealthReport:
             f" {self.abort_ratio:.1%}",
             f"  tiempo en tránsito      {self.transit_time:6.1%}",
             f"  diferenciación          {self.differentiation:6.3f}",
+            f"  difer. geográfica       {self.geography:6.3f}",
             f"  bloqueos                {self.stalls:6}",
             f"  acciones sin usar       {sorted(self.unused) if self.unused else '—'}",
+            f"  lugares desiertos       {sorted(self.deserted) if self.deserted else '—'}",
         ]
         if self.supply:
             salida += ["", "  oferta/demanda por eje   (>1.3 = el eje no decide nada)"]
@@ -125,6 +154,7 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
     transit = 0
     used: set[ActionId] = set()
     profiles: dict[AgentId, Counter[ActionId]] = {a.id: Counter() for a in pack.agents}
+    where: dict[AgentId, Counter[PlaceId]] = {a.id: Counter() for a in pack.agents}
     out_of_bounds: list[str] = []
 
     libros: list[Ledger] = []
@@ -143,6 +173,14 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
                 samples += 1
                 if urgent:
                     crisis += 1
+                # Dónde está, muestreado por tick. Va aquí y no en `Recuento`
+                # porque la ocupación no se emite: es estado, no suceso. Quien
+                # duerme ocho horas en un sitio y hace cinco recados fuera está
+                # sobre todo en su cama, y contar eventos diría lo contrario.
+                #
+                # El bucle ya recorre a todos los agentes cada tick para el
+                # triaje, así que esto no añade recorrido — solo un contador.
+                where[agent.spec_id][agent.at] += 1
 
         # Del recuento y no de los eventos: son los totales de la corrida entera
         # aunque el log conserve solo una ventana. Recorrer dos millones de
@@ -172,10 +210,13 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
         abort_ratio=aborted / max(completed, 1),
         transit_time=transit / max(ticks * population * len(seeds), 1),
         differentiation=_differentiation(profiles),
+        geography=_differentiation(where),
         completed=completed,
         aborted=aborted,
         stalls=stalls,
         unused=frozenset(a.id for a in pack.actions) - used,
+        deserted=frozenset(p.id for p in pack.places)
+        - {sitio for visitados in where.values() for sitio in visitados},
         out_of_bounds=tuple(out_of_bounds),
         **_supply_and_demand(pack, libros),
     )
@@ -216,14 +257,26 @@ def _supply_and_demand(
     return {"supply": supply, "lonely": lonely}
 
 
-def _differentiation(profiles: dict[AgentId, Counter[ActionId]]) -> float:
-    """Distancia L1 media entre los perfiles de actividad de cada par.
+def _differentiation[K: (ActionId, PlaceId)](
+    profiles: Mapping[AgentId, Counter[K]],
+) -> float:
+    """Distancia L1 media entre los perfiles de cada par. 0 = todos iguales.
 
-    0 = todos viven igual. 2 = no comparten ni una actividad. En la práctica el
-    techo real está mucho más abajo, porque dormir y comer son obligatorios
-    para todos y ocupan la mayor parte del día.
+    Genérica en la clave a propósito, y **acotada a dos**: acciones y lugares.
+    Nació midiendo qué hace cada quién y sirve igual para medir dónde está —es
+    la misma pregunta, *¿os distingue esto?*, sobre otro eje—. Dos varas
+    distintas para lo mismo divergirían, y comparar los dos números dejaría de
+    significar nada.
+
+    Acotada y no libre porque son las dos preguntas que el panel sabe
+    interpretar. Una tercera clave necesitaría su propia lectura, no solo su
+    propio número.
+
+    El techo teórico es 2 —no comparten ni una entrada— pero el real está mucho
+    más abajo en ambos ejes: dormir y comer son obligatorios para todos, y todo
+    el mundo pasa la noche en su cama.
     """
-    vectors: list[dict[ActionId, float]] = []
+    vectors: list[dict[K, float]] = []
     for counts in profiles.values():
         total = sum(counts.values()) or 1
         vectors.append({k: v / total for k, v in counts.items()})

@@ -11,13 +11,14 @@ degradado en silencio mientras el motor evolucionaba.
 
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import Path
 
 import pytest
 
-from agora.engine.ontology import ActionId
+from agora.engine.ontology import ActionId, AgentId, PlaceId
 from agora.engine.pack import ContentPack, load_pack
-from agora.health import HealthReport, check, measure
+from agora.health import HealthReport, _differentiation, check, measure
 
 PACKS = sorted((Path(__file__).resolve().parents[1] / "packs").glob("*/pack.yaml"))
 
@@ -92,6 +93,99 @@ def test_an_unused_action_is_reported_unless_declared() -> None:
     )
     if report.unused:
         assert any("nunca ocurren" in p for p in check(sin_permiso, report))
+
+
+# --- diferenciación geográfica -----------------------------------------------
+
+
+def test_geography_uses_the_same_vara_as_activity() -> None:
+    """Genérica en la clave a propósito: dos varas distintas para la misma
+    pregunta divergirían, y comparar los dos números dejaría de significar nada.
+
+    Se comprueba con la misma FORMA de datos en los dos ejes: si el número sale
+    igual, la vara es una sola.
+    """
+    lugares = {
+        AgentId("a"): Counter({PlaceId("p1"): 30, PlaceId("p2"): 10}),
+        AgentId("b"): Counter({PlaceId("p1"): 10, PlaceId("p2"): 30}),
+    }
+    acciones = {
+        AgentId("a"): Counter({ActionId("p1"): 30, ActionId("p2"): 10}),
+        AgentId("b"): Counter({ActionId("p1"): 10, ActionId("p2"): 30}),
+    }
+    assert _differentiation(lugares) == pytest.approx(_differentiation(acciones))
+    assert _differentiation(lugares) > 0.0
+
+
+def test_everyone_in_the_same_place_is_a_dead_map() -> None:
+    perfiles = {
+        AgentId("a"): Counter({PlaceId("p1"): 100}),
+        AgentId("b"): Counter({PlaceId("p1"): 100}),
+    }
+    assert _differentiation(perfiles) == pytest.approx(0.0)
+
+
+def test_disjoint_places_reach_the_ceiling() -> None:
+    perfiles = {
+        AgentId("a"): Counter({PlaceId("p1"): 100}),
+        AgentId("b"): Counter({PlaceId("p2"): 100}),
+    }
+    assert _differentiation(perfiles) == pytest.approx(2.0)
+
+
+def test_geography_sees_what_activity_cannot() -> None:
+    """**La razón de existir de la medida.** Dos agentes que hacen exactamente
+    lo mismo en sitios distintos son idénticos en actividad y distintos aquí.
+
+    Medido en el repositorio: `dark_fantasy` tiene diferenciación de actividad
+    0.015 —dos agentes prácticamente iguales— y geográfica 0.688.
+    """
+    misma_actividad = {
+        AgentId("a"): Counter({ActionId("x"): 50}),
+        AgentId("b"): Counter({ActionId("x"): 50}),
+    }
+    distinto_sitio = {
+        AgentId("a"): Counter({PlaceId("p1"): 50}),
+        AgentId("b"): Counter({PlaceId("p2"): 50}),
+    }
+    assert _differentiation(misma_actividad) == pytest.approx(0.0)
+    assert _differentiation(distinto_sitio) > 0.0
+
+
+def test_every_pack_reports_a_geography(world: tuple[ContentPack, HealthReport]) -> None:
+    _, report = world
+    assert 0.0 <= report.geography <= 2.0
+
+
+def test_a_populated_world_is_not_geographically_flat(
+    world: tuple[ContentPack, HealthReport],
+) -> None:
+    """Un mapa donde todo el mundo ocupa igual los lugares es un mapa que no
+    decide nada — el mismo diagnóstico que destapó el vínculo muerto, aplicado
+    al espacio."""
+    pack, report = world
+    if len(pack.agents) > 1 and len(pack.places) > 1:
+        assert report.geography > 0.0
+
+
+def test_a_deserted_place_is_reported() -> None:
+    """El gemelo geográfico de `unused`. Lo encontró en su primera corrida:
+    `nucleo_sima` en la ciudad, donde no entra nadie en veintiún días."""
+    ciudad = next((p for p in PACKS if p.parent.name == "ciudad"), None)
+    if ciudad is None:  # pragma: no cover - el repo lo trae
+        pytest.skip("no está el pack de la ciudad")
+    report = measure(load_pack(ciudad), days=2, seeds=(7,))
+    assert PlaceId("nucleo_sima") in report.deserted
+
+
+def test_places_that_are_used_are_not_deserted(
+    world: tuple[ContentPack, HealthReport],
+) -> None:
+    """Nadie puede estar desierto y ocupado a la vez: los agentes arrancan en
+    algún sitio, así que al menos sus casas están habitadas."""
+    pack, report = world
+    arranques = {a.start_at for a in pack.agents}
+    assert not (arranques & report.deserted)
 
 
 def test_a_pack_without_bands_only_faces_the_universal_invariants() -> None:
