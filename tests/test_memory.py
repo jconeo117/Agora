@@ -436,11 +436,303 @@ def test_learn_reports_the_prediction_error() -> None:
 
     gain: dict[NeedId, float] = {}
     cost: dict[NeedId, float] = {}
-    # Recibe la mitad de lo prometido: error de 0.5 sobre una creencia de 1.0.
+    # Recibe la mitad de lo prometido sobre una creencia de 1.0: salió PEOR.
     sorpresa = learn(gain, cost, action, {n1: 0.15}, {n1: 0.0}, rate=0.5)
+    assert sorpresa == pytest.approx(-0.5)
+
+
+def test_better_than_expected_is_positive() -> None:
+    """El signo se lee siempre igual: positivo es mejor de lo que creía."""
+    pack = memory_pack()
+    n1 = NeedId("n1")
+    sorpresa = learn({}, {}, pack.action_by_id[ACT], {n1: 0.45}, {n1: 0.0}, rate=0.5)
     assert sorpresa == pytest.approx(0.5)
+
+
+def test_the_cost_side_has_its_sign_normalised() -> None:
+    """**La trampa del módulo.** En la vía de los costes, `realized` sale de
+    `-recibido/gasto`, así que gastar de más da un error positivo — y gastar de
+    más es peor. Sin normalizar, la mitad de los arrepentimientos serían
+    alegrías."""
+    caro = ContentPack.model_validate(
+        {
+            **{
+                k: v
+                for k, v in memory_pack().model_dump(mode="json").items()
+                if k not in {"actions", "tuning"}
+            },
+            "tuning": {"learning_rate": 0.2},
+            "actions": [
+                {
+                    "id": "act",
+                    "label": "act",
+                    "duration_ticks": 1,
+                    "costs": {"n1": 1.0},
+                    "effects": {"n1": -0.2},
+                },
+                {"id": "otra", "label": "otra", "duration_ticks": 1},
+            ],
+        }
+    )
+    n1 = NeedId("n1")
+    # Prometía costar 0.2 y costó 0.4: el doble de caro, y eso es PEOR.
+    sorpresa = learn({}, {}, caro.action_by_id[ACT], {n1: -0.4}, {n1: 1.0}, rate=0.5)
+    assert sorpresa < 0.0
 
 
 def test_no_learning_no_surprise() -> None:
     pack = memory_pack()
     assert learn({}, {}, pack.action_by_id[ACT], {}, {NeedId("n1"): 0.0}, rate=0.0) == 0.0
+
+
+# --- el arrepentimiento ------------------------------------------------------
+
+
+def guardar(m: MemoriaEpisodica, seq: int, valencia: float, **kw: Any) -> None:
+    m.remember(AG1, evento(seq, **kw), 0.8, valencia)
+
+
+def test_a_memory_without_a_sign_is_not_a_regret() -> None:
+    """0.0 es lo normal: algo que pasó, ni bueno ni malo."""
+    m = MemoriaEpisodica(capacidad=10)
+    guardar(m, 0, 0.0, action=ACT)
+    assert m.rencor(AG1, tick=0, escala=1.0) == {}
+
+
+def test_a_bad_outcome_leaves_regret_against_that_action() -> None:
+    m = MemoriaEpisodica(capacidad=10)
+    guardar(m, 0, -0.9, action=ACT)
+    r = m.rencor(AG1, tick=0, escala=1.0)
+    assert r[ACT] > 0.0
+    assert OTRA not in r
+
+
+def test_joy_leaves_no_regret() -> None:
+    """Solo cuenta lo negativo. Lo que salió mejor de lo esperado ya subió
+    `gain_beliefs` y desde ahí empuja el beneficio: sumarlo aquí sería contar
+    dos veces el mismo suceso."""
+    m = MemoriaEpisodica(capacidad=10)
+    guardar(m, 0, 0.9, action=ACT)
+    assert m.rencor(AG1, tick=0, escala=1.0) == {}
+
+
+def test_regret_accumulates_over_repeated_burns() -> None:
+    m = MemoriaEpisodica(capacidad=10)
+    guardar(m, 0, -0.5, action=ACT)
+    una = m.rencor(AG1, tick=0, escala=1.0)[ACT]
+    guardar(m, 1, -0.5, action=ACT)
+    dos = m.rencor(AG1, tick=0, escala=1.0)[ACT]
+    assert dos > una
+
+
+def test_regret_is_bounded() -> None:
+    """Acotado a [0, 1), que es lo que convierte `regret_weight` en el tope que
+    impide el veto."""
+    m = MemoriaEpisodica(capacidad=200)
+    for i in range(200):
+        guardar(m, i, -1.0, action=ACT)
+    assert 0.0 < m.rencor(AG1, tick=0, escala=1.0)[ACT] < 1.0
+
+
+def test_regret_fades_with_time() -> None:
+    """Se cura por el tiempo, no por la repetición. Es justo lo contrario que
+    `cost_beliefs`, que se cura promediando."""
+    m = MemoriaEpisodica(capacidad=10, fade=0.99)
+    guardar(m, 0, -0.9, tick=0, action=ACT)
+    fresco = m.rencor(AG1, tick=0, escala=1.0)[ACT]
+    viejo = m.rencor(AG1, tick=300, escala=1.0)[ACT]
+    assert viejo < fresco
+
+
+def test_a_regret_without_an_action_blames_nobody() -> None:
+    """Una meta fallada y un hundimiento no llevan `action`: repartir la culpa
+    entre lo que se hiciera mientras tanto sería inventar una atribución que
+    nadie puede sostener."""
+    m = MemoriaEpisodica(capacidad=10)
+    m.remember(
+        AG1,
+        Event(seq=0, tick=0, kind=EventKind.GOAL_FAILED, actor=AG1, place=P1),
+        0.9,
+        -1.0,
+    )
+    assert m.rencor(AG1, tick=0, escala=1.0) == {}
+
+
+def test_regret_is_owner_scoped_too() -> None:
+    m = MemoriaEpisodica(capacidad=10)
+    guardar(m, 0, -0.9, action=ACT)
+    assert m.rencor(AG2, tick=0, escala=1.0) == {}
+
+
+# --- el arrepentimiento cambia lo que se decide ------------------------------
+
+
+def escarmentado_pack(**overrides: Any) -> ContentPack:
+    """Dos acciones intercambiables en el mismo sitio.
+
+    La simetría es lo que aísla el efecto: si un agente prefiere una de las dos,
+    no puede ser por la distancia ni por lo que rinde.
+    """
+    data: dict[str, Any] = {
+        "id": "test",
+        "label": "test",
+        "needs": [
+            {
+                "id": "n1",
+                "label": "n1",
+                "decay_per_tick": 0.02,
+                "initial": 0.5,
+                "urgency_exponent": 2.0,
+            }
+        ],
+        "actions": [
+            {
+                "id": "act",
+                "label": "act",
+                "duration_ticks": 1,
+                "requires_affordance": "aff",
+                "satisfies": {"n1": 1.0},
+                "effects": {"n1": 0.3},
+            },
+            {
+                "id": "otra",
+                "label": "otra",
+                "duration_ticks": 1,
+                "requires_affordance": "aff",
+                "satisfies": {"n1": 1.0},
+                "effects": {"n1": 0.3},
+            },
+            {"id": "nada", "label": "nada", "duration_ticks": 1},
+        ],
+        "places": [{"id": "p1", "label": "p1", "affordances": ["aff"], "neighbors": {}}],
+        "agents": [{"id": "ag1", "label": "ag1", "home": "p1", "start_at": "p1"}],
+        # La red de seguridad que el pack exige. No satisface nada, así que vale
+        # ~0 y no compite: lo que se mide sigue siendo la elección entre las dos
+        # que sí sirven. Y es justo lo que hace honesto al test del veto — si el
+        # escarmiento vetara, el agente se refugiaría aquí y se dejaría morir.
+        "tuning": {
+            "memory_capacity": 20,
+            "memory_scale": 1.0,
+            "regret_weight": 2.0,
+            "regret_scale": 0.5,
+            "candidate_pool": 1,
+        },
+    }
+    data.update(copy.deepcopy(overrides))
+    return ContentPack.model_validate(data)
+
+
+def utilidad_de(world: Any, agent: Any, accion: ActionId) -> float:
+    from agora.agents.decide import candidates
+
+    return next(c.utility for c in candidates(world, agent) if c.action == accion)
+
+
+def test_regret_makes_the_burnt_option_worse() -> None:
+    """**La afirmación del frente.** Dos acciones idénticas dejan de serlo en
+    cuanto una de ellas salió mal una vez."""
+    sim = Simulation(escarmentado_pack(), seed=5)
+    agent = sim.state.agents[AG1]
+
+    antes_act = utilidad_de(sim.state, agent, ACT)
+    antes_otra = utilidad_de(sim.state, agent, OTRA)
+    assert antes_act == pytest.approx(antes_otra), "sin biografía son la misma acción"
+
+    sim.state.memoria.remember(
+        AG1, evento(0, tick=0, action=ACT, place=P1), 0.9, valencia=-0.9
+    )
+
+    assert utilidad_de(sim.state, agent, ACT) < antes_act
+    assert utilidad_de(sim.state, agent, OTRA) == pytest.approx(antes_otra)
+
+
+def test_regret_weight_zero_changes_nothing() -> None:
+    """Apagado por defecto: estrenar el mecanismo no puede mover un contrato."""
+    sim = Simulation(escarmentado_pack(**{"tuning": {"memory_capacity": 20}}), seed=5)
+    agent = sim.state.agents[AG1]
+    antes = utilidad_de(sim.state, agent, ACT)
+
+    sim.state.memoria.remember(
+        AG1, evento(0, tick=0, action=ACT, place=P1), 0.9, valencia=-1.0
+    )
+    assert utilidad_de(sim.state, agent, ACT) == pytest.approx(antes)
+
+
+def solo_una_accion(**tuning: Any) -> ContentPack:
+    base = {"memory_capacity": 20, "memory_scale": 1.0, "regret_scale": 0.5,
+            "candidate_pool": 1}
+    return escarmentado_pack(
+        **{
+            "actions": [
+                {
+                    "id": "act",
+                    "label": "act",
+                    "duration_ticks": 1,
+                    "requires_affordance": "aff",
+                    "satisfies": {"n1": 1.0},
+                    "effects": {"n1": 0.3},
+                },
+                {"id": "nada", "label": "nada", "duration_ticks": 1},
+            ],
+            "tuning": {**base, **tuning},
+        }
+    )
+
+
+def escarmentar(sim: Simulation, cuantos: int = 20) -> None:
+    for i in range(cuantos):
+        sim.state.memoria.remember(
+            AG1, evento(i, tick=0, action=ACT, place=P1), 0.9, valencia=-1.0
+        )
+
+
+def test_desperation_beats_trauma() -> None:
+    """**Lo que impide el veto, y no es lo que parecía.**
+
+    El tope del rencor NO basta: lo que salva es que el beneficio crece con la
+    urgencia y el escarmiento es fijo. Con la única acción útil del mundo
+    escarmentada al máximo, el agente vuelve a ella cuando le hace falta.
+    """
+    sim = Simulation(solo_una_accion(regret_weight=0.5), seed=5)
+    escarmentar(sim)
+    sim.run(200)
+    assert sim.log.recuento.por_agente_accion[AG1][ACT] > 0
+    assert sim.state.agents[AG1].needs[NeedId("n1")] > 0.0
+
+
+def test_too_much_weight_does_veto_and_that_is_the_calibration_limit() -> None:
+    """El otro lado de lo mismo, y por qué `regret_weight` tiene una restricción
+    dura. Por encima del beneficio máximo alcanzable el escarmiento gana siempre,
+    ni la desesperación lo levanta, y el agente prefiere hundirse.
+
+    Se prueba para que el límite quede escrito en algo que se ejecuta, no solo
+    en un docstring que nadie relee.
+    """
+    sim = Simulation(solo_una_accion(regret_weight=2.0), seed=5)
+    escarmentar(sim)
+    sim.run(200)
+    hechas = sim.log.recuento.por_agente_accion.get(AG1)
+    assert hechas is None or hechas[ACT] == 0
+
+
+def test_two_identical_agents_with_different_pasts_diverge() -> None:
+    """La prueba que el plan exige: *dos agentes con la misma ficha y distinta
+    biografía tienen que decidir distinto*. Si no, el mecanismo es decorado."""
+    pack = escarmentado_pack(
+        **{
+            "agents": [
+                {"id": "ag1", "label": "ag1", "home": "p1", "start_at": "p1"},
+                {"id": "ag2", "label": "ag2", "home": "p1", "start_at": "p1"},
+            ]
+        }
+    )
+    sim = Simulation(pack, seed=5)
+    # Misma ficha, misma semilla, mismo sitio. Solo a uno le salió mal.
+    for i in range(6):
+        sim.state.memoria.remember(
+            AG1, evento(i, tick=0, action=ACT, place=P1), 0.9, valencia=-1.0
+        )
+    sim.run(300)
+
+    perfil = sim.log.recuento.por_agente_accion
+    assert perfil[AG1][ACT] < perfil[AG2][ACT], "el escarmentado evita lo que le dolió"

@@ -1510,3 +1510,50 @@ class TuningSpec(Spec):
     **Mídelo, no lo adivines**: corre una semana y mira la distribución de
     importancias que salen.
     """
+
+    regret_weight: float = Field(default=0.0, ge=0.0)
+    """Cuánto pesa el escarmiento al deliberar. **0.0 desactiva el mecanismo.**
+
+        utilidad = beneficio · ... - aversión · (coste + peaje + rencor · regret_weight)
+
+    Se suma al **coste** y no multiplica el beneficio, y no es una elección
+    libre: es la misma doctrina que gobierna al descuento de viaje y a los
+    gustos, escrita en `decide.py`. Si multiplicara, una acción muy apetecible
+    quedaría castigada proporcionalmente más que una tibia, y un escarmiento no
+    es un descuento porcentual — es un pavor de tamaño fijo.
+
+    Que pase por `loss_aversion` sale gratis y es exactamente lo correcto: un
+    agente prudente pesa más el daño recordado que uno temerario.
+
+    **Lo que impide el veto no es este tope: es que la desesperación crece y el
+    escarmiento no.** Conviene entenderlo bien porque no es evidente y se
+    descubrió midiendo, con un test que fallaba.
+
+    El rencor está acotado a [0, 1), así que la penalización nunca pasa de
+    `regret_weight`. Pero es un número **fijo**, mientras que el beneficio de una
+    acción crece con la urgencia según la necesidad se hunde. El agente vuelve a
+    lo que le dolió cuando le hace suficiente falta, y eso es exactamente la
+    conducta que se quiere.
+
+    De ahí sale la **restricción de calibración**, que es dura: `regret_weight`
+    tiene que quedar por debajo del beneficio máximo alcanzable de las acciones
+    que escarmienta —del orden de `peso * satisfies` con la urgencia a tope—. Por
+    encima de eso el escarmiento gana siempre, ni la desesperación lo levanta, y
+    el agente prefiere hundirse antes que reintentar. Medido en un mundo de
+    juguete con beneficio máximo 1.0: a 2.0 la acción no se ejecuta ni una vez en
+    doscientos ticks; a 0.5 se evita mientras hay alternativa y se retoma cuando
+    aprieta.
+
+    Un rencor que veta impide reintentar, y quien no reintenta nunca descubre que
+    la cosa mejoró — la aversión solo se curaría por el paso del tiempo.
+    """
+
+    regret_scale: float = Field(default=1.0, gt=0.0)
+    """Cuánto escarmiento acumulado equivale a medio rencor.
+
+        rencor = bruto / (bruto + regret_scale)
+
+    Mismo papel que `bond_scale` y `memory_scale`: el bruto es una suma de
+    valencias por valor, en las unidades que salgan, y el rencor tiene que estar
+    acotado para que `regret_weight` signifique lo mismo en todos los packs.
+    """

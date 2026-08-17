@@ -109,6 +109,18 @@ class Recuerdo:
     """Cuánto marcó, en [0, 1). Se fija al recordar y no cambia — lo que cambia
     es cuánto queda de ella."""
 
+    valencia: float = 0.0
+    """Si salió mejor o peor de lo esperado, en [-1, 1]. **Es lo que separa un
+    recuerdo de un arrepentimiento.**
+
+    Va aparte de la importancia y no multiplicada dentro de ella porque son dos
+    preguntas distintas: *cuánto marcó* y *hacia qué lado*. Una alegría enorme y
+    un desastre enorme se recuerdan igual de bien —la importancia toma la
+    sorpresa en valor absoluto— y solo aquí se distinguen.
+
+    0.0 es lo normal: un recuerdo sin signo es algo que pasó, ni bueno ni malo.
+    """
+
     def valor(self, tick: int, fade: float) -> float:
         """Lo que este recuerdo pesa HOY: importancia desdibujada por el tiempo.
 
@@ -213,7 +225,9 @@ class MemoriaEpisodica:
         guardados del mismo mundo tienen que salir byte a byte iguales."""
         return iter(sorted(self._por_duenyo))
 
-    def remember(self, owner: AgentId, event: Event, importancia: float) -> Recuerdo | None:
+    def remember(
+        self, owner: AgentId, event: Event, importancia: float, valencia: float = 0.0
+    ) -> Recuerdo | None:
         """Graba un hecho. Devuelve el recuerdo, o `None` si no se guardó.
 
         Recibe el **evento**, no su id, por lo que explica la nota del módulo: el
@@ -235,6 +249,7 @@ class MemoriaEpisodica:
             action=event.action,
             about=event.subject if event.subject != owner else event.actor,
             importancia=importancia,
+            valencia=max(-1.0, min(1.0, valencia)),
         )
         guardados = self._por_duenyo.setdefault(owner, [])
         guardados.append(recuerdo)
@@ -296,6 +311,42 @@ class MemoriaEpisodica:
 
         puntuados.sort(key=lambda x: (-x[0], x[1]))
         return tuple(r for _, _, r in puntuados[:limit])
+
+    def rencor(self, owner: AgentId, tick: int, escala: float) -> dict[ActionId, float]:
+        """Cuánto escarmiento arrastra este agente con cada acción. Valores [0, 1).
+
+            rencor[acción] = saturación( Σ |valencia negativa| · valor(hoy),  escala )
+
+        **Es un índice y no una consulta, y esa es la decisión de rendimiento del
+        frente.** La deliberación evalúa `len(lugares) * len(acciones)` pares —en
+        la ciudad, 800—; llamar a `recall` dentro de ese bucle escanearía la
+        memoria entera cada vez, unas 32 000 comparaciones por deliberación, y
+        eso hunde el tick. Recorrer los recuerdos UNA vez y consultar un dict
+        después es O(capacidad) en lugar de O(pares · capacidad).
+
+        Solo cuenta lo **negativo**. Las alegrías ya están representadas en el
+        motor: lo que salió mejor de lo esperado subió `gain_beliefs`, y desde
+        ahí ya empuja el beneficio hacia arriba. Sumarlas otra vez aquí sería
+        contar dos veces el mismo suceso — el riesgo que este frente tenía que
+        esquivar.
+
+        Y por lo mismo, esto NO duplica a `cost_beliefs`. Aquella es la media y
+        esta es la cola: un resultado ordinario nunca llega a ser recuerdo, así
+        que aquí solo queda lo que se salió de lo normal. La media dice *cuánto
+        suele costar esto*; el rencor dice *me acuerdo de la vez que salió fatal*.
+        """
+        guardados = self._por_duenyo.get(owner)
+        if not guardados or escala <= 0.0:
+            return {}
+
+        bruto: dict[ActionId, float] = {}
+        for recuerdo in guardados:
+            if recuerdo.action is None or recuerdo.valencia >= 0.0:
+                continue
+            peso = -recuerdo.valencia * recuerdo.valor(tick, self.fade)
+            if peso > 0.0:
+                bruto[recuerdo.action] = bruto.get(recuerdo.action, 0.0) + peso
+        return {accion: signed_saturation(v, escala) for accion, v in bruto.items()}
 
     @staticmethod
     def _ahora(guardados: list[Recuerdo]) -> int:

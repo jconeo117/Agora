@@ -39,7 +39,12 @@ from agora.engine.ontology import (
     RelationId,
     SituationId,
 )
-from agora.engine.outcome import company_premium, contextual_effects, learn
+from agora.engine.outcome import (
+    company_premium,
+    contextual_effects,
+    learn,
+    signed_saturation,
+)
 from agora.engine.pack import ContentPack
 from agora.engine.state import AgentState, Busy, PerformingAction, Traveling, WorldState
 
@@ -351,6 +356,11 @@ class Simulation:
                         agent,
                         event,
                         urgencia=urgency(value, specs[need_id].urgency_exponent),
+                        # Hundirse es malo, sin discusión. Tampoco lleva `action`
+                        # —nadie decidió pasar hambre—, así que no produce rencor
+                        # contra nada: es el material del miedo a un LUGAR, que
+                        # es el frente siguiente.
+                        valencia=-1.0,
                     )
 
     def _settle_goals(self, agent: AgentState) -> None:
@@ -400,6 +410,15 @@ class Simulation:
                 urgencia=urgency(
                     1.0 - goal.at_least, self.pack.need_by_id[goal.need].urgency_exponent
                 ),
+                # La única valencia sin ambigüedad del motor. Una meta que vence
+                # sin cumplirse no necesita interpretarse: salió mal, y punto.
+                #
+                # No lleva `action`, así que no entra en el índice de rencor: una
+                # meta fallada no es culpa de ninguna acción concreta, y repartir
+                # la culpa entre las que se hicieron mientras tanto sería inventar
+                # una atribución que nadie puede sostener. Queda como biografía —
+                # y como material del narrador de F5.
+                valencia=1.0 if resultado is GoalStatus.ACHIEVED else -1.0,
             )
             # Ordenadas por id: `drift_trait` recompone en cada llamada y la
             # multiplicación en coma flotante no es asociativa.
@@ -556,8 +575,28 @@ class Simulation:
         # `testigos` explícito y no recontado: aquí ya se sabe quién estaba, y
         # volver a preguntarlo daría otro número — entre aplicar los efectos y
         # esta línea nadie se ha movido, pero depender de eso sería frágil.
+        # La sorpresa lleva el signo normalizado por `learn` —positivo es mejor
+        # de lo esperado—, y un mismo número decide las dos mitades del recuerdo:
+        # cuánto marcó (su magnitud) y hacia qué lado (su signo).
+        #
+        # Pero la valencia se SATURA antes de guardarse, y eso salió de medir.
+        # El error crudo no está acotado: es un ratio contra la creencia, y en la
+        # ciudad llega a 5.06 cuando algo social se hace a solas y rinde una
+        # fracción de lo prometido. Con el recorte a [-1, 1] de `remember`, más de
+        # la mitad de los arrepentimientos por acción quedaban pegados al tope
+        # —la mediana en crudo es 1.09—, así que el signo funcionaba y la
+        # magnitud estaba muerta: la misma clase de avería que un eje con oferta
+        # 1.3. Saturados, esos mismos van de 0.003 a 0.835 con mediana 0.521.
+        #
+        # La escala es 1.0 y no una perilla nueva porque el error ya viene en
+        # unidades naturales: 1.0 es "no dio nada de lo que yo esperaba".
         self._grabar(
-            agent, event, urgencia=apretaba, sorpresa=sorpresa, testigos=len(others)
+            agent,
+            event,
+            urgencia=apretaba,
+            sorpresa=sorpresa,
+            testigos=len(others),
+            valencia=signed_saturation(sorpresa),
         )
         agent.busy = None
 
@@ -783,6 +822,7 @@ class Simulation:
         urgencia: float,
         sorpresa: float = 0.0,
         testigos: int | None = None,
+        valencia: float = 0.0,
     ) -> None:
         """Pasa un hecho por la regla de importancia y, si marca, lo graba.
 
@@ -812,4 +852,5 @@ class Simulation:
                 peso_testigos=tuning.memory_witness_weight,
                 escala=tuning.memory_scale,
             ),
+            valencia,
         )

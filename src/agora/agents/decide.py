@@ -22,9 +22,9 @@ La fórmula:
     coste     = suma_necesidades( peso * urgencia * cuesta )
 
     utilidad  = beneficio * descuento * gustos * compañía * hora
-              - aversion * (coste + peaje_del_trayecto)
+              - aversion * (coste + peaje_del_trayecto + escarmiento)
 
-Tres detalles de esa expresión que no son arbitrarios:
+Cuatro detalles de esa expresión que no son arbitrarios:
 
 **La urgencia pondera también el coste.** Gastar duele más cuando no queda
 dinero; perder sueño duele más estando agotado. De ahí sale que el mismo agente
@@ -37,6 +37,13 @@ multiplicaran el neto, una opción mala y lejana parecería menos mala por estar
 lejos, y algo que al agente le encanta le repelería más cuando el neto es
 negativo. El descuento dice "la recompensa está lejos, vale menos"; el precio
 que se paga al llegar no se descuenta.
+
+**El escarmiento es un precio, no un descuento.** Va sumado al coste por la
+misma razón del punto anterior, leída al revés: si multiplicara el beneficio, un
+plan muy apetecible quedaría castigado proporcionalmente más que uno tibio, y
+acordarse de una paliza no rebaja un porcentaje de la ilusión — es un pavor de
+tamaño fijo que hay que pagar al llegar. De paso pasa por `loss_aversion`, y eso
+es exactamente lo que se quiere: el prudente teme más lo recordado.
 
 **La utilidad puede ser negativa**, y debe poder serlo: significa "mala idea
 ahora mismo". Como la acción de red de seguridad no cuesta nada y vale casi
@@ -427,6 +434,16 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
     situations = world.active_situations()
     by_situation = pack.situation_by_id
 
+    # El escarmiento, resuelto UNA vez y consultado después en O(1). Meter un
+    # `recall` dentro del doble bucle costaría `lugares * acciones * capacidad`
+    # comparaciones —en la ciudad, unas 32 000 por deliberación— para responder
+    # 32 preguntas distintas. Ver `MemoriaEpisodica.rencor`.
+    rencor = (
+        world.memoria.rencor(agent.spec_id, world.tick, tuning.regret_scale)
+        if tuning.regret_weight > 0.0
+        else {}
+    )
+
     found: list[Decision] = []
     for place in pack.places:
         travel = world.travel.distance(agent.at, place.id)
@@ -487,7 +504,12 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             # castigar una cabezada de una hora como si fueran las ocho del tope
             # haría que nadie echara nunca una cabezada.
             reward *= tuning.duration_discount ** planned_duration(action, agent, gains_aqui)
-            price = (cost(pack, agent, action, weights) + peaje) * temperament.loss_aversion
+            # El escarmiento entra como precio, junto al peaje: los dos son
+            # cantidades que se pagan al llegar, no descuentos sobre la ilusión.
+            escarmiento = rencor.get(action.id, 0.0) * tuning.regret_weight
+            price = (
+                cost(pack, agent, action, weights) + peaje + escarmiento
+            ) * temperament.loss_aversion
             found.append(
                 Decision(
                     action=action.id,

@@ -717,6 +717,33 @@ pack = {
         # mecanismos que dicen medir el paso del tiempo no pueden medirlo
         # distinto.
         "memory_capacity": 40, "memory_scale": 1.0, "memory_fade": 0.9995,
+        # Arrepentimiento APAGADO en la ciudad, y es una decision medida, no un
+        # olvido. El mecanismo funciona -hay test de que dos agentes con la misma
+        # ficha y distinta biografia deciden distinto- pero aqui no compensa
+        # todavia, por dos medidas:
+        #
+        #   peso   crisis  abandonos  difer   nota
+        #   0.00   14.9%     10.8%    0.867
+        #   0.05   14.2%     10.7%    0.857   expoliar_galerias deja de ocurrir
+        #   0.15   14.7%     11.0%    0.854
+        #   0.40   15.0%     11.5%    0.834   expoliar_galerias deja de ocurrir
+        #
+        # La diferenciacion BAJA con el peso, que es lo contrario de lo que se
+        # buscaba. La razon es del pack, no del motor: los chascos de la ciudad
+        # son sistematicos -lo social hecho a solas rinde menos para todos-, asi
+        # que todo el mundo escarmienta de lo mismo y las conductas convergen.
+        #
+        # Y el efecto secundario es peor que la ganancia: una accion rara y de
+        # varianza alta acumula escarmiento mas deprisa que experiencia buena, y
+        # el mecanismo la silencia. Una accion que el pack declara y que deja de
+        # existir por una perilla es exactamente lo que el panel esta para cazar.
+        #
+        # Queda una pregunta de diseno antes de encenderlo: hacer algo social a
+        # solas, ¿es un escarmiento o es el chasco de la percepcion limitada
+        # (F1.6) funcionando? Hoy `learn` no los distingue, y sospecho que ahi
+        # esta el problema de verdad. Se resuelve en su propia campana, no
+        # girando este numero.
+        "regret_weight": 0.0, "regret_scale": 0.5,
         "strain_multipliers": {"temperature": 2.2, "travel_discount": 0.85,
                                "critical_need_threshold": 1.5},
     },

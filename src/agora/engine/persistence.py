@@ -64,7 +64,7 @@ def _bond_a_dict(bond: Bond) -> dict[str, Any]:
 
 def _recuerdo_a_lista(r: Recuerdo) -> list[Any]:
     """Un recuerdo como lista posicional: `[seq, tick, kind, place, action, about,
-    importancia]`.
+    importancia, valencia]`.
 
     Lista y no diccionario por tamaño, que aquí sí importa. Con ciento veintisiete
     agentes y capacidad de doscientos son veinticinco mil recuerdos, y el volcado
@@ -80,6 +80,7 @@ def _recuerdo_a_lista(r: Recuerdo) -> list[Any]:
         None if r.action is None else str(r.action),
         None if r.about is None else str(r.about),
         r.importancia,
+        r.valencia,
     ]
 
 
@@ -207,7 +208,11 @@ def _lista_a_recuerdo(
     Se anula la referencia muerta y el recuerdo sobrevive. Lo que le pasó a
     alguien le pasó, aunque la taberna ya no exista.
     """
-    seq, tick, kind, place, action, about, importancia = fila
+    seq, tick, kind, place, action, about, importancia = fila[:7]
+    # La valencia llegó con el arrepentimiento, una fase después que el resto de
+    # la fila. Un guardado de siete campos se lee como recuerdos sin signo, que
+    # es exactamente lo que eran: cosas que pasaron, ni buenas ni malas.
+    valencia = float(fila[7]) if len(fila) > 7 else 0.0
     return Recuerdo(
         seq=int(seq),
         tick=int(tick),
@@ -216,6 +221,7 @@ def _lista_a_recuerdo(
         action=ActionId(action) if action in acciones else None,
         about=AgentId(about) if about in agentes else None,
         importancia=float(importancia),
+        valencia=valencia,
     )
 
 

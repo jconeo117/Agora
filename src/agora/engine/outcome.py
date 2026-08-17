@@ -174,15 +174,25 @@ def learn(
 
         creencia <- creencia + alfa * (recibido/prometido - creencia)
 
-    **Devuelve la sorpresa**: el mayor error de predicción en valor absoluto,
-    `max |recibido/prometido - creencia|` sobre lo que sí se aprendió. Ese número
-    ya se calculaba aquí y se tiraba; es lo que la memoria episódica usa para
-    decidir qué marca y qué no (`memory.importancia_de`).
+    **Devuelve la sorpresa, CON SIGNO**: el mayor error de predicción, leído
+    siempre como *cuánto mejor de lo esperado salió*. Positivo = mejor de lo que
+    creía; negativo = peor. Ese número ya se calculaba aquí y se tiraba.
+
+    De él salen las dos mitades de un recuerdo: su magnitud es uno de los tres
+    términos de la importancia (`memory.importancia_de`) y su signo es la
+    valencia, que es lo que convierte un recuerdo en un arrepentimiento.
 
     Se toma el **máximo y no la suma** por legibilidad: la suma crece con cuántas
     necesidades toque la acción, así que una acción compleja saldría siempre más
     sorprendente que una simple aunque nada la desviara. El máximo se puede
     señalar con el dedo — *esperaba esto de aquel eje y salió lo otro*.
+
+    **El signo hay que normalizarlo, y es la trampa del módulo.** En la vía de
+    las ganancias, un `realized` menor que la creencia significa que rindió menos
+    de lo esperado: error negativo, y peor. En la de los costes, `realized` sale
+    de `-recibido/gasto`, así que gastar de más da un error *positivo* — y gastar
+    de más es peor. Las dos vías tienen el signo invertido entre sí. Sin
+    normalizar, la mitad de los arrepentimientos serían alegrías.
 
     Devuelve 0.0 cuando no hay nada que aprender, que es también lo que
     corresponde: sin expectativa no hay sorpresa.
@@ -217,6 +227,8 @@ def learn(
         return 0.0
 
     sorpresa = 0.0
+    mejor_es = 1.0
+    """+1 en la vía de las ganancias, -1 en la de los costes. Ver el docstring."""
     for need_id, promised in action.effects.items():
         if promised > 0.0 and need_id in action.satisfies:
             room = 1.0 - before[need_id]
@@ -224,6 +236,7 @@ def learn(
                 continue  # el techo recortó; de esto no se aprende nada
             realized = received.get(need_id, 0.0) / promised
             store: dict[NeedId, float] = gain_beliefs
+            mejor_es = 1.0  # rendir más de lo creído es mejor
 
         elif promised < 0.0 and need_id in action.costs:
             spend = -promised
@@ -231,13 +244,19 @@ def learn(
                 continue  # el suelo recortó; tampoco se aprende
             realized = -received.get(need_id, 0.0) / spend
             store = cost_beliefs
+            mejor_es = -1.0  # gastar más de lo creído es peor
 
         else:
             continue  # efecto colateral: no se perseguía ni se anticipaba
 
         current = store.get(need_id, 1.0)
         error = realized - current
-        sorpresa = max(sorpresa, abs(error))
+        # La creencia se corrige con el error CRUDO —su convención es la del
+        # almacén y ahí es correcta—. Lo que se normaliza es solo lo que sale
+        # de la función, que es lo que van a leer otros.
         store[need_id] = current + rate * error
+
+        if abs(error) > abs(sorpresa):
+            sorpresa = error * mejor_es
 
     return sorpresa
