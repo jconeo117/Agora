@@ -318,6 +318,38 @@ class TraitSpec(Spec):
     sin poder dormir de más cuando de verdad lo necesitara.
     """
 
+    cost_multipliers: dict[NeedId, PositiveFactor] = Field(default_factory=dict)
+    """Quinto canal: **temple**. Cuánto le cuesta a esta persona lo que gasta.
+
+    Espejo exacto de `gain_multipliers`, sobre el otro lado del intercambio:
+
+        need_weight_multipliers  ->  cuánto le IMPORTA
+        gain_multipliers         ->  cuánto le CUNDE lo que gana
+        cost_multipliers         ->  cuánto le DUELE lo que gasta
+
+    Faltaba, y su ausencia estaba escrita en el docstring de la aptitud: *"la
+    aptitud escala lo que se GANA, no lo que cuesta"*. Eso deja sin expresar una
+    familia entera de personas y de criaturas: quien aguanta el frío, quien
+    trabaja sin cansarse, quien tiene una reserva grande.
+
+    **Es la perilla que un sistema de maná pide por todas partes.** Reserva de
+    maná no es más que "cada conjuro me drena menos"; una afinidad de nacimiento
+    frente a una aprendida es lo mismo más barato; la resistencia de una raza al
+    retroceso ambiental es esto sobre el eje que el retroceso muerde. Sin este
+    canal, las tres solo se pueden fingir subiendo lo que se gana, que no es lo
+    mismo y se nota en cuanto uno mira la contabilidad.
+
+    Se compone como los demás —el multiplicador elevado a la intensidad— y de ahí
+    sale gratis un detalle bonito: con `0.5` y un rasgo a intensidad plena el
+    coste es la mitad; a intensidad 0.4 es 0.76. Una afinidad de nacimiento y una
+    aprendida son **el mismo rasgo a distinta intensidad**, sin mecanismo nuevo.
+
+    Multiplica cualquier efecto NEGATIVO sobre ese eje: lo que cuesta una acción
+    y lo que te hace una situación. No toca los peajes —un porte vale lo que
+    vale, no menos por ser tú— ni el decaimiento, que es el reloj del cuerpo y
+    tiene su propio canal en la aptitud.
+    """
+
     phase_shift: int = Field(default=0)
     """Tercer canal: cuánto se desplaza el reloj INTERNO de esta persona.
 

@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from agora.engine.disposition import (
     Temperament,
+    compose_costs,
     compose_gains,
     compose_need_weights,
     compose_phase_shift,
@@ -276,6 +277,16 @@ class AgentState:
     contradicción — y quien tiene mano para el arcano sin que le interese,
     también."""
 
+    costs: dict[NeedId, float] = field(default_factory=dict)
+    """DERIVADO de `traits`: el TEMPLE de esta persona en cada eje.
+
+    El otro lado del intercambio: `gains` dice cuánto le cunde lo que gana, esto
+    cuánto le duele lo que gasta. Con los dos se puede escribir al enano que
+    almacena mucho y repone despacio, que con un solo canal era inexpresable.
+
+    Lo ausente vale 1.0, como en `gains`, así que un pack que no declare
+    `cost_multipliers` en ningún rasgo se comporta exactamente como antes."""
+
     goals: dict[GoalId, GoalStatus] = field(default_factory=dict)
     """En qué anda cada meta de esta persona. Se siembra desde el spec.
 
@@ -425,6 +436,7 @@ class AgentState:
             need_weights=compose_need_weights(pack, spec.traits, spec.goals),
             phase_shift=compose_phase_shift(pack, spec.traits),
             gains=compose_gains(pack, spec.traits),
+            costs=compose_costs(pack, spec.traits),
             strain=strain,
             temperament=compose_temperament(pack, spec.traits, strain),
             # Lo declarado, tal cual. Las simetrías las cierra `WorldState.new`,
@@ -693,6 +705,7 @@ class AgentState:
         self.need_weights = compose_need_weights(pack, self.traits, self.pursuing(pack))
         self.phase_shift = compose_phase_shift(pack, self.traits)
         self.gains = compose_gains(pack, self.traits)
+        self.costs = compose_costs(pack, self.traits)
         self.temperament = compose_temperament(pack, self.traits, self.strain)
 
     # -- necesidades ----------------------------------------------------------
@@ -764,9 +777,14 @@ class AgentState:
                 contexto = 1.0 if world_gains is None else world_gains.get(need_id, 1.0)
                 self.gain(need_id, delta * self.gains.get(need_id, 1.0) * contexto)
             else:
+                # Y el temple escala lo que se GASTA, que es la mitad que
+                # faltaba. El sitio y la situación NO entran aquí: una hambruna
+                # quita alimento, no hace que gastarlo duela distinto. Lo que
+                # cambia entre dos personas es el cuerpo que paga.
+                gasto = -delta * self.costs.get(need_id, 1.0)
                 if self.ledger is not None:
-                    self.ledger.anotar(self.ledger.demanda, need_id, -delta)
-                self._spend(need_id, -delta, need_specs[need_id].max_debt)
+                    self.ledger.anotar(self.ledger.demanda, need_id, gasto)
+                self._spend(need_id, gasto, need_specs[need_id].max_debt)
 
     def endure(
         self, effects: Mapping[NeedId, float], need_specs: Mapping[NeedId, NeedSpec]
@@ -796,9 +814,14 @@ class AgentState:
                     libro.anotar(libro.pasivo, need_id, delta)
                 self.restore(need_id, delta)
             else:
+                # El temple también aquí, y es lo que expresa la resistencia de
+                # una raza al retroceso ambiental: un enano bajo tierra sufre
+                # menos cuando alguien fuerza la Tierra cerca. No es que canalice
+                # mejor — es que su cuerpo aguanta esas condiciones.
+                gasto = -delta * self.costs.get(need_id, 1.0)
                 if libro is not None:
-                    libro.anotar(libro.demanda, need_id, -delta)
-                self._spend(need_id, -delta, need_specs[need_id].max_debt)
+                    libro.anotar(libro.demanda, need_id, gasto)
+                self._spend(need_id, gasto, need_specs[need_id].max_debt)
 
     # -- deuda ----------------------------------------------------------------
     #

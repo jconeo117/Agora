@@ -97,6 +97,36 @@ def compose_gains(
     return gains
 
 
+def compose_costs(
+    pack: ContentPack, traits: Mapping[TraitId, float]
+) -> dict[NeedId, float]:
+    """El TEMPLE de este agente en cada eje. 1.0 = del montón.
+
+    Espejo exacto de `compose_gains`, sobre el otro lado del intercambio: aquella
+    dice cuánto le cunde lo que gana, esta cuánto le duele lo que gasta.
+
+        gain_multipliers  ->  cuánto le CUNDE
+        cost_multipliers  ->  cuánto le DUELE
+
+    Y son independientes a propósito, porque las cuatro combinaciones describen
+    criaturas distintas y con un solo canal ninguna sería expresable: el enano
+    que almacena mucho y repone despacio (temple alto, aptitud baja), el humano
+    del montón (los dos a 1.0), el que se repone en un suspiro pero se vacía a la
+    primera (aptitud alta, temple bajo).
+
+    Devuelve todas las necesidades del pack por el mismo motivo que sus hermanas:
+    un dict incompleto obligaría a cada consumidor a inventarse un default y
+    acabarían siendo distintos en dos sitios.
+    """
+    costs: dict[NeedId, float] = {need.id: 1.0 for need in pack.needs}
+    for trait_id in sorted(traits):
+        trait = pack.trait_by_id[trait_id]
+        intensity = traits[trait_id]
+        for need_id, multiplier in trait.cost_multipliers.items():
+            costs[need_id] *= multiplier**intensity
+    return costs
+
+
 def compose_phase_shift(pack: ContentPack, traits: Mapping[TraitId, float]) -> int:
     """Cuánto adelanta o atrasa el reloj interno de este agente, en ticks.
 
