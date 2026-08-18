@@ -1725,3 +1725,30 @@ class TuningSpec(Spec):
     valencias por valor, en las unidades que salgan, y el rencor tiene que estar
     acotado para que `regret_weight` signifique lo mismo en todos los packs.
     """
+
+    fear_weight: float = Field(default=0.0, ge=0.0)
+    """Cuánto pesa el miedo a un LUGAR al deliberar. **0.0 lo desactiva.**
+
+        utilidad = beneficio · ... - aversión · (coste + rencor + peaje + miedo)
+
+    Se suma junto al **peaje**, y el sitio no es casual: el peaje es literalmente
+    *lo que cuesta llegar ahí*, y un miedo es lo mismo pagado en otra moneda. El
+    escarmiento es un recargo sobre la acción; el miedo, sobre el lugar. Mismo
+    esqueleto, ejes ortogonales.
+
+    De ahí sale la conducta que ninguna otra perilla puede expresar: quien teme
+    la plaza **no deja de socializar, socializa en otro sitio**. Una aversión a
+    la acción no sabe hacer eso.
+
+    **Ojo, el veto aquí es peor que con el arrepentimiento.** El pack exige que
+    exista una acción sin affordance —la red de seguridad— pero NO exige que
+    exista un lugar alternativo por affordance. Si el único sitio donde se puede
+    dormir da miedo, no hay adónde ir: no existe un "lugar de refugio" análogo.
+    Vale la misma regla —la desesperación crece y el miedo es fijo— pero con
+    menos margen, así que este número quiere ser más conservador que
+    `regret_weight`.
+    """
+
+    fear_scale: float = Field(default=1.0, gt=0.0)
+    """Cuánto pavor acumulado equivale a medio miedo. Mismo papel que
+    `regret_scale`, sobre el otro eje."""

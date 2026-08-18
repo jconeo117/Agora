@@ -81,6 +81,7 @@ def _recuerdo_a_lista(r: Recuerdo) -> list[Any]:
         None if r.about is None else str(r.about),
         r.importancia,
         r.valencia,
+        None if r.culpable is None else str(r.culpable),
     ]
 
 
@@ -202,6 +203,7 @@ def _lista_a_recuerdo(
     lugares: frozenset[str],
     acciones: frozenset[str],
     agentes: frozenset[str],
+    situaciones: frozenset[str],
 ) -> Recuerdo:
     """Reconstruye un recuerdo, limpiando lo que el pack de hoy ya no tiene.
 
@@ -220,6 +222,13 @@ def _lista_a_recuerdo(
     # la fila. Un guardado de siete campos se lee como recuerdos sin signo, que
     # es exactamente lo que eran: cosas que pasaron, ni buenas ni malas.
     valencia = float(fila[7]) if len(fila) > 7 else 0.0
+    # Y el culpable llegó con el miedo a lugares, otra fase después. Misma
+    # tolerancia: una fila corta es un recuerdo de cuando el mundo no sabía
+    # hacerle nada a nadie, así que nadie tenía la culpa de nada.
+    crudo_culpable = fila[8] if len(fila) > 8 else None
+    culpable = (
+        SituationId(crudo_culpable) if crudo_culpable in situaciones else None
+    )
     return Recuerdo(
         seq=int(seq),
         tick=int(tick),
@@ -229,6 +238,7 @@ def _lista_a_recuerdo(
         about=AgentId(about) if about in agentes else None,
         importancia=float(importancia),
         valencia=valencia,
+        culpable=culpable,
     )
 
 
@@ -333,6 +343,9 @@ def load(path: Path, pack: ContentPack) -> tuple[WorldState, set[tuple[AgentId, 
     # campo que solo añade.
     lugares = frozenset(str(p.id) for p in pack.places)
     acciones = frozenset(str(a.id) for a in pack.actions)
+    # Una situación borrada del pack no vuelve, igual que un rasgo o un agente:
+    # `gains_at` la buscaría en `situation_by_id` y reventaria con un KeyError.
+    conocidas = frozenset(str(s.id) for s in pack.situations)
     for guardado in datos["agents"]:
         if guardado["spec_id"] not in conocidos:
             continue
@@ -340,11 +353,11 @@ def load(path: Path, pack: ContentPack) -> tuple[WorldState, set[tuple[AgentId, 
         if filas:
             world.memoria.cargar(
                 AgentId(guardado["spec_id"]),
-                (_lista_a_recuerdo(f, lugares, acciones, conocidos) for f in filas),
+                (
+                    _lista_a_recuerdo(f, lugares, acciones, conocidos, conocidas)
+                    for f in filas
+                ),
             )
-    # Una situación borrada del pack no vuelve, igual que un rasgo o un agente:
-    # `gains_at` la buscaría en `situation_by_id` y reventaria con un KeyError.
-    conocidas = frozenset(str(s.id) for s in pack.situations)
     world.situations = {
         SituationId(s): (None if hasta == -1 else int(hasta))
         for s, hasta in datos.get("situations", [])

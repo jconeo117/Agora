@@ -418,10 +418,19 @@ class Simulation:
             # umbral, la crisis se emite con el lugar puesto, y el recuerdo que
             # deja es atribuible a dónde estabas. Aplicarlo después dejaría el
             # daño invisible hasta el tick siguiente.
+            # `culpables` recuerda qué situación hirió qué eje en ESTE tick, y es
+            # lo que hace posible el miedo a lugares. Sin él, una crisis solo
+            # sabe dónde ocurrió, no si el sitio tuvo algo que ver — y el hambre
+            # cruza su umbral donde uno pase más tiempo, que es su propia cama.
+            culpables: dict[NeedId, SituationId] = {}
             for situation in self.state.situations_at(agent.at):
                 efectos = by_situation[situation].effects
-                if efectos:
-                    agent.endure(efectos, specs)
+                if not efectos:
+                    continue
+                agent.endure(efectos, specs)
+                for need_id, delta in efectos.items():
+                    if delta < 0.0:
+                        culpables[need_id] = situation
 
             agent.recover_novelty(self.pack.tuning.saturation_recovery)
             # Después del decaimiento: el desgaste y el temperamento que se
@@ -436,11 +445,14 @@ class Simulation:
                 if not specs[need_id].can_be_critical:
                     continue
                 if before[need_id] >= threshold > value:
-                    event = self._emit(
-                        EventKind.NEED_CRITICAL,
-                        agent,
-                        data={"need": str(need_id), "value": round(value, 4)},
-                    )
+                    culpable = culpables.get(need_id)
+                    datos: dict[str, str | float] = {
+                        "need": str(need_id),
+                        "value": round(value, 4),
+                    }
+                    if culpable is not None:
+                        datos["porque"] = str(culpable)
+                    event = self._emit(EventKind.NEED_CRITICAL, agent, data=datos)
                     # *Lo que duele, se recuerda* — la frase con la que se
                     # declaró este evento en F0, cobrada por fin. Sin sorpresa:
                     # hundirse no desmiente ninguna expectativa, duele y ya.
@@ -448,11 +460,16 @@ class Simulation:
                         agent,
                         event,
                         urgencia=urgency(value, specs[need_id].urgency_exponent),
-                        # Hundirse es malo, sin discusión. Tampoco lleva `action`
+                        # Hundirse es malo, sin discusión. No lleva `action`
                         # —nadie decidió pasar hambre—, así que no produce rencor
-                        # contra nada: es el material del miedo a un LUGAR, que
-                        # es el frente siguiente.
+                        # contra nada: los dos índices parten la memoria y este
+                        # cae del lado del miedo.
                         valencia=-1.0,
+                        # Y solo cuenta como miedo si el mundo tuvo la culpa. Es
+                        # la línea por la que este frente se abandonó una vez:
+                        # sin ella, el hambre que cruza su umbral en tu cama te
+                        # enseña a temer tu cama.
+                        culpable=culpable,
                     )
 
     def _settle_goals(self, agent: AgentState) -> None:
@@ -915,6 +932,7 @@ class Simulation:
         sorpresa: float = 0.0,
         testigos: int | None = None,
         valencia: float = 0.0,
+        culpable: SituationId | None = None,
     ) -> None:
         """Pasa un hecho por la regla de importancia y, si marca, lo graba.
 
@@ -945,4 +963,5 @@ class Simulation:
                 escala=tuning.memory_scale,
             ),
             valencia,
+            culpable,
         )

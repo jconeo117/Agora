@@ -37,7 +37,7 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 
 from agora.engine.events import Event, EventKind
-from agora.engine.ontology import ActionId, AgentId, PlaceId
+from agora.engine.ontology import ActionId, AgentId, PlaceId, SituationId
 from agora.engine.outcome import signed_saturation
 
 
@@ -108,6 +108,24 @@ class Recuerdo:
     importancia: float = 0.0
     """Cuánto marcó, en [0, 1). Se fija al recordar y no cambia — lo que cambia
     es cuánto queda de ella."""
+
+    culpable: SituationId | None = None
+    """Qué le estaba pasando al mundo, si eso fue la causa. **Es lo que separa un
+    recuerdo de un miedo.**
+
+    Sin este campo, el miedo a lugares es imposible de construir bien, y eso se
+    descubrió midiendo. Un `NEED_CRITICAL` se dispara donde el agente esté de pie
+    cuando una necesidad cruza el umbral, que casi siempre es su cama o su
+    taller: temer el sitio donde te entró hambre es un sinsentido, y peor, el
+    hambre entra donde uno pasa más tiempo, así que el mecanismo produciría miedo
+    a la propia casa. Sistemáticamente y para todos.
+
+    Con el marcador, el lugar deja de ser *dónde estabas* y pasa a ser *parte de
+    por qué*. Solo lo ponen las crisis que una situación causó — el cuarto canal
+    aplicando daño a quien está dentro de su alcance.
+
+    `None` es lo normal: la mayoría de lo que se recuerda no lo provocó el mundo.
+    """
 
     valencia: float = 0.0
     """Si salió mejor o peor de lo esperado, en [-1, 1]. **Es lo que separa un
@@ -226,7 +244,12 @@ class MemoriaEpisodica:
         return iter(sorted(self._por_duenyo))
 
     def remember(
-        self, owner: AgentId, event: Event, importancia: float, valencia: float = 0.0
+        self,
+        owner: AgentId,
+        event: Event,
+        importancia: float,
+        valencia: float = 0.0,
+        culpable: SituationId | None = None,
     ) -> Recuerdo | None:
         """Graba un hecho. Devuelve el recuerdo, o `None` si no se guardó.
 
@@ -250,6 +273,7 @@ class MemoriaEpisodica:
             about=event.subject if event.subject != owner else event.actor,
             importancia=importancia,
             valencia=max(-1.0, min(1.0, valencia)),
+            culpable=culpable,
         )
         guardados = self._por_duenyo.setdefault(owner, [])
         guardados.append(recuerdo)
@@ -347,6 +371,42 @@ class MemoriaEpisodica:
             if peso > 0.0:
                 bruto[recuerdo.action] = bruto.get(recuerdo.action, 0.0) + peso
         return {accion: signed_saturation(v, escala) for accion, v in bruto.items()}
+
+    def miedo(self, owner: AgentId, tick: int, escala: float) -> dict[PlaceId, float]:
+        """Cuánto pavor le tiene este agente a cada sitio. Valores [0, 1).
+
+            miedo[lugar] = saturación( Σ |valencia negativa| · valor(hoy),  escala )
+
+        **Hermano exacto de `rencor`, sobre el otro eje.** Aquel penaliza lo que
+        HICISTE; este, DÓNDE estabas. Y producen conductas distintas: quien teme
+        la plaza no deja de socializar, socializa en otro lado.
+
+        Los dos índices **parten la memoria y no la comparten**, que es como se
+        evita contar dos veces el mismo suceso: `rencor` solo mira lo que lleva
+        `action`, y este solo lo que no. Un recuerdo es o algo que hiciste o algo
+        que te pasó, nunca las dos cosas.
+
+        Y exige `culpable`, que es la línea que hace posible el mecanismo. El
+        primer intento de este frente se abandonó justamente aquí: los
+        `NEED_CRITICAL` se disparan donde uno esté de pie, así que alimentarse de
+        ellos a secas produce miedo a la propia cama. Con el marcador, solo entra
+        lo que una situación provocó — el lugar deja de ser *dónde estabas* y
+        pasa a ser *parte de por qué*.
+        """
+        guardados = self._por_duenyo.get(owner)
+        if not guardados or escala <= 0.0:
+            return {}
+
+        bruto: dict[PlaceId, float] = {}
+        for recuerdo in guardados:
+            if recuerdo.place is None or recuerdo.action is not None:
+                continue
+            if recuerdo.culpable is None or recuerdo.valencia >= 0.0:
+                continue
+            peso = -recuerdo.valencia * recuerdo.valor(tick, self.fade)
+            if peso > 0.0:
+                bruto[recuerdo.place] = bruto.get(recuerdo.place, 0.0) + peso
+        return {lugar: signed_saturation(v, escala) for lugar, v in bruto.items()}
 
     @staticmethod
     def _ahora(guardados: list[Recuerdo]) -> int:

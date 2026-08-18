@@ -55,6 +55,13 @@ situations:
   - cripta
   - galerias
   - nucleo_sima
+  effects:
+    nucleo: -0.002
+  trigger:
+    expected_per_year: 6.0
+    lasts_min: 480
+    lasts_max: 1440
+    cooldown: 2880
 clock:
   minutes_per_tick: 15
   ticks_per_day: 96
@@ -105,6 +112,8 @@ tuning:
   memory_fade: 0.9995
   regret_weight: 0.0
   regret_scale: 0.5
+  fear_weight: 0.0
+  fear_scale: 0.5
   strain_multipliers:
     temperature: 2.2
     travel_discount: 0.85

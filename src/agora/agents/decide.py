@@ -22,7 +22,7 @@ La fórmula:
     coste     = suma_necesidades( peso * urgencia * cuesta )
 
     utilidad  = beneficio * descuento * gustos * compañía * hora
-              - aversion * (coste + peaje_del_trayecto + escarmiento)
+              - aversion * (coste + peaje_del_trayecto + escarmiento + miedo)
 
 Cuatro detalles de esa expresión que no son arbitrarios:
 
@@ -38,12 +38,18 @@ lejos, y algo que al agente le encanta le repelería más cuando el neto es
 negativo. El descuento dice "la recompensa está lejos, vale menos"; el precio
 que se paga al llegar no se descuenta.
 
-**El escarmiento es un precio, no un descuento.** Va sumado al coste por la
-misma razón del punto anterior, leída al revés: si multiplicara el beneficio, un
-plan muy apetecible quedaría castigado proporcionalmente más que uno tibio, y
-acordarse de una paliza no rebaja un porcentaje de la ilusión — es un pavor de
-tamaño fijo que hay que pagar al llegar. De paso pasa por `loss_aversion`, y eso
-es exactamente lo que se quiere: el prudente teme más lo recordado.
+**El escarmiento y el miedo son precios, no descuentos.** Van sumados al coste
+por la misma razón del punto anterior, leída al revés: si multiplicaran el
+beneficio, un plan muy apetecible quedaría castigado proporcionalmente más que
+uno tibio, y acordarse de una paliza no rebaja un porcentaje de la ilusión — es
+un pavor de tamaño fijo que hay que pagar al llegar. De paso pasan por
+`loss_aversion`, y eso es exactamente lo que se quiere: el prudente teme más lo
+recordado.
+
+Son dos ejes ortogonales y el reparto importa: **el escarmiento cuelga de la
+acción y el miedo del lugar**, así que viaja con el peaje. De ahí sale la única
+conducta que ninguna otra perilla sabe expresar — quien teme la plaza no deja de
+socializar, socializa en otro sitio.
 
 **La utilidad puede ser negativa**, y debe poder serlo: significa "mala idea
 ahora mismo". Como la acción de red de seguridad no cuesta nada y vale casi
@@ -443,6 +449,13 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
         if tuning.regret_weight > 0.0
         else {}
     )
+    # El pavor a un sitio, por el mismo motivo y con el mismo coste: una vez, no
+    # una consulta por cada uno de los veinticinco lugares.
+    miedo = (
+        world.memoria.miedo(agent.spec_id, world.tick, tuning.fear_scale)
+        if tuning.fear_weight > 0.0
+        else {}
+    )
 
     found: list[Decision] = []
     for place in pack.places:
@@ -455,6 +468,10 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
         # calcula una vez por lugar y se suma al precio de todo lo que se haga
         # allí. Ir a la sima cuesta lo mismo se baje a expoliar o a mirar.
         peaje = toll_cost(pack, agent, weights, world.travel.toll(agent.at, place.id))
+        # El pavor viaja con el peaje: los dos son lo que cuesta estar ahí, uno
+        # en moneda y otro en lo que te pasó la última vez. Se resuelve por lugar
+        # y no por par, como el peaje, porque un miedo no depende de a qué vayas.
+        peaje += miedo.get(place.id, 0.0) * tuning.fear_weight
 
         # Quién cree que hay allí. `None` = no tiene noticia, y se supone a favor.
         crowd: frozenset[AgentId] | None

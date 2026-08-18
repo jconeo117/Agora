@@ -16,6 +16,7 @@ contra una alternativa más simple que estaba mal:
 from __future__ import annotations
 
 import copy
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +24,7 @@ import pytest
 
 from agora.engine.events import Event, EventKind, EventLog, EventoDesalojadoError
 from agora.engine.memory import Cue, MemoriaEpisodica, Recuerdo, importancia_de
-from agora.engine.ontology import ActionId, AgentId, NeedId, PlaceId
+from agora.engine.ontology import ActionId, AgentId, NeedId, PlaceId, SituationId
 from agora.engine.outcome import learn
 from agora.engine.pack import ContentPack
 from agora.engine.world import Simulation
@@ -713,6 +714,175 @@ def test_too_much_weight_does_veto_and_that_is_the_calibration_limit() -> None:
     sim.run(200)
     hechas = sim.log.recuento.por_agente_accion.get(AG1)
     assert hechas is None or hechas[ACT] == 0
+
+
+# --- el miedo a lugares ------------------------------------------------------
+
+
+TORMENTA = SituationId("tormenta")
+
+
+def sufrir(m: MemoriaEpisodica, seq: int, **kw: Any) -> None:
+    """Un recuerdo de algo que te PASÓ: sin acción, con lugar y con culpable."""
+    m.remember(
+        AG1,
+        Event(seq=seq, tick=kw.pop("tick", 0), kind=EventKind.NEED_CRITICAL,
+              actor=AG1, place=kw.pop("place", P1)),
+        0.8,
+        kw.pop("valencia", -0.9),
+        kw.pop("culpable", TORMENTA),
+    )
+
+
+def test_a_crisis_nobody_caused_teaches_no_fear() -> None:
+    """**La línea por la que este frente se abandonó una vez.**
+
+    Un `NEED_CRITICAL` se dispara donde uno esté de pie, y el hambre cruza su
+    umbral donde uno pasa más tiempo: su cama. Medido en la ciudad sobre 180
+    días, los cuatro sitios con más recuerdos malos eran dormitorios y aulas.
+    Sin `culpable`, este mecanismo enseña a temer tu propia casa.
+    """
+    m = MemoriaEpisodica(capacidad=10)
+    sufrir(m, 0, culpable=None)
+    assert m.miedo(AG1, tick=0, escala=1.0) == {}
+
+
+def test_a_crisis_the_world_caused_does_teach_fear() -> None:
+    m = MemoriaEpisodica(capacidad=10)
+    sufrir(m, 0)
+    assert m.miedo(AG1, tick=0, escala=1.0)[P1] > 0.0
+
+
+def test_fear_and_regret_split_the_memory() -> None:
+    """Los dos índices parten la memoria y no la comparten: un recuerdo es o algo
+    que hiciste o algo que te pasó. Así no se cuenta dos veces el mismo suceso."""
+    m = MemoriaEpisodica(capacidad=10)
+    # Algo que hizo, y le salió mal, en P1.
+    m.remember(AG1, evento(0, place=P1, action=ACT), 0.8, -0.9, TORMENTA)
+    assert m.rencor(AG1, tick=0, escala=1.0), "debería pesar como escarmiento"
+    assert m.miedo(AG1, tick=0, escala=1.0) == {}, "y no además como miedo"
+
+
+def test_a_good_memory_leaves_no_fear() -> None:
+    m = MemoriaEpisodica(capacidad=10)
+    sufrir(m, 0, valencia=0.9)
+    assert m.miedo(AG1, tick=0, escala=1.0) == {}
+
+
+def test_fear_is_per_place() -> None:
+    m = MemoriaEpisodica(capacidad=10)
+    sufrir(m, 0, place=P1)
+    temido = m.miedo(AG1, tick=0, escala=1.0)
+    assert P1 in temido
+    assert P2 not in temido
+
+
+def test_fear_accumulates_and_is_bounded() -> None:
+    m = MemoriaEpisodica(capacidad=200)
+    sufrir(m, 0)
+    una = m.miedo(AG1, tick=0, escala=1.0)[P1]
+    for i in range(1, 100):
+        sufrir(m, i)
+    muchas = m.miedo(AG1, tick=0, escala=1.0)[P1]
+    assert una < muchas < 1.0
+
+
+def test_fear_fades() -> None:
+    m = MemoriaEpisodica(capacidad=10, fade=0.99)
+    sufrir(m, 0, tick=0)
+    assert m.miedo(AG1, tick=300, escala=1.0)[P1] < m.miedo(AG1, tick=0, escala=1.0)[P1]
+
+
+def test_fear_is_owner_scoped() -> None:
+    m = MemoriaEpisodica(capacidad=10)
+    sufrir(m, 0)
+    assert m.miedo(AG2, tick=0, escala=1.0) == {}
+
+
+# --- el miedo cambia a dónde se va -------------------------------------------
+
+
+def temeroso_pack(**overrides: Any) -> ContentPack:
+    """Dos sitios intercambiables. La simetría aísla el efecto: si alguien
+    prefiere uno, no puede ser por la distancia ni por lo que rinde allí."""
+    data: dict[str, Any] = {
+        "id": "test",
+        "label": "test",
+        "needs": [
+            {"id": "n1", "label": "n1", "decay_per_tick": 0.02, "initial": 0.5,
+             "urgency_exponent": 2.0}
+        ],
+        "actions": [
+            {"id": "act", "label": "act", "duration_ticks": 1,
+             "requires_affordance": "aff", "satisfies": {"n1": 1.0},
+             "effects": {"n1": 0.3}},
+            {"id": "nada", "label": "nada", "duration_ticks": 1},
+        ],
+        "places": [
+            {"id": "p1", "label": "p1", "affordances": ["aff"], "neighbors": {"p2": 1}},
+            {"id": "p2", "label": "p2", "affordances": ["aff"], "neighbors": {"p1": 1}},
+        ],
+        "agents": [{"id": "ag1", "label": "ag1", "home": "p1", "start_at": "p1"}],
+        "tuning": {
+            "memory_capacity": 20, "memory_scale": 1.0,
+            "fear_weight": 0.5, "fear_scale": 0.5, "candidate_pool": 1,
+        },
+    }
+    data.update(copy.deepcopy(overrides))
+    return ContentPack.model_validate(data)
+
+
+def utilidad_en(world: Any, agent: Any, lugar: PlaceId) -> float:
+    from agora.agents.decide import candidates
+
+    return next(c.utility for c in candidates(world, agent) if c.place == lugar)
+
+
+def test_fear_makes_a_place_less_appealing() -> None:
+    sim = Simulation(temeroso_pack(), seed=5)
+    agent = sim.state.agents[AG1]
+    antes = utilidad_en(sim.state, agent, P2)
+
+    sim.state.memoria.remember(
+        AG1,
+        Event(seq=0, tick=0, kind=EventKind.NEED_CRITICAL, actor=AG1, place=P2),
+        0.9, -0.9, TORMENTA,
+    )
+    assert utilidad_en(sim.state, agent, P2) < antes
+
+
+def test_fear_weight_zero_changes_nothing() -> None:
+    sim = Simulation(temeroso_pack(**{"tuning": {"memory_capacity": 20}}), seed=5)
+    agent = sim.state.agents[AG1]
+    antes = utilidad_en(sim.state, agent, P2)
+
+    sim.state.memoria.remember(
+        AG1,
+        Event(seq=0, tick=0, kind=EventKind.NEED_CRITICAL, actor=AG1, place=P2),
+        0.9, -1.0, TORMENTA,
+    )
+    assert utilidad_en(sim.state, agent, P2) == pytest.approx(antes)
+
+
+def test_fear_moves_you_elsewhere_it_does_not_stop_you() -> None:
+    """**La conducta que ninguna otra perilla sabe expresar.** Quien teme la
+    plaza no deja de socializar: socializa en otro sitio. Una aversión a la
+    acción no puede hacer eso — mataría la actividad, no la reubicaría.
+    """
+    sim = Simulation(temeroso_pack(), seed=5)
+    for i in range(8):
+        sim.state.memoria.remember(
+            AG1,
+            Event(seq=i, tick=0, kind=EventKind.NEED_CRITICAL, actor=AG1, place=P1),
+            0.9, -1.0, TORMENTA,
+        )
+    sim.run(300)
+
+    # Sigue haciendo lo suyo...
+    assert sim.log.recuento.por_agente_accion[AG1][ACT] > 0
+    # ...pero se ha mudado.
+    sitios = Counter(e.place for e in sim.log if e.place is not None)
+    assert sitios[P2] > sitios[P1]
 
 
 def test_two_identical_agents_with_different_pasts_diverge() -> None:

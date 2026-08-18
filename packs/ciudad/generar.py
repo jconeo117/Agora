@@ -638,8 +638,33 @@ situations = [
      "gain_multipliers": {"descanso": 0.5}},
 
     # PELIGRO. Eventual, en la sima. Cierra el fondo y el gremio paga mejor.
+    #
+    # Es la primera situacion del repositorio que HACE algo, en vez de solo
+    # multiplicar. Hasta que existio el cuarto canal, una oleada de monstruos
+    # significaba exactamente que apetecia mas aceptar contratos del gremio.
+    #
+    # -0.002 de nucleo por tick a quien este dentro. Bajar a la sima durante una
+    # oleada cuesta sangre: una visita de un dia son 0.19 de nucleo.
+    #
+    # El numero se calibro DOS VECES y la primera estaba mal por una razon que
+    # conviene no repetir. Salio de 0.0004 pensando en la duracion de la oleada
+    # -cinco a quince dias, 0.19 a 0.58 de nucleo-, y eso da por hecho que
+    # alguien pasa quince dias seguidos ahi abajo. Nadie lo hace: se baja, se
+    # trabaja y se sube. **El dano de una situacion se calibra contra una VISITA,
+    # no contra su duracion.** Medido, con 0.0004 el canal era invisible: 2030
+    # agente-ticks de exposicion en sesenta dias y cero crisis atribuidas.
+    #
+    # La tasa es la que tendria sentido en una ciudad minera de frontera —una
+    # cada dos meses—, NO la que haria que se viera en el panel de 21 dias. Con
+    # 6 al ano, veintiun dias dan 0.35 encendidos esperados: se ve en la carrera
+    # larga, no en la rodaja del contrato. Ajustarla para que se notara ahi seria
+    # calibrar contra el instrumento en vez de contra el mundo.
     {"id": "oleada", "label": "oleada de la sima",
-     "places": ["boca", "cripta", "galerias", "nucleo_sima"]},
+     "places": ["boca", "cripta", "galerias", "nucleo_sima"],
+     "effects": {"nucleo": -0.002},
+     "trigger": {"expected_per_year": 6.0,
+                 "lasts_min": 5 * 96, "lasts_max": 15 * 96,
+                 "cooldown": 30 * 96}},
 ]
 
 # Y como se nota cada una. Se declara aparte del catalogo de acciones para que
@@ -744,6 +769,30 @@ pack = {
         # esta el problema de verdad. Se resuelve en su propia campana, no
         # girando este numero.
         "regret_weight": 0.0, "regret_scale": 0.5,
+        # Miedo a lugares APAGADO, y por una razon estructural de la ciudad, no
+        # por el valor de la perilla. El mecanismo funciona -hay test de que
+        # quien teme un sitio sigue haciendo lo suyo en otro- pero aqui apenas
+        # tiene de que alimentarse.
+        #
+        # Solo cuentan las crisis que una situacion PROVOCA, y eso es
+        # deliberado: sin el filtro, los `NEED_CRITICAL` se disparan donde uno
+        # este de pie y el mecanismo ensena a temer la propia cama. Medido en
+        # ciento ochenta dias, de 424 recuerdos malos con lugar, los cuatro
+        # sitios con mas eran barrio_bajo, aca_celdas, aca_aulas y la posada:
+        # dormitorios y aulas. El 86% habria sido ruido sesgado hacia las camas.
+        #
+        # Con el filtro puesto, la ciudad da casi cero senal, y la causa es su
+        # propia estructura: el unico sitio peligroso es la sima, la visitan
+        # brevemente unos pocos cazadores, y esos cazadores mantienen el nucleo
+        # alto porque es su oficio. Medido a sesenta dias: con el dano a 0.002,
+        # cero crisis atribuidas; subiendolo a 0.006 -tres veces mas-, UNA.
+        # Para sacar senal de verdad haria falta un dano que arruinara el oficio
+        # entero, y eso seria calibrar contra el instrumento en vez de contra el
+        # mundo.
+        #
+        # Se enciende cuando exista un peligro que alcance a donde vive la gente,
+        # no solo a donde va a trabajar.
+        "fear_weight": 0.0, "fear_scale": 0.5,
         "strain_multipliers": {"temperature": 2.2, "travel_discount": 0.85,
                                "critical_need_threshold": 1.5},
     },
