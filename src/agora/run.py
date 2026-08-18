@@ -23,7 +23,7 @@ from agora.engine.pack import ContentPack, describe_pack, load_pack
 from agora.engine.render import render_activity_summary, render_log, render_state
 from agora.engine.timeskip import saltar
 from agora.engine.world import Simulation
-from agora.health import check, measure
+from agora.health import check, divergence, measure
 
 if TYPE_CHECKING:
     from typing import TextIO
@@ -71,12 +71,25 @@ def main() -> None:
         help="mide la salud del mundo sobre varias semillas y contrasta el "
         "contrato que el pack declara; no corre la simulación normal",
     )
+    parser.add_argument(
+        "--divergence",
+        type=int,
+        default=0,
+        metavar="N",
+        help="corre el mundo con N semillas y mide cuánto difiere la vida de la "
+        "MISMA persona entre corridas. Es el eje vivo/aleatorio: si el azar "
+        "empieza a pesar tanto como el carácter, ninguna conducta se explica. "
+        "No corre la simulación normal",
+    )
     args = parser.parse_args()
 
     pack = load_pack(args.pack)
 
     if args.health:
         _report_health(pack)
+        return
+    if args.divergence:
+        _report_divergence(pack, args.divergence, args.seed, args.days)
         return
     ventana = args.window * pack.clock.ticks_per_day if args.window > 0 else None
     # El fichero se abre ANTES de correr y se cierra después: el log se vierte
@@ -161,6 +174,23 @@ def _report_health(pack: ContentPack) -> None:
     print("  contrato: INCUMPLE")
     for problem in problems:
         print(f"    - {problem}")
+
+
+def _report_divergence(pack: ContentPack, cuantas: int, seed: int, days: int) -> None:
+    """Cuánto cambia la misma vida al cambiar la moneda.
+
+    Las semillas salen de `seed` y las siguientes consecutivas, no de un sorteo:
+    dos invocaciones iguales tienen que dar el mismo número, o el instrumento no
+    sirve para comparar antes y después de girar una perilla.
+    """
+    if cuantas < 2:
+        print("  --divergence necesita al menos 2 semillas: compara corridas entre sí")
+        return
+    report = divergence(pack, seeds=tuple(seed + i for i in range(cuantas)), days=days)
+    print(f"# divergencia de {pack.label}")
+    print()
+    for line in report.lines():
+        print(line)
 
 
 if __name__ == "__main__":

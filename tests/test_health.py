@@ -16,9 +16,17 @@ from pathlib import Path
 
 import pytest
 
-from agora.engine.ontology import ActionId, AgentId, PlaceId
+from agora.engine.ontology import ActionId, AgentId, PlaceId, SituationId
 from agora.engine.pack import ContentPack, load_pack
-from agora.health import HealthReport, _differentiation, check, measure
+from agora.engine.world import Simulation
+from agora.health import (
+    DivergenceReport,
+    HealthReport,
+    _differentiation,
+    check,
+    divergence,
+    measure,
+)
 
 PACKS = sorted((Path(__file__).resolve().parents[1] / "packs").glob("*/pack.yaml"))
 
@@ -186,6 +194,97 @@ def test_places_that_are_used_are_not_deserted(
     pack, report = world
     arranques = {a.start_at for a in pack.agents}
     assert not (arranques & report.deserted)
+
+
+# --- imprevistos: la línea base de la raíz 3 ---------------------------------
+
+
+def test_nothing_unexpected_happens_yet(world: tuple[ContentPack, HealthReport]) -> None:
+    """**La línea base contra la que se calibrarán los disparadores.**
+
+    Hoy nada llama a `begin_situation`, así que ninguna situación eventual
+    ocurre jamás. El día que este test falle será porque los disparadores
+    existen, y entonces hay que borrarlo — no arreglarlo.
+    """
+    _, report = world
+    assert report.eventful_time == 0.0
+
+
+def test_declared_eventual_situations_never_happen(
+    world: tuple[ContentPack, HealthReport],
+) -> None:
+    """Tercer miembro de la familia de `unused` y `deserted`. La ciudad declara
+    `ventisca` y `oleada`, y once acciones llevan multiplicadores para ellas."""
+    pack, report = world
+    eventuales = {s.id for s in pack.situations if not s.periodic}
+    assert report.never_happened == eventuales
+
+
+def test_a_situation_that_happens_is_not_reported_as_never() -> None:
+    """El medidor tiene que poder ver una situación encendida, o el número de
+    arriba seria un cero que no significa nada."""
+    ciudad = next((p for p in PACKS if p.parent.name == "ciudad"), None)
+    if ciudad is None:  # pragma: no cover - el repo lo trae
+        pytest.skip("no está el pack de la ciudad")
+    pack = load_pack(ciudad)
+    sim = Simulation(pack, seed=7)
+    sim.begin_situation(SituationId("ventisca"), ticks=50)
+    sim.run(10)
+    assert sim.state.situations, "la situación tendría que seguir encendida"
+
+
+# --- divergencia entre semillas ----------------------------------------------
+
+
+def test_divergence_needs_something_to_compare() -> None:
+    """Con una semilla no hay con qué comparar, y devolver 0.0 sería mentir:
+    diría 'mundo guionizado' cuando lo que pasa es que no se midió."""
+    pack = load_pack(PACKS[0])
+    with pytest.raises(ValueError, match="semillas"):
+        divergence(pack, seeds=(7,), days=1)
+
+
+def test_the_same_seed_twice_diverges_in_nothing() -> None:
+    """Invariante duro: el mismo mundo con la misma semilla es el mismo mundo.
+    Si esto falla, el determinismo se rompió."""
+    pack = load_pack(PACKS[0])
+    assert divergence(pack, seeds=(7, 7), days=2).lives == pytest.approx(0.0)
+
+
+def test_different_seeds_diverge_somewhat() -> None:
+    """Y el otro lado: si cambiar la moneda no cambia nada, el mundo está
+    guionizado y el softmax no está haciendo su trabajo."""
+    pack = load_pack(PACKS[0])
+    assert divergence(pack, seeds=(7, 8, 9), days=3).lives > 0.0
+
+
+def test_divergence_is_reproducible() -> None:
+    pack = load_pack(PACKS[0])
+    assert divergence(pack, seeds=(7, 8), days=2) == divergence(pack, seeds=(7, 8), days=2)
+
+
+def test_character_still_outweighs_chance() -> None:
+    """**El freno cuantitativo que el plan pedía y no tenía.**
+
+    Medido antes de que existieran los disparadores, 7 días: aldea 0.29, barrio
+    0.39, ciudad 0.41. El carácter manda por dos y medio a tres y medio. Si al
+    encender los disparadores esto se acerca a 1, el mundo se volvió aleatorio.
+
+    Se comprueba flojo —por debajo de 1— a propósito: la banda buena la dirá
+    calibrar, y clavar aquí un umbral fino sería pelearse con ella.
+    """
+    barrio = next((p for p in PACKS if p.parent.name == "barrio"), None)
+    if barrio is None:  # pragma: no cover - el repo lo trae
+        pytest.skip("no está el pack del barrio")
+    report = divergence(load_pack(barrio), seeds=(1312, 7, 99), days=3)
+    assert 0.0 < report.ratio < 1.0
+
+
+def test_the_ratio_survives_a_world_with_no_differentiation() -> None:
+    """Dividir por la diferenciación es lo que hace legible el número, y también
+    lo que puede dividir por cero. Un mundo de un solo agente no tiene con quién
+    diferenciarse."""
+    assert DivergenceReport(seeds=(1, 2), days=1, lives=0.5).ratio == 0.0
 
 
 def test_a_pack_without_bands_only_faces_the_universal_invariants() -> None:

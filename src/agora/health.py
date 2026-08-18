@@ -24,7 +24,7 @@ from itertools import combinations
 
 from agora.agents.decide import critical_needs
 from agora.engine.events import EventKind
-from agora.engine.ontology import ActionId, AgentId, NeedId, PlaceId
+from agora.engine.ontology import ActionId, AgentId, NeedId, PlaceId, SituationId
 from agora.engine.pack import ContentPack
 from agora.engine.state import Ledger
 from agora.engine.world import Simulation
@@ -65,6 +65,31 @@ class HealthReport:
     aborted: int = 0
     stalls: int = 0
     unused: frozenset[ActionId] = field(default_factory=frozenset)
+
+    eventful_time: float = 0.0
+    """Fracción del tiempo con al menos una situación **eventual** encendida.
+
+    Las periódicas no cuentan: son función del reloj, así que preguntarlo sería
+    preguntar si amanece. Lo que este número mide es si al mundo le **pasa** algo
+    que no estuviera en el calendario.
+
+    Hoy vale 0.0 en los cuatro packs, y no es un fallo de medición: nada llama a
+    `begin_situation`. Es la línea base contra la que se calibrarán los
+    disparadores de la raíz 3.
+    """
+
+    never_happened: frozenset[SituationId] = field(default_factory=frozenset)
+    """Situaciones eventuales que el pack declara y que no ocurrieron nunca.
+
+    Tercer miembro de la misma familia que `unused` y `deserted`, y el mismo
+    defecto: la ciudad escribe `contrato_del_gremio` a 2.2 durante la oleada y
+    `velar_el_fuego` a 2.0 durante la ventisca, y ninguna de las dos situaciones
+    ha ocurrido jamás. Once acciones llevan multiplicadores para situaciones que
+    no pasan.
+
+    Tampoco entra en el contrato, por lo mismo que `deserted`: mientras no haya
+    disparadores, que una eventual no ocurra es lo esperado, no un defecto.
+    """
 
     deserted: frozenset[PlaceId] = field(default_factory=frozenset)
     """Lugares donde no estuvo nadie ni un tick. El gemelo geográfico de
@@ -120,6 +145,9 @@ class HealthReport:
             f"  bloqueos                {self.stalls:6}",
             f"  acciones sin usar       {sorted(self.unused) if self.unused else '—'}",
             f"  lugares desiertos       {sorted(self.deserted) if self.deserted else '—'}",
+            f"  tiempo con imprevisto   {self.eventful_time:6.1%}",
+            f"  nunca pasan             "
+            f"{sorted(self.never_happened) if self.never_happened else '—'}",
         ]
         if self.supply:
             salida += ["", "  oferta/demanda por eje   (>1.3 = el eje no decide nada)"]
@@ -156,6 +184,8 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
     profiles: dict[AgentId, Counter[ActionId]] = {a.id: Counter() for a in pack.agents}
     where: dict[AgentId, Counter[PlaceId]] = {a.id: Counter() for a in pack.agents}
     out_of_bounds: list[str] = []
+    eventful = 0
+    ocurridas: set[SituationId] = set()
 
     libros: list[Ledger] = []
     for seed in seeds:
@@ -167,6 +197,13 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
             agent.ledger = Ledger()
         for _ in range(ticks):
             sim.tick()
+            # `state.situations` guarda SOLO las eventuales: las periódicas se
+            # calculan del reloj y no viven ahí. Así que preguntar si está vacío
+            # es exactamente preguntar si al mundo le está pasando algo que no
+            # tocaba por calendario.
+            if sim.state.situations:
+                eventful += 1
+                ocurridas.update(sim.state.situations)
             for agent in sim.state.agents_in_order():
                 urgent = critical_needs(sim.state, agent)
                 critical_count += len(urgent)
@@ -217,6 +254,9 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
         unused=frozenset(a.id for a in pack.actions) - used,
         deserted=frozenset(p.id for p in pack.places)
         - {sitio for visitados in where.values() for sitio in visitados},
+        eventful_time=eventful / max(ticks * len(seeds), 1),
+        never_happened=frozenset(s.id for s in pack.situations if not s.periodic)
+        - ocurridas,
         out_of_bounds=tuple(out_of_bounds),
         **_supply_and_demand(pack, libros),
     )
@@ -286,6 +326,147 @@ def _differentiation[K: (ActionId, PlaceId)](
         for a, b in combinations(vectors, 2)
     ]
     return sum(pairs) / len(pairs) if pairs else 0.0
+
+
+# -----------------------------------------------------------------------------
+# Divergencia entre semillas
+# -----------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class DivergenceReport:
+    """Cuánto cambia la vida de la MISMA persona entre dos corridas del MISMO
+    mundo. El eje sobre el que se calibrará la raíz 3.
+
+    El peligro que los disparadores traen está escrito en el plan: *si se les da
+    demasiada cuerda, el mundo pasa de vivo a aleatorio, y eso destruye la
+    legibilidad*. Vivo y aleatorio no son puntos, son un eje, y hasta ahora nada
+    lo medía.
+
+    Se lee así:
+
+    - **Cerca de 0** — el mundo está guionizado. Cambiar la semilla no cambia
+      nada, así que nada de lo que pasa era evitable ni sorprendente.
+    - **Alto** — el mundo es ruido. La misma persona vive dos vidas ajenas según
+      un número que nadie ve, y ninguna conducta se puede explicar.
+
+    Dónde está el punto bueno no lo dice esta clase: lo dirá calibrar. Lo que
+    esta clase da es el número, que antes no existía.
+    """
+
+    seeds: tuple[int, ...]
+    days: int
+
+    lives: float
+    """Distancia L1 media entre el perfil de actividad del mismo agente bajo dos
+    semillas distintas, promediada sobre todos los agentes y todos los pares.
+
+    **La misma vara que `differentiation`**, girada noventa grados: aquella
+    compara a dos personas dentro de una corrida, esta compara a una persona
+    consigo misma entre corridas. Que sea la misma función es lo que permite
+    leer los dos números juntos — si la divergencia entre semillas se acerca a
+    la diferenciación entre personas, el azar pesa tanto como el carácter.
+    """
+
+    differentiation: float = 0.0
+    """La diferenciación entre personas, promediada sobre las semillas. Sale
+    gratis de los mismos perfiles que ya hay que recoger, y sin ella el número de
+    arriba no se puede leer: 0.388 es mucho o poco según contra qué."""
+
+    eventful_time: float = 0.0
+    """Fracción de ticks con alguna situación eventual, promediada. Duplica el
+    campo del panel a propósito: aquí se mira mientras se gira la perilla de los
+    disparadores, y tener que cruzar dos informes para eso sería absurdo."""
+
+    @property
+    def ratio(self) -> float:
+        """**El número que hay que mirar.** Divergencia entre corridas dividida
+        por diferenciación entre personas.
+
+        Se lee como *cuánto de lo que distingue a dos habitantes podría
+        explicarlo la moneda en vez de quiénes son*:
+
+        - **cerca de 0** — el carácter manda; el azar apenas roza la vida.
+        - **cerca de 1** — la moneda pesa tanto como la persona, y ninguna
+          conducta se puede explicar señalando a un rasgo.
+
+        Medido antes de que existieran los disparadores, 7 días, tres semillas:
+        aldea 0.29, barrio 0.39, ciudad 0.41 — el carácter manda por dos y medio
+        a tres y medio. `dark_fantasy` sale 0.80, y es coherente con lo demás que
+        sabemos de ese pack: lo poco que distingue a sus dos agentes es casi todo
+        ruido.
+
+        Si al encender los disparadores esto sube hacia 1, el mundo se volvió
+        aleatorio. Es el freno cuantitativo que el plan pedía y no tenía.
+        """
+        return self.lives / self.differentiation if self.differentiation else 0.0
+
+    def lines(self) -> list[str]:
+        return [
+            f"  {self.days} días · semillas {list(self.seeds)}",
+            "",
+            f"  divergencia entre vidas {self.lives:6.3f}",
+            f"  diferenciación          {self.differentiation:6.3f}",
+            f"  azar frente a carácter  {self.ratio:6.2f}   (→1 = mundo aleatorio)",
+            f"  tiempo con imprevisto   {self.eventful_time:6.1%}",
+        ]
+
+
+def divergence(
+    pack: ContentPack, seeds: tuple[int, ...], days: int | None = None
+) -> DivergenceReport:
+    """Corre el mismo mundo con varias semillas y mide cuánto difieren las vidas.
+
+    **No usa `measure`, y no es duplicación.** `measure` promedia las semillas —
+    justo lo que aquí se quiere conservar— y además enciende la contabilidad de
+    los libros y muestrea el triaje en cada tick, que aquí no hacen falta. Correr
+    lo mínimo sale más barato que llamar a `measure` una vez por semilla y tirar
+    lo que sobra.
+
+    Tampoco entra en el contrato de ningún pack. La ciudad declara **una** sola
+    semilla, y por una razón escrita: tres costarían dos minutos por cada
+    `--health`. Esto es una herramienta de calibración que se invoca a propósito,
+    con las semillas que haga falta, no un número que se paga en cada corrida.
+    """
+    if len(seeds) < 2:
+        raise ValueError(
+            f"la divergencia compara corridas entre sí y se pidieron {len(seeds)} "
+            f"semillas. Con una no hay con qué comparar."
+        )
+    days = days if days is not None else pack.health.days
+    ticks = days * pack.clock.ticks_per_day
+
+    por_semilla: list[dict[AgentId, Counter[ActionId]]] = []
+    eventful = 0
+    for seed in seeds:
+        sim = Simulation(pack, seed=seed)
+        for _ in range(ticks):
+            sim.tick()
+            if sim.state.situations:
+                eventful += 1
+        por_semilla.append(
+            {a.id: Counter(sim.log.recuento.por_agente_accion.get(a.id, Counter()))
+             for a in pack.agents}
+        )
+
+    # Un agente contra sí mismo, semilla contra semilla. Se reusa la misma
+    # función que mide la diferenciación entre personas: si fueran dos varas,
+    # los dos números no se podrían comparar y la lectura interesante —¿pesa más
+    # el azar o el carácter?— dejaría de existir.
+    distancias = [
+        _differentiation({AgentId("uno"): una[agente], AgentId("otro"): otra[agente]})
+        for una, otra in combinations(por_semilla, 2)
+        for agente in una
+    ]
+    return DivergenceReport(
+        seeds=seeds,
+        days=days,
+        lives=sum(distancias) / len(distancias) if distancias else 0.0,
+        # De los mismos perfiles, sin correr nada más: es lo que hace legible al
+        # número de arriba.
+        differentiation=sum(_differentiation(p) for p in por_semilla) / len(por_semilla),
+        eventful_time=eventful / max(ticks * len(seeds), 1),
+    )
 
 
 def check(pack: ContentPack, report: HealthReport | None = None) -> list[str]:
