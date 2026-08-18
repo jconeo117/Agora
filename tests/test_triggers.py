@@ -19,7 +19,7 @@ import pytest
 from pydantic import ValidationError
 
 from agora.engine.events import EventKind
-from agora.engine.ontology import SituationId
+from agora.engine.ontology import AgentId, NeedId, PlaceId, SituationId
 from agora.engine.pack import ContentPack
 from agora.engine.timeskip import saltar
 from agora.engine.world import Simulation
@@ -381,6 +381,177 @@ def test_a_save_from_before_triggers_loads_clean(tmp_path: Path) -> None:
     destino.write_text(json.dumps(datos), encoding="utf-8")
 
     assert Simulation.resume(destino, pack).state.last_trigger == {}
+
+
+# --- el cuarto canal: que le pase algo a alguien ------------------------------
+
+
+def dolor_pack(**overrides: Any) -> ContentPack:
+    """Un mundo donde la tormenta hace daño, no solo cierra el refugio."""
+    base = trigger_pack().model_dump(mode="json")
+    data: dict[str, Any] = {
+        **{k: v for k, v in base.items() if k not in {"situations"}},
+        "situations": [
+            {
+                "id": "tormenta",
+                "label": "tormenta",
+                "effects": {"n1": -0.05},
+                "places": ["p1"],
+            }
+        ],
+    }
+    data.update(copy.deepcopy(overrides))
+    return ContentPack.model_validate(data)
+
+
+def test_a_situation_can_finally_hurt_you() -> None:
+    """**El agujero que el paso 1 dejaba a la vista.** Sin este canal, una oleada
+    de monstruos significa exactamente que apetece más trabajar."""
+    sim = Simulation(dolor_pack(), seed=7)
+    agente = sim.state.agents[AgentId("ag1")]
+    antes = agente.needs[NeedId("n1")]
+
+    sim.begin_situation(TORMENTA, ticks=100)
+    sim.run(1)
+    assert agente.needs[NeedId("n1")] < antes - 0.04
+
+
+def test_it_only_reaches_where_it_says() -> None:
+    """El alcance ya lo declaraba la situación; el daño lo respeta sin código
+    nuevo, por `situations_at`."""
+    sim = Simulation(dolor_pack(), seed=7)
+    agente = sim.state.agents[AgentId("ag1")]
+    agente.at = PlaceId("refugio")  # fuera del alcance de la tormenta
+    antes = agente.needs[NeedId("n1")]
+
+    sim.begin_situation(TORMENTA, ticks=100)
+    sim.run(1)
+    # Solo el decaimiento normal, muy por debajo del 0.05 de la tormenta.
+    assert agente.needs[NeedId("n1")] > antes - 0.03
+
+
+def test_the_damage_can_cause_the_crisis() -> None:
+    """El orden dentro del tick es lo que hace útil el mecanismo: el daño va
+    antes del chequeo crítico, así que puede EMPUJARTE por debajo del umbral y la
+    crisis sale con el lugar puesto. Es la materia prima del miedo a lugares."""
+    sim = Simulation(dolor_pack(), seed=7)
+    agente = sim.state.agents[AgentId("ag1")]
+    agente.needs[NeedId("n1")] = 0.2
+
+    sim.begin_situation(TORMENTA, ticks=100)
+    sim.run(3)
+    crisis = [e for e in sim.log if e.kind is EventKind.NEED_CRITICAL]
+    assert crisis, "la tormenta tendría que haber hundido el eje"
+    assert crisis[0].place == PlaceId("p1")
+
+
+def test_a_gift_is_filed_as_free_not_as_earned() -> None:
+    """**La razón de que `endure` exista aparte de `apply`.** Lo que llega por
+    estar ahí no lo mueve ninguna decisión; archivarlo como `activo` inflaría la
+    oferta atribuida a las decisiones y vaciaría la columna `de gorra`, que es la
+    que dice dónde cortar. Ese error ya costó una campaña con el vínculo."""
+    from agora.engine.state import Ledger
+
+    sim = Simulation(dolor_pack(**{"situations": [
+        {"id": "tormenta", "label": "tormenta", "effects": {"n1": 0.05},
+         "places": ["p1"]}
+    ]}), seed=7)
+    agente = sim.state.agents[AgentId("ag1")]
+    agente.ledger = Ledger()
+    agente.needs[NeedId("n1")] = 0.3
+
+    sim.begin_situation(TORMENTA, ticks=100)
+    sim.run(1)
+    libro = agente.ledger
+    assert libro.pasivo.get(NeedId("n1"), 0.0) >= 0.05
+    assert libro.activo.get(NeedId("n1"), 0.0) == 0.0
+
+
+def test_damage_counts_as_demand() -> None:
+    """Perder es perder, lo pierdas por gastarlo o porque nieva. Si no entrara en
+    la demanda, el panel de oferta/demanda mentiría en cuanto nevara."""
+    from agora.engine.state import Ledger
+
+    sim = Simulation(dolor_pack(), seed=7)
+    agente = sim.state.agents[AgentId("ag1")]
+    agente.ledger = Ledger()
+
+    sim.begin_situation(TORMENTA, ticks=100)
+    sim.run(1)
+    assert agente.ledger.demanda.get(NeedId("n1"), 0.0) >= 0.05
+
+
+def test_a_situation_that_only_hurts_is_not_dead_content() -> None:
+    """El validador rechaza situaciones que no hacen nada. Una que solo baja el
+    sustento de quien está dentro no necesita que ninguna acción la mencione
+    para ser una hambruna."""
+    pack = dolor_pack()  # tormenta no cierra nada ni la menciona ninguna acción
+    assert pack.situation_by_id[TORMENTA].effects
+
+
+def test_a_situation_that_really_does_nothing_is_still_rejected() -> None:
+    """Añadir un canal no puede aflojar la comprobación: una situación con
+    nombre que no toca nada sigue siendo contenido muerto.
+
+    Hay que quitarle también el `closed_during` del refugio — con él la tormenta
+    sí hace algo, y el test no probaría nada.
+    """
+    with pytest.raises(ValidationError, match="no hace absolutamente nada"):
+        dolor_pack(
+            **{
+                "situations": [{"id": "tormenta", "label": "tormenta", "places": ["p1"]}],
+                "places": [
+                    {"id": "p1", "label": "p1", "affordances": ["aff"],
+                     "neighbors": {"refugio": 1}},
+                    {"id": "refugio", "label": "refugio", "affordances": ["aff"],
+                     "neighbors": {"p1": 1}},
+                ],
+            }
+        )
+
+
+def test_the_whole_chain_leaves_a_memory_of_the_place() -> None:
+    """**Lo que los pasos 1 y 2 existen para conseguir, de punta a punta.**
+
+    Nadie decide que haya tormenta; la tormenta hunde un eje; la crisis sale con
+    el lugar puesto; el recuerdo la guarda con signo negativo. Eso es *algo malo
+    me pasó AQUÍ*, y es la señal que el frente del miedo a lugares no tenía —los
+    chascos de llegada resultaron ser la percepción funcionando, no una herida.
+
+    No conecta el miedo: comprueba que ya hay de qué alimentarlo.
+    """
+    # El eje arranca bajo y la tormenta pega fuerte: con `act` dando 0.2 por
+    # tick, una tormenta de 0.05 la absorbe el agente sin despeinarse y no hay
+    # crisis que grabar. Lo que se prueba aquí es la cadena, no si sabe huir.
+    pack = dolor_pack(
+        **{
+            "needs": [
+                {"id": "n1", "label": "n1", "decay_per_tick": 0.01, "initial": 0.25}
+            ],
+            "situations": [
+                {
+                    "id": "tormenta",
+                    "label": "tormenta",
+                    "effects": {"n1": -0.12},
+                    "places": ["p1"],
+                    "trigger": {"expected_per_year": 300.0, "lasts_min": 20,
+                                "lasts_max": 20, "cooldown": 40},
+                }
+            ],
+            "tuning": {"memory_capacity": 20, "memory_scale": 0.5},
+        }
+    )
+    sim = Simulation(pack, seed=3)
+    sim.run(600)
+
+    assert encendidos(sim), "no llegó a haber tormenta"
+    recuerdos = sim.state.memoria.de(AgentId("ag1"))
+    dolorosos = [
+        r for r in recuerdos
+        if r.valencia < 0.0 and r.action is None and r.place is not None
+    ]
+    assert dolorosos, "nada malo quedó grabado con un lugar detrás"
+    assert any(r.place == PlaceId("p1") for r in dolorosos)
 
 
 def test_a_timeskip_does_not_calm_the_world_down() -> None:

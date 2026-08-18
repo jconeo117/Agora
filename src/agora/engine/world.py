@@ -386,6 +386,7 @@ class Simulation:
         specs = self.pack.need_by_id
         tuning = self.pack.tuning
         tick = self.state.tick
+        by_situation = self.pack.situation_by_id
         # La ocupación se mide ANTES de que nadie se mueva este tick, así que
         # todos los agentes ven la misma foto. Calcularla dentro del bucle haría
         # que el primero de la lista decidiera sobre un mundo distinto al último.
@@ -411,6 +412,17 @@ class Simulation:
                 ),
                 company_scale=tuning.company_scale,
             )
+            # Lo que el mundo te hace por estar donde estás. Va DESPUÉS del
+            # decaimiento y ANTES del chequeo crítico, y ese orden es el que hace
+            # útil el mecanismo: así una ventisca puede EMPUJARTE por debajo del
+            # umbral, la crisis se emite con el lugar puesto, y el recuerdo que
+            # deja es atribuible a dónde estabas. Aplicarlo después dejaría el
+            # daño invisible hasta el tick siguiente.
+            for situation in self.state.situations_at(agent.at):
+                efectos = by_situation[situation].effects
+                if efectos:
+                    agent.endure(efectos, specs)
+
             agent.recover_novelty(self.pack.tuning.saturation_recovery)
             # Después del decaimiento: el desgaste y el temperamento que se
             # derivan de él tienen que reflejar el estado de ESTE tick, no del

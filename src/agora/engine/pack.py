@@ -538,10 +538,16 @@ class ContentPack(Spec):
         con_efecto = {str(s) for a in self.actions for s in a.situation_multipliers}
         con_efecto |= {str(s) for p in self.places for s in p.closed_during}
         return [
-            f"situación {situation.id!r}: no la menciona ninguna acción ni cierra "
-            f"ningún lugar, y no cambia lo que rinde nada; no hace absolutamente nada"
+            f"situación {situation.id!r}: no la menciona ninguna acción, no cierra "
+            f"ningún lugar, no cambia lo que rinde nada y no le hace nada a nadie; "
+            f"no hace absolutamente nada"
             for situation in self.situations
-            if str(situation.id) not in con_efecto and not situation.gain_multipliers
+            if str(situation.id) not in con_efecto
+            and not situation.gain_multipliers
+            # El cuarto canal cuenta como hacer algo, y de los cuatro es el más
+            # obvio: una situación que solo baja el sustento de quien está dentro
+            # no necesita que ninguna acción la mencione para ser una hambruna.
+            and not situation.effects
         ]
 
     def _check_places_are_open_sometime_despite_situations(self) -> list[str]:

@@ -1243,6 +1243,30 @@ class SituationSpec(Spec):
                                    * cómo está el mundo
     """
 
+    effects: dict[NeedId, float] = Field(default_factory=dict)
+    """Lo que le hace, cada tick, a quien esté dentro de su alcance.
+
+    **El cuarto canal, y el único que le pasa algo a alguien.** Los otros tres
+    modulan: `gain_multipliers` cambia lo que rinde, `situation_multipliers`
+    cambia lo que apetece, `closed_during` cierra un sitio. Ninguno puede hacer
+    daño, y esa ausencia se veía sin mirar el código: una oleada de monstruos
+    disparada sobre la sima significaba, exactamente, que apetecía más aceptar
+    contratos del gremio.
+
+    Deltas por tick, con la misma forma y el mismo signo que los de una acción:
+    negativo quita, positivo da. Se aplican por `AgentState.endure`, que los
+    archiva en el libro como demanda o como **pasivo** —lo que llega sin actuar—,
+    nunca como activo.
+
+    Van **por tick y no de una vez al empezar**, y la diferencia importa: una
+    ventisca castiga mientras dura, así que huir de ella funciona y quedarse
+    cuesta. Aplicarlos de golpe al encender premiaría llegar tarde.
+
+    Ojo a la escala. Se multiplican por la duración: 0.002 durante trescientos
+    ticks son 0.6 de necesidad, que es una catástrofe. Los números aquí son mucho
+    más pequeños que los de una acción, que ocurre una vez.
+    """
+
     trigger: TriggerSpec | None = None
     """Qué la enciende sola. `None` = solo se enciende llamando a la API.
 

@@ -768,6 +768,38 @@ class AgentState:
                     self.ledger.anotar(self.ledger.demanda, need_id, -delta)
                 self._spend(need_id, -delta, need_specs[need_id].max_debt)
 
+    def endure(
+        self, effects: Mapping[NeedId, float], need_specs: Mapping[NeedId, NeedSpec]
+    ) -> None:
+        """Lo que el mundo te hace por estar donde estás. Deltas, como `apply`.
+
+        Es el cuarto canal de una situación, y el único que **le pasa algo a
+        alguien**. Los otros tres multiplican —lo que rinde, lo que apetece— o
+        cierran un sitio; ninguno puede hacer daño. Sin este, una oleada de
+        monstruos significa exactamente que apetece más trabajar.
+
+        **Existe aparte de `apply` por el libro de calibración, no por capricho.**
+        `apply` archiva lo positivo como `activo`, que el libro define como *lo
+        que llega por actuar, lo único que una decisión puede mover*. Un regalo de
+        una situación no llega por actuar: llega por estar ahí. Filarlo como
+        activo inflaría la oferta que se atribuye a las decisiones y vaciaría la
+        columna `de gorra`, que es justo la que dice dónde cortar cuando un eje
+        está resuelto. Ese error ya costó una campaña entera con el vínculo.
+
+        Lo negativo sí es demanda, igual que en `apply`: perder es perder, lo
+        pierdas por gastarlo o porque nieva.
+        """
+        libro = self.ledger
+        for need_id, delta in effects.items():
+            if delta >= 0.0:
+                if libro is not None:
+                    libro.anotar(libro.pasivo, need_id, delta)
+                self.restore(need_id, delta)
+            else:
+                if libro is not None:
+                    libro.anotar(libro.demanda, need_id, -delta)
+                self._spend(need_id, -delta, need_specs[need_id].max_debt)
+
     # -- deuda ----------------------------------------------------------------
     #
     # El motor no sabía estar peor que vacío: el suelo recortaba y la información
