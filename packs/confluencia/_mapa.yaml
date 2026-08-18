@@ -1,0 +1,423 @@
+# Mapa de la ciudad — versión ampliada
+#
+# Affordance nueva respecto al doc original:
+#   trabajo | empleo civil (no aventurero) | minas, canteras, granjas, muelles, forjas
+#   (distinta de `contratos`, que es específicamente trabajo de gremio/aventurero)
+#
+# Zonificación por raza inteligente (doc de razas, sección 2):
+#   Centro     — humano, administrativo, conecta todo
+#   Elfos      — bosque cercano a la ciudad, contemplativo
+#   Enanos     — minas y forjas
+#   Gigantes   — plazas y estructuras de escala mayor, cantera
+#   Demihumanos— caza y granja, totems animales
+#   Puerto     — humanos costeros (no es una raza, es la identidad económica humana)
+#   Academia   — institución grande, mixta, donde se persigue teoría y multiafinidad
+#   Bajos      — catacumbas, línea ley, mazmorras, cripta de invocaciones/no-muertos
+#   Bosque Salvaje — donde viven las razas monstruo (orcos, goblins, ogros, dragonewts);
+#                    aquí es donde, rarísimamente, podría emerger un majin (ver razas.md)
+#
+# Los demonios NO tienen barrio propio — no habitan el plano físico (razas.md, sección 2).
+# Su "lugar" es la Cripta Olvidada, en Los Bajos: el sitio donde ocurren invocaciones
+# y donde también se reportan apariciones de no muertos, liches y vampiros.
+
+places:
+
+  # ══════════════════ CENTRO (hub social central) ══════════════════
+  - id: plaza_mayor
+    label: la plaza mayor
+    affordances: [corrillo, aire]
+    tags: [centro]
+    neighbors:
+      gremio_aventureros: 1
+      mercado_central: 1
+      templo_central: 1
+      posada_central: 1
+      taberna_central: 1
+      salon_del_consejo: 1
+      casa_de_pruebas: 1
+      prision: 1
+      puerta_norte: 1
+      plaza_elfica: 2
+      plaza_enana: 2
+      plaza_gigante: 2
+      plaza_demihumana: 2
+      plaza_portuaria: 2
+      academia_arcana: 2
+
+  - id: gremio_aventureros
+    label: el gremio de aventureros
+    affordances: [contratos, corrillo]
+    tags: [centro]
+    neighbors: {plaza_mayor: 1}
+
+  - id: mercado_central
+    label: el mercado central
+    affordances: [mercaduria, corrillo]
+    tags: [centro]
+    neighbors: {plaza_mayor: 1}
+
+  - id: templo_central
+    label: el templo central
+    affordances: [quietud, corrillo]
+    tags: [sagrado, centro]
+    gain_multipliers: {descanso: 1.1}
+    neighbors: {plaza_mayor: 1}
+
+  - id: posada_central
+    label: la posada del cruce
+    affordances: [cama, mesa]
+    tags: [centro]
+    neighbors: {plaza_mayor: 1}
+
+  - id: taberna_central
+    label: la taberna del zurdo
+    affordances: [mesa, corrillo]
+    tags: [centro]
+    neighbors: {plaza_mayor: 1}
+
+  - id: salon_del_consejo
+    label: el salón del consejo
+    affordances: [corrillo]
+    tags: [centro, gobierno]
+    neighbors: {plaza_mayor: 1}
+
+  - id: casa_de_pruebas
+    label: la casa de pruebas de afinidad
+    affordances: [quietud]
+    tags: [centro, pruebas_afinidad]
+    neighbors: {plaza_mayor: 1}
+
+  - id: prision
+    label: la prisión de la corona
+    affordances: [cama]
+    tags: [centro, peligro]
+    neighbors: {plaza_mayor: 1}
+
+  - id: puerta_norte
+    label: la puerta norte
+    affordances: [aire]
+    tags: [centro]
+    neighbors:
+      plaza_mayor: 1
+      entrada_catacumbas: 2
+
+  # ══════════════════ ELFOS ══════════════════
+  - id: plaza_elfica
+    label: la plaza élfica
+    affordances: [corrillo, aire]
+    tags: [elfos, viento]
+    neighbors:
+      plaza_mayor: 2
+      arboleda_ancestral: 1
+      santuario_del_viento: 1
+      posada_elfica: 1
+
+  - id: arboleda_ancestral
+    label: la arboleda ancestral
+    affordances: [palestra]
+    tags: [elfos, viento]
+    neighbors:
+      plaza_elfica: 1
+      linde_salvaje: 2
+
+  - id: santuario_del_viento
+    label: el santuario del viento
+    affordances: [quietud]
+    tags: [elfos, sagrado, viento]
+    gain_multipliers: {descanso: 1.15}
+    neighbors: {plaza_elfica: 1}
+
+  - id: posada_elfica
+    label: la posada de las hojas largas
+    affordances: [cama, mesa, corrillo]
+    tags: [elfos]
+    neighbors: {plaza_elfica: 1}
+
+  # ══════════════════ ENANOS ══════════════════
+  - id: plaza_enana
+    label: la plaza enana
+    affordances: [corrillo, aire]
+    tags: [enanos, tierra]
+    neighbors:
+      plaza_mayor: 2
+      forjas: 1
+      mina: 1
+      posada_enana: 1
+
+  - id: forjas
+    label: las forjas
+    affordances: [palestra, trabajo]
+    tags: [enanos, fuego, tierra]
+    neighbors: {plaza_enana: 1}
+
+  - id: mina
+    label: la mina profunda
+    affordances: [trabajo]
+    tags: [enanos, tierra]
+    neighbors: {plaza_enana: 1}
+
+  - id: posada_enana
+    label: la posada del yunque
+    affordances: [cama, mesa, corrillo]
+    tags: [enanos]
+    neighbors: {plaza_enana: 1}
+
+  # ══════════════════ GIGANTES ══════════════════
+  - id: plaza_gigante
+    label: la plaza de los gigantes
+    affordances: [corrillo, aire]
+    tags: [gigantes]
+    neighbors:
+      plaza_mayor: 2
+      campo_gigante: 1
+      cantera: 1
+      salon_comunal_gigante: 1
+
+  - id: campo_gigante
+    label: el campo de los colosos
+    affordances: [palestra]
+    tags: [gigantes]
+    neighbors: {plaza_gigante: 1}
+
+  - id: cantera
+    label: la cantera
+    affordances: [trabajo]
+    tags: [gigantes, tierra]
+    neighbors: {plaza_gigante: 1}
+
+  - id: salon_comunal_gigante
+    label: el salón comunal
+    affordances: [cama, mesa, corrillo]
+    tags: [gigantes]
+    neighbors: {plaza_gigante: 1}
+
+  # ══════════════════ DEMIHUMANOS / HUMANOS BESTIA ══════════════════
+  - id: plaza_demihumana
+    label: la plaza de la manada
+    affordances: [corrillo, aire]
+    tags: [demihumanos]
+    neighbors:
+      plaza_mayor: 2
+      campo_de_caza: 1
+      granja: 1
+      posada_de_la_manada: 1
+
+  - id: campo_de_caza
+    label: el campo de caza
+    affordances: [palestra, trabajo]
+    tags: [demihumanos]
+    neighbors: {plaza_demihumana: 1}
+
+  - id: granja
+    label: la granja
+    affordances: [trabajo]
+    tags: [demihumanos, tierra]
+    neighbors: {plaza_demihumana: 1}
+
+  - id: posada_de_la_manada
+    label: la posada de la manada
+    affordances: [cama, mesa, corrillo]
+    tags: [demihumanos]
+    neighbors: {plaza_demihumana: 1}
+
+  # ══════════════════ PUERTO (humanos costeros) ══════════════════
+  - id: plaza_portuaria
+    label: la plaza portuaria
+    affordances: [corrillo, aire]
+    tags: [puerto, agua]
+    neighbors:
+      plaza_mayor: 2
+      muelle: 1
+      templo_mareas: 1
+      posada_marea: 1
+
+  - id: muelle
+    label: el muelle
+    affordances: [mercaduria, trabajo]
+    tags: [puerto, agua]
+    neighbors:
+      plaza_portuaria: 1
+      muelle_de_contrabandistas: 1
+
+  - id: muelle_de_contrabandistas
+    label: el muelle de los contrabandistas
+    affordances: [mercaduria]
+    tags: [puerto, peligro]
+    neighbors:
+      muelle: 2
+
+  - id: templo_mareas
+    label: el templo de las mareas
+    affordances: [quietud]
+    tags: [puerto, agua, sagrado]
+    gain_multipliers: {descanso: 1.1}
+    neighbors: {plaza_portuaria: 1}
+
+  - id: posada_marea
+    label: la posada de la marea
+    affordances: [cama, mesa, corrillo]
+    tags: [puerto]
+    neighbors: {plaza_portuaria: 1}
+
+  # ══════════════════ ACADEMIA (grande, mixta) ══════════════════
+  - id: academia_arcana
+    label: la academia arcana
+    affordances: [palestra, archivo]
+    tags: [arcano]
+    neighbors:
+      plaza_mayor: 2
+      gran_biblioteca: 1
+      dormitorios_academia: 1
+      refectorio_academico: 1
+      campo_de_practica_elemental: 1
+      torre_observacion: 1
+      enfermeria: 1
+      patio_de_duelos: 1
+      mercado_de_artefactos: 1
+
+  - id: gran_biblioteca
+    label: la gran biblioteca
+    affordances: [archivo, quietud]
+    tags: [arcano, sagrado]
+    neighbors:
+      academia_arcana: 1
+      archivo_prohibido: 1
+
+  - id: archivo_prohibido
+    label: el archivo prohibido
+    affordances: [archivo]
+    tags: [arcano, peligro, conceptual]
+    neighbors: {gran_biblioteca: 1}
+
+  - id: dormitorios_academia
+    label: los dormitorios de la academia
+    affordances: [cama, mesa]
+    tags: [arcano]
+    neighbors: {academia_arcana: 1}
+
+  - id: refectorio_academico
+    label: el refectorio académico
+    affordances: [mesa, corrillo]
+    tags: [arcano]
+    neighbors: {academia_arcana: 1}
+
+  - id: campo_de_practica_elemental
+    label: el campo de práctica elemental
+    affordances: [palestra]
+    tags: [arcano]
+    neighbors: {academia_arcana: 1}
+
+  - id: torre_observacion
+    label: la torre de observación
+    affordances: [aire, quietud]
+    tags: [arcano, conceptual]
+    neighbors: {academia_arcana: 1}
+
+  - id: enfermeria
+    label: la enfermería
+    affordances: [quietud]
+    tags: [arcano, vital]
+    neighbors: {academia_arcana: 1}
+
+  - id: patio_de_duelos
+    label: el patio de duelos
+    affordances: [palestra]
+    tags: [arcano, combate]
+    neighbors: {academia_arcana: 1}
+
+  - id: mercado_de_artefactos
+    label: el mercado de artefactos
+    affordances: [mercaduria]
+    tags: [arcano]
+    neighbors: {academia_arcana: 1}
+
+  # ══════════════════ LOS BAJOS (ruinas, línea ley, invocaciones) ══════════════════
+  - id: entrada_catacumbas
+    label: la entrada a las catacumbas
+    affordances: [aire]
+    tags: [ruinas, peligro]
+    tolls: {catacumbas_profundas: {dinero: 0.1}}
+    neighbors:
+      puerta_norte: 2
+      catacumbas_profundas: 1
+      cripta_olvidada: 1
+      mazmorra_menor: 1
+
+  - id: catacumbas_profundas
+    label: las catacumbas profundas
+    affordances: [linea_ley]
+    tags: [ruinas, peligro]
+    neighbors:
+      entrada_catacumbas: 3
+
+  - id: cripta_olvidada
+    label: la cripta olvidada
+    affordances: []
+    tags: [demonios, no_muertos, peligro]
+    neighbors: {entrada_catacumbas: 1}
+
+  - id: mazmorra_menor
+    label: la mazmorra menor
+    affordances: []
+    tags: [peligro]
+    neighbors:
+      entrada_catacumbas: 1
+      mazmorra_media: 1
+
+  - id: mazmorra_media
+    label: la mazmorra media
+    affordances: []
+    tags: [peligro]
+    neighbors:
+      mazmorra_menor: 1
+      mazmorra_mayor: 1
+
+  - id: mazmorra_mayor
+    label: la mazmorra mayor
+    affordances: []
+    tags: [peligro, ruinas]
+    neighbors: {mazmorra_media: 1}
+
+  # ══════════════════ BOSQUE SALVAJE (razas monstruo) ══════════════════
+  - id: linde_salvaje
+    label: la linde salvaje
+    affordances: [aire]
+    tags: [frontera]
+    neighbors:
+      arboleda_ancestral: 2
+      campamento_orco: 1
+      guarida_goblin: 1
+      claro_del_ogro: 1
+      nido_dragonewt: 3
+      risco_de_los_majin: 3
+
+  - id: campamento_orco
+    label: el campamento orco
+    affordances: [palestra]
+    tags: [monstruo, peligro]
+    neighbors: {linde_salvaje: 1}
+
+  - id: guarida_goblin
+    label: la guarida goblin
+    affordances: []
+    tags: [monstruo, peligro]
+    neighbors: {linde_salvaje: 1}
+
+  - id: claro_del_ogro
+    label: el claro del ogro
+    affordances: []
+    tags: [monstruo, peligro]
+    neighbors: {linde_salvaje: 1}
+
+  - id: nido_dragonewt
+    label: el nido dragonewt
+    affordances: [palestra]
+    tags: [monstruo, elite, peligro]
+    neighbors:
+      linde_salvaje: 1
+
+  - id: risco_de_los_majin
+    label: el risco de los majin
+    affordances: [quietud]
+    tags: [monstruo, raro, majin]
+    neighbors: {linde_salvaje: 3}

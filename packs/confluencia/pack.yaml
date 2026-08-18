@@ -1,0 +1,3057 @@
+id: confluencia
+label: Confluencia
+clock:
+  minutes_per_tick: 15
+  ticks_per_day: 96
+  days_per_year: 360
+  phases:
+  - id: manana
+    label: manana
+    starts_at: 24
+  - id: tarde
+    label: tarde
+    starts_at: 52
+  - id: noche
+    label: noche
+    starts_at: 80
+health:
+  days: 14
+  seeds:
+  - 4271
+  min_crisis: 0.02
+  max_crisis: 0.4
+  max_abort_ratio: 0.3
+  max_transit: 0.35
+  min_differentiation: 0.4
+  may_go_unused:
+  - holgazanear
+  - expoliar
+  - canalizar_linea_ley
+  - convidar
+  - sostener_un_pacto
+  - trabajo_sucio
+tuning:
+  travel_discount: 0.94
+  candidate_pool: 3
+  temperature: 0.12
+  loss_aversion: 1.0
+  saturation_recovery: 0.004
+  novelty_weight: 0.6
+  switch_cost: 0.8
+  duration_discount: 0.995
+  critical_need_threshold: 0.15
+  sighting_horizon: 96
+  learning_rate: 0.1
+  bond_scale: 0.04
+  bond_rate: 0.15
+  bond_weight: 0.5
+  companionship_weight: 0.4
+  company_scale: 10.0
+  bond_fade: 0.9997
+  bond_horizon: 2880
+  strain_multipliers:
+    temperature: 2.2
+    travel_discount: 0.85
+    critical_need_threshold: 1.5
+  memory_capacity: 40
+  memory_scale: 1.0
+  memory_fade: 0.9995
+  regret_weight: 0.0
+  regret_scale: 0.5
+  fear_weight: 0.0
+  fear_scale: 0.5
+needs:
+- id: mana
+  label: mana
+  decay_per_tick: 0.0006
+  initial: 0.85
+  urgency_exponent: 2.6
+  max_debt: 0.4
+  company_relief: 0.0
+- id: sustento
+  label: sustento
+  decay_per_tick: 0.0045
+  initial: 0.7
+  urgency_exponent: 2.0
+  max_debt: 0.15
+- id: descanso
+  label: descanso
+  decay_per_tick: 0.005
+  initial: 0.7
+  urgency_exponent: 2.2
+  max_debt: 0.3
+- id: dinero
+  label: dinero
+  decay_per_tick: 0.0012
+  initial: 0.5
+  urgency_exponent: 1.6
+- id: vinculo
+  label: vinculo
+  decay_per_tick: 0.003
+  initial: 0.45
+  urgency_exponent: 1.8
+  company_relief: 0.0016
+- id: dominio
+  label: dominio
+  decay_per_tick: 0.0
+  initial: 0.05
+  progression: true
+traits:
+- id: humano
+  label: humano
+- id: enano
+  label: enano
+  cost_multipliers:
+    mana: 0.62
+    descanso: 0.85
+  gain_multipliers:
+    mana: 0.75
+- id: gigante
+  label: gigante
+  cost_multipliers:
+    mana: 0.45
+  gain_multipliers:
+    mana: 0.85
+    dominio: 0.45
+    descanso: 1.15
+- id: elfo
+  label: elfo
+  gain_multipliers:
+    mana: 1.25
+    dominio: 1.5
+  cost_multipliers:
+    mana: 1.1
+- id: demihumano
+  label: demihumano
+  gain_multipliers:
+    descanso: 1.3
+    sustento: 1.2
+    dominio: 0.8
+  cost_multipliers:
+    descanso: 0.75
+    mana: 1.15
+- id: afin_fuego
+  label: afinidad de fuego
+  cost_multipliers:
+    mana: 0.55
+- id: afin_agua
+  label: afinidad de agua
+  cost_multipliers:
+    mana: 0.55
+- id: afin_tierra
+  label: afinidad de tierra
+  cost_multipliers:
+    mana: 0.55
+- id: afin_viento
+  label: afinidad de viento
+  cost_multipliers:
+    mana: 0.55
+- id: guerrero
+  label: guerrero
+  cost_multipliers:
+    mana: 0.7
+    descanso: 0.8
+  gain_multipliers:
+    dominio: 0.7
+  need_weight_multipliers:
+    descanso: 1.3
+    mana: 0.6
+- id: mago
+  label: mago
+  gain_multipliers:
+    mana: 1.3
+    dominio: 1.35
+  cost_multipliers:
+    descanso: 1.25
+  need_weight_multipliers:
+    mana: 1.6
+    dominio: 1.4
+- id: asesino
+  label: asesino
+  cost_multipliers:
+    mana: 0.75
+  gain_multipliers:
+    mana: 0.8
+  need_weight_multipliers:
+    dinero: 1.4
+    vinculo: 0.6
+- id: montaraz
+  label: montaraz
+  gain_multipliers:
+    sustento: 1.25
+    descanso: 1.15
+  need_weight_multipliers:
+    sustento: 1.2
+    vinculo: 0.8
+- id: invocador
+  label: invocador
+  cost_multipliers:
+    mana: 1.2
+  gain_multipliers:
+    mana: 1.15
+    dominio: 1.1
+  need_weight_multipliers:
+    mana: 1.5
+- id: audaz
+  label: audaz
+  temperament_multipliers:
+    critical_need_threshold: 0.6
+    loss_aversion: 0.65
+- id: prudente
+  label: prudente
+  temperament_multipliers:
+    critical_need_threshold: 1.5
+    loss_aversion: 1.6
+- id: sociable
+  label: sociable
+  need_weight_multipliers:
+    vinculo: 1.9
+  temperament_multipliers:
+    companionship_weight: 1.8
+- id: solitario
+  label: solitario
+  need_weight_multipliers:
+    vinculo: 0.35
+  temperament_multipliers:
+    companionship_weight: 0.25
+- id: ambicioso
+  label: ambicioso
+  need_weight_multipliers:
+    dominio: 1.7
+    dinero: 1.3
+- id: acomodado
+  label: acomodado
+  need_weight_multipliers:
+    dominio: 0.5
+  temperament_multipliers:
+    travel_discount: 0.88
+- id: madrugador
+  label: madrugador
+  phase_shift: -18
+- id: nocturno
+  label: nocturno
+  phase_shift: 22
+actions:
+- id: dormir
+  label: dormir
+  duration_ticks: 40
+  requires_affordance: cama
+  satisfies:
+    descanso: 1.0
+  elastic:
+    need: descanso
+    per_tick: 0.028
+    min_ticks: 12
+  interruptible: true
+  phase_multipliers:
+    noche: 1.9
+    manana: 0.5
+    tarde: 0.35
+- id: comer
+  label: comer
+  duration_ticks: 3
+  requires_affordance: mesa
+  satisfies:
+    sustento: 1.0
+  requires:
+    dinero: 0.06
+  costs:
+    dinero: 0.6
+  effects:
+    sustento: 0.34
+    dinero: -0.05
+    vinculo: 0.02
+  effects_per_company:
+    vinculo: 0.06
+  saturation_gain: 0.08
+- id: comprar_provisiones
+  label: comprar provisiones
+  duration_ticks: 6
+  requires_affordance: mercaduria
+  satisfies:
+    sustento: 1.0
+  requires:
+    dinero: 0.16
+  costs:
+    dinero: 1.0
+  effects:
+    sustento: 0.62
+    dinero: -0.15
+  saturation_gain: 0.05
+- id: tomar_el_aire
+  label: tomar el aire
+  duration_ticks: 4
+  requires_affordance: aire
+  satisfies:
+    descanso: 0.35
+  effects:
+    descanso: 0.06
+    vinculo: 0.01
+  saturation_gain: 0.16
+- id: charlar
+  label: charlar
+  duration_ticks: 5
+  requires_affordance: corrillo
+  requires_company: 1
+  satisfies:
+    vinculo: 1.0
+  effects:
+    vinculo: 0.1
+  effects_per_company:
+    vinculo: 0.3
+  saturation_gain: 0.12
+- id: convidar
+  label: convidar una ronda
+  duration_ticks: 8
+  requires_affordance: mesa
+  requires_company: 1
+  requires:
+    dinero: 0.1
+  satisfies:
+    vinculo: 1.0
+  costs:
+    dinero: 0.7
+    descanso: 0.2
+  effects:
+    vinculo: 0.14
+    dinero: -0.09
+    descanso: -0.03
+  effects_per_company:
+    vinculo: 0.7
+  saturation_gain: 0.22
+- id: meditar
+  label: meditar
+  duration_ticks: 24
+  requires_affordance: quietud
+  satisfies:
+    mana: 1.0
+  elastic:
+    need: mana
+    per_tick: 0.011
+    min_ticks: 6
+  interruptible: true
+  saturation_gain: 0.05
+- id: canalizar_linea_ley
+  label: canalizar la linea ley
+  duration_ticks: 10
+  requires_affordance: linea_ley
+  satisfies:
+    mana: 1.0
+  requires:
+    descanso: 0.3
+  costs:
+    descanso: 1.0
+  effects:
+    mana: 0.85
+    descanso: -0.28
+  saturation_gain: 0.12
+- id: practicar
+  label: practicar
+  duration_ticks: 12
+  requires_affordance: palestra
+  satisfies:
+    dominio: 1.0
+  requires:
+    mana: 0.2
+  costs:
+    mana: 0.9
+    descanso: 0.5
+  effects:
+    dominio: 0.016
+    mana: -0.13
+    descanso: -0.09
+  saturation_gain: 0.1
+- id: estudiar
+  label: estudiar
+  duration_ticks: 14
+  requires_affordance: archivo
+  satisfies:
+    dominio: 0.75
+  costs:
+    descanso: 0.7
+  effects:
+    dominio: 0.011
+    descanso: -0.12
+  saturation_gain: 0.14
+- id: conjurar_fuego
+  label: conjurar fuego
+  duration_ticks: 8
+  requires_affordance: palestra
+  requires_traits:
+    afin_fuego: 0.2
+  requires:
+    mana: 0.28
+    dominio: 0.18
+  satisfies:
+    dominio: 0.9
+  costs:
+    mana: 1.0
+  effects:
+    dominio: 0.02
+    mana: -0.22
+  saturation_gain: 0.07
+- id: conjurar_agua
+  label: conjurar agua
+  duration_ticks: 8
+  requires_affordance: palestra
+  requires_traits:
+    afin_agua: 0.2
+  requires:
+    mana: 0.28
+    dominio: 0.18
+  satisfies:
+    dominio: 0.9
+  costs:
+    mana: 1.0
+  effects:
+    dominio: 0.02
+    mana: -0.22
+  saturation_gain: 0.07
+- id: conjurar_tierra
+  label: conjurar tierra
+  duration_ticks: 8
+  requires_affordance: palestra
+  requires_traits:
+    afin_tierra: 0.2
+  requires:
+    mana: 0.28
+    dominio: 0.18
+  satisfies:
+    dominio: 0.9
+  costs:
+    mana: 1.0
+  effects:
+    dominio: 0.02
+    mana: -0.22
+  saturation_gain: 0.07
+- id: conjurar_viento
+  label: conjurar viento
+  duration_ticks: 8
+  requires_affordance: palestra
+  requires_traits:
+    afin_viento: 0.2
+  requires:
+    mana: 0.28
+    dominio: 0.18
+  satisfies:
+    dominio: 0.9
+  costs:
+    mana: 1.0
+  effects:
+    dominio: 0.02
+    mana: -0.22
+  saturation_gain: 0.07
+- id: trabajar
+  label: trabajar
+  duration_ticks: 18
+  requires_affordance: trabajo
+  satisfies:
+    dinero: 1.0
+  costs:
+    descanso: 0.8
+  effects:
+    dinero: 0.16
+    descanso: -0.15
+    vinculo: 0.02
+  saturation_gain: 0.06
+- id: contrato_del_gremio
+  label: tomar un contrato
+  duration_ticks: 22
+  requires_affordance: contratos
+  requires:
+    dominio: 0.12
+    mana: 0.25
+  satisfies:
+    dinero: 1.0
+  costs:
+    mana: 0.9
+    descanso: 0.9
+  effects:
+    dinero: 0.28
+    mana: -0.2
+    descanso: -0.2
+    dominio: 0.004
+  saturation_gain: 0.1
+- id: expoliar
+  label: expoliar la mazmorra
+  duration_ticks: 26
+  requires_affordance: expolio
+  requires:
+    dominio: 0.3
+    mana: 0.35
+  satisfies:
+    dinero: 1.0
+  costs:
+    mana: 1.0
+    descanso: 1.0
+  effects:
+    dinero: 0.4
+    mana: -0.3
+    descanso: -0.26
+    dominio: 0.01
+  saturation_gain: 0.12
+- id: templar_el_cuerpo
+  label: templar el cuerpo
+  duration_ticks: 14
+  requires_affordance: palestra
+  requires_traits:
+    guerrero: 0.3
+  satisfies:
+    dominio: 0.85
+  costs:
+    descanso: 1.0
+  effects:
+    dominio: 0.017
+    descanso: -0.2
+  saturation_gain: 0.09
+- id: investigar
+  label: investigar
+  duration_ticks: 20
+  requires_affordance: archivo
+  requires_traits:
+    mago: 0.3
+  requires:
+    dominio: 0.15
+    mana: 0.22
+  satisfies:
+    dominio: 1.0
+  costs:
+    mana: 0.9
+    descanso: 0.6
+  effects:
+    dominio: 0.03
+    mana: -0.15
+    descanso: -0.1
+  saturation_gain: 0.08
+- id: trabajo_sucio
+  label: hacer un trabajo sucio
+  duration_ticks: 12
+  requires_affordance: contrabando
+  requires_traits:
+    asesino: 0.3
+  requires:
+    mana: 0.2
+  satisfies:
+    dinero: 1.0
+  costs:
+    mana: 0.8
+    vinculo: 0.5
+  effects:
+    dinero: 0.26
+    mana: -0.16
+    vinculo: -0.05
+  saturation_gain: 0.1
+- id: cazar
+  label: cazar
+  duration_ticks: 16
+  requires_affordance: caza
+  requires_traits:
+    montaraz: 0.3
+  satisfies:
+    sustento: 1.0
+  costs:
+    descanso: 0.8
+  effects:
+    sustento: 0.38
+    dinero: 0.09
+    descanso: -0.16
+  saturation_gain: 0.08
+- id: sostener_un_pacto
+  label: sostener un pacto
+  duration_ticks: 30
+  requires_affordance: invocacion
+  requires_traits:
+    invocador: 0.3
+  requires:
+    mana: 0.4
+    dominio: 0.1
+  satisfies:
+    dominio: 1.0
+  costs:
+    mana: 1.0
+  effects:
+    dominio: 0.038
+    mana: -0.34
+  saturation_gain: 0.06
+- id: holgazanear
+  label: holgazanear
+  duration_ticks: 4
+  satisfies:
+    descanso: 0.15
+  effects:
+    descanso: 0.02
+places:
+- id: plaza_mayor
+  label: la plaza mayor
+  affordances:
+  - corrillo
+  - aire
+  tags:
+  - centro
+  neighbors:
+    gremio_aventureros: 1
+    mercado_central: 1
+    templo_central: 1
+    posada_central: 1
+    taberna_central: 1
+    salon_del_consejo: 1
+    casa_de_pruebas: 1
+    prision: 1
+    puerta_norte: 1
+    plaza_elfica: 2
+    plaza_enana: 2
+    plaza_gigante: 2
+    plaza_demihumana: 2
+    plaza_portuaria: 2
+    academia_arcana: 2
+- id: gremio_aventureros
+  label: el gremio de aventureros
+  affordances:
+  - contratos
+  - corrillo
+  tags:
+  - centro
+  neighbors:
+    plaza_mayor: 1
+- id: mercado_central
+  label: el mercado central
+  affordances:
+  - mercaduria
+  - corrillo
+  tags:
+  - centro
+  neighbors:
+    plaza_mayor: 1
+- id: templo_central
+  label: el templo central
+  affordances:
+  - quietud
+  - corrillo
+  tags:
+  - sagrado
+  - centro
+  gain_multipliers:
+    descanso: 1.1
+  neighbors:
+    plaza_mayor: 1
+- id: posada_central
+  label: la posada del cruce
+  affordances:
+  - cama
+  - mesa
+  tags:
+  - centro
+  neighbors:
+    plaza_mayor: 1
+- id: taberna_central
+  label: la taberna del zurdo
+  affordances:
+  - mesa
+  - corrillo
+  tags:
+  - centro
+  neighbors:
+    plaza_mayor: 1
+- id: salon_del_consejo
+  label: el salón del consejo
+  affordances:
+  - corrillo
+  tags:
+  - centro
+  - gobierno
+  neighbors:
+    plaza_mayor: 1
+- id: casa_de_pruebas
+  label: la casa de pruebas de afinidad
+  affordances:
+  - quietud
+  tags:
+  - centro
+  - pruebas_afinidad
+  neighbors:
+    plaza_mayor: 1
+- id: prision
+  label: la prisión de la corona
+  affordances:
+  - cama
+  tags:
+  - centro
+  - peligro
+  neighbors:
+    plaza_mayor: 1
+- id: puerta_norte
+  label: la puerta norte
+  affordances:
+  - aire
+  tags:
+  - centro
+  neighbors:
+    plaza_mayor: 1
+    entrada_catacumbas: 2
+- id: plaza_elfica
+  label: la plaza élfica
+  affordances:
+  - corrillo
+  - aire
+  tags:
+  - elfos
+  - viento
+  neighbors:
+    plaza_mayor: 2
+    arboleda_ancestral: 1
+    santuario_del_viento: 1
+    posada_elfica: 1
+- id: arboleda_ancestral
+  label: la arboleda ancestral
+  affordances:
+  - palestra
+  tags:
+  - elfos
+  - viento
+  neighbors:
+    plaza_elfica: 1
+    linde_salvaje: 2
+- id: santuario_del_viento
+  label: el santuario del viento
+  affordances:
+  - quietud
+  tags:
+  - elfos
+  - sagrado
+  - viento
+  gain_multipliers:
+    descanso: 1.15
+  neighbors:
+    plaza_elfica: 1
+- id: posada_elfica
+  label: la posada de las hojas largas
+  affordances:
+  - cama
+  - mesa
+  - corrillo
+  tags:
+  - elfos
+  neighbors:
+    plaza_elfica: 1
+- id: plaza_enana
+  label: la plaza enana
+  affordances:
+  - corrillo
+  - aire
+  tags:
+  - enanos
+  - tierra
+  neighbors:
+    plaza_mayor: 2
+    forjas: 1
+    mina: 1
+    posada_enana: 1
+- id: forjas
+  label: las forjas
+  affordances:
+  - palestra
+  - trabajo
+  tags:
+  - enanos
+  - fuego
+  - tierra
+  neighbors:
+    plaza_enana: 1
+- id: mina
+  label: la mina profunda
+  affordances:
+  - trabajo
+  tags:
+  - enanos
+  - tierra
+  neighbors:
+    plaza_enana: 1
+- id: posada_enana
+  label: la posada del yunque
+  affordances:
+  - cama
+  - mesa
+  - corrillo
+  tags:
+  - enanos
+  neighbors:
+    plaza_enana: 1
+- id: plaza_gigante
+  label: la plaza de los gigantes
+  affordances:
+  - corrillo
+  - aire
+  tags:
+  - gigantes
+  neighbors:
+    plaza_mayor: 2
+    campo_gigante: 1
+    cantera: 1
+    salon_comunal_gigante: 1
+- id: campo_gigante
+  label: el campo de los colosos
+  affordances:
+  - palestra
+  tags:
+  - gigantes
+  neighbors:
+    plaza_gigante: 1
+- id: cantera
+  label: la cantera
+  affordances:
+  - trabajo
+  tags:
+  - gigantes
+  - tierra
+  neighbors:
+    plaza_gigante: 1
+- id: salon_comunal_gigante
+  label: el salón comunal
+  affordances:
+  - cama
+  - mesa
+  - corrillo
+  tags:
+  - gigantes
+  neighbors:
+    plaza_gigante: 1
+- id: plaza_demihumana
+  label: la plaza de la manada
+  affordances:
+  - corrillo
+  - aire
+  tags:
+  - demihumanos
+  neighbors:
+    plaza_mayor: 2
+    campo_de_caza: 1
+    granja: 1
+    posada_de_la_manada: 1
+- id: campo_de_caza
+  label: el campo de caza
+  affordances:
+  - palestra
+  - trabajo
+  - caza
+  tags:
+  - demihumanos
+  neighbors:
+    plaza_demihumana: 1
+- id: granja
+  label: la granja
+  affordances:
+  - trabajo
+  tags:
+  - demihumanos
+  - tierra
+  neighbors:
+    plaza_demihumana: 1
+- id: posada_de_la_manada
+  label: la posada de la manada
+  affordances:
+  - cama
+  - mesa
+  - corrillo
+  tags:
+  - demihumanos
+  neighbors:
+    plaza_demihumana: 1
+- id: plaza_portuaria
+  label: la plaza portuaria
+  affordances:
+  - corrillo
+  - aire
+  tags:
+  - puerto
+  - agua
+  neighbors:
+    plaza_mayor: 2
+    muelle: 1
+    templo_mareas: 1
+    posada_marea: 1
+- id: muelle
+  label: el muelle
+  affordances:
+  - mercaduria
+  - trabajo
+  tags:
+  - puerto
+  - agua
+  neighbors:
+    plaza_portuaria: 1
+    muelle_de_contrabandistas: 1
+- id: muelle_de_contrabandistas
+  label: el muelle de los contrabandistas
+  affordances:
+  - mercaduria
+  - contrabando
+  tags:
+  - puerto
+  - peligro
+  neighbors:
+    muelle: 2
+- id: templo_mareas
+  label: el templo de las mareas
+  affordances:
+  - quietud
+  tags:
+  - puerto
+  - agua
+  - sagrado
+  gain_multipliers:
+    descanso: 1.1
+  neighbors:
+    plaza_portuaria: 1
+- id: posada_marea
+  label: la posada de la marea
+  affordances:
+  - cama
+  - mesa
+  - corrillo
+  tags:
+  - puerto
+  neighbors:
+    plaza_portuaria: 1
+- id: academia_arcana
+  label: la academia arcana
+  affordances:
+  - palestra
+  - archivo
+  tags:
+  - arcano
+  neighbors:
+    plaza_mayor: 2
+    gran_biblioteca: 1
+    dormitorios_academia: 1
+    refectorio_academico: 1
+    campo_de_practica_elemental: 1
+    torre_observacion: 1
+    enfermeria: 1
+    patio_de_duelos: 1
+    mercado_de_artefactos: 1
+- id: gran_biblioteca
+  label: la gran biblioteca
+  affordances:
+  - archivo
+  - quietud
+  tags:
+  - arcano
+  - sagrado
+  neighbors:
+    academia_arcana: 1
+    archivo_prohibido: 1
+- id: archivo_prohibido
+  label: el archivo prohibido
+  affordances:
+  - archivo
+  tags:
+  - arcano
+  - peligro
+  - conceptual
+  neighbors:
+    gran_biblioteca: 1
+- id: dormitorios_academia
+  label: los dormitorios de la academia
+  affordances:
+  - cama
+  - mesa
+  tags:
+  - arcano
+  neighbors:
+    academia_arcana: 1
+- id: refectorio_academico
+  label: el refectorio académico
+  affordances:
+  - mesa
+  - corrillo
+  tags:
+  - arcano
+  neighbors:
+    academia_arcana: 1
+- id: campo_de_practica_elemental
+  label: el campo de práctica elemental
+  affordances:
+  - palestra
+  tags:
+  - arcano
+  neighbors:
+    academia_arcana: 1
+- id: torre_observacion
+  label: la torre de observación
+  affordances:
+  - aire
+  - quietud
+  tags:
+  - arcano
+  - conceptual
+  neighbors:
+    academia_arcana: 1
+- id: enfermeria
+  label: la enfermería
+  affordances:
+  - quietud
+  tags:
+  - arcano
+  - vital
+  neighbors:
+    academia_arcana: 1
+- id: patio_de_duelos
+  label: el patio de duelos
+  affordances:
+  - palestra
+  tags:
+  - arcano
+  - combate
+  neighbors:
+    academia_arcana: 1
+- id: mercado_de_artefactos
+  label: el mercado de artefactos
+  affordances:
+  - mercaduria
+  tags:
+  - arcano
+  neighbors:
+    academia_arcana: 1
+- id: entrada_catacumbas
+  label: la entrada a las catacumbas
+  affordances:
+  - aire
+  tags:
+  - ruinas
+  - peligro
+  tolls:
+    catacumbas_profundas:
+      dinero: 0.1
+  neighbors:
+    puerta_norte: 2
+    catacumbas_profundas: 1
+    cripta_olvidada: 1
+    mazmorra_menor: 1
+- id: catacumbas_profundas
+  label: las catacumbas profundas
+  affordances:
+  - linea_ley
+  tags:
+  - ruinas
+  - peligro
+  neighbors:
+    entrada_catacumbas: 3
+- id: cripta_olvidada
+  label: la cripta olvidada
+  affordances:
+  - invocacion
+  tags:
+  - demonios
+  - no_muertos
+  - peligro
+  neighbors:
+    entrada_catacumbas: 1
+- id: mazmorra_menor
+  label: la mazmorra menor
+  affordances:
+  - expolio
+  tags:
+  - peligro
+  neighbors:
+    entrada_catacumbas: 1
+    mazmorra_media: 1
+- id: mazmorra_media
+  label: la mazmorra media
+  affordances:
+  - expolio
+  tags:
+  - peligro
+  neighbors:
+    mazmorra_menor: 1
+    mazmorra_mayor: 1
+- id: mazmorra_mayor
+  label: la mazmorra mayor
+  affordances:
+  - expolio
+  tags:
+  - peligro
+  - ruinas
+  neighbors:
+    mazmorra_media: 1
+- id: linde_salvaje
+  label: la linde salvaje
+  affordances:
+  - aire
+  - caza
+  tags:
+  - frontera
+  neighbors:
+    arboleda_ancestral: 2
+    campamento_orco: 1
+    guarida_goblin: 1
+    claro_del_ogro: 1
+    nido_dragonewt: 3
+    risco_de_los_majin: 3
+- id: campamento_orco
+  label: el campamento orco
+  affordances:
+  - palestra
+  - expolio
+  tags:
+  - monstruo
+  - peligro
+  neighbors:
+    linde_salvaje: 1
+- id: guarida_goblin
+  label: la guarida goblin
+  affordances:
+  - expolio
+  tags:
+  - monstruo
+  - peligro
+  neighbors:
+    linde_salvaje: 1
+- id: claro_del_ogro
+  label: el claro del ogro
+  affordances:
+  - expolio
+  tags:
+  - monstruo
+  - peligro
+  neighbors:
+    linde_salvaje: 1
+- id: nido_dragonewt
+  label: el nido dragonewt
+  affordances:
+  - palestra
+  tags:
+  - monstruo
+  - elite
+  - peligro
+  neighbors:
+    linde_salvaje: 1
+- id: risco_de_los_majin
+  label: el risco de los majin
+  affordances:
+  - quietud
+  tags:
+  - monstruo
+  - raro
+  - majin
+  neighbors:
+    linde_salvaje: 3
+agents:
+- id: cyra_nieblalta
+  label: Cyra Nieblalta
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_fuego: 1.0
+    enano: 1.0
+    guerrero: 0.78
+    madrugador: 0.77
+    prudente: 0.53
+- id: jarl_hojaclara
+  label: Jarl Hojaclara
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    acomodado: 0.44
+    afin_agua: 1.0
+    asesino: 0.73
+    elfo: 1.0
+- id: gith_rocaviva
+  label: Gith Rocaviva
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 0.38
+    afin_tierra: 1.0
+    asesino: 0.85
+    humano: 1.0
+    solitario: 0.41
+- id: dorn_cantorroto
+  label: Dorn Cantorroto
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_tierra: 1.0
+    audaz: 0.61
+    demihumano: 1.0
+    montaraz: 0.89
+    solitario: 0.79
+- id: dain_hojaclara
+  label: Dain Hojaclara
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    enano: 1.0
+    guerrero: 0.77
+    nocturno: 0.5
+- id: gith_yunquenegro
+  label: Gith Yunquenegro
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_tierra: 1.0
+    ambicioso: 0.46
+    gigante: 1.0
+    guerrero: 0.96
+- id: torv_umbrio
+  label: Torv Umbrio
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    ambicioso: 0.62
+    audaz: 0.69
+    enano: 1.0
+    montaraz: 0.95
+- id: orin_hierrogris
+  label: Orin Hierrogris
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_agua: 1.0
+    afin_viento: 0.4
+    audaz: 0.76
+    elfo: 1.0
+    montaraz: 0.82
+- id: wyn_hojaclara
+  label: Wyn Hojaclara
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    asesino: 0.88
+    audaz: 0.51
+    humano: 1.0
+- id: cyra_hojaclara
+  label: Cyra Hojaclara
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_viento: 1.0
+    elfo: 1.0
+    madrugador: 0.51
+    mago: 0.82
+    sociable: 0.57
+- id: jarl_cantorroto
+  label: Jarl Cantorroto
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_tierra: 1.0
+    afin_viento: 0.35
+    ambicioso: 0.83
+    asesino: 0.8
+    humano: 1.0
+    solitario: 0.42
+- id: gith_rocaviva_11
+  label: Gith Rocaviva
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_agua: 1.0
+    afin_tierra: 0.42
+    asesino: 0.97
+    humano: 1.0
+    solitario: 0.83
+- id: hale_vientolargo
+  label: Hale Vientolargo
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    acomodado: 0.54
+    afin_agua: 1.0
+    ambicioso: 0.91
+    demihumano: 1.0
+    guerrero: 0.96
+- id: rask_vadohondo
+  label: Rask Vadohondo
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    acomodado: 0.94
+    afin_agua: 0.3
+    afin_tierra: 1.0
+    humano: 1.0
+    mago: 0.99
+- id: quen_hierrogris
+  label: Quen Hierrogris
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_agua: 1.0
+    humano: 1.0
+    mago: 0.94
+    solitario: 0.73
+- id: aral_umbrio
+  label: Aral Umbrio
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    asesino: 0.98
+    enano: 1.0
+    madrugador: 0.48
+- id: adze_rocaviva
+  label: Adze Rocaviva
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_tierra: 1.0
+    ambicioso: 0.77
+    guerrero: 0.99
+    humano: 1.0
+    sociable: 0.66
+- id: bern_hojaclara
+  label: Bern Hojaclara
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_tierra: 1.0
+    asesino: 0.78
+    demihumano: 1.0
+    prudente: 0.84
+- id: orin_vientolargo
+  label: Orin Vientolargo
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    acomodado: 0.67
+    afin_agua: 0.42
+    afin_tierra: 1.0
+    humano: 1.0
+    montaraz: 0.78
+    nocturno: 0.44
+- id: yves_vadohondo
+  label: Yves Vadohondo
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    audaz: 0.63
+    enano: 1.0
+    montaraz: 0.94
+- id: ulla_rocaviva
+  label: Ulla Rocaviva
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    acomodado: 0.69
+    afin_viento: 1.0
+    demihumano: 1.0
+    montaraz: 0.74
+    sociable: 0.66
+- id: adze_umbrio
+  label: Adze Umbrio
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_viento: 1.0
+    asesino: 0.95
+    humano: 1.0
+    sociable: 0.89
+- id: gwen_nieblalta
+  label: Gwen Nieblalta
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    ambicioso: 0.62
+    enano: 1.0
+    guerrero: 0.97
+    sociable: 0.84
+- id: jarl_cantorroto_23
+  label: Jarl Cantorroto
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_agua: 0.3
+    afin_tierra: 1.0
+    audaz: 0.6
+    enano: 1.0
+    guerrero: 0.78
+- id: orin_hojaclara
+  label: Orin Hojaclara
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    acomodado: 0.44
+    afin_fuego: 1.0
+    ambicioso: 0.7
+    gigante: 1.0
+    guerrero: 0.76
+- id: xan_marfrio
+  label: Xan Marfrio
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    acomodado: 0.73
+    afin_viento: 1.0
+    enano: 1.0
+    guerrero: 0.94
+    prudente: 0.82
+- id: orin_nieblalta
+  label: Orin Nieblalta
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_agua: 1.0
+    audaz: 0.97
+    demihumano: 1.0
+    montaraz: 0.98
+- id: nyx_marfrio
+  label: Nyx Marfrio
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_viento: 1.0
+    elfo: 1.0
+    invocador: 1.0
+    madrugador: 0.8
+- id: varn_nieblalta
+  label: Varn Nieblalta
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    guerrero: 0.73
+    humano: 1.0
+    prudente: 0.52
+- id: aral_cenizal
+  label: Aral Cenizal
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_fuego: 1.0
+    ambicioso: 0.65
+    enano: 1.0
+    guerrero: 0.93
+    sociable: 0.74
+- id: jora_rocaviva
+  label: Jora Rocaviva
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_viento: 1.0
+    elfo: 1.0
+    invocador: 0.72
+    sociable: 0.85
+    solitario: 0.62
+- id: jarl_fuegolento
+  label: Jarl Fuegolento
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    afin_viento: 0.41
+    humano: 1.0
+    invocador: 0.96
+    sociable: 0.5
+- id: xan_vadohondo
+  label: Xan Vadohondo
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    audaz: 0.41
+    enano: 1.0
+    montaraz: 0.77
+    prudente: 0.89
+- id: bern_rocaviva
+  label: Bern Rocaviva
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    ambicioso: 0.93
+    guerrero: 0.96
+    humano: 1.0
+- id: rask_solraso
+  label: Rask Solraso
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_agua: 1.0
+    afin_tierra: 0.37
+    ambicioso: 0.67
+    guerrero: 0.86
+    humano: 1.0
+    nocturno: 0.72
+- id: zar_umbrio
+  label: Zar Umbrio
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_viento: 1.0
+    demihumano: 1.0
+    montaraz: 0.72
+    solitario: 0.55
+- id: xan_fuegolento
+  label: Xan Fuegolento
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 0.4
+    afin_viento: 1.0
+    ambicioso: 0.93
+    humano: 1.0
+    mago: 0.93
+- id: dain_yunquenegro
+  label: Dain Yunquenegro
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    humano: 1.0
+    mago: 0.73
+    sociable: 0.68
+- id: jarl_solraso
+  label: Jarl Solraso
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_viento: 1.0
+    asesino: 0.85
+    humano: 1.0
+    madrugador: 0.65
+- id: cyra_cantorroto
+  label: Cyra Cantorroto
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    acomodado: 0.83
+    afin_viento: 1.0
+    demihumano: 1.0
+    montaraz: 0.94
+- id: nyx_yunquenegro
+  label: Nyx Yunquenegro
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    acomodado: 0.98
+    afin_fuego: 1.0
+    afin_tierra: 0.33
+    enano: 1.0
+    invocador: 0.87
+    prudente: 0.85
+- id: kel_nieblalta
+  label: Kel Nieblalta
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    enano: 1.0
+    montaraz: 0.9
+    prudente: 0.51
+- id: nyx_piedraparda
+  label: Nyx Piedraparda
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    ambicioso: 0.72
+    enano: 1.0
+    guerrero: 0.92
+- id: ivar_rocaviva
+  label: Ivar Rocaviva
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_tierra: 1.0
+    ambicioso: 0.49
+    gigante: 1.0
+    invocador: 0.99
+- id: sela_piedraparda
+  label: Sela Piedraparda
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_fuego: 1.0
+    demihumano: 1.0
+    montaraz: 0.73
+    nocturno: 0.49
+- id: torv_marfrio
+  label: Torv Marfrio
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_tierra: 1.0
+    demihumano: 1.0
+    invocador: 0.74
+    sociable: 0.9
+- id: sela_cantorroto
+  label: Sela Cantorroto
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    humano: 1.0
+    madrugador: 0.53
+    mago: 0.94
+- id: jarl_fuegolento_47
+  label: Jarl Fuegolento
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_viento: 1.0
+    audaz: 0.63
+    enano: 1.0
+    montaraz: 0.75
+    sociable: 0.85
+- id: isla_hojaclara
+  label: Isla Hojaclara
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_fuego: 1.0
+    enano: 1.0
+    guerrero: 0.93
+    madrugador: 0.52
+- id: nyx_yunquenegro_49
+  label: Nyx Yunquenegro
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_viento: 1.0
+    elfo: 1.0
+    mago: 0.72
+    prudente: 0.85
+- id: cael_yunquenegro
+  label: Cael Yunquenegro
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 1.0
+    asesino: 0.91
+    humano: 1.0
+    madrugador: 0.96
+- id: fror_vientolargo
+  label: Fror Vientolargo
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_agua: 1.0
+    ambicioso: 0.93
+    gigante: 1.0
+    guerrero: 0.8
+    madrugador: 0.54
+- id: gwen_piedraparda
+  label: Gwen Piedraparda
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_viento: 1.0
+    elfo: 1.0
+    mago: 0.77
+    prudente: 0.73
+- id: fenn_nieblalta
+  label: Fenn Nieblalta
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    humano: 1.0
+    invocador: 0.76
+    solitario: 0.96
+- id: hale_hojaclara
+  label: Hale Hojaclara
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_viento: 1.0
+    guerrero: 0.72
+    humano: 1.0
+    nocturno: 0.54
+- id: sela_zarzal
+  label: Sela Zarzal
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_fuego: 1.0
+    enano: 1.0
+    guerrero: 0.85
+    madrugador: 0.63
+- id: dain_rocaviva
+  label: Dain Rocaviva
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    acomodado: 0.7
+    afin_fuego: 0.3
+    afin_viento: 1.0
+    elfo: 1.0
+    montaraz: 0.89
+- id: mor_marfrio
+  label: Mor Marfrio
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_viento: 1.0
+    enano: 1.0
+    madrugador: 0.63
+    montaraz: 0.78
+- id: mor_vadohondo
+  label: Mor Vadohondo
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    humano: 1.0
+    mago: 0.97
+    solitario: 0.54
+- id: eris_piedraparda
+  label: Eris Piedraparda
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_viento: 1.0
+    ambicioso: 0.66
+    gigante: 1.0
+    guerrero: 0.88
+- id: lira_cantorroto
+  label: Lira Cantorroto
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_fuego: 1.0
+    asesino: 0.92
+    demihumano: 1.0
+    solitario: 0.85
+- id: yves_vientolargo
+  label: Yves Vientolargo
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_fuego: 0.33
+    afin_viento: 1.0
+    elfo: 1.0
+    mago: 0.89
+    sociable: 0.51
+- id: dorn_vientolargo
+  label: Dorn Vientolargo
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    acomodado: 0.98
+    afin_agua: 1.0
+    enano: 1.0
+    mago: 0.97
+    sociable: 0.81
+- id: pell_yunquenegro
+  label: Pell Yunquenegro
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_agua: 1.0
+    gigante: 1.0
+    montaraz: 0.9
+    nocturno: 0.92
+- id: wyn_umbrio
+  label: Wyn Umbrio
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_agua: 1.0
+    afin_viento: 0.4
+    elfo: 1.0
+    guerrero: 0.99
+    sociable: 0.5
+- id: torv_vientolargo
+  label: Torv Vientolargo
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_fuego: 1.0
+    afin_viento: 0.33
+    audaz: 0.57
+    elfo: 1.0
+    invocador: 0.97
+    nocturno: 0.45
+- id: cael_yunquenegro_66
+  label: Cael Yunquenegro
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 0.45
+    afin_tierra: 1.0
+    audaz: 0.67
+    humano: 1.0
+    madrugador: 0.45
+    montaraz: 0.81
+- id: sela_fuegolento
+  label: Sela Fuegolento
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    acomodado: 0.77
+    afin_fuego: 0.29
+    afin_viento: 1.0
+    enano: 1.0
+    invocador: 0.97
+- id: sela_vadohondo
+  label: Sela Vadohondo
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_fuego: 0.49
+    afin_tierra: 1.0
+    ambicioso: 0.52
+    enano: 1.0
+    mago: 0.86
+    nocturno: 0.98
+- id: xan_marfrio_69
+  label: Xan Marfrio
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    guerrero: 0.92
+    humano: 1.0
+    nocturno: 0.72
+- id: nyx_solraso
+  label: Nyx Solraso
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_fuego: 0.39
+    afin_viento: 1.0
+    elfo: 1.0
+    madrugador: 0.84
+    mago: 0.73
+    sociable: 0.55
+- id: dorn_marfrio
+  label: Dorn Marfrio
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    humano: 1.0
+    mago: 0.97
+    sociable: 0.6
+    solitario: 0.46
+- id: xan_umbrio
+  label: Xan Umbrio
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    humano: 1.0
+    invocador: 0.71
+    solitario: 0.41
+- id: lira_rocaviva
+  label: Lira Rocaviva
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    enano: 1.0
+    montaraz: 0.98
+    nocturno: 0.6
+    prudente: 0.78
+- id: pell_vadohondo
+  label: Pell Vadohondo
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_agua: 0.3
+    afin_viento: 1.0
+    elfo: 1.0
+    montaraz: 0.75
+    nocturno: 0.63
+- id: isla_umbrio
+  label: Isla Umbrio
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 1.0
+    asesino: 0.85
+    audaz: 0.57
+    humano: 1.0
+- id: gith_yunquenegro_76
+  label: Gith Yunquenegro
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_tierra: 1.0
+    audaz: 0.57
+    gigante: 1.0
+    guerrero: 0.96
+    nocturno: 0.8
+- id: yves_nieblalta
+  label: Yves Nieblalta
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_tierra: 1.0
+    ambicioso: 0.99
+    gigante: 1.0
+    invocador: 0.87
+- id: cyra_cenizal
+  label: Cyra Cenizal
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    acomodado: 0.51
+    afin_fuego: 1.0
+    asesino: 0.84
+    humano: 1.0
+    madrugador: 0.46
+- id: fenn_zarzal
+  label: Fenn Zarzal
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_agua: 1.0
+    afin_tierra: 0.45
+    enano: 1.0
+    guerrero: 0.96
+    sociable: 0.67
+- id: ulla_rocaviva_80
+  label: Ulla Rocaviva
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    acomodado: 0.81
+    afin_tierra: 1.0
+    enano: 1.0
+    guerrero: 0.74
+    prudente: 0.81
+- id: yves_piedraparda
+  label: Yves Piedraparda
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    enano: 1.0
+    guerrero: 0.8
+    sociable: 0.61
+- id: cael_zarzal
+  label: Cael Zarzal
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_agua: 1.0
+    humano: 1.0
+    mago: 0.97
+    nocturno: 0.51
+- id: bern_fuegolento
+  label: Bern Fuegolento
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 0.33
+    afin_viento: 1.0
+    humano: 1.0
+    mago: 0.85
+    solitario: 0.52
+- id: hurn_yunquenegro
+  label: Hurn Yunquenegro
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_viento: 1.0
+    asesino: 0.96
+    demihumano: 1.0
+    madrugador: 0.83
+- id: quen_rocaviva
+  label: Quen Rocaviva
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    acomodado: 0.59
+    afin_tierra: 1.0
+    gigante: 1.0
+    guerrero: 0.92
+    solitario: 0.47
+- id: jarl_vadohondo
+  label: Jarl Vadohondo
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    ambicioso: 0.84
+    humano: 1.0
+    invocador: 0.85
+- id: varn_vadohondo
+  label: Varn Vadohondo
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_agua: 1.0
+    asesino: 0.9
+    elfo: 1.0
+    madrugador: 0.65
+- id: fenn_hojaclara
+  label: Fenn Hojaclara
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    humano: 1.0
+    invocador: 0.98
+    nocturno: 0.75
+- id: jarl_zarzal
+  label: Jarl Zarzal
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    acomodado: 0.82
+    afin_viento: 1.0
+    demihumano: 1.0
+    madrugador: 0.92
+    montaraz: 0.71
+- id: ivar_zarzal
+  label: Ivar Zarzal
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_viento: 1.0
+    elfo: 1.0
+    montaraz: 0.97
+    prudente: 0.78
+- id: gith_solraso
+  label: Gith Solraso
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    guerrero: 0.71
+    humano: 1.0
+    nocturno: 0.44
+    solitario: 0.46
+- id: gwen_yunquenegro
+  label: Gwen Yunquenegro
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    acomodado: 0.52
+    afin_agua: 0.34
+    afin_viento: 1.0
+    elfo: 1.0
+    montaraz: 0.74
+    prudente: 0.83
+- id: adze_marfrio
+  label: Adze Marfrio
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_agua: 1.0
+    ambicioso: 0.93
+    asesino: 0.81
+    humano: 1.0
+- id: bern_vientolargo
+  label: Bern Vientolargo
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_tierra: 1.0
+    demihumano: 1.0
+    montaraz: 0.8
+    nocturno: 0.98
+    prudente: 0.94
+- id: hurn_umbrio
+  label: Hurn Umbrio
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    ambicioso: 0.7
+    audaz: 0.85
+    guerrero: 0.96
+    humano: 1.0
+- id: brix_solraso
+  label: Brix Solraso
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_viento: 1.0
+    audaz: 0.78
+    humano: 1.0
+    madrugador: 0.96
+    mago: 0.88
+- id: brix_marfrio
+  label: Brix Marfrio
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    ambicioso: 0.55
+    enano: 1.0
+    guerrero: 0.91
+    madrugador: 0.98
+- id: adze_hierrogris
+  label: Adze Hierrogris
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    ambicioso: 0.45
+    asesino: 0.8
+    humano: 1.0
+- id: sela_vientolargo
+  label: Sela Vientolargo
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    enano: 1.0
+    montaraz: 0.93
+    nocturno: 0.49
+- id: eris_vientolargo
+  label: Eris Vientolargo
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_viento: 1.0
+    asesino: 0.97
+    audaz: 0.91
+    enano: 1.0
+    solitario: 0.61
+- id: kel_marfrio
+  label: Kel Marfrio
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_agua: 1.0
+    audaz: 0.5
+    demihumano: 1.0
+    montaraz: 0.76
+    nocturno: 0.75
+- id: varn_cantorroto
+  label: Varn Cantorroto
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    acomodado: 0.94
+    afin_viento: 1.0
+    demihumano: 1.0
+    guerrero: 0.9
+- id: eris_hojaclara
+  label: Eris Hojaclara
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_agua: 1.0
+    enano: 1.0
+    invocador: 0.71
+    madrugador: 0.42
+- id: brix_hierrogris
+  label: Brix Hierrogris
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_viento: 1.0
+    elfo: 1.0
+    mago: 0.79
+    nocturno: 0.53
+- id: eris_yunquenegro
+  label: Eris Yunquenegro
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_tierra: 1.0
+    demihumano: 1.0
+    montaraz: 0.71
+    nocturno: 0.53
+- id: adze_zarzal
+  label: Adze Zarzal
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_fuego: 1.0
+    afin_viento: 0.47
+    elfo: 1.0
+    madrugador: 0.79
+    mago: 0.82
+    nocturno: 0.76
+- id: gwen_hojaclara
+  label: Gwen Hojaclara
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_viento: 1.0
+    humano: 1.0
+    invocador: 0.93
+    nocturno: 0.75
+- id: jarl_vadohondo_108
+  label: Jarl Vadohondo
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_tierra: 1.0
+    ambicioso: 0.64
+    demihumano: 1.0
+    montaraz: 0.96
+    solitario: 0.72
+- id: cael_hojaclara
+  label: Cael Hojaclara
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    asesino: 0.88
+    humano: 1.0
+    madrugador: 0.83
+- id: cael_zarzal_110
+  label: Cael Zarzal
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_fuego: 0.31
+    afin_tierra: 1.0
+    audaz: 0.42
+    enano: 1.0
+    guerrero: 0.99
+- id: torv_yunquenegro
+  label: Torv Yunquenegro
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_agua: 1.0
+    afin_fuego: 0.28
+    elfo: 1.0
+    mago: 0.78
+    sociable: 0.88
+- id: nyx_rocaviva
+  label: Nyx Rocaviva
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_viento: 1.0
+    demihumano: 1.0
+    guerrero: 0.98
+    prudente: 0.95
+    solitario: 0.62
+- id: pell_nieblalta
+  label: Pell Nieblalta
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_agua: 0.3
+    afin_fuego: 1.0
+    asesino: 0.8
+    audaz: 0.68
+    humano: 1.0
+- id: varn_piedraparda
+  label: Varn Piedraparda
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 1.0
+    asesino: 0.98
+    humano: 1.0
+    sociable: 0.75
+- id: xan_solraso
+  label: Xan Solraso
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    asesino: 0.92
+    humano: 1.0
+    madrugador: 0.4
+    prudente: 0.86
+- id: eyla_hojaclara
+  label: Eyla Hojaclara
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    acomodado: 0.92
+    afin_viento: 1.0
+    demihumano: 1.0
+    montaraz: 0.91
+- id: hurn_cantorroto
+  label: Hurn Cantorroto
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    humano: 1.0
+    madrugador: 0.99
+    mago: 0.71
+- id: rask_vientolargo
+  label: Rask Vientolargo
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_agua: 1.0
+    demihumano: 1.0
+    montaraz: 0.92
+    nocturno: 0.48
+- id: fenn_vadohondo
+  label: Fenn Vadohondo
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    acomodado: 0.62
+    afin_fuego: 1.0
+    demihumano: 1.0
+    guerrero: 0.78
+    solitario: 0.41
+- id: rask_nieblalta
+  label: Rask Nieblalta
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_agua: 0.36
+    afin_viento: 1.0
+    elfo: 1.0
+    mago: 0.73
+    nocturno: 0.72
+- id: hale_solraso
+  label: Hale Solraso
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    audaz: 0.96
+    humano: 1.0
+    invocador: 0.95
+    nocturno: 0.55
+- id: varn_piedraparda_122
+  label: Varn Piedraparda
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 1.0
+    humano: 1.0
+    madrugador: 0.66
+    mago: 0.98
+    nocturno: 0.84
+- id: wyn_hojaclara_123
+  label: Wyn Hojaclara
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_viento: 1.0
+    asesino: 0.92
+    elfo: 1.0
+    sociable: 0.42
+- id: hurn_rocaviva
+  label: Hurn Rocaviva
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_viento: 1.0
+    demihumano: 1.0
+    madrugador: 0.53
+    mago: 0.74
+- id: dorn_cantorroto_125
+  label: Dorn Cantorroto
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_agua: 1.0
+    afin_tierra: 0.47
+    ambicioso: 0.99
+    humano: 1.0
+    mago: 0.71
+    nocturno: 0.58
+- id: jora_hierrogris
+  label: Jora Hierrogris
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_viento: 1.0
+    audaz: 0.73
+    gigante: 1.0
+    guerrero: 0.78
+- id: zar_rocaviva
+  label: Zar Rocaviva
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    ambicioso: 0.81
+    asesino: 0.9
+    humano: 1.0
+    nocturno: 0.81
+- id: ivar_hojaclara
+  label: Ivar Hojaclara
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_agua: 1.0
+    afin_tierra: 0.31
+    audaz: 0.55
+    humano: 1.0
+    mago: 0.77
+- id: orin_vientolargo_129
+  label: Orin Vientolargo
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    acomodado: 0.81
+    afin_fuego: 1.0
+    asesino: 0.9
+    demihumano: 1.0
+    solitario: 0.6
+- id: gwen_piedraparda_130
+  label: Gwen Piedraparda
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_viento: 1.0
+    asesino: 0.84
+    audaz: 0.72
+    humano: 1.0
+    madrugador: 0.53
+- id: aral_piedraparda
+  label: Aral Piedraparda
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 0.26
+    afin_tierra: 1.0
+    guerrero: 0.75
+    humano: 1.0
+    madrugador: 0.68
+- id: jarl_nieblalta
+  label: Jarl Nieblalta
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    acomodado: 0.67
+    afin_viento: 1.0
+    humano: 1.0
+    mago: 0.72
+- id: isla_hojaclara_133
+  label: Isla Hojaclara
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_viento: 1.0
+    elfo: 1.0
+    mago: 0.94
+    solitario: 0.45
+- id: eris_hojaclara_134
+  label: Eris Hojaclara
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_fuego: 0.47
+    afin_viento: 1.0
+    ambicioso: 0.96
+    elfo: 1.0
+    mago: 0.95
+    nocturno: 0.91
+- id: adze_piedraparda
+  label: Adze Piedraparda
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_tierra: 1.0
+    ambicioso: 0.7
+    demihumano: 1.0
+    invocador: 0.95
+    sociable: 0.45
+- id: nyx_rocaviva_136
+  label: Nyx Rocaviva
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_agua: 0.43
+    afin_viento: 1.0
+    elfo: 1.0
+    montaraz: 0.8
+    solitario: 0.84
+- id: cael_hierrogris
+  label: Cael Hierrogris
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_viento: 1.0
+    asesino: 0.77
+    audaz: 0.64
+    demihumano: 1.0
+- id: kel_piedraparda
+  label: Kel Piedraparda
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_tierra: 1.0
+    audaz: 0.84
+    humano: 1.0
+    invocador: 0.91
+    prudente: 0.73
+- id: ivar_vadohondo
+  label: Ivar Vadohondo
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_agua: 1.0
+    audaz: 0.48
+    demihumano: 1.0
+    guerrero: 0.82
+    nocturno: 0.61
+- id: wyn_hierrogris
+  label: Wyn Hierrogris
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_agua: 1.0
+    audaz: 0.55
+    guerrero: 0.88
+    humano: 1.0
+- id: ulla_rocaviva_141
+  label: Ulla Rocaviva
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_tierra: 1.0
+    afin_viento: 0.33
+    humano: 1.0
+    madrugador: 0.99
+    mago: 0.95
+- id: adze_cantorroto
+  label: Adze Cantorroto
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    ambicioso: 0.76
+    humano: 1.0
+    montaraz: 0.91
+    solitario: 0.58
+- id: adze_hierrogris_143
+  label: Adze Hierrogris
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_fuego: 1.0
+    ambicioso: 0.63
+    elfo: 1.0
+    mago: 0.81
+- id: cyra_rocaviva
+  label: Cyra Rocaviva
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 1.0
+    ambicioso: 0.83
+    guerrero: 0.85
+    humano: 1.0
+- id: mor_rocaviva
+  label: Mor Rocaviva
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    audaz: 0.55
+    humano: 1.0
+    montaraz: 0.77
+    solitario: 0.54
+- id: xan_zarzal
+  label: Xan Zarzal
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_viento: 1.0
+    demihumano: 1.0
+    guerrero: 0.78
+    prudente: 0.99
+- id: varn_rocaviva
+  label: Varn Rocaviva
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_tierra: 1.0
+    demihumano: 1.0
+    guerrero: 0.96
+    madrugador: 0.99
+    sociable: 0.85
+- id: dorn_fuegolento
+  label: Dorn Fuegolento
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_agua: 1.0
+    guerrero: 0.93
+    humano: 1.0
+    prudente: 0.84
+- id: brix_cenizal
+  label: Brix Cenizal
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_fuego: 1.0
+    audaz: 0.87
+    demihumano: 1.0
+    guerrero: 0.74
+- id: sela_marfrio
+  label: Sela Marfrio
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_agua: 1.0
+    afin_viento: 0.48
+    humano: 1.0
+    mago: 0.91
+    solitario: 0.63
+- id: xan_zarzal_151
+  label: Xan Zarzal
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 1.0
+    guerrero: 0.76
+    humano: 1.0
+    nocturno: 0.78
+- id: kel_hierrogris
+  label: Kel Hierrogris
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    guerrero: 0.83
+    humano: 1.0
+    madrugador: 0.42
+- id: hale_hojaclara_153
+  label: Hale Hojaclara
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_agua: 1.0
+    humano: 1.0
+    montaraz: 0.72
+    sociable: 0.95
+- id: eyla_rocaviva
+  label: Eyla Rocaviva
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    acomodado: 0.54
+    afin_fuego: 1.0
+    afin_tierra: 0.37
+    elfo: 1.0
+    mago: 0.83
+- id: rask_solraso_155
+  label: Rask Solraso
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_tierra: 0.39
+    afin_viento: 1.0
+    audaz: 0.96
+    elfo: 1.0
+    mago: 0.76
+- id: gith_cantorroto
+  label: Gith Cantorroto
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_viento: 1.0
+    elfo: 1.0
+    mago: 0.74
+    sociable: 0.78
+- id: gith_vientolargo
+  label: Gith Vientolargo
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_agua: 1.0
+    afin_fuego: 0.44
+    enano: 1.0
+    mago: 0.8
+    solitario: 0.68
+- id: jarl_vientolargo
+  label: Jarl Vientolargo
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_agua: 0.44
+    afin_tierra: 1.0
+    ambicioso: 0.5
+    demihumano: 1.0
+    invocador: 0.88
+- id: dorn_solraso
+  label: Dorn Solraso
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_tierra: 1.0
+    ambicioso: 0.87
+    elfo: 1.0
+    guerrero: 0.92
+- id: cael_zarzal_160
+  label: Cael Zarzal
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 1.0
+    ambicioso: 0.83
+    guerrero: 0.97
+    humano: 1.0
+    prudente: 0.89
+- id: ulla_zarzal
+  label: Ulla Zarzal
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_agua: 1.0
+    afin_viento: 0.43
+    audaz: 0.73
+    humano: 1.0
+    montaraz: 0.79
+    solitario: 0.99
+- id: jarl_vientolargo_162
+  label: Jarl Vientolargo
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    acomodado: 0.73
+    afin_agua: 1.0
+    humano: 1.0
+    mago: 0.99
+- id: dain_solraso
+  label: Dain Solraso
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    ambicioso: 0.42
+    humano: 1.0
+    mago: 0.81
+- id: varn_nieblalta_164
+  label: Varn Nieblalta
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    enano: 1.0
+    guerrero: 0.89
+    sociable: 0.43
+    solitario: 0.98
+- id: sela_umbrio
+  label: Sela Umbrio
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_viento: 1.0
+    ambicioso: 0.97
+    asesino: 0.82
+    elfo: 1.0
+    sociable: 0.77
+- id: zar_marfrio
+  label: Zar Marfrio
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_agua: 1.0
+    afin_fuego: 0.26
+    enano: 1.0
+    montaraz: 0.84
+    sociable: 0.77
+- id: fror_solraso
+  label: Fror Solraso
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_agua: 0.46
+    afin_tierra: 1.0
+    audaz: 0.4
+    humano: 1.0
+    montaraz: 0.86
+- id: nyx_piedraparda_168
+  label: Nyx Piedraparda
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    asesino: 0.86
+    enano: 1.0
+    madrugador: 0.71
+    prudente: 0.78
+- id: cyra_fuegolento
+  label: Cyra Fuegolento
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_tierra: 1.0
+    ambicioso: 0.74
+    gigante: 1.0
+    montaraz: 0.72
+- id: mor_zarzal
+  label: Mor Zarzal
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_viento: 1.0
+    asesino: 0.81
+    humano: 1.0
+    sociable: 0.77
+- id: wyn_zarzal
+  label: Wyn Zarzal
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 0.47
+    afin_viento: 1.0
+    asesino: 0.8
+    humano: 1.0
+    madrugador: 0.44
+- id: fenn_yunquenegro
+  label: Fenn Yunquenegro
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    asesino: 0.79
+    audaz: 0.86
+    humano: 1.0
+    nocturno: 0.42
+- id: cyra_vadohondo
+  label: Cyra Vadohondo
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    asesino: 0.93
+    humano: 1.0
+    prudente: 0.62
+- id: varn_rocaviva_174
+  label: Varn Rocaviva
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    acomodado: 0.94
+    afin_agua: 1.0
+    enano: 1.0
+    guerrero: 0.9
+    nocturno: 0.74
+- id: gith_marfrio
+  label: Gith Marfrio
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    ambicioso: 0.8
+    asesino: 0.77
+    audaz: 0.52
+    humano: 1.0
+- id: rask_yunquenegro
+  label: Rask Yunquenegro
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    ambicioso: 0.79
+    humano: 1.0
+    mago: 0.79
+- id: jarl_piedraparda
+  label: Jarl Piedraparda
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_tierra: 0.36
+    afin_viento: 1.0
+    elfo: 1.0
+    montaraz: 0.86
+    solitario: 0.86
+- id: eris_umbrio
+  label: Eris Umbrio
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    enano: 1.0
+    guerrero: 0.76
+    nocturno: 0.65
+- id: xan_vadohondo_179
+  label: Xan Vadohondo
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    acomodado: 0.71
+    afin_fuego: 1.0
+    asesino: 0.98
+    humano: 1.0
+    madrugador: 0.75
+- id: rask_fuegolento
+  label: Rask Fuegolento
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    acomodado: 0.54
+    afin_viento: 1.0
+    demihumano: 1.0
+    guerrero: 0.74
+    prudente: 0.69
+- id: eris_marfrio
+  label: Eris Marfrio
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_agua: 0.48
+    afin_tierra: 1.0
+    gigante: 1.0
+    guerrero: 0.85
+    madrugador: 0.88
+- id: rask_vientolargo_182
+  label: Rask Vientolargo
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_agua: 1.0
+    audaz: 0.82
+    demihumano: 1.0
+    guerrero: 0.94
+    sociable: 0.85
+- id: kel_vadohondo
+  label: Kel Vadohondo
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    humano: 1.0
+    mago: 0.79
+    prudente: 0.46
+- id: wyn_hierrogris_184
+  label: Wyn Hierrogris
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    acomodado: 0.88
+    afin_fuego: 1.0
+    enano: 1.0
+    montaraz: 0.92
+- id: fenn_vientolargo
+  label: Fenn Vientolargo
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    afin_viento: 0.48
+    humano: 1.0
+    montaraz: 0.99
+    solitario: 0.53
+- id: hale_cenizal
+  label: Hale Cenizal
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_agua: 1.0
+    afin_fuego: 0.41
+    audaz: 0.62
+    humano: 1.0
+    mago: 0.98
+- id: gith_hojaclara
+  label: Gith Hojaclara
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_viento: 1.0
+    elfo: 1.0
+    madrugador: 0.93
+    montaraz: 0.82
+- id: aral_cenizal_188
+  label: Aral Cenizal
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_fuego: 1.0
+    gigante: 1.0
+    invocador: 0.71
+    nocturno: 0.67
+- id: eyla_hierrogris
+  label: Eyla Hierrogris
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_agua: 1.0
+    humano: 1.0
+    invocador: 0.92
+    sociable: 0.55
+- id: torv_yunquenegro_190
+  label: Torv Yunquenegro
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_tierra: 1.0
+    ambicioso: 0.78
+    gigante: 1.0
+    guerrero: 0.78
+- id: mor_solraso
+  label: Mor Solraso
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    acomodado: 0.66
+    afin_agua: 0.27
+    afin_fuego: 1.0
+    enano: 1.0
+    montaraz: 0.96
+- id: sela_rocaviva
+  label: Sela Rocaviva
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_viento: 1.0
+    ambicioso: 0.98
+    enano: 1.0
+    montaraz: 1.0
+- id: cyra_cantorroto_193
+  label: Cyra Cantorroto
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    ambicioso: 0.78
+    humano: 1.0
+    mago: 0.72
+- id: fenn_solraso
+  label: Fenn Solraso
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 1.0
+    humano: 1.0
+    montaraz: 0.81
+    solitario: 0.85
+- id: nyx_solraso_195
+  label: Nyx Solraso
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_tierra: 1.0
+    asesino: 0.9
+    audaz: 0.61
+    humano: 1.0
+    sociable: 0.62
+- id: zar_marfrio_196
+  label: Zar Marfrio
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_viento: 1.0
+    demihumano: 1.0
+    guerrero: 0.78
+    prudente: 0.98
+    solitario: 0.96
+- id: torv_zarzal
+  label: Torv Zarzal
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_viento: 1.0
+    asesino: 0.76
+    audaz: 0.8
+    humano: 1.0
+- id: jarl_zarzal_198
+  label: Jarl Zarzal
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_tierra: 1.0
+    audaz: 0.56
+    demihumano: 1.0
+    invocador: 0.79
+    madrugador: 0.66
+- id: dain_piedraparda
+  label: Dain Piedraparda
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_agua: 1.0
+    humano: 1.0
+    mago: 0.93
+    sociable: 0.74
