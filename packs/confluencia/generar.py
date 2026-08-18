@@ -49,18 +49,62 @@ POBLACION = 200
 # "el sitio donde ocurren invocaciones" y estaba sin una sola affordance.
 
 ANADIR = {
-    "mazmorra_menor": "expolio", "mazmorra_media": "expolio",
-    "mazmorra_mayor": "expolio", "guarida_goblin": "expolio",
-    "claro_del_ogro": "expolio", "campamento_orco": "expolio",
-    "muelle_de_contrabandistas": "contrabando",
-    "campo_de_caza": "caza", "linde_salvaje": "caza",
-    "cripta_olvidada": "invocacion",
+    "mazmorra_menor": ["expolio"], "mazmorra_media": ["expolio"],
+    "mazmorra_mayor": ["expolio"], "guarida_goblin": ["expolio"],
+    "claro_del_ogro": ["expolio"], "campamento_orco": ["expolio"],
+    "muelle_de_contrabandistas": ["contrabando"],
+    "campo_de_caza": ["caza"], "linde_salvaje": ["caza"],
+    "cripta_olvidada": ["invocacion"],
 }
+
+# --- CADA BARRIO SE BASTA A SI MISMO, Y EL CENTRO PAGA MEJOR ------------------
+#
+# La primera version ponia cada oficio en uno o dos sitios, todos lejos, y medido
+# eso no producia migracion sino PARALISIS: la deliberacion decidia -bien- que no
+# compensaba cruzar la ciudad, asi que nadie ejercia su oficio y todos hacian las
+# mismas cinco cosas genericas (diferenciacion 0.44).
+#
+# La correccion es que la eleccion sea sobre el PRECIO y no sobre la
+# DISPONIBILIDAD. Con el oficio disponible en casa, quien viaja al centro lo hace
+# porque paga mas, no porque no le quede otra — y quien se queda esta eligiendo la
+# comodidad, no sufriendo una carencia. Solo entonces hay dos conductas que
+# observar en vez de una.
+
+BARRIOS_OFICIO = {
+    # plaza del barrio            sitio de trabajo   sitio de quietud
+    "plaza_elfica": ("arboleda_ancestral", "santuario_del_viento"),
+    "plaza_enana": ("forjas", "posada_enana"),
+    "plaza_gigante": ("campo_gigante", "salon_comunal_gigante"),
+    "plaza_demihumana": ("campo_de_caza", "posada_de_la_manada"),
+    "plaza_portuaria": ("muelle", "templo_mareas"),
+}
+for plaza, (taller, retiro) in BARRIOS_OFICIO.items():
+    # Puesto de gremio y mercadillo locales: pagan menos que el centro.
+    ANADIR.setdefault(plaza, []).extend(["contratos", "mercaduria"])
+    # El taller del barrio sirve para entrenar el cuerpo y para cazar cerca.
+    ANADIR.setdefault(taller, []).extend(["palestra", "caza", "trabajo"])
+    # Y el retiro, para lo que pide silencio: meditar, estudiar, pactar.
+    ANADIR.setdefault(retiro, []).extend(["quietud", "archivo", "invocacion"])
+    # El trabajo sucio se hace en la sombra de cada barrio, no solo en el puerto.
+    ANADIR.setdefault(plaza, []).append("contrabando")
+
+# El centro es el unico sitio donde se puede trabajar de porteador, y donde el
+# gremio y el mercado pagan mejor. Es el iman de la migracion: mismo oficio,
+# mejor paga, mas lejos de casa.
+CENTRO_MEJOR = {
+    "gremio_aventureros": {"dinero": 1.35},
+    "mercado_central": {"dinero": 1.30},
+}
+ANADIR.setdefault("mercado_central", []).append("trabajo")
 
 places = yaml.safe_load((S / "_mapa.yaml").read_text(encoding="utf-8"))["places"]
 for p in places:
     if p["id"] in ANADIR:
-        p.setdefault("affordances", []).append(ANADIR[p["id"]])
+        nuevas = sorted(set(ANADIR[p["id"]]) - set(p.get("affordances", [])))
+        p.setdefault("affordances", []).extend(nuevas)
+    if p["id"] in CENTRO_MEJOR:
+        p["gain_multipliers"] = {**p.get("gain_multipliers", {}),
+                                 **CENTRO_MEJOR[p["id"]]}
 
 # --- QUIEN VIVE DONDE --------------------------------------------------------
 #
@@ -176,9 +220,27 @@ def poblar() -> list[dict]:
             BARRIO_PORTUARIO if raza == "humano" and rng.random() < 0.45
             else BARRIOS[raza]
         )
+
+        # EL APEGO AL BARRIO, y es la mitad de la tension que se quiere observar.
+        #
+        # `home` no ata a nadie: no tiene ningun efecto mecanico en el motor, solo
+        # se valida como referencia. La gente duerme y trabaja donde le compensa,
+        # asi que MUDARSE YA ES GRATIS. Lo que faltaba era una razon para no
+        # hacerlo, y esa es un gusto: una predileccion por los sitios de los suyos.
+        #
+        # Se sortea ancho a proposito -de 0.95 a 1.45- para que el barrio no
+        # produzca una sola conducta. Por debajo de 1 hay quien esta deseando
+        # salir. De la tension entre ese numero, lo que paga el centro y el
+        # descuento de viaje sale quien migra y quien se queda, sin que nadie lo
+        # programe.
+        apego = round(rng.uniform(0.95, 1.45), 2)
+        gustos = [{"target": sitio, "multiplier": apego}
+                  for sitio in (plaza, cama, *BARRIOS_OFICIO.get(plaza, ()))]
+
         fichas.append({
             "id": ident, "label": nombre, "home": cama, "start_at": plaza,
             "traits": dict(sorted(rasgos.items())),
+            "tastes": gustos,
         })
     return fichas
 
