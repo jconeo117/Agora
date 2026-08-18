@@ -508,6 +508,24 @@ class ContentPack(Spec):
                 for p in sorted(situation.places)
                 if str(p) not in conocidos_lugar
             ]
+            if situation.trigger is not None:
+                # Una condición que apunta a una situación inexistente no
+                # revienta: simplemente no se cumple nunca, y el disparador
+                # parece estar puesto mientras no dispara jamás. Es el mismo
+                # fallo silencioso que persiguen las comprobaciones de arriba.
+                problems += [
+                    f"situación {situation.id!r}.trigger.requires_situations: "
+                    f"situación desconocida {s!r}"
+                    for s in sorted(situation.trigger.requires_situations)
+                    if str(s) not in known
+                ]
+                if str(situation.id) in {
+                    str(s) for s in situation.trigger.requires_situations
+                }:
+                    problems.append(
+                        f"situación {situation.id!r}: su disparador se exige a sí "
+                        f"misma, así que no puede encenderse nunca"
+                    )
         return problems
 
     def _check_situations_do_something(self) -> list[str]:

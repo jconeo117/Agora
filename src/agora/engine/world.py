@@ -145,6 +145,7 @@ class Simulation:
         """
         self.state.tick += 1
         self._expire_situations()
+        self._fire_triggers()
         self._decay_everyone()
         for agent in self.state.agents_in_order():
             self._settle_goals(agent)
@@ -229,7 +230,9 @@ class Simulation:
     # Situaciones
     # -------------------------------------------------------------------------
 
-    def begin_situation(self, situation: SituationId, ticks: int | None = None) -> None:
+    def begin_situation(
+        self, situation: SituationId, ticks: int | None = None, porque: str = "a mano"
+    ) -> None:
         """Que le empiece a pasar algo al mundo. `ticks` a `None` = hasta que se
         apague.
 
@@ -240,6 +243,12 @@ class Simulation:
 
         Encender una periódica se rechaza en vez de ignorarse: querría decir que
         quien llama cree que es eventual, y ese malentendido no se ve en el log.
+
+        `porque` va al log y es el tercer freno de los disparadores: **el log
+        tiene que decir por qué se encendió, no solo que se encendió.** Esa línea
+        es lo que separa un mundo vivo de uno aleatorio para quien lo lee después,
+        y si no está desde el primer commit no se añade nunca. Por defecto dice
+        "a mano", que distingue lo que decidió alguien de lo que decidió el mundo.
         """
         spec = self.pack.situation_by_id.get(situation)
         if spec is None:
@@ -257,7 +266,11 @@ class Simulation:
         self.log.emit(
             tick=self.state.tick,
             kind=EventKind.SITUATION_BEGAN,
-            data={"situation": str(situation), "ticks": -1 if ticks is None else ticks},
+            data={
+                "situation": str(situation),
+                "ticks": -1 if ticks is None else ticks,
+                "porque": porque,
+            },
         )
 
     def end_situation(self, situation: SituationId) -> None:
@@ -290,6 +303,73 @@ class Simulation:
         )
         for situation in vencidas:
             self.end_situation(situation)
+
+    def _fire_triggers(self, span: int = 1) -> None:
+        """Deja que al mundo le pase algo que nadie decidió.
+
+        **La primera pieza del motor que crea sucesos por su cuenta**, y por eso
+        va rodeada de frenos: probabilidad declarada por año, cooldown validado
+        en el pack, y el log diciendo por qué. Ver `TriggerSpec`.
+
+        Va justo después de expirar y antes del decaimiento, por lo mismo que
+        aquello: todo lo que ocurra en este tick tiene que ver el mundo en un
+        solo estado. Si una ventisca empezara a mitad de la lista de agentes, los
+        primeros decidirían sin ella y los últimos con ella.
+
+        Se recorre en el orden del pack, que es el orden del mundo. Y el sorteo
+        sale de una clave por (situación, tick), no de un generador consumido en
+        orden: así encender la ventisca no desplaza el sorteo de la oleada, y
+        reanudar una partida sigue siendo exacto.
+
+        **`span` es la zancada del salto temporal**, y sin ella el mecanismo
+        mentiría en la corrida que más importa. `_zancada` avanza el reloj sin
+        pasar por el tick loop, así que con `--skip 14` —lo que usa la carrera de
+        cinco años— los disparadores se evaluarían una vez cada catorce días y el
+        mundo tendría catorce veces menos imprevistos sin que nada lo dijera.
+
+        Con `span` ticks representados, la probabilidad de que ocurriera al menos
+        una vez es `1 - (1-p)**span`. Es la forma exacta y no `p * span`, que se
+        desborda por encima de 1 con saltos largos.
+
+        La aproximación que sí queda, y conviene tenerla escrita: **como mucho un
+        encendido por zancada**. Dos ventiscas dentro de los mismos trece días
+        saltados salen como una. Es del mismo tipo que las que el salto ya hace
+        —se aproxima lo monótono, no lo que oscila— y del mismo signo: subestima,
+        nunca inventa.
+        """
+        activas = frozenset(self.state.active_situations())
+        tick = self.state.tick
+        for spec in self.pack.situations:
+            trigger = spec.trigger
+            if trigger is None or trigger.expected_per_year <= 0.0:
+                continue
+            if spec.id in self.state.situations:
+                continue  # ya está pasando
+            ultimo = self.state.last_trigger.get(spec.id)
+            if ultimo is not None and tick - ultimo < trigger.cooldown:
+                continue
+            if not trigger.requires_situations <= activas:
+                continue
+
+            rng = self.state.rng.stream("trigger", spec.id, tick)
+            por_tick = trigger.expected_per_year / self.pack.clock.ticks_per_year
+            umbral = 1.0 - (1.0 - min(1.0, por_tick)) ** span
+            if rng.random() >= umbral:
+                continue
+            # Dos sorteos del MISMO flujo y en orden fijo: el segundo solo se
+            # consume cuando el primero pasa, y como el flujo es función de
+            # (semilla, situación, tick), la secuencia es la misma siempre.
+            dura = rng.randint(trigger.lasts_min, trigger.lasts_max)
+            self.state.last_trigger[spec.id] = tick
+            self.begin_situation(
+                spec.id,
+                dura,
+                porque=(
+                    ",".join(sorted(str(s) for s in trigger.requires_situations))
+                    if trigger.requires_situations
+                    else "azar"
+                ),
+            )
 
     # -------------------------------------------------------------------------
     # Fases

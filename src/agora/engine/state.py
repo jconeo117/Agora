@@ -935,6 +935,19 @@ class WorldState:
     guerra —que empieza cuando empieza— de un invierno.
     """
 
+    last_trigger: dict[SituationId, int] = field(default_factory=dict)
+    """Tick en que cada situación se encendió por última vez. De aquí sale el
+    cooldown de los disparadores.
+
+    Se guarda el ENCENDIDO y no el apagado porque el cooldown se cuenta desde
+    ahí: medir desde el final obligaría a recordar cuándo acabó algo que ya no
+    está, y `situations` solo guarda lo que sigue pasando.
+
+    Solo lo escriben los disparadores. Encender a mano por la API no lo toca, y
+    es deliberado: quien llama sabe lo que hace, y un guion no tiene por qué
+    pelearse con la perilla que gobierna el azar.
+    """
+
     rng: RngSource = field(default_factory=lambda: RngSource(0))
     """La fuente de aleatoriedad vive AQUÍ y se pasa explícitamente a quien la
     necesite. Nunca `import random; random.choice(...)` a nivel de módulo: eso

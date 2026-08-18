@@ -163,6 +163,13 @@ def save(world: WorldState, together: set[tuple[AgentId, AgentId]], path: Path) 
             [str(s), -1 if hasta is None else hasta]
             for s, hasta in world.situations.items()
         ),
+        # El cooldown de los disparadores. Sin esto, reanudar una partida
+        # rearmaría todos los disparadores a la vez y el mundo se llenaría de
+        # imprevistos justo al cargar — que es lo contrario de "reanudar en el
+        # tick N da lo mismo que no haber parado".
+        "last_trigger": sorted(
+            [str(s), tick] for s, tick in world.last_trigger.items()
+        ),
         "agents": [
             _agente_a_dict(a, world.memoria.de(a.spec_id)) for a in world.agents_in_order()
         ],
@@ -341,6 +348,13 @@ def load(path: Path, pack: ContentPack) -> tuple[WorldState, set[tuple[AgentId, 
     world.situations = {
         SituationId(s): (None if hasta == -1 else int(hasta))
         for s, hasta in datos.get("situations", [])
+        if s in conocidas
+    }
+    # `.get` como en las memorias: un guardado anterior a los disparadores se lee
+    # como un mundo donde todavía no había ninguno, que es lo que era.
+    world.last_trigger = {
+        SituationId(s): int(tick)
+        for s, tick in datos.get("last_trigger", [])
         if s in conocidas
     }
     # Los que el pack tiene y el guardado no —fichas nuevas— entran frescos, tal

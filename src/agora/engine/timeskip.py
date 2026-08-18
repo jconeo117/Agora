@@ -130,6 +130,11 @@ def _adelantar_reloj(sim: Simulation, ticks: int) -> None:
             sitio: (visto + ticks, quienes)
             for sitio, (visto, quienes) in agente.sightings.items()
         }
+    # Los disparadores tambien cobran su zancada, y por la misma razon que los
+    # avistamientos: dependen del reloj, y adelantarlo sin darsela los deja
+    # evaluandose una vez cada `factor` dias. Con --skip 14 el mundo tendria
+    # catorce veces menos imprevistos sin que nada lo dijera. Ver `_fire_triggers`.
+    sim._fire_triggers(span=ticks)
 
 
 def error_de_salto(sim_base: Simulation, dias: int, factor: int = 7) -> dict[NeedId, float]:

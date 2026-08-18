@@ -92,7 +92,12 @@ def render_event(pack: ContentPack, event: Event) -> str:
         case EventKind.SITUATION_BEGAN:
             ticks = event.data.get("ticks")
             plazo = "" if ticks == -1 else f"   {ticks}t"
-            body = f"EMPIEZA   {event.data.get('situation')}{plazo}"
+            # El por qué se muestra siempre que no sea "a mano": leer el log de
+            # un mundo con disparadores sin saber qué encendió cada cosa es
+            # exactamente la ilegibilidad que el mecanismo tenía que evitar.
+            porque = event.data.get("porque", "a mano")
+            causa = "" if porque == "a mano" else f"   ({porque})"
+            body = f"EMPIEZA   {event.data.get('situation')}{plazo}{causa}"
         case EventKind.SITUATION_ENDED:
             body = f"ACABA     {event.data.get('situation')}"
         case EventKind.IDLE_STALLED:

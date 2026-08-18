@@ -913,6 +913,25 @@ class ClockSpec(Spec):
     minutes_per_tick: int = Field(default=15, ge=1)
     ticks_per_day: int = Field(default=96, ge=1)
 
+    days_per_year: int = Field(default=360, ge=1)
+    """Cuántos días tiene el año largo. De aquí cuelgan las estaciones.
+
+    **Existía ya, pero sin nombre.** La ciudad declara el invierno con
+    `every: 34560`, que son 360 por 96 — el año estaba escrito en un número
+    multiplicado a mano dentro de una situación, y en ningún sitio decía que
+    fuera un año. El día que alguien quisiera cambiarlo tendría que encontrar y
+    recalcular cada `every` del pack.
+
+    Lo estrena `TriggerSpec.expected_per_year`, que necesita saber contra qué
+    período se cuenta. Un disparador declarado en probabilidad por tick sería
+    incalibrable a ojo: tres ventiscas por invierno son 0.00035, y un pack lleno
+    de números así no se puede leer ni discutir.
+    """
+
+    @property
+    def ticks_per_year(self) -> int:
+        return self.days_per_year * self.ticks_per_day
+
     phases: tuple[PhaseSpec, ...] = ()
     """Los tramos del ciclo, en orden. Vacío = el mundo no distingue momentos.
 
@@ -1057,6 +1076,105 @@ class RelationSpec(Spec):
 # ---------------------------------------------------------------------------
 # Situaciones: cómo está el mundo
 # ---------------------------------------------------------------------------
+class TriggerSpec(Spec):
+    """Cuándo se enciende sola una situación eventual.
+
+    **Es la primera pieza del motor que crea sucesos sin que nadie los decida**,
+    y eso la hace peligrosa de una forma que ninguna otra lo es. El plan lo dejó
+    escrito: *si se le da demasiada cuerda, el mundo pasa de vivo a aleatorio, y
+    eso destruye la legibilidad*, que es la regla rectora del proyecto.
+
+    De ahí los cuatro frenos, y ninguno es opcional:
+
+    - **probabilidad baja**, declarada en veces por año y no por tick
+    - **cooldown obligatorio**, validado aquí y no descubierto midiendo
+    - **el log dice por qué** se encendió, no solo que se encendió
+    - **apagado por defecto** (`expected_per_year = 0`), para que estrenarlo no
+      pueda mover ningún contrato ya medido
+
+    Y hay un quinto que no vive aquí sino en el panel: `--divergence` mide cuánto
+    pesa el azar frente al carácter. Si al girar estas perillas ese número se
+    acerca a 1, el mundo se volvió aleatorio y hay que apretar.
+    """
+
+    expected_per_year: float = Field(default=0.0, ge=0.0)
+    """Cuántas veces se espera que ocurra en un año. **0.0 lo desactiva.**
+
+    En veces por año y no en probabilidad por tick a propósito. Tres ventiscas
+    por invierno son 0.00035 por tick, y un pack lleno de números así no se puede
+    leer ni discutir: nadie sabe si 0.00035 es mucho. Tres al año sí se sabe.
+
+    El motor divide entre `clock.ticks_per_year`. Como consecuencia, cambiar la
+    duración del tick no cambia con qué frecuencia pasan las cosas — que es lo
+    que uno espera y lo que la forma cruda no daba.
+
+    **Ojo con el nombre cuando hay condición.** Es la tasa *como si el disparador
+    estuviera siempre habilitado*. Con `requires_situations`, los ticks en que la
+    condición no se cumple no cuentan, así que salen menos: una ventisca a 4 por
+    año que solo pueda caer en invierno —tres meses de doce— sale a **una**. El
+    cooldown recorta otro tanto. Calibrar es mirar el panel, no la aritmética.
+    """
+
+    lasts_min: int = Field(default=1, ge=1)
+    lasts_max: int = Field(default=1, ge=1)
+    """Cuánto dura, en ticks. Se sortea en el rango cada vez que enciende.
+
+    Es un rango y no un número porque el peligro tiene dos lados. Una tormenta
+    que siempre dura exactamente doscientos ticks no es aleatoria, es
+    **guionizada**, y un mundo guionizado es tan ilegible como uno al azar: el
+    jugador aprende el número y deja de haber sorpresa. Con `lasts_min` igual a
+    `lasts_max` se recupera la duración fija, si un pack la quiere.
+    """
+
+    cooldown: int = Field(default=0, ge=0)
+    """Ticks que tienen que pasar desde que encendió hasta que puede volver.
+
+    Obligatorio cuando el disparador está activo, y validado abajo. Sin él, una
+    situación que acaba de terminar puede reencenderse al tick siguiente, y lo
+    que el pack escribió como *una oleada de vez en cuando* se convierte en una
+    oleada permanente con parpadeos.
+
+    Se cuenta desde el ENCENDIDO y no desde el final, así que tiene que ser mayor
+    que `lasts_max` o no separa dos episodios: sería el cooldown corriendo
+    mientras la cosa todavía pasa.
+    """
+
+    requires_situations: frozenset[SituationId] = Field(default_factory=frozenset)
+    """Solo puede encenderse mientras TODAS estas están activas. Vacío = siempre.
+
+    Con esto la ventisca solo cae en invierno, sin ningún mecanismo nuevo: es la
+    misma composición que ya hacen `closed_during` y `situation_multipliers`.
+
+    Y es lo que hace que salgan solos los **arcos del mundo** que el plan
+    prometía: una oleada que enciende la tensión, y una tensión que —si dura—
+    habilita la guerra. Encadenar disparadores no pide primitiva nueva, pide
+    esta línea.
+    """
+
+    @model_validator(mode="after")
+    def _the_brakes_are_on(self) -> TriggerSpec:
+        if self.lasts_min > self.lasts_max:
+            raise ValueError(
+                f"disparador: dura entre {self.lasts_min} y {self.lasts_max} ticks, "
+                f"que es un rango al revés"
+            )
+        if self.expected_per_year <= 0.0:
+            return self  # apagado: lo demás da igual
+        if self.cooldown <= 0:
+            raise ValueError(
+                "disparador activo sin cooldown: la situación se reencendería al "
+                "tick siguiente de apagarse, y lo que el pack quiso decir con "
+                "'de vez en cuando' sería 'siempre, con parpadeos'"
+            )
+        if self.cooldown <= self.lasts_max:
+            raise ValueError(
+                f"disparador: cooldown {self.cooldown} no supera la duración máxima "
+                f"{self.lasts_max}. Se cuenta desde el encendido, así que expiraría "
+                f"mientras la situación todavía está pasando y no separaría nada"
+            )
+        return self
+
+
 class SituationSpec(Spec):
     """Un estado del mundo con nombre, que va y viene, y cambia lo que se hace.
 
@@ -1124,6 +1242,32 @@ class SituationSpec(Spec):
                                    * calidad del sitio
                                    * cómo está el mundo
     """
+
+    trigger: TriggerSpec | None = None
+    """Qué la enciende sola. `None` = solo se enciende llamando a la API.
+
+    Vive dentro de la situación y no en una lista aparte de disparadores porque
+    son la misma cosa vista dos veces, y separarlas crearía una clase entera de
+    error —el disparador que apunta a una situación que ya no existe— por ningún
+    beneficio: nadie ha pedido todavía dos disparadores para lo mismo.
+    """
+
+    @model_validator(mode="after")
+    def _only_the_eventual_can_be_triggered(self) -> SituationSpec:
+        """Una periódica con disparador es una contradicción, y silenciosa.
+
+        `begin_situation` ya rechaza encender una periódica a mano por la misma
+        razón: querría decir que quien la escribió cree que es eventual, y ese
+        malentendido no se ve en el log — la situación iría sola de todos modos y
+        el disparador parecería funcionar.
+        """
+        if self.trigger is not None and self.every:
+            raise ValueError(
+                f"situación {self.id!r}: es periódica (cada {self.every} ticks) y "
+                f"además declara un disparador. Va sola; el disparador no haría "
+                f"nada y daría a entender lo contrario"
+            )
+        return self
 
     @model_validator(mode="after")
     def _periodic_situations_actually_happen(self) -> SituationSpec:
