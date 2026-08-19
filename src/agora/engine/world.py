@@ -273,6 +273,87 @@ class Simulation:
             },
         )
 
+    def morir(self, quien: AgentId, porque: str = "a mano") -> None:
+        """Alguien deja de estar. **La primera pérdida que el motor sabe causar.**
+
+        Se llama `morir` y no `matar` a propósito: la muerte es *una* causa de
+        pérdida, no la primitiva. La ruptura y la ausencia entrarán por aquí al
+        lado el día que el mundo sepa producirlas — hoy no las produce, y eso se
+        midió antes de escribir esto: 120 días de la ciudad, 127 agentes, **cero
+        vínculos rotos**. El grafo de conocidos se completa (16 002 de 16 002) y
+        `forget_bonds` no dispara ni una vez. La muerte es la única causa con
+        combustible, así que es con la que se estrena lo general.
+
+        **Lo que se lleva, y lo que deja.** Sale del reparto pero **se queda en el
+        censo**: el mundo sigue sabiendo quién fue, que es lo que permite que los
+        demás lo recuerden con nombre. Y se le borra la memoria, porque lo que
+        una persona sabía y no dejó dicho no hay forma de consultarlo. Es la regla
+        más limpia de todo este frente y la que convierte el conocimiento en algo
+        que se puede perder de verdad.
+
+        **A quién le duele.** A cada superviviente por separado, en proporción a
+        lo que le apreciaba —`Bond.regard`—, y ahí está la propiedad que se
+        buscaba: el peso NO sale de la relación con nombre sino del afecto. Un
+        padre que nunca reconoció a su hijo tiene la relación y no el aprecio, así
+        que apenas se entera; alguien que admiraba a un desconocido tiene el
+        aprecio sin relación ninguna, y se le cae el mundo encima. Sin un solo
+        caso especial: son dos campos distintos y siempre lo fueron.
+
+        Quien no tenga vínculo no recibe nada. Una muerte que no le duele a nadie
+        no ocurre socialmente.
+
+        **Quien estaba delante se lleva además el lugar.** El recuerdo del testigo
+        arrastra dónde pasó, así que le entra por `miedo()` y puede acabar
+        rodeando ese sitio; el que se entera sin estar solo carga con la persona.
+        Es la única distinción que se puede hacer hoy sin rumores: cómo viaja una
+        noticia es el paso siguiente, y hasta que exista, *enterarse* es
+        instantáneo para todo el que tuviera vínculo.
+        """
+        difunto = self.state.agents.get(quien)
+        if difunto is None:
+            raise KeyError(
+                f"no está entre los vivos: {quien!r}. "
+                f"{'Ya murió' if self.state.existe(quien) else 'Nunca existió'}."
+            )
+        donde = difunto.at
+        memoria = self.state.memoria
+        escala = self.pack.tuning.memory_scale
+
+        # Orden fijo por id: se graban recuerdos y el olvido por capacidad
+        # desempata por `seq`, así que un orden que dependiera del hash haría
+        # divergir dos procesos con la misma semilla.
+        for otro_id in sorted(self.state.agents):
+            if otro_id == quien:
+                continue
+            deudo = self.state.agents[otro_id]
+            bond = deudo.bonds.get(quien)
+            if bond is None or bond.regard <= 0.0:
+                continue
+            testigo = deudo.at == donde
+            evento = self.log.emit(
+                tick=self.state.tick,
+                kind=EventKind.AGENT_DIED,
+                actor=otro_id,
+                # Solo para quien estaba delante. Colgarle el sitio a quien no
+                # estaba le haría rodear un lugar en el que no le pasó nada.
+                place=donde if testigo else None,
+                subject=quien,
+                data={"porque": porque, "testigo": testigo},
+            )
+            memoria.remember(
+                otro_id,
+                evento,
+                # La importancia sale del aprecio y nada más. `valencia` a -1.0
+                # fija porque toda muerte es igual de mala en dirección: lo que
+                # cambia entre dos duelos es cuánto te marca, no hacia qué lado.
+                importancia=signed_saturation(bond.regard, escala),
+                valencia=-1.0,
+            )
+
+        del self.state.agents[quien]
+        # Lo que sabía y no compartió, se va con él.
+        memoria.borrar(quien)
+
     def end_situation(self, situation: SituationId) -> None:
         """Que deje de pasar. Silencioso si no estaba pasando."""
         if situation not in self.state.situations:

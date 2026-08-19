@@ -224,9 +224,34 @@ class MemoriaEpisodica:
     """
 
     fade: float = 1.0
-    """Desdibujado por tick. 1.0 = nada se desvanece."""
+    """Desdibujado por tick del mundo. 1.0 = nada se desvanece.
+
+    Es el suelo común. Lo que cada cual desvía de aquí vive en `fade_de`.
+    """
+
+    fade_de: dict[AgentId, float] = field(default_factory=dict)
+    """El ritmo de olvido **propio** de quien lo tenga distinto del mundo.
+
+    Sale del séptimo canal de los rasgos (`memory_multipliers`), compuesto una
+    vez al nacer. Vive aquí y no en el `AgentState` por la misma razón que la
+    política de olvido: repartido entre los sitios que leen recuerdos habría
+    tres copias de la misma regla divergiendo.
+
+    Un `dict` disperso y no un valor por agente: quien no aparezca usa el del
+    mundo, así que un pack sin el canal no paga memoria por él ni cambia en nada.
+    """
 
     _por_duenyo: dict[AgentId, list[Recuerdo]] = field(default_factory=dict)
+
+    def fade_of(self, owner: AgentId) -> float:
+        """A qué ritmo olvida esta persona. El suyo si lo tiene, si no el común.
+
+        **Todo lo que lea un recuerdo tiene que pasar por aquí.** Un solo sitio
+        que se deje `self.fade` a secas dejaría a ese agente olvidando al ritmo
+        del mundo en ese cálculo y al suyo en el resto — y el síntoma sería una
+        conducta incoherente sin nada roto que encontrar.
+        """
+        return self.fade_de.get(owner, self.fade)
 
     def __len__(self) -> int:
         return sum(len(v) for v in self._por_duenyo.values())
@@ -278,10 +303,10 @@ class MemoriaEpisodica:
         guardados = self._por_duenyo.setdefault(owner, [])
         guardados.append(recuerdo)
         if len(guardados) > self.capacidad:
-            self._olvidar(guardados, event.tick)
+            self._olvidar(owner, guardados, event.tick)
         return recuerdo
 
-    def _olvidar(self, guardados: list[Recuerdo], tick: int) -> None:
+    def _olvidar(self, owner: AgentId, guardados: list[Recuerdo], tick: int) -> None:
         """Descarta el de menor valor retenido. **No el más viejo.**
 
         Es la línea que responde al riesgo que `PLAN.md` dejó anotado: *el
@@ -294,8 +319,9 @@ class MemoriaEpisodica:
         deliberación, y por el mismo motivo: sin él, dos procesos con la misma
         semilla podrían divergir.
         """
-        peor = min(range(len(guardados)), key=lambda i: (guardados[i].valor(tick, self.fade),
-                                                         guardados[i].seq))
+        fade = self.fade_of(owner)
+        peor = min(range(len(guardados)),
+                   key=lambda i: (guardados[i].valor(tick, fade), guardados[i].seq))
         del guardados[peor]
 
     def recall(self, owner: AgentId, cue: Cue, limit: int) -> tuple[Recuerdo, ...]:
@@ -321,12 +347,13 @@ class MemoriaEpisodica:
             return ()
 
         vacio = cue.vacio
+        fade = self.fade_of(owner)
         puntuados: list[tuple[float, int, Recuerdo]] = []
         for recuerdo in guardados:
             relevancia = 1 if vacio else cue.relevance(recuerdo)
             if relevancia == 0:
                 continue
-            valor = relevancia * recuerdo.valor(self._ahora(guardados), self.fade)
+            valor = relevancia * recuerdo.valor(self._ahora(guardados), fade)
             if valor <= 0.0:
                 continue
             # `-seq` en la clave: a igualdad de peso gana el más reciente, y el
@@ -362,12 +389,13 @@ class MemoriaEpisodica:
         guardados = self._por_duenyo.get(owner)
         if not guardados or escala <= 0.0:
             return {}
+        fade = self.fade_of(owner)
 
         bruto: dict[ActionId, float] = {}
         for recuerdo in guardados:
             if recuerdo.action is None or recuerdo.valencia >= 0.0:
                 continue
-            peso = -recuerdo.valencia * recuerdo.valor(tick, self.fade)
+            peso = -recuerdo.valencia * recuerdo.valor(tick, fade)
             if peso > 0.0:
                 bruto[recuerdo.action] = bruto.get(recuerdo.action, 0.0) + peso
         return {accion: signed_saturation(v, escala) for accion, v in bruto.items()}
@@ -396,6 +424,7 @@ class MemoriaEpisodica:
         guardados = self._por_duenyo.get(owner)
         if not guardados or escala <= 0.0:
             return {}
+        fade = self.fade_of(owner)
 
         bruto: dict[PlaceId, float] = {}
         for recuerdo in guardados:
@@ -403,10 +432,73 @@ class MemoriaEpisodica:
                 continue
             if recuerdo.culpable is None or recuerdo.valencia >= 0.0:
                 continue
-            peso = -recuerdo.valencia * recuerdo.valor(tick, self.fade)
+            peso = -recuerdo.valencia * recuerdo.valor(tick, fade)
             if peso > 0.0:
                 bruto[recuerdo.place] = bruto.get(recuerdo.place, 0.0) + peso
         return {lugar: signed_saturation(v, escala) for lugar, v in bruto.items()}
+
+    def borrar(self, owner: AgentId) -> None:
+        """Todo lo que este agente recordaba deja de existir.
+
+        **La regla de la información que muere con quien la sabía.** Lo que una
+        persona vio y no contó no queda en ninguna parte: no hay a quién
+        preguntárselo. Es lo que convierte el conocimiento en algo que se puede
+        perder, y de paso lo que hará que valga la pena contarlo o dejarlo
+        escrito cuando existan los rumores.
+
+        No toca lo que **otros** recuerdan de él, que es suyo y no se va con
+        nadie. Ni su ritmo de olvido en `fade_de`: cuesta nada y borrarlo
+        obligaría a rehacerlo si alguna vez alguien vuelve — un no-muerto, un
+        resucitado, una biografía que se reabre.
+        """
+        self._por_duenyo.pop(owner, None)
+
+    def duelo(self, owner: AgentId, tick: int, escala: float) -> dict[AgentId, float]:
+        """Cuánto le duele hoy la ausencia de cada cual. Valores [0, 1).
+
+            duelo[persona] = saturación( Σ |valencia negativa| · valor(hoy), escala )
+
+        **Tercer índice, y el primero sobre un eje distinto.** `rencor` mira lo
+        que HICISTE y `miedo` DÓNDE estabas; los dos parten la memoria por
+        `action` y no se solapan nunca, que es como evitan contar dos veces el
+        mismo suceso. Este mira A QUIÉN, y *quién* es ortogonal a las otras dos:
+        una pérdida ocurrida en un sitio pesa aquí por la persona y en `miedo`
+        por el lugar.
+
+        **Eso no es contar dos veces**, y la distinción importa: no son dos
+        penalizaciones sobre la misma decisión, son dos decisiones distintas. El
+        miedo aparta de un lugar; el duelo no aparta de nada, porque de un
+        ausente no se puede uno apartar. Duele y ya.
+
+        Y ahí está la razón de que este índice no vete ni encarezca nada por su
+        cuenta. Lo que hace que dos duelos se vivan distinto no es una lógica de
+        duelo —eso sería encasillarlo— sino de qué se acompañe el recuerdo:
+
+        - si no arrastra lugar ni acción, duele y se pasa
+        - si arrastra los sitios que compartían, `miedo` le cambia la rutina
+        - si arrastra lo que hacían juntos, `rencor` se lo hace cuesta arriba
+        - y **cuánto le dura** es suyo, por `memory_multipliers`
+
+        Cuatro vidas distintas sin una sola rama escrita para el duelo.
+
+        Exige `action is None` por la misma razón que `miedo`: lo que uno hizo es
+        suyo, y una pérdida no es una decisión de quien la sufre.
+        """
+        guardados = self._por_duenyo.get(owner)
+        if not guardados or escala <= 0.0:
+            return {}
+        fade = self.fade_of(owner)
+
+        bruto: dict[AgentId, float] = {}
+        for recuerdo in guardados:
+            if recuerdo.about is None or recuerdo.action is not None:
+                continue
+            if recuerdo.valencia >= 0.0:
+                continue
+            peso = -recuerdo.valencia * recuerdo.valor(tick, fade)
+            if peso > 0.0:
+                bruto[recuerdo.about] = bruto.get(recuerdo.about, 0.0) + peso
+        return {quien: signed_saturation(v, escala) for quien, v in bruto.items()}
 
     @staticmethod
     def _ahora(guardados: list[Recuerdo]) -> int:

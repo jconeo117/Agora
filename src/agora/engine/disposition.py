@@ -148,6 +148,46 @@ def compose_caps(
     return {need_id: min(1.0, tope) for need_id, tope in caps.items()}
 
 
+def compose_memory_fade(
+    pack: ContentPack, traits: Mapping[TraitId, float], base: float
+) -> float:
+    """Cuánto le **dura** a este agente lo que recuerda. Séptimo canal.
+
+    Nació de una petición que el motor no podía cumplir: *que el duelo no esté
+    encasillado — uno lo supera en dos semanas y otro cambia de vida*. Con un
+    `memory_fade` único en el pack eso era imposible por construcción; los 127
+    olvidaban al mismo ritmo, así que la única diferencia posible entre dos
+    duelos era cuánto pesaban al empezar, nunca cuánto duraban.
+
+    **Y no se compone multiplicando.** Es el primer canal que no puede, y por
+    aritmética, no por gusto: un fade es la fracción que sobrevive cada tick, así
+    que `0.9997 * 2` da 1.9994 — que no significa *recuerda el doble* sino *no
+    olvida jamás*, y encima se sale del rango válido. Lo que hay que duplicar es
+    la **media vida**, y eso es un exponente:
+
+        fade_efectivo = base ** (1 / multiplicador)
+
+    Con multiplicador 2 el recuerdo tarda el doble en desdibujarse; con 0.5, la
+    mitad. En 1.0 no pasa nada. Es la misma respuesta que ya dio el motor cuando
+    la intensidad de un rasgo tuvo que poder neutralizar e invertir un canal:
+    cuando el efecto vive en un exponente, la composición también.
+
+    Se recorta a `(0, 1]`: nadie recuerda mejor que perfectamente.
+    """
+    if base >= 1.0:
+        # Un mundo sin desdibujado no lo estrena por tener rasgos: `1.0 ** x` es
+        # 1.0 para cualquier x, pero decirlo aquí ahorra la duda al leerlo.
+        return 1.0
+    factor = 1.0
+    for trait_id in sorted(traits):
+        multiplier = pack.trait_by_id[trait_id].memory_multipliers
+        if multiplier != 1.0:
+            factor *= multiplier ** traits[trait_id]
+    if factor <= 0.0:
+        return base
+    return min(1.0, float(base ** (1.0 / factor)))
+
+
 def compose_phase_shift(pack: ContentPack, traits: Mapping[TraitId, float]) -> int:
     """Cuánto adelanta o atrasa el reloj interno de este agente, en ticks.
 

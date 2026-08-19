@@ -22,6 +22,7 @@ from agora.engine.disposition import (
     compose_caps,
     compose_costs,
     compose_gains,
+    compose_memory_fade,
     compose_need_weights,
     compose_phase_shift,
     compose_tastes,
@@ -1131,6 +1132,15 @@ class WorldState:
             memoria=MemoriaEpisodica(
                 capacidad=pack.tuning.memory_capacity,
                 fade=pack.tuning.memory_fade,
+                # Disperso: solo quien se desvíe del ritmo del mundo. Un pack sin
+                # el séptimo canal deja esto vacío y se comporta como siempre.
+                fade_de={
+                    spec.id: propio
+                    for spec in pack.agents
+                    if (propio := compose_memory_fade(
+                        pack, spec.traits, pack.tuning.memory_fade
+                    )) != pack.tuning.memory_fade
+                },
             ),
         )
 

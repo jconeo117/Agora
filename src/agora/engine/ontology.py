@@ -398,6 +398,31 @@ class TraitSpec(Spec):
     encima, y ahí caben desde el humano hasta el demonio que no tiene techo.
     """
 
+    memory_multipliers: PositiveFactor = 1.0
+    """Séptimo canal: **cuánto le DURA**. Multiplica la media vida de lo que
+    recuerda.
+
+    Un número suelto y no un diccionario, a diferencia de los seis anteriores.
+    Los otros canales dicen algo por eje —te importa el descanso, se te da bien
+    pelear— pero olvidar despacio no es una propiedad de *qué* recuerdas: es
+    tuya. Partirlo por eje sería inventar una precisión que nadie puede escribir.
+
+    **Existe por una limitación real y medible.** `memory_fade` es un solo número
+    del pack, así que hasta este canal los 127 habitantes olvidaban al mismo
+    ritmo exacto. Con eso, dos duelos solo podían diferenciarse en cuánto pesaban
+    el primer día —jamás en cuánto duraban— y quedaba fuera del motor la mitad
+    de lo que significa perder a alguien: que uno lo supera en dos semanas y otro
+    reordena su vida entera.
+
+    Ojo con la dirección, porque es la contraria a la intuición: **más grande =
+    recuerda más tiempo**. El multiplicador no escala el fade, escala la media
+    vida; la aritmética vive en `compose_memory_fade` y es un exponente, no un
+    producto, porque un fade multiplicado se sale de rango.
+
+    En 1.0 no hace nada, que es el defecto y lo que garantiza que estrenar el
+    canal no mueva ningún contrato ya medido.
+    """
+
     phase_shift: int = Field(default=0)
     """Tercer canal: cuánto se desplaza el reloj INTERNO de esta persona.
 
@@ -1832,3 +1857,23 @@ class TuningSpec(Spec):
     fear_scale: float = Field(default=1.0, gt=0.0)
     """Cuánto pavor acumulado equivale a medio miedo. Mismo papel que
     `regret_scale`, sobre el otro eje."""
+
+    grief_scale: float = Field(default=0.0, ge=0.0)
+    """Cuánto dolor acumulado equivale a medio duelo. **0.0 desactiva `duelo()`.**
+
+    Tercer eje, y el único de los tres que **no tiene un `_weight` al lado**. La
+    ausencia es deliberada y es la mitad del diseño.
+
+    `regret_weight` encarece una acción y `fear_weight` encarece un viaje: los
+    dos existen porque de una acción y de un lugar uno puede apartarse. **De un
+    ausente no.** Un `grief_weight` tendría que responder a *"¿el duelo encarece
+    qué?"*, y cualquier respuesta que se escribiera aquí sería inventarse una
+    forma única de vivirlo — justo lo que el motor no debe hacer.
+
+    Lo que diferencia dos duelos no es una perilla del pack: es de qué viene
+    acompañado el recuerdo y cuánto le dura a cada cual (`memory_multipliers`).
+    Ver `MemoriaEpisodica.duelo`.
+
+    Así que esto es una **lente**: mide lo que hay, para el panel de salud y para
+    el narrador de F5, sin decidir por nadie.
+    """

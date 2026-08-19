@@ -73,6 +73,19 @@ class EventKind(StrEnum):
 
     RELATION_ENDED = "relation_ended"
 
+    AGENT_DIED = "agent_died"
+    """Alguien deja de estar. `actor` es quien se entera; `subject`, el muerto.
+
+    Se emite **una vez por superviviente que lo pierde**, y no una sola vez para
+    todo el mundo, porque una muerte no es un hecho del mundo sino algo que le
+    pasa a cada cual por separado: el mismo entierro es una tragedia para uno y
+    una noticia lejana para otro. Con un evento único no habría dónde colgar esa
+    diferencia — y esa diferencia es todo el mecanismo.
+
+    Un muerto a quien nadie apreciaba no emite ninguno. Es correcto y conviene
+    verlo escrito: **una muerte que no le duele a nadie no ocurre socialmente.**
+    """
+
     SITUATION_BEGAN = "situation_began"
     """Al mundo le empezó a pasar algo. Solo las eventuales lo emiten: una
     periódica es una función del reloj y anunciarla sería anunciar que amaneció
