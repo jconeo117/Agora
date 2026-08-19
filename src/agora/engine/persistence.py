@@ -59,7 +59,8 @@ class SaveError(ValueError):
 
 
 def _bond_a_dict(bond: Bond) -> dict[str, Any]:
-    return {"regard": bond.regard, "encounters": bond.encounters, "last_seen": bond.last_seen}
+    return {"regard": bond.regard, "encounters": bond.encounters,
+            "shared": bond.shared, "last_seen": bond.last_seen}
 
 
 def _recuerdo_a_lista(r: Recuerdo) -> list[Any]:
@@ -282,8 +283,11 @@ def _dict_a_agente(datos: dict[str, Any], pack: ContentPack) -> AgentState:
             if a in conocidos_accion
         },
         bonds={
+            # `shared` llego despues: un guardado sin el se lee como gente que se
+            # conocia sin haber compartido nada, que es lo que el motor sabia
+            # decir entonces.
             AgentId(k): Bond(regard=v["regard"], encounters=v["encounters"],
-                             last_seen=v["last_seen"])
+                             shared=v.get("shared", 0), last_seen=v["last_seen"])
             for k, v in datos["bonds"].items()
         },
         relations={

@@ -127,6 +127,27 @@ def compose_costs(
     return costs
 
 
+def compose_caps(
+    pack: ContentPack, traits: Mapping[TraitId, float]
+) -> dict[NeedId, float]:
+    """EL TECHO de este agente en cada eje. Parte del `cap` que declara el pack.
+
+    Es el unico de los canales que NO arranca en 1.0: arranca en lo que la
+    necesidad diga que alcanza cualquiera, y los rasgos lo suben desde ahi. Un
+    mundo sin `cap` declarado se comporta como siempre, porque el defecto es 1.0.
+
+    Se recorta a 1.0 al final. Un don enorme no saca a nadie del rango en que
+    viven las necesidades, solo le deja llegar al final de el.
+    """
+    caps: dict[NeedId, float] = {need.id: need.cap for need in pack.needs}
+    for trait_id in sorted(traits):
+        trait = pack.trait_by_id[trait_id]
+        intensity = traits[trait_id]
+        for need_id, multiplier in trait.cap_multipliers.items():
+            caps[need_id] *= multiplier**intensity
+    return {need_id: min(1.0, tope) for need_id, tope in caps.items()}
+
+
 def compose_phase_shift(pack: ContentPack, traits: Mapping[TraitId, float]) -> int:
     """Cuánto adelanta o atrasa el reloj interno de este agente, en ticks.
 
@@ -148,8 +169,8 @@ def compose_phase_shift(pack: ContentPack, traits: Mapping[TraitId, float]) -> i
     return round(total) % pack.clock.ticks_per_day
 
 
-def urgency(value: float, exponent: float) -> float:
-    """Cuánto apremia una necesidad, dado lo llena que está.
+def urgency(value: float, exponent: float, cap: float = 1.0) -> float:
+    """Cuánto apremia una necesidad, dado lo llena que está **para quien es**.
 
     La curva es el motivo de que los agentes no parezcan termostatos. Con
     exponente 1 todo compite linealmente y el agente atiende cinco cosas a
@@ -162,10 +183,22 @@ def urgency(value: float, exponent: float) -> float:
     que necesita valorar lo ocurrido con la misma vara con que se decidió — si
     fueran dos curvas distintas, el agente aprendería con un criterio que no es
     el suyo.
+
+    **`cap` es el techo de ESTE agente en ESTE eje**, y sin él un tope sería una
+    trampa en vez de un limite. Con techo 0.5, alguien que ya esta en 0.5 lo ha
+    dado todo — pero medido contra 1.0 seguiria sintiendo la mitad del apremio, y
+    se pasaria la vida entrenando algo que no puede mejorar. Normalizado, llegar a
+    tu techo se siente como llenarse: la urgencia cae a cero y el agente se
+    dedica a otra cosa.
+
+    Por defecto vale 1.0, que es el mundo de siempre. Solo lo pasan los sitios
+    que tienen delante al agente y por tanto saben cual es su techo.
     """
     # `float(...)` explícito: para typeshed, `**` puede devolver un complejo
     # (base negativa, exponente fraccionario). El `max` ya lo impide aquí.
-    return float(max(0.0, 1.0 - value) ** exponent)
+    if cap <= 0.0:
+        return 0.0
+    return float(max(0.0, 1.0 - value / cap) ** exponent)
 
 
 @dataclass(frozen=True, slots=True)

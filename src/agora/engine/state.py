@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from agora.engine.disposition import (
     Temperament,
+    compose_caps,
     compose_costs,
     compose_gains,
     compose_need_weights,
@@ -151,11 +152,29 @@ class Bond:
     exactamente igual: la diferencia entre ambos la marca `encounters`."""
 
     encounters: int = 0
-    """Cuántas veces se han cruzado. No entra en ninguna fórmula todavía.
+    """Cuántas veces se han **cruzado**. Co-presencia, nada más.
 
     Está porque responde lo único que `regard` no puede: si os conocéis. Un
     aprecio de 0.0 es a la vez el desconocido y el vecino que te resulta
     indiferente, y el narrador de F5 no puede tratarlos igual.
+    """
+
+    shared: int = 0
+    """Cuántas veces han **compartido algo**. Ni una sola por cruzarse.
+
+    Cruzarse y convivir son cosas distintas, y con un solo contador no se pueden
+    separar: dos que se ven cien veces sin dirigirse la palabra se distinguen —
+    saben que el otro existe— y no hay nada más entre ellos; dos que se ven veinte
+    y comparten diez tienen algo. Sin este campo, la única diferencia visible
+    entre esos dos pares era el aprecio, que mezcla **cuánto** valió con
+    **cuántas veces** ocurrió.
+
+    Lo destapó una corrida larga: doscientos agentes, año y medio, y cada uno
+    acababa con ciento noventa y nueve vínculos de aprecio +0.03. El motor estaba
+    haciendo lo correcto —reconocer sin apreciar— y no había forma de leerlo.
+
+    Solo lo toca `remember_company`, que se dispara al TERMINAR una acción que el
+    pack declara compartida. `meet` no lo toca jamás.
     """
 
     last_seen: int = 0
@@ -276,6 +295,18 @@ class AgentState:
     descanso y lo recupera despacio es una persona concreta, no una
     contradicción — y quien tiene mano para el arcano sin que le interese,
     también."""
+
+    caps: dict[NeedId, float] = field(default_factory=dict)
+    """DERIVADO de `traits` y del `cap` del pack: EL TECHO de esta persona.
+
+    Hasta dónde puede llegar en cada eje. Lo ausente vale 1.0, así que un pack
+    que no declare techos se comporta exactamente como antes.
+
+    Es el único límite del motor que es **de la persona y no del mundo**, y por
+    eso vive aquí y no en la necesidad. Que dos agentes con la misma ficha salvo
+    un rasgo tengan techos distintos en el mismo eje es justo lo que el sistema
+    de afinidades pedía y ninguna otra perilla podía decir.
+    """
 
     costs: dict[NeedId, float] = field(default_factory=dict)
     """DERIVADO de `traits`: el TEMPLE de esta persona en cada eje.
@@ -437,6 +468,7 @@ class AgentState:
             phase_shift=compose_phase_shift(pack, spec.traits),
             gains=compose_gains(pack, spec.traits),
             costs=compose_costs(pack, spec.traits),
+            caps=compose_caps(pack, spec.traits),
             strain=strain,
             temperament=compose_temperament(pack, spec.traits, strain),
             # Lo declarado, tal cual. Las simetrías las cierra `WorldState.new`,
@@ -605,6 +637,7 @@ class AgentState:
                 bond = Bond()
                 self.bonds[other] = bond
             bond.regard += rate * (target - bond.regard)
+            bond.shared += 1
             bond.last_seen = tick
 
     def meet(self, other: AgentId, tick: int) -> None:
@@ -706,6 +739,7 @@ class AgentState:
         self.phase_shift = compose_phase_shift(pack, self.traits)
         self.gains = compose_gains(pack, self.traits)
         self.costs = compose_costs(pack, self.traits)
+        self.caps = compose_caps(pack, self.traits)
         self.temperament = compose_temperament(pack, self.traits, self.strain)
 
     # -- necesidades ----------------------------------------------------------
@@ -838,7 +872,7 @@ class AgentState:
         raw = self.needs[need_id] - amount
         if raw < 0.0 and max_debt > 0.0:
             self.debt[need_id] = min(max_debt, self.debt.get(need_id, 0.0) - raw)
-        self.needs[need_id] = self._clamp(raw)
+        self.needs[need_id] = self._clamp(need_id, raw)
 
     def gain(self, need_id: NeedId, amount: float) -> float:
         """`restore` anotando en el libro. Es la puerta por la que entra lo que
@@ -868,7 +902,7 @@ class AgentState:
         if amount <= 0.0:
             return 0.0
         before = self.needs[need_id]
-        self.needs[need_id] = self._clamp(before + amount)
+        self.needs[need_id] = self._clamp(need_id, before + amount)
         return self.needs[need_id] - before
 
     def deficit(self, need_id: NeedId) -> float:
@@ -885,7 +919,12 @@ class AgentState:
         """Registra que acaba de hacer esto. `gain` 0 no deja rastro."""
         if gain <= 0.0:
             return
-        self.saturation[action] = self._clamp(self.saturation.get(action, 0.0) + gain)
+        # A mano y no por `_clamp`: el hastio no es una necesidad y no tiene
+        # techo por persona. Que alguien pueda llegar mas lejos con el fuego no
+        # significa que se canse distinto de repetirlo.
+        self.saturation[action] = max(
+            0.0, min(1.0, self.saturation.get(action, 0.0) + gain)
+        )
 
     def recover_novelty(self, rate: float) -> None:
         """Disipa el hastío. Lo que llega a cero se olvida.
@@ -902,14 +941,17 @@ class AgentState:
             else:
                 self.saturation[action] = resto
 
-    @staticmethod
-    def _clamp(value: float) -> float:
-        """El ÚNICO sitio donde se fuerza el rango [0, 1].
+    def _clamp(self, need_id: NeedId, value: float) -> float:
+        """El ÚNICO sitio donde se fuerza el rango. Una sola puerta.
 
         Si el clamp se dispersa, un día una necesidad vale 1.4 y pasas dos horas
-        buscando quién la dejó así. Una sola puerta.
+        buscando quién la dejó así.
+
+        El suelo es 0 para todos; el techo es **de cada cual**. Que reciba el eje
+        es lo que hizo falta al aparecer los techos por rasgo: un mago con el
+        viento aprendido no puede pasar de su tope aunque practique una década.
         """
-        return max(0.0, min(1.0, value))
+        return max(0.0, min(self.caps.get(need_id, 1.0), value))
 
     # -- ocupación ------------------------------------------------------------
 

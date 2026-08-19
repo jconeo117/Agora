@@ -128,7 +128,9 @@ def _weigh(
     total = 0.0
     for need_id, amount in terms.items():
         need = pack.need_by_id[need_id]
-        pressure = urgency(agent.needs[need_id], need.urgency_exponent)
+        pressure = urgency(
+            agent.needs[need_id], need.urgency_exponent, agent.caps.get(need_id, 1.0)
+        )
         total += weights[need_id] * pressure * amount * beliefs.get(need_id, 1.0)
     return total
 
@@ -281,7 +283,9 @@ def toll_cost(
     total = 0.0
     for need_id, amount in toll.items():
         need = pack.need_by_id[need_id]
-        pressure = urgency(agent.needs[need_id], need.urgency_exponent)
+        pressure = urgency(
+            agent.needs[need_id], need.urgency_exponent, agent.caps.get(need_id, 1.0)
+        )
         total += weights[need_id] * pressure * amount
     return total
 

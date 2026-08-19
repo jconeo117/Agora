@@ -197,6 +197,25 @@ class NeedSpec(Spec):
     encima de 1 se desinfla en cuanto se dan los primeros pasos.
     """
 
+    cap: float = Field(default=1.0, gt=0.0, le=1.0)
+    """Hasta dónde llega este eje para **quien no tiene nada especial**. 1.0 = sin
+    techo, que es el mundo de siempre.
+
+    Existe porque un ritmo no es un techo, y confundirlos rompe cualquier sistema
+    de progresión en cuanto la corrida es larga. Con `gain_multipliers` bajo se
+    tarda más en llegar a 1.0; con tiempo suficiente **todo el mundo llega**. Se
+    midió: doscientos agentes, año y medio, y los doscientos acabaron al máximo
+    del eje de dominio. Bajar la tasa solo habría movido la fecha.
+
+    Un techo, en cambio, es escala-invariante: a los diez años la distribución
+    sigue abierta, porque quién llega adonde deja de ser cuestión de tiempo y
+    pasa a ser cuestión de quién eres.
+
+    Se declara BAJO y los rasgos lo suben (`TraitSpec.cap_multipliers`), no al
+    revés. Es lo que hace que el sistema diga lo que quiere decir: cualquiera
+    puede aprender algo hasta cierto punto, y solo quien tiene el don lo pasa.
+    """
+
     @property
     def can_be_critical(self) -> bool:
         """Un eje de progresion nunca lo es, digan lo que digan sus campos."""
@@ -348,6 +367,35 @@ class TraitSpec(Spec):
     y lo que te hace una situación. No toca los peajes —un porte vale lo que
     vale, no menos por ser tú— ni el decaimiento, que es el reloj del cuerpo y
     tiene su propio canal en la aptitud.
+    """
+
+    cap_multipliers: dict[NeedId, PositiveFactor] = Field(default_factory=dict)
+    """Sexto canal: **el don**. Hasta dónde puede llegar esta persona en un eje.
+
+        need_weight_multipliers  ->  cuánto le IMPORTA
+        gain_multipliers         ->  cuánto le CUNDE lo que gana
+        cost_multipliers         ->  cuánto le DUELE lo que gasta
+        cap_multipliers          ->  hasta DÓNDE puede llegar
+
+    Multiplica el `cap` que declara la necesidad, y el resultado se recorta a 1.0
+    — nadie pasa del tope del mundo por muy dotado que sea.
+
+    **Sube un techo bajo; no baja uno alto**, y esa dirección es la que hace que
+    el sistema diga lo que quiere decir. La necesidad declara lo que alcanza
+    cualquiera con empeño; el rasgo dice quién lo pasa. Al revés —techo alto que
+    los rasgos bajan— habría que enumerar en cada persona todo lo que NO se le da
+    bien, que es infinito.
+
+    Y de ahí sale, sin caso especial, la regla de una afinidad de nacimiento
+    frente a una aprendida. Con `cap` 0.35 en el eje y un multiplicador de 2.8:
+
+        de nacimiento (intensidad 1.00)  ->  0.35 * 2.8      = 0.98
+        aprendida     (intensidad 0.35)  ->  0.35 * 2.8**.35 = 0.50
+
+    El mismo rasgo, la misma aritmética de siempre —el multiplicador elevado a la
+    intensidad— y el resultado es que con tu elemento llegas a lo más alto y con
+    el que estudiaste te quedas a mitad de camino. Una raza mueve ese número
+    encima, y ahí caben desde el humano hasta el demonio que no tiene techo.
     """
 
     phase_shift: int = Field(default=0)
