@@ -62,6 +62,7 @@ Reloj: **1 tick = 15 minutos**, 96 ticks por día.
 | `--jsonl F` | vierte el log según ocurre, en streaming |
 | `--save` / `--load` | guarda y reanuda la partida |
 | `--health` | mide el mundo y contrasta el contrato que el pack declara |
+| `--divergence N` | corre N semillas y mide cuánto pesa el azar frente al carácter |
 
 ---
 
@@ -90,10 +91,25 @@ utilidad  = beneficio · descuento_viaje · gustos · novedad · compañía · h
 
 ### Ser alguien
 
-- **Rasgos** con cuatro canales: cuánto le importa cada necesidad, cómo decide
-  (temperamento), cuánto le cunde lo que hace (aptitud) y cuánto va adelantado
-  su reloj interno (cronotipo). La intensidad es un exponente: 0 neutraliza, −1
+- **Rasgos** con seis canales. La intensidad es un exponente: 0 neutraliza, −1
   invierte.
+
+  | canal | qué dice |
+  |---|---|
+  | `need_weight_multipliers` | cuánto le **importa** cada eje |
+  | `gain_multipliers` | cuánto le **cunde** lo que gana (aptitud) |
+  | `cost_multipliers` | cuánto le **duele** lo que gasta (temple) |
+  | `cap_multipliers` | hasta **dónde** puede llegar (el don) |
+  | `temperament_multipliers` | cómo **decide** |
+  | `phase_shift` | cuánto va adelantado su **reloj interno** |
+
+  Los dos últimos en llegar —**temple** y **techo**— salieron de un sistema de
+  magia. Una reserva grande no es más que *cada conjuro me drena menos*; y un
+  techo resultó ser lo único
+  que hace que una progresión signifique algo en una corrida larga — con un
+  ritmo bajo se tarda más en llegar al máximo, pero **con tiempo suficiente
+  llega todo el mundo**. Medido: doscientos agentes, año y medio, y los
+  doscientos al tope del mismo eje.
 - **Temperamento** en cinco perillas —azar, aversión al precio, umbral de
   pánico, peso de la distancia y cuánto le atrae la gente— compuestas del mundo,
   de los rasgos y del desgaste actual.
@@ -107,10 +123,30 @@ utilidad  = beneficio · descuento_viaje · gustos · novedad · compañía · h
 - **Metas** con plazo, que al cumplirse o al vencer mueven rasgos. Diez rutinas
   pasan a ser diez historias.
 
+### Recordar lo que pasó
+
+- **Memoria episódica**: hechos con fecha, sitio, culpable y valencia. Cada
+  recuerdo se guarda **entero** —no un puntero a un log que la persistencia
+  poda— y se olvida por lo que aún vale, no por antigüedad: lo importante dura.
+- **Arrepentimiento**: lo que salió mal encarece *esa acción* para *quien la
+  vivió*. Es memoria, no castigo del mundo: acota, nunca veta. El beneficio
+  crece con la urgencia y el escarmiento no, así que el hambre siempre acaba
+  ganando a la mala experiencia.
+- **Miedo a sitios**: donde te pasó algo malo que no fue culpa tuya. Se cobra en
+  el viaje, no en la acción — se rodea el lugar, no se deja de comer.
+
+Las tres se apagan por pack. En `ciudad` van apagadas **tras medirlo**: el
+arrepentimiento homogeneizaba porque todos se llevaban el mismo chasco, y el
+miedo tenía la señal contaminada. El motor sabe hacer más cosas de las que este
+mundo le pide, y eso se documenta en vez de esconderse.
+
 ### Estar con otros
 
 - **Vínculos** asimétricos: cada uno guarda el suyo y no tienen por qué
   coincidir. Nacen de compartir ratos, se desdibujan sin trato y se olvidan.
+- **Cruzarse no es convivir.** Se cuentan aparte los encuentros y los ratos
+  compartidos: dos que coinciden cien veces sin dirigirse la palabra se
+  distinguen y nada más; dos que coinciden veinte y comparten diez son amigos.
 - **Relaciones con nombre** —pareja, hermano, maestro— que son otra cosa: *un
   vínculo es lo que sientes; una relación es lo que eres de alguien*. No crecen
   con el trato, no se disuelven por dejar de verse y **no se olvidan**.
@@ -127,6 +163,9 @@ utilidad  = beneficio · descuento_viaje · gustos · novedad · compañía · h
 - **Franjas del día** y **cronotipo**: el horario del mundo es objetivo, el del
   cuerpo es subjetivo. El ave nocturna trabaja de madrugada.
 - **Ejes de progresión**: números que solo suben y nunca son una emergencia.
+  Cada uno con su **techo por persona**, y el apremio medido contra ese techo:
+  quien ya dio todo lo que podía deja de perseguir ese eje y gasta el tiempo en
+  otra cosa, en vez de entrenar de por vida algo que no va a mejorar.
 
 ### Tener mundo
 
@@ -135,7 +174,16 @@ utilidad  = beneficio · descuento_viaje · gustos · novedad · compañía · h
   quien camina.
 - **Situaciones**: estados del mundo con nombre que van y vienen. Periódicas
   (estaciones, ferias) o eventuales (guerra, derrumbe, oleada). Multiplican lo
-  que rinde, lo que apetece, y pueden cerrar un lugar.
+  que rinde, lo que apetece, pueden cerrar un lugar y **hacer daño directo** a
+  quien esté dentro. Un cuarto canal, y el que las vuelve peligrosas: hasta
+  tenerlo, una ventisca solo encarecía cosas.
+  El daño se archiva como **pasivo** —te pasó, no lo hiciste— para que la
+  memoria no lo confunda con una mala decisión propia.
+- **Disparadores**: una situación puede arrancar sola cuando el mundo cumple una
+  condición, en vez de por calendario o por guion. Es lo que separa *"en
+  invierno hay ventiscas"* de *"la sima se desborda si nadie baja a limpiarla"*.
+  El salto temporal los evalúa por tramos, no por tick, para que `--skip 14` no
+  los apague sin avisar.
 
 ### Durar
 
@@ -152,7 +200,8 @@ utilidad  = beneficio · descuento_viaje · gustos · novedad · compañía · h
 
 ## Estado
 
-**F0 completo. F1 completo salvo memoria episódica y arrepentimiento.**
+**F0 y F1 completos.** El motor determinista está entero: nada de lo que queda
+por hacer en F2–F6 puede empezar sin él, y ya no lo bloquea.
 
 | | Fase | Contenido |
 |---|------|-----------|
@@ -169,16 +218,48 @@ utilidad  = beneficio · descuento_viaje · gustos · novedad · compañía · h
 | ✅ | F1.9 | metas y arcos, ejes de progresión, aptitud y puertas por rasgo |
 | ✅ | F1.10 | persistencia, salto temporal, log acotado |
 | ✅ | F1.11 | situaciones y relaciones con nombre |
-| ⬜ | F1.12 | memoria episódica (`MemoryStore`) y arrepentimiento |
+| ✅ | F1.12 | memoria episódica, arrepentimiento y miedo a lugares |
+| ✅ | F1.13 | disparadores, situaciones que dañan, techos, temple y el lazo que se gana |
 | ⬜ | F2 | diálogo y reflexión. Router LLM local/API |
 | ⬜ | F3 | el LLM planifica el día, valida, cae a fallback |
 | ⬜ | F4 | el jugador entra como un NPC más. Entra `RuleSystem` |
 | ⬜ | F5 | narrador/DM + RAG de lore |
 | ⬜ | F6 | DM director: ajusta ritmo y cámara, jamás resultados |
 
-Los frentes de mundo pendientes —descendencia, propiedad, facciones,
-disparadores, psicología ampliada— viven en `PLAN.md`, con lo que cada uno
-desbloquea y qué lo bloquea.
+## Lo siguiente: el censo deja de ser fijo
+
+Hoy **nadie puede nacer y nadie puede morir**. El reparto se fija al cargar el
+pack y no cambia: cada `AgentState` guarda un `spec_id` que apunta a una ficha
+del YAML, y **diecisiete puntos del código** dan por hecho que esa ficha existe
+—el render, las metas, la salud, la persistencia—. Un agente creado en marcha no
+tiene ficha, así que hoy no puede existir.
+
+Es el siguiente paso porque es lo que bloquea casi todo lo demás:
+
+| Bloqueado | Necesita |
+|---|---|
+| edad, ventanas de aprendizaje, veteranía | que el tiempo cuente para alguien |
+| herencia, linajes, casas que se especializan | descendencia |
+| lo irreversible (muerte, ruina, exilio) | que el censo mengüe |
+| invocar, reclutar, fundar | que el censo crezca |
+
+Y porque resuelve el hallazgo que dejó la última campaña: **hoy nada es
+irreversible**. Hay crisis —del 8 % al 15 % del tiempo— pero una crisis se pasa:
+se come, se duerme, se sigue. Un mundo sin nada que perder no alimenta la
+maquinaria que ya existe, y es la razón de que arrepentimiento y miedo vayan
+apagados en `ciudad`. La mortalidad no es una función más: es lo que le da
+precio a equivocarse.
+
+Primer corte, en este orden:
+
+1. **Censo mutable.** Que un agente pueda existir sin ficha de pack. Es la parte
+   difícil y no cambia ninguna conducta: los mismos 686 tests deben pasar igual.
+2. **Muerte.** Salir del censo sin romper los vínculos de quien se queda —el
+   recuerdo debe sobrevivir a la persona.
+3. **Edad y descendencia**, ya sobre terreno firme.
+
+El resto de frentes —propiedad, facciones, ánimos, aforo— y qué desbloquea cada
+uno viven en `PLAN.md`.
 
 ## Arquitectura
 
@@ -191,6 +272,7 @@ src/agora/
     state.py        estado mutable de una partida, y el libro de calibración
     disposition.py  quién es este agente en números
     outcome.py      qué le pasó y qué concluye
+    memory.py       lo que recuerda: qué pasó, dónde, por culpa de quién
     topology.py     grafo, distancias precomputadas, conexidad fuerte
     events.py       registro append-only, con ventana, vertido y recuento
     world.py        el tick loop
@@ -206,8 +288,14 @@ src/agora/
 ```
 
 **Costuras reservadas** en `engine/ports.py`, vacías a propósito:
-`MemoryStore` (F1.12), `CognitionProvider` (F2), `RuleSystem` (F4). Se
-definieron antes de necesitarlas para que el motor se construya contra ellas.
+`CognitionProvider` (F2) y `RuleSystem` (F4). Se definieron antes de
+necesitarlas para que el motor se construya contra ellas.
+
+`MemoryStore` era la tercera y ya está implementada — y la firma reservada
+resultó **equivocada en tres cosas**, todas anotadas en el puerto: guardaba un
+`event_id` a un log que la ventana poda, una `cue: str` que obligaba a comparar
+texto, y devolvía `list[int]` en vez de recuerdos. Reservar una costura ayuda;
+adivinar su forma antes de tener el caso de uso, no.
 
 ## Garantías
 
@@ -218,15 +306,27 @@ Verificadas por la batería de tests, no por convención:
 - El orden de consumo del RNG no afecta al resultado: cada sorteo sale de
   `blake2b(semilla, agente, tick)`. Es lo que hace que reanudar una partida sea
   exacto.
-- Todo valor de necesidad queda en `[0, 1]`, y la deuda guarda aparte lo que el
-  suelo recortaría.
+- Todo valor de necesidad queda en `[0, 1]` —o bajo el techo de esa persona, si
+  su pack declara uno— y la deuda guarda aparte lo que el suelo recortaría.
 - Nadie se queda sin opciones válidas.
+- Un techo aguanta el tiempo. Cien mil intentos de crecer no pasan de él: quién
+  llega adónde es cuestión de quién eres, no de cuánto se corra el mundo.
+- Un agente que llega a su techo deja de sentir apremio por ese eje. La urgencia
+  se mide contra el techo propio, no contra el 1.0 de nadie; sin eso, un techo
+  sería una trampa que condena a entrenar de por vida lo que ya no mejora.
+- El daño que reparte una situación se archiva como **pasivo**, nunca como algo
+  que el agente hizo. Lo que te pasa no te enseña a desconfiar de tus decisiones.
+- El salto temporal no apaga los disparadores. Se evalúan por tramo y no una vez
+  cada N días: el salto aproxima —enciende como mucho una vez por zancada— pero
+  el mundo no se queda en calma por correrlo rápido.
 - Cero vocabulario de ambientación en el motor.
 - Un pack no carga si tiene referencias rotas, acciones que nadie puede
   ejecutar, precondiciones más bajas de lo que la acción consume, efectos
   negativos sin coste declarado, un grafo que no es fuertemente conexo, una
-  situación que no hace nada, dos parejas para la misma persona, inversas que no
-  se corresponden, o un alivio pasivo que supera al decaimiento.
+  situación que no hace nada, un disparador activo sin cooldown o que se exige a
+  sí mismo, una acción elástica que también fija en sus efectos el mismo eje que
+  la estira, dos parejas para la misma persona, inversas que no se corresponden,
+  o un alivio pasivo que supera al decaimiento.
 - Cada pack declara su propio contrato de salud y se comprueba en cada corrida
   de tests.
 
@@ -235,6 +335,7 @@ Verificadas por la batería de tests, no por convención:
 | Pack | Lugares | Acciones | Agentes | Para qué |
 |---|---|---|---|---|
 | `ciudad` | 25 | 32 | 127 | el mundo de trabajo |
+| `confluencia` | 53 | 23 | 200 | el mundo grande, mapa escrito a mano |
 | `aldea` | 13 | 17 | 10 | mundo pequeño, contrato sobre tres semillas |
 | `barrio` | 21 | 13 | 10 | el mundo contemporáneo original |
 | `dark_fantasy` | 5 | 5 | 2 | prueba de agnosticismo, no se juega |
@@ -245,14 +346,49 @@ los cazadores bajan a la sima, y la ciudad vive del gasto de ambos. Cuatro
 situaciones (invierno, feria, ventisca, oleada), cuatro clases de relación, y
 una carrera de cinco años que se recorre con el salto temporal.
 
+**`confluencia`** — el banco de pruebas de escala. Cinco razas con afinidad
+mágica, cuatro elementos, cinco oficios exclusivos por clase, sobre un mapa de
+53 lugares escrito a mano en vez de generado. Cada barrio es autosuficiente y el
+centro paga algo mejor, para poder mirar quién migra y quién se queda: la
+correlación entre mudarse y estar mejor pagado salió **+0.67**, y los que se
+quedan lo hacen por gustos, no por incapacidad.
+
 **`dark_fantasy`** — deliberadamente sin calibrar: se degradó mientras el motor
 evolucionaba y solo se le exigen los invariantes universales. Está escrito en el
 propio pack para que sea una decisión y no un olvido.
 
 ## Calibrar
 
-`--health` mide el mundo y contrasta lo que el pack promete. Además del panel
-clásico, informa de **oferta y demanda por eje**:
+`--health` mide el mundo y contrasta lo que el pack promete. Cada pack declara
+su contrato y se comprueba en cada corrida de tests, así que un cambio de motor
+que aplane un mundo se ve el mismo día.
+
+```
+  tiempo en crisis         14.9%      diferenciación           0.867
+  abandonos/completadas    10.8%      difer. geográfica        0.825
+  tiempo en tránsito       18.6%      bloqueos                     0
+  lugares desiertos       ['nucleo_sima']
+  tiempo con imprevisto     0.0%
+  nunca pasan             ['oleada', 'ventisca']
+```
+
+- **Diferenciación** — cuánto se distinguen dos biografías cualesquiera. Es la
+  medida madre: si baja, el mundo tiene mucha gente viviendo la misma vida.
+- **Diferenciación geográfica** — lo mismo sobre *dónde* pasan el tiempo. Separa
+  dos fracasos que el número global confunde: gente que hace cosas distintas en
+  el mismo sitio, y gente que hace lo mismo repartida por el mapa.
+- **Lugares desiertos** y **acciones sin usar** — lo que el pack escribió y
+  nadie visita. Contenido muerto, dicho con nombre y apellidos.
+- **Tiempo con imprevisto** y **nunca pasan** — qué fracción de la vida
+  transcurre bajo alguna situación, y cuáles no llegaron a ocurrir jamás. Arriba
+  se ve el instrumento delatando trabajo pendiente en el propio `ciudad`:
+  ventisca y oleada están escritas y no disparan en 21 días.
+- **`--divergence N`** — el eje vivo/aleatorio. Corre la misma persona con N
+  semillas y compara cuánto cambia su vida por azar frente a cuánto la separa de
+  sus vecinos. Un mundo demasiado ordenado es aburrido; uno donde el azar pesa
+  más que el carácter no permite explicar ninguna conducta.
+
+Además, **oferta y demanda por eje**:
 
 ```
 oferta/demanda por eje   (>1.3 = el eje no decide nada)
@@ -274,7 +410,7 @@ panel se veía sano.
 ## Desarrollo
 
 ```bash
-uv run pytest          # 529 tests
+uv run pytest          # 686 tests
 uv run mypy src tests  # estricto
 uv run ruff check
 ```
