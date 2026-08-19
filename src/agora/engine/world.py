@@ -483,7 +483,7 @@ class Simulation:
         llamaba nadie. Es lo que separa un logro de un arco — sin la deriva, el
         personaje llega a su meta y sigue siendo exactamente quien era.
         """
-        spec = self.pack.agent_by_id[agent.spec_id]
+        spec = self.state.spec_of(agent)
         for goal in spec.goals:
             if agent.goals.get(goal.id) is not GoalStatus.ACTIVE:
                 continue

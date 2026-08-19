@@ -122,7 +122,7 @@ def render_state(world: WorldState) -> Iterator[str]:
         pasando = "  [" + ", ".join(pack.situation_by_id[s].label for s in activas) + "]"
     yield f"tick {world.tick}  ({format_time(world.tick, pack.clock)})  seed={world.seed}{pasando}"
     for agent in world.agents_in_order():
-        spec = pack.agent_by_id[agent.spec_id]
+        spec = world.spec_of(agent)
         needs = "  ".join(f"{need}={value:.2f}" for need, value in agent.needs.items())
 
         # Capturar los campos en el patrón (y no leer `agent.busy` dentro del

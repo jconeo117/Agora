@@ -720,10 +720,25 @@ class AgentState:
         Lo logrado y lo perdido dejan de empujar, y eso es la mitad de lo que
         significa "meta": si siguiera pesando después de conseguirla, sería una
         necesidad con otro nombre.
+
+        **Por qué `.get` y no `[...]`.** Es la única cosa que se le sigue
+        preguntando al pack en caliente, y quien no tenga ficha allí se queda sin
+        metas en vez de reventar. No es tolerancia a una errata: el pack se valida
+        al cargar y `WorldState.new` llena censo y reparto de la misma fuente, así
+        que faltar aquí solo puede significar una cosa —**haber nacido en marcha**—
+        y esa no es un error, es un estado legítimo sin arcos todavía.
+
+        Es también el hilo que hay que cortar cuando los recién nacidos necesiten
+        metas propias, y no se corta hoy porque cortarlo obliga a decidir dónde
+        viven las metas de quien no está escrito en ningún YAML. Esa decisión es
+        de descendencia, no de censo.
         """
+        ficha = pack.agent_by_id.get(self.spec_id)
+        if ficha is None:
+            return ()
         return tuple(
             goal
-            for goal in pack.agent_by_id[self.spec_id].goals
+            for goal in ficha.goals
             if self.goals.get(goal.id) is GoalStatus.ACTIVE
         )
 
@@ -1022,6 +1037,31 @@ class WorldState:
     O(1) por id, y orden estable. `dict` da ambas desde 3.7. Un `set` rompe el
     determinismo en silencio y sin aviso."""
 
+    censo: dict[AgentId, AgentSpec] = field(default_factory=dict)
+    """**Quién existe, y de qué ficha viene.** La respuesta la da el mundo, no el
+    pack.
+
+    Hoy contiene exactamente `pack.agent_by_id` y ni uno más, así que este campo
+    no cambia una sola conducta. Existe igualmente, y por una razón concreta: era
+    `pack.agents` —congelado al cargar— lo único que contestaba a *quién existe*,
+    y por eso **nadie podía nacer ni morir**. Mover la pregunta aquí no hace que
+    nazca nadie; hace que haya un sitio donde escribirlo cuando toque.
+
+    El diagnóstico que llevó a esto conviene dejarlo escrito, porque el plan lo
+    tenía mal: `WorldState.agents` **ya era mutable**. El bloqueo nunca fue el
+    reparto, sino que cada `AgentState` guarda un `spec_id` que apunta a una
+    ficha inmutable. Y lo que se le pregunta a esa ficha en caliente resultaron
+    ser tres cosas, no diecisiete: la etiqueta, las metas y si existes. Todo lo
+    demás —rasgos, gustos, necesidades, relaciones, vínculos— se copia al
+    `AgentState` al nacer y nunca se vuelve a consultar.
+
+    **Invariante:** todo el que está en `agents` está en `censo`. Lo comprueba
+    `tests/test_censo.py`.
+
+    Al reanudar se reconstruye desde el pack, igual que el resto de lo derivado:
+    manda el pack de hoy. Por eso no ocupa sitio en el guardado.
+    """
+
     situations: dict[SituationId, int | None] = field(default_factory=dict)
     """Las situaciones EVENTUALES encendidas -> hasta qué tick, o `None` si es
     hasta que alguien la apague.
@@ -1079,6 +1119,11 @@ class WorldState:
             travel=TravelMap(pack.places),
             tick=0,
             agents=agents,
+            # Copia, no `pack.agent_by_id`. El censo es del mundo y se va a
+            # escribir; alias al dict del pack haría que una muerte en una
+            # partida borrase al agente de cualquier otra cargada del mismo
+            # fichero. Es el mismo motivo por el que `from_spec` copia los dicts.
+            censo=dict(pack.agent_by_id),
             rng=RngSource(seed),
             # La capacidad y el desdibujado salen del pack de HOY, igual que todo
             # lo demás derivado: al reanudar sobre un pack retocado manda el
@@ -1147,8 +1192,24 @@ class WorldState:
     # -- atajos que el tick loop y la deliberación usarán constantemente ------
 
     def spec_of(self, agent: AgentState) -> AgentSpec:
-        """Personalidad y gustos del agente. Vive en el pack, no en el estado."""
-        return self.pack.agent_by_id[agent.spec_id]
+        """La ficha de este agente, según el censo del mundo.
+
+        Llevaba desde F0 escrito como *«atajo que el tick loop usará
+        constantemente»* y no lo llamaba nadie: los dos sitios que necesitaban
+        una ficha iban directos a `pack.agent_by_id`. Ahora es la única puerta, y
+        por eso el censo puede ser la autoridad — con el atajo muerto, cambiar de
+        fuente habría exigido tocar cada consumidor.
+        """
+        return self.censo[agent.spec_id]
+
+    def existe(self, agent: AgentId) -> bool:
+        """Si el mundo reconoce a alguien con ese nombre.
+
+        Se pregunta al censo y no a `agents` a propósito: son dos preguntas
+        distintas en cuanto alguien pueda morirse —*tener ficha* y *estar
+        presente*— y hoy que coinciden es el momento barato de separarlas.
+        """
+        return agent in self.censo
 
     def place_of(self, agent: AgentState) -> PlaceSpec:
         """Dónde está, con sus affordances. Decide qué acciones son válidas."""
