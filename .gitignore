@@ -12,3 +12,7 @@ wheels/
 # Plan de frentes: mapa de trabajo, no producto. Vive en la carpeta pero no
 # en la historia del repositorio.
 PLAN.md
+
+# Partidas guardadas: son estado, no producto. Se regeneran corriendo.
+*.json
+!packs/**/*.json
