@@ -1858,6 +1858,31 @@ class TuningSpec(Spec):
     """Cuánto pavor acumulado equivale a medio miedo. Mismo papel que
     `regret_scale`, sobre el otro eje."""
 
+    rumor_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Probabilidad de que alguien cuente algo al terminar algo compartido.
+    **0.0 desactiva los rumores.**
+
+    Se engancha ahí y no a la co-presencia a secas por lo mismo que `Bond.shared`
+    existe: **cruzarse no es convivir**. Compartir sala mientras cada uno va a lo
+    suyo no es ocasión de contar nada; una comida o una charla, sí. La guarda ya
+    estaba escrita para los vínculos y aquí se reusa tal cual.
+
+    Bajo por definición, y con el mismo cuidado que los disparadores: es la
+    segunda pieza del motor que mueve información sin que nadie la decida.
+    """
+
+    rumor_decay: float = Field(default=0.5, gt=0.0, le=1.0)
+    """Cuánto sobrevive a cada boca. 0.5 = de oídas pesa la mitad.
+
+    Es el teléfono escacharrado, y hace falta que exista o un rumor daría vueltas
+    por un corrillo ganando peso hasta volverse el suceso más importante de la
+    biografía de todos. Con esto, cada salto lo achica y el rumor **muere solo**
+    a los pocos saltos, sin tener que contar saltos ni podar nada.
+
+    No se aplica cuando quien escucha tiene aprecio a la persona de la que se
+    habla: ahí el peso lo pone el oyente, no la cadena. Ver `world.contar`.
+    """
+
     grief_scale: float = Field(default=0.0, ge=0.0)
     """Cuánto dolor acumulado equivale a medio duelo. **0.0 desactiva `duelo()`.**
 

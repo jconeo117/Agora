@@ -34,7 +34,7 @@ sobrevive a mucha rutina reciente.
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from agora.engine.events import Event, EventKind
 from agora.engine.ontology import ActionId, AgentId, PlaceId, SituationId
@@ -137,6 +137,24 @@ class Recuerdo:
     sorpresa en valor absoluto— y solo aquí se distinguen.
 
     0.0 es lo normal: un recuerdo sin signo es algo que pasó, ni bueno ni malo.
+    """
+
+    de_oidas: int = 0
+    """Cuántas bocas hasta aquí. 0 = lo viví; 1 = me lo contó quien estaba; 2+ =
+    me lo contó alguien a quien se lo contaron.
+
+    Un entero y no un `bool` porque la distancia importa y el teléfono escacharrado
+    es justamente el mecanismo: cada salto rebaja lo que llega. Con un booleano,
+    la décima repetición pesaría lo mismo que la primera.
+
+    **El `seq` no cambia al copiarse**, y ahí está lo que hace barato todo esto:
+    es único y no se reutiliza jamás, así que *¿ya me sé esto?* es comparar
+    enteros. Sin él haría falta una noción de igualdad entre recuerdos, que es
+    exactamente la clase de cosa que luego nadie sabe validar.
+
+    Tampoco cambia el `tick`: un rumor viejo llega ya desdibujado, porque `valor`
+    cuenta desde que pasó y no desde que me lo dijeron. Sale gratis y es lo que
+    uno esperaría.
     """
 
     def valor(self, tick: int, fade: float) -> float:
@@ -436,6 +454,66 @@ class MemoriaEpisodica:
             if peso > 0.0:
                 bruto[recuerdo.place] = bruto.get(recuerdo.place, 0.0) + peso
         return {lugar: signed_saturation(v, escala) for lugar, v in bruto.items()}
+
+    def contable(self, owner: AgentId, tick: int) -> Recuerdo | None:
+        """Qué contaría esta persona si le diera por contar algo. `None` si nada.
+
+        **Ordena por sorpresa y no por importancia, y eso salió de medir.**
+        `importancia_de` mezcla la urgencia del momento, y la urgencia es vívida
+        para quien la vive y aburrida para quien la oye: pidiéndole a cada
+        habitante de la ciudad su recuerdo más saliente salían **seis** historias
+        distintas y cincuenta y una personas contando *"cené en la taberna"*.
+        Ordenando por `|valencia|` —el error de predicción, lo que desmintió una
+        expectativa— salen veinte y dejan de ser todas la misma cena.
+
+        Que la rutina no se cuente cae solo: `valencia` es 0.0 en lo que salió
+        como se esperaba, y eso queda fuera por el filtro. **Un tercio de la
+        memoria de la ciudad no es noticia**, y es correcto que no lo sea.
+
+        Se desempata por `seq` y no por el float, como en `_olvidar` y en `_rank`:
+        dos procesos con la misma semilla no pueden contar historias distintas.
+        """
+        guardados = self._por_duenyo.get(owner)
+        if not guardados:
+            return None
+        fade = self.fade_of(owner)
+        mejor: Recuerdo | None = None
+        peso_mejor = 0.0
+        for recuerdo in guardados:
+            peso = abs(recuerdo.valencia) * recuerdo.valor(tick, fade)
+            if peso <= 0.0:
+                continue
+            if mejor is None or (peso, recuerdo.seq) > (peso_mejor, mejor.seq):
+                mejor, peso_mejor = recuerdo, peso
+        return mejor
+
+    def sabe(self, owner: AgentId, seq: int) -> bool:
+        """Si ya conoce ese hecho, lo viviera o se lo contaran."""
+        return any(r.seq == seq for r in self._por_duenyo.get(owner, ()))
+
+    def oir(self, owner: AgentId, rumor: Recuerdo, importancia: float) -> bool:
+        """Recibir algo de segunda mano. `True` si se quedó con ello.
+
+        Lo que llega es **el hecho**, no el peso: la importancia la pone quien
+        escucha y se calcula fuera, en `world`, porque depende de a quién aprecia
+        —y esa es la petición literal de que *la noticia se recibe en base a la
+        imagen que uno tenía de ese individuo*—. Aquí solo se guarda.
+
+        No se reescribe lo que ya se sabe. Quien vivió algo no lo degrada porque
+        se lo cuenten, y quien ya lo oyó no lo refuerza oyéndolo dos veces: sin
+        esta guarda, un corrillo de ocho personas amplificaría un rumor hasta el
+        tope por repetírselo entre ellos, que es una máquina de fabricar certezas
+        y no una de propagarlas.
+        """
+        if self.capacidad <= 0 or importancia <= 0.0 or self.sabe(owner, rumor.seq):
+            return False
+        guardados = self._por_duenyo.setdefault(owner, [])
+        guardados.append(
+            replace(rumor, importancia=importancia, de_oidas=rumor.de_oidas + 1)
+        )
+        if len(guardados) > self.capacidad:
+            self._olvidar(owner, guardados, rumor.tick)
+        return True
 
     def borrar(self, owner: AgentId) -> None:
         """Todo lo que este agente recordaba deja de existir.

@@ -748,6 +748,7 @@ class Simulation:
                 tuning.bond_rate,
                 tick,
             )
+            self._contar(agent, others, tick)
         agent.saturate(action_id, spec.saturation_gain)
 
         data: Payload = {"company": round(company, 4)} if spec.effects_per_company else {}
@@ -1003,6 +1004,64 @@ class Simulation:
     # -------------------------------------------------------------------------
     # Memoria episódica
     # -------------------------------------------------------------------------
+
+    def _contar(
+        self, narrador: AgentState, oyentes: list[AgentId], tick: int
+    ) -> None:
+        """Alguien cuenta algo. **Un rumor es un recuerdo que se copia.**
+
+        La frase estaba en el plan desde el principio y resultó ser literal: no
+        hace falta primitiva nueva, solo mover un `Recuerdo` de una cabeza a otra
+        rebajado. Lo que costó decidir no fue el mecanismo sino **qué se cuenta**,
+        y eso lo contestó medir — ver `MemoriaEpisodica.contable`.
+
+        **Quién pone el peso.** Aquí está la petición de que la noticia se reciba
+        *en base a la imagen que uno tenía de ese individuo*, y es la única regla
+        de este método que no es aritmética:
+
+        - si la historia va **sobre alguien**, manda el aprecio de QUIEN ESCUCHA.
+          Que a quien te lo cuenta se le caiga el mundo encima no te obliga a ti
+          a sentir nada, y al revés tampoco: te enteras de que murió tu ídolo por
+          boca de alguien a quien le daba igual, y te destroza igual.
+        - si no va sobre nadie —una expectativa, un sitio que decepcionó— manda lo
+          que traía, rebajado por la cadena.
+
+        Sin `about`, quien escucha no tiene con qué juzgarlo y hereda el peso del
+        que habla; con `about`, tiene lo suyo y no necesita el de nadie.
+
+        El sorteo va por clave —`blake2b(semilla, ...)`— con narrador y oyente
+        dentro, así que el orden en que se cuentan las cosas no altera ninguna.
+        """
+        tuning = self.pack.tuning
+        memoria = self.state.memoria
+        if tuning.rumor_rate <= 0.0 or memoria.capacidad <= 0 or not oyentes:
+            return
+        historia = memoria.contable(narrador.spec_id, tick)
+        if historia is None:
+            return
+
+        # Ordenados: se graban recuerdos y el olvido por capacidad desempata por
+        # `seq`, así que un orden que dependiera del hash haría divergir dos
+        # procesos con la misma semilla.
+        for quien in sorted(oyentes):
+            oyente = self.state.agents.get(quien)
+            if oyente is None or memoria.sabe(quien, historia.seq):
+                continue
+            rng = self.state.rng.stream("rumor", narrador.spec_id, quien, tick)
+            if rng.random() >= tuning.rumor_rate:
+                continue
+
+            if historia.about is not None:
+                bond = oyente.bonds.get(historia.about)
+                if bond is None or bond.regard <= 0.0:
+                    # No le suena de nada. Se entera y no le mueve un pelo: no
+                    # se guarda, porque un recuerdo de importancia cero no es un
+                    # recuerdo, es ocupar sitio.
+                    continue
+                importancia = signed_saturation(bond.regard, tuning.memory_scale)
+            else:
+                importancia = historia.importancia * tuning.rumor_decay
+            memoria.oir(quien, historia, importancia)
 
     def _grabar(
         self,
