@@ -526,6 +526,52 @@ class ElasticSpec(Spec):
     """Suelo. Nadie se acuesta para quince minutos, aunque le sobre con eso."""
 
 
+class AflictionSpec(Spec):
+    """Pegarle una condición a alguien. **Una sola forma para los tres sitios.**
+
+    La usan `ActionSpec.inflicts` (lo que hacer algo te hace a ti), la de
+    `SituationSpec` (lo que el mundo le hace a quien alcanza) y la de
+    `TargetSpec` (lo que le haces a otro). Tres formas distintas para la misma
+    idea habrían divergido —una con plazo, otra sin, una con marca, otra no— y
+    entonces *infligir* dejaría de significar lo mismo según dónde se escriba.
+
+    Es también lo que le faltaba a `TargetSpec`, que hasta aquí solo sabía pegar
+    condiciones **permanentes**: no había forma de envenenar a alguien un rato.
+    """
+
+    situation: SituationId
+    """Cuál. Tiene que ser `personal`; se valida en el pack."""
+
+    marca: str = ""
+    """Con qué marca. Ver `Condicion.marca`: dos idénticas agravan, distintas se
+    apilan. Vacía para lo que no tiene partes."""
+
+    lasts: int = Field(default=0, ge=0)
+    """Cuánto dura, en ticks. **0 = hasta que alguien la quite.**
+
+    Las dos formas hacen falta y no son intercambiables: un veneno se pasa, una
+    infección no se pasa sola y por eso da miedo.
+    """
+
+    chance: float = Field(default=1.0, gt=0.0, le=1.0)
+    """Con qué probabilidad. 1.0 = siempre, y es el defecto.
+
+    Determinista por defecto **a propósito**, al revés que los disparadores: una
+    acción que a veces te hiere y a veces no es más difícil de leer que una que
+    siempre lo hace, y la legibilidad es la regla rectora. Bajar a la sima
+    costando siempre una herida es una regla que quien juega aprende.
+
+    Pero en una situación la lectura se invierte. Los efectos de una situación se
+    aplican **cada tick**, así que a 1.0 una ventisca heriría noventa y seis
+    veces al día. Ahí el número bajo no es azar decorativo: es *cuánto aguantas
+    a la intemperie antes de que te pase algo*, y sale gratis que el riesgo
+    crezca con la exposición.
+
+    El sorteo va por clave —agente, tick y de qué viene— así que el orden en que
+    se resuelven no altera ninguno.
+    """
+
+
 class TargetSpec(Spec):
     """A quién le hace algo una acción, y qué le hace.
 
@@ -552,16 +598,12 @@ class TargetSpec(Spec):
     cura a ti, esto cura a quien no puede curarse solo.
     """
 
-    inflicts: SituationId | None = None
-    """Qué condición se le pega **al otro**. Solo personal.
+    inflicts: AflictionSpec | None = None
+    """Qué condición se le pega **al otro**.
 
     Herir, envenenar, contagiar, maldecir. Con `gives` negativo se le hace daño
     ahora; con esto se le deja algo encima que sigue doliendo después.
     """
-
-    marca: str = ""
-    """Con qué marca se le pega. Ver `Condicion.marca`: dos idénticas agravan, y
-    distintas se apilan."""
 
     requires_condition: SituationId | None = None
     """Solo vale sobre quien lleve esto encima. `None` = sobre cualquiera.
@@ -768,6 +810,26 @@ class ActionSpec(Spec):
     propósito, reputación— y por eso se hace. Un motor de utilidad no necesita
     una primitiva para la generosidad; necesita que la generosidad tenga precio y
     premio, como todo lo demás.
+    """
+
+    inflicts: AflictionSpec | None = None
+    """Lo que hacer esto **te hace a ti**. Bajar a la sima te hiere.
+
+    **El campo que faltaba para que la muerte pudiera existir**, y eso salió de
+    medir tres mundos. La muerte por agotamiento no ocurre en un mundo calibrado
+    para ser habitable: ciudad y confluencia están las dos ajustadas para que
+    nadie se bloquee, así que ningún eje se queda vacío el tiempo suficiente para
+    matar. Medido — en confluencia el maná no llega a cero **ni una vez** en
+    catorce días, y el eje más castigado del mundo aguanta medio día.
+
+    Para que la muerte exista hace falta algo que drene **desde fuera de las
+    decisiones del agente**. Un `costs` no vale: se paga una vez y se acabó, y el
+    agente deja de hacer la acción cuando le duele. Una condición sigue sangrando
+    hagas lo que hagas, y por eso hay que ir a que te la quiten.
+
+    Se aplica **al terminar**, como `cures`, y por lo mismo: media faena no
+    cuenta. Quien abandona a mitad se libra, que es lo razonable — y lo
+    inabandonable ya se declara con `interruptible`.
     """
 
     cures: frozenset[SituationId] = Field(default_factory=frozenset)
@@ -1548,6 +1610,25 @@ class SituationSpec(Spec):
     Ojo a la escala. Se multiplican por la duración: 0.002 durante trescientos
     ticks son 0.6 de necesidad, que es una catástrofe. Los números aquí son mucho
     más pequeños que los de una acción, que ocurre una vez.
+    """
+
+    inflicts: AflictionSpec | None = None
+    """Lo que le pega a quien alcanza. La ventisca te deja congelado.
+
+    Quinto canal de las situaciones, y el que cierra el juego: hasta aquí una
+    situación podía multiplicar lo que rinde, lo que apetece, cerrar un lugar y
+    hacer daño **de golpe**. Lo que no podía era dejarte algo encima que siguiera
+    doliendo después de que el temporal pasara.
+
+    Y esa es la diferencia entre un mal rato y una consecuencia. Un `effects`
+    negativo se recupera en cuanto la situación acaba; una condición te sigue a
+    casa, y hay que ir a que te la quiten.
+
+    **Ojo con `chance` aquí.** Los efectos de una situación se aplican cada tick,
+    así que a 1.0 —el defecto— una ventisca te heriría noventa y seis veces al
+    día. En una situación el número bajo no es azar decorativo: es *cuánto
+    aguantas a la intemperie antes de que te pase algo*, y sale gratis que el
+    riesgo crezca con la exposición.
     """
 
     trigger: TriggerSpec | None = None

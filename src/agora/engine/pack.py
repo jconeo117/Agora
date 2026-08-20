@@ -502,6 +502,7 @@ class ContentPack(Spec):
                 for s in sorted(place.closed_during)
                 if str(s) not in known
             ]
+        personales_ids = {str(s.id) for s in self.situations if s.personal}
         for situation in self.situations:
             problems += [
                 f"situación {situation.id!r}.places: lugar desconocido {p!r}"
@@ -526,6 +527,17 @@ class ContentPack(Spec):
                         f"situación {situation.id!r}: su disparador se exige a sí "
                         f"misma, así que no puede encenderse nunca"
                     )
+            if situation.inflicts is not None:
+                aflige = situation.inflicts.situation
+                if str(aflige) not in personales_ids:
+                    problems.append(
+                        f"situación {situation.id!r}.inflicts: {aflige!r} no es "
+                        f"personal, así que nadie puede llevarla encima"
+                    )
+                if aflige == situation.id:
+                    problems.append(
+                        f"situación {situation.id!r}.inflicts se pega a sí misma"
+                    )
             if situation.personal:
                 # Lo que le pasa a una persona no ocurre en un sitio ni vuelve
                 # por calendario. Declararlo así es un malentendido sobre qué
@@ -549,6 +561,14 @@ class ContentPack(Spec):
                 for c in sorted(action.cures)
                 if str(c) not in personales
             ]
+            if action.inflicts is not None and (
+                str(action.inflicts.situation) not in personales
+            ):
+                problems.append(
+                    f"acción {action.id!r}.inflicts: "
+                    f"{action.inflicts.situation!r} no es una situación personal, "
+                    f"así que nadie puede llevarla encima"
+                )
             destino = action.target
             if destino is None:
                 continue
@@ -559,7 +579,7 @@ class ContentPack(Spec):
                 if str(c) not in personales
             ]
             for campo, cual in (
-                ("inflicts", destino.inflicts),
+                ("inflicts", None if destino.inflicts is None else destino.inflicts.situation),
                 ("requires_condition", destino.requires_condition),
             ):
                 if cual is not None and str(cual) not in personales:
@@ -605,6 +625,10 @@ class ContentPack(Spec):
             # obvio: una situación que solo baja el sustento de quien está dentro
             # no necesita que ninguna acción la mencione para ser una hambruna.
             and not situation.effects
+            # Y el quinto igual. Una ventisca que no multiplica nada, no cierra
+            # nada y no hace daño directo pero te deja congelado hace bastante:
+            # olvidarlo aquí la declaraba contenido muerto siendo lo contrario.
+            and situation.inflicts is None
         ]
 
     def _check_places_are_open_sometime_despite_situations(self) -> list[str]:

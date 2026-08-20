@@ -134,7 +134,7 @@ def test_you_cannot_inflict_the_weather_on_someone() -> None:
                 {"id": "curar", "label": "curar", "duration_ticks": 1,
                  "requires_affordance": "sitio", "requires_company": 1,
                  "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
-                 "target": {"inflicts": "invierno"}},
+                 "target": {"inflicts": {"situation": "invierno"}}},
                 {"id": "nada", "label": "nada", "duration_ticks": 1}]})
 
 
@@ -371,8 +371,8 @@ def test_hurting_is_giving_with_the_sign_flipped() -> None:
         {"id": "curar", "label": "curar", "duration_ticks": 1,
          "requires_affordance": "sitio", "requires_company": 1,
          "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
-         "target": {"gives": {"sangre": -0.30}, "inflicts": "herida",
-                    "marca": "torso"}},
+         "target": {"gives": {"sangre": -0.30},
+                    "inflicts": {"situation": "herida", "marca": "torso"}}},
         {"id": "nada", "label": "nada", "duration_ticks": 1}]})
     sim = Simulation(pack, seed=1)
     sim.run(4)

@@ -33,6 +33,7 @@ from agora.engine.memory import importancia_de
 from agora.engine.ontology import (
     ActionId,
     ActionSpec,
+    AflictionSpec,
     AgentId,
     GoalStatus,
     NeedId,
@@ -604,7 +605,13 @@ class Simulation:
             # cruza su umbral donde uno pase más tiempo, que es su propia cama.
             culpables: dict[NeedId, SituationId] = {}
             for situation in self.state.situations_at(agent.at):
-                efectos = by_situation[situation].effects
+                spec_sit = by_situation[situation]
+                # Quinto canal: lo que el mundo te deja encima. Va antes que el
+                # daño porque una condición recién puesta ya cobra este tick —
+                # al revés, el primero saldría gratis.
+                if spec_sit.inflicts is not None:
+                    self._infligir(agent, spec_sit.inflicts, porque=str(situation))
+                efectos = spec_sit.effects
                 if not efectos:
                     continue
                 agent.endure(efectos, specs)
@@ -935,6 +942,11 @@ class Simulation:
         )
         if spec.target is not None and target is not None:
             self._entregar(agent, spec, target, event)
+        # Lo que hacer esto te hace a TI, y al terminar: media faena no cuenta.
+        # Un `costs` se paga una vez; esto sigue sangrando hasta que alguien lo
+        # cure, que es lo que separa una consecuencia de un precio.
+        if spec.inflicts is not None:
+            self._infligir(agent, spec.inflicts, porque=str(spec.id))
         # La mitad *por acción* de cómo se sale de una condición. Al terminar,
         # no al empezar: vendarse a medias no cura.
         for curada in sorted(spec.cures):
@@ -1173,6 +1185,47 @@ class Simulation:
     # Memoria episódica
     # -------------------------------------------------------------------------
 
+    def _infligir(
+        self, quien: AgentState, aflige: AflictionSpec, porque: str
+    ) -> bool:
+        """Le pega una condición. `True` si prendió.
+
+        **Puerta única para los tres sitios que infligen** —una acción sobre
+        quien la hace, una situación sobre quien alcanza, y una acción dirigida
+        sobre el otro—. Repartido, el sorteo acabaría con tres claves distintas y
+        dos de ellas mal, que es como se rompe el determinismo sin que nadie se
+        entere.
+
+        La clave del sorteo lleva a quién, cuándo y de qué viene: dos procesos
+        con la misma semilla hieren exactamente a la misma gente, y el orden en
+        que se resuelvan no altera ninguno.
+        """
+        if aflige.chance < 1.0:
+            rng = self.state.rng.stream(
+                "aflige", quien.spec_id, aflige.situation, self.state.tick
+            )
+            if rng.random() >= aflige.chance:
+                return False
+        cond = quien.afligir(
+            aflige.situation,
+            aflige.marca,
+            None if aflige.lasts <= 0 else self.state.tick + aflige.lasts,
+        )
+        self.log.emit(
+            tick=self.state.tick,
+            kind=EventKind.SITUATION_BEGAN,
+            actor=quien.spec_id,
+            place=quien.at,
+            data={
+                "situation": str(aflige.situation),
+                "personal": True,
+                "marca": aflige.marca,
+                "veces": cond.veces,
+                "porque": porque,
+            },
+        )
+        return True
+
     def _entregar(
         self,
         agent: AgentState,
@@ -1214,7 +1267,7 @@ class Simulation:
         for curada in sorted(destino.cures):
             otro.aliviar(curada)
         if destino.inflicts is not None:
-            otro.afligir(destino.inflicts, destino.marca)
+            self._infligir(otro, destino.inflicts, porque=str(spec.id))
 
         # El otro lo recuerda, y lo recuerda CON NOMBRE: `about` sale del
         # `subject` del evento, que es quien actuó.
