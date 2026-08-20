@@ -214,9 +214,17 @@ def test_declared_eventual_situations_never_happen(
     world: tuple[ContentPack, HealthReport],
 ) -> None:
     """Tercer miembro de la familia de `unused` y `deserted`. La ciudad declara
-    `ventisca` y `oleada`, y once acciones llevan multiplicadores para ellas."""
+    `ventisca` y `oleada`, y once acciones llevan multiplicadores para ellas.
+
+    **Las personales quedan fuera, y este test lo daba por sentado al revés.** Una
+    condición no aparece jamás en `state.situations` —vive pegada a quien la
+    lleva, no al mundo— así que el panel la contaba como *nunca pasa* mientras
+    treinta y ocho personas de confluencia iban sangrando por el mapa. El test
+    afirmaba el bug: se escribió cuando no existían las condiciones y no había
+    forma de distinguirlas.
+    """
     pack, report = world
-    eventuales = {s.id for s in pack.situations if not s.periodic}
+    eventuales = {s.id for s in pack.situations if not s.periodic and not s.personal}
     assert report.never_happened == eventuales
 
 

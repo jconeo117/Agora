@@ -278,7 +278,13 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
         deserted=frozenset(p.id for p in pack.places)
         - {sitio for visitados in where.values() for sitio in visitados},
         eventful_time=eventful / max(ticks * len(seeds), 1),
-        never_happened=frozenset(s.id for s in pack.situations if not s.periodic)
+        # Las personales quedan fuera, y no es un detalle: una condición NUNCA
+        # aparece en `state.situations` —vive pegada a quien la lleva— así que
+        # sin esta guarda el panel declaraba `herida` como "nunca pasa" mientras
+        # treinta y ocho personas iban sangrando por el mapa.
+        never_happened=frozenset(
+            s.id for s in pack.situations if not s.periodic and not s.personal
+        )
         - ocurridas,
         out_of_bounds=tuple(out_of_bounds),
         **_supply_and_demand(pack, libros),

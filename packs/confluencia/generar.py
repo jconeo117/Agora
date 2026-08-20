@@ -275,9 +275,18 @@ pack = {
                "min_crisis": 0.02, "max_crisis": 0.40,
                "max_abort_ratio": 0.30, "max_transit": 0.35,
                "min_differentiation": 0.40,
-               # Las tres de abajo piden viaje largo o rango alto: son meses, no
-               # dos semanas. Declaradas para que el panel no mienta.
-               "may_go_unused": ["holgazanear", "expoliar",
+               # Las de abajo piden viaje largo o rango alto: son meses, no dos
+               # semanas. Declaradas para que el panel no mienta.
+               #
+               # `expoliar` SALE de la lista: llevaba cero usos desde que se
+               # escribio el pack porque estaba estrictamente dominada por
+               # `trabajar` -mismo `satisfies`, mas coste, mas viaje-. Corregido,
+               # 140 usos en catorce dias y cinco mazmorras revividas.
+               #
+               # `socorrer` ENTRA, y con motivo: exige la conjuncion de herido,
+               # sin dinero para el unguento, en un templo, y con alguien
+               # delante que le aprecie. Eso pasa, pero no en dos semanas.
+               "may_go_unused": ["holgazanear", "socorrer",
                                  "canalizar_linea_ley", "convidar",
                                  "sostener_un_pacto", "trabajo_sucio"]},
     "tuning": {
@@ -299,6 +308,17 @@ pack = {
     },
     "needs": needs, "traits": traits, "actions": actions,
     "places": places, "agents": agents,
+    # LA PRIMERA SITUACION DE ESTE MUNDO, y es personal: no le pasa a un lugar,
+    # le pasa a alguien. Drena 0.0022 por tick, asi que una herida sin tratar se
+    # lleva a su duenyo en unos seis dias -y `veces` multiplica, asi que bajar
+    # dos veces sin vendarse lo hace en tres-.
+    #
+    # Sin plazo a proposito: NO se pasa sola. Es lo que obliga a ir a que te la
+    # quiten, y lo que convierte la mazmorra en una decision en vez de un grifo.
+    "situations": [
+        {"id": "herida", "label": "herida", "personal": True,
+         "effects": {"salud": -0.0022}},
+    ],
 }
 
 (S / "pack.yaml").write_text(

@@ -45,6 +45,14 @@ needs = [
     # De el cuelgan las puertas de los conjuros, que es como el sistema convierte
     # "Novato -> Trascendente" en algo que decide conducta.
     N("dominio", "dominio", 0.0, 0.05, progression=True),
+    # EL EJE MORTAL. No decae -nadie se desangra en su cama- y solo lo gasta
+    # una herida. Sin `strain_weight` a proposito: se midio que anyadir una
+    # necesidad es gratis, pero que una que declare desgaste recompone el de
+    # TODO el mundo, porque `compute_strain` divide por la suma de los pesos.
+    #
+    # Tres dias a cero. Da tiempo de sobra a llegar a un sanador: lo que mata
+    # no es la herida, es no ir -o no tener con que, o que nadie te lleve-.
+    N("salud", "salud", 0.0, 1.0, urgency_exponent=2.6, lethal_after=288),
 ]
 
 # --- RASGOS ------------------------------------------------------------------

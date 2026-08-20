@@ -25,7 +25,7 @@ health:
   min_differentiation: 0.4
   may_go_unused:
   - holgazanear
-  - expoliar
+  - socorrer
   - canalizar_linea_ley
   - convidar
   - sostener_un_pacto
@@ -96,6 +96,12 @@ needs:
   decay_per_tick: 0.0
   initial: 0.05
   progression: true
+- id: salud
+  label: salud
+  decay_per_tick: 0.0
+  initial: 1.0
+  urgency_exponent: 2.6
+  lethal_after: 288
 traits:
 - id: humano
   label: humano
@@ -481,14 +487,18 @@ actions:
     mana: 0.35
   satisfies:
     dinero: 1.0
+    dominio: 0.55
   costs:
-    mana: 1.0
-    descanso: 1.0
+    mana: 0.85
+    descanso: 0.9
   effects:
     dinero: 0.4
     mana: -0.3
     descanso: -0.26
     dominio: 0.01
+  inflicts:
+    situation: herida
+    marca: cuerpo
   saturation_gain: 0.12
 - id: templar_el_cuerpo
   label: templar el cuerpo
@@ -580,6 +590,37 @@ actions:
     descanso: 0.15
   effects:
     descanso: 0.02
+- id: vendarse
+  label: vendarse
+  duration_ticks: 12
+  requires_affordance: quietud
+  requires:
+    dinero: 0.22
+  satisfies:
+    salud: 0.9
+  costs:
+    dinero: 0.45
+  effects:
+    salud: 0.55
+    dinero: -0.16
+  cures:
+  - herida
+- id: socorrer
+  label: socorrer a un herido
+  duration_ticks: 10
+  requires_affordance: quietud
+  requires_company: 1
+  satisfies:
+    vinculo: 0.8
+  effects:
+    vinculo: 0.3
+  target:
+    gives:
+      salud: 0.5
+    cures:
+    - herida
+    requires_condition: herida
+    regard_weight: 0.7
 places:
 - id: plaza_mayor
   label: la plaza mayor
@@ -4704,3 +4745,9 @@ agents:
     multiplier: 1.11
   - target: templo_mareas
     multiplier: 1.11
+situations:
+- id: herida
+  label: herida
+  personal: true
+  effects:
+    salud: -0.0022

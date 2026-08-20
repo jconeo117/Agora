@@ -136,10 +136,29 @@ trabajar = [
       saturation_gain=0.10),
     # Bajar a saquear. Paga mucho, cuesta mucho, y pide rango de verdad.
     # Es lo que da proposito a las mazmorras: sin esto son habitaciones vacias.
+    # ESTABA ESTRICTAMENTE DOMINADA, y por eso las seis mazmorras del mapa
+    # llevaban desiertas desde que se escribio el pack. Media: CERO usos en
+    # catorce dias, con 186 de 200 agentes ya pasando la puerta de rango.
+    #
+    #   expoliar   dur 26   dinero 1.0   mana 1.0 + descanso 1.0   a 5-7 ticks
+    #   trabajar   dur 18   dinero 1.0   descanso 0.8              al lado
+    #
+    # El comentario decia "paga mucho" y `effects` lo cumplia -0.40 contra 0.16-
+    # pero LA DELIBERACION NO LEE `effects`, lee `satisfies`. Los dos anunciaban
+    # `dinero: 1.0`, asi que ganaba el barato, nunca se probaba el otro y nunca
+    # se aprendia que pagaba mejor. Una trampa de aprendizaje.
+    #
+    # `satisfies` esta acotado a 0..1, asi que no se arregla subiendo el dinero.
+    # Se arregla anunciando lo que la mazmorra da y un turno de trabajo no puede
+    # dar: RANGO. Fregar platos no te hace mejor mago.
     A(id="expoliar", label="expoliar la mazmorra", duration_ticks=26,
       requires_affordance="expolio", requires={"dominio": 0.30, "mana": 0.35},
-      satisfies={"dinero": 1.0}, costs={"mana": 1.0, "descanso": 1.0},
+      satisfies={"dinero": 1.0, "dominio": 0.55},
+      costs={"mana": 0.85, "descanso": 0.90},
       effects={"dinero": 0.40, "mana": -0.30, "descanso": -0.26, "dominio": 0.010},
+      # Y se vuelve de ahi abajo con algo encima. Es lo que separa una mazmorra
+      # de un turno peor pagado.
+      inflicts={"situation": "herida", "marca": "cuerpo"},
       saturation_gain=0.12),
 ]
 
@@ -217,3 +236,34 @@ red = [
 ]
 
 actions = vivir + convivir + canalizar + aprender + conjuros + trabajar + oficios + red
+
+
+# --- LA HERIDA ---------------------------------------------------------------
+#
+# Lo que cierra el bucle de la sima. Sin una forma de quitarsela, expoliar seria
+# una sentencia; con ella, la mazmorra es una decision con precio.
+#
+# `socorrer` es la que importa: es la primera accion de este mundo que sabe A
+# QUIEN le hace falta, porque `requires_condition` mira lo que el otro lleva
+# encima. Una herida se VE cuando estas delante; el valor exacto de las
+# necesidades de otro, no.
+herida = [
+    # CUESTA DINERO, y ahi esta el escenario entero. Curarse solo es lo primero
+    # que hace cualquiera -medido: con `vendarse` gratis, `socorrer` no se usaba
+    # NI UNA VEZ, porque nadie necesita ayuda si puede apanyarse-. El unguento
+    # se compra, asi que quien no tiene con que depende de que alguien le
+    # aprecie lo suficiente. Es el mendigo herido, escrito sin nombrarlo.
+    A(id="vendarse", label="vendarse", duration_ticks=12,
+      requires_affordance="quietud", requires={"dinero": 0.22},
+      satisfies={"salud": 0.90}, costs={"dinero": 0.45},
+      effects={"salud": 0.55, "dinero": -0.16}, cures=["herida"]),
+    # Cuesta tiempo y no da salud a quien la hace: lo que gana es vinculo, y por
+    # eso `regard_weight` alto. La sangre de otro es cosa suya salvo que le
+    # tengas aprecio -y ahi esta el mendigo: poco probable, no imposible-.
+    A(id="socorrer", label="socorrer a un herido", duration_ticks=10,
+      requires_affordance="quietud", requires_company=1,
+      satisfies={"vinculo": 0.80}, effects={"vinculo": 0.30},
+      target={"gives": {"salud": 0.50}, "cures": ["herida"],
+              "requires_condition": "herida", "regard_weight": 0.70}),
+]
+actions = actions + herida
