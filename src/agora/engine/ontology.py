@@ -160,6 +160,32 @@ class NeedSpec(Spec):
     Es la diferencia entre estar acompañado y estar acompañado por alguien.
     """
 
+    lethal_after: int = Field(default=0, ge=0)
+    """Cuántos ticks seguidos a cero puede aguantarse esto antes de morirse.
+    **0 = nunca mata**, y es el defecto.
+
+    **El motor no puede saber que el hambre mata.** Que un eje sea mortal es
+    ambientación pura: en un mundo el sustento mata en tres días, en otro el
+    aire mata en dos minutos y en otro nada mata a nadie. Por eso se declara por
+    necesidad y aquí, en el pack, y por eso el motor no menciona ninguna.
+
+    **En ticks y no en días** por lo mismo que `bond_horizon`: el reloj lo define
+    el pack, y hablar en días obligaría a este archivo a saber cuántos ticks
+    tiene uno.
+
+    Se cuenta a **valor cero**, no por deuda. Los dos servían, y el valor gana
+    por legible: *tres días sin comer y te mueres* es una regla que quien juega
+    aprende, mientras que un umbral de deuda depende de `max_debt` y de la tasa
+    de decaimiento, y no se puede contar en una frase. La deuda sigue midiendo
+    **cuán hundido** estás; esto mide **cuánto llevas hundido**, que es otra cosa.
+
+    Determinista y sin sorteo, a diferencia de los disparadores. Ahí el azar
+    evita que el mundo sea un guion; aquí lo estropearía: una regla que a veces
+    mata a los tres días y a veces a los cinco no se puede aprender, y la
+    variedad ya está donde tiene que estar — en que cada cual llega a cero
+    cuando llega, por sus decisiones y su suerte.
+    """
+
     max_debt: float = Field(default=0.0, ge=0.0)
     """Cuánto puede acumularse esta necesidad POR DEBAJO del suelo. 0 lo desactiva.
 

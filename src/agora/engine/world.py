@@ -147,6 +147,7 @@ class Simulation:
         self._expire_situations()
         self._fire_triggers()
         self._decay_everyone()
+        self._cobrar_muertes()
         for agent in self.state.agents_in_order():
             self._settle_goals(agent)
         for agent in self.state.agents_in_order():
@@ -272,6 +273,38 @@ class Simulation:
                 "porque": porque,
             },
         )
+
+    def _cobrar_muertes(self) -> None:
+        """Se muere quien lleve demasiado a cero en algo que el pack declara
+        mortal.
+
+        **Va justo después del decaimiento y antes de que nadie actúe**, y las dos
+        mitades importan. Después del decaimiento porque es lo que hunde las
+        necesidades, así que el reloj de este tick ya está puesto al día. Antes de
+        actuar porque un muerto no cierra metas ni delibera: dejarlo resolver su
+        ocupación sería darle un turno de más.
+
+        **Y en bloque, nunca a media pasada.** `agents_in_order` devuelve una
+        lista nueva, así que borrar del reparto mientras se recorre dejaría al
+        muerto siendo procesado en esa misma vuelta y a los `KeyError` apareciendo
+        dos fases más adelante. Aquí no hay iteración abierta que romper.
+
+        Ordenado por id: quien muere primero graba antes su recuerdo en los
+        demás, y el olvido por capacidad desempata por `seq`. Sin orden fijo, dos
+        procesos con la misma semilla acabarían con biografías distintas.
+        """
+        specs = self.pack.need_by_id
+        condenados = [
+            (agent.spec_id, need_id)
+            for agent in self.state.agents_in_order()
+            for need_id, llevan in sorted(agent.agonia.items())
+            if llevan >= specs[need_id].lethal_after > 0
+        ]
+        for quien, need_id in sorted(condenados):
+            # Puede haber muerto ya por otro eje en esta misma vuelta: quien se
+            # muere de sed y de hambre a la vez se muere una vez.
+            if quien in self.state.agents:
+                self.morir(quien, porque=str(need_id))
 
     def morir(self, quien: AgentId, porque: str = "a mano") -> None:
         """Alguien deja de estar. **La primera pérdida que el motor sabe causar.**
@@ -523,6 +556,22 @@ class Simulation:
                 # Lo que no puede interrumpir tampoco es una alarma. Sin esta
                 # guarda el log grita "crisis" por una bolsa vacia o por ser
                 # novato, y el narrador se lo cree aunque el triaje no.
+                # El reloj de lo mortal va antes que la alarma y aparte de ella:
+                # `can_be_critical` decide qué merece interrumpir una rutina, y
+                # morirse no pide permiso a esa guarda. Un pack puede declarar
+                # letal algo que no considera motivo para soltar lo que estás
+                # haciendo —una hemorragia lenta— y sería absurdo que por eso no
+                # matara.
+                mortal = specs[need_id].lethal_after
+                if mortal > 0:
+                    if value <= 0.0:
+                        agent.agonia[need_id] = agent.agonia.get(need_id, 0) + 1
+                    elif need_id in agent.agonia:
+                        # Levantar del cero lo borra entero. Comer no salda el
+                        # hambre de tres días a plazos como se salda una deuda:
+                        # la quita.
+                        del agent.agonia[need_id]
+
                 if not specs[need_id].can_be_critical:
                     continue
                 if before[need_id] >= threshold > value:

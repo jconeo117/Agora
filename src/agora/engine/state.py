@@ -341,6 +341,21 @@ class AgentState:
     Solo existe para las necesidades que declaran `max_debt`; las demás nunca
     entran aquí y el diccionario se queda vacío."""
 
+    agonia: dict[NeedId, int] = field(default_factory=dict)
+    """Ticks SEGUIDOS a cero, por necesidad. El reloj de lo que está matando.
+
+    Hermano de `debt` sobre el otro eje, y por eso vive al lado: la deuda dice
+    **cuán hundido** estás y esto **cuánto llevas**. Son independientes —se puede
+    tocar fondo un instante o vivir raspando el suelo un mes— y solo la segunda
+    mata.
+
+    Se reinicia en cuanto la necesidad levanta del cero. Comer no salda el hambre
+    de tres días como quien paga una deuda: la quita del todo. Es la diferencia
+    entre esto y `debt`, que sí se paga a plazos.
+
+    Disperso como la deuda: solo aparecen las que el pack declara `lethal_after`,
+    así que un mundo donde no se muere nadie no paga ni un byte por esto."""
+
     strain: float = 0.0
     """Desgaste cognitivo en [0, 1]. DERIVADO de las necesidades, se recalcula
     cada tick. 0 entero, 1 al límite.

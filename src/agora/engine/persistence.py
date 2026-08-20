@@ -106,6 +106,9 @@ def _agente_a_dict(agent: AgentState, recuerdos: tuple[Recuerdo, ...]) -> dict[s
         "tastes": dict(agent.tastes),
         "goals": {str(k): v.value for k, v in agent.goals.items()},
         "debt": {str(k): v for k, v in agent.debt.items()},
+        # Sin esto, guardar y reanudar le perdona a todo el mundo lo que llevaba
+        # sin comer. La deuda ya se guardaba; el reloj que mata, no existía.
+        "agonia": {str(k): v for k, v in agent.agonia.items()},
         "gain_beliefs": {
             str(a): {str(n): v for n, v in creencias.items()}
             for a, creencias in agent.gain_beliefs.items()
@@ -272,6 +275,13 @@ def _dict_a_agente(datos: dict[str, Any], pack: ContentPack) -> AgentState:
         tastes=dict(datos["tastes"]),
         goals={GoalId(k): GoalStatus(v) for k, v in datos["goals"].items()},
         debt={NeedId(k): v for k, v in datos["debt"].items() if k in conocidos_need},
+        # `.get` como las memorias y los disparadores: un guardado anterior a
+        # esto se lee como alguien que no lleva nada a cero, que es lo que era.
+        agonia={
+            NeedId(k): int(v)
+            for k, v in datos.get("agonia", {}).items()
+            if k in conocidos_need
+        },
         gain_beliefs={
             ActionId(a): {NeedId(n): v for n, v in c.items()}
             for a, c in datos["gain_beliefs"].items()

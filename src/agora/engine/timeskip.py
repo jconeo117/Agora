@@ -124,6 +124,24 @@ def _adelantar_reloj(sim: Simulation, ticks: int) -> None:
     """
     sim.state.tick += ticks
     for agente in sim.state.agents_in_order():
+        # La agonia se BORRA, no se adelanta, y es la unica marca de tiempo aqui
+        # que no cobra la zancada. Las demas cuentan desde cuando paso algo y
+        # siguen siendo verdad al otro lado del hueco; esta cuenta ticks
+        # SEGUIDOS, y a traves de trece dias sin simular "seguidos" es falso.
+        #
+        # Las dos alternativas eran inventarse algo. Adelantarla mata a todo el
+        # que estuviera a cero al saltar, porque 1248 ticks pasan cualquier
+        # umbral — y los dias simulados demuestran que esa gente come. Dejarla
+        # colgando cuenta como consecutivos unos ticks repartidos por un mes.
+        # Borrarla dice lo unico cierto: no sabemos que paso esos dias.
+        #
+        # CONSECUENCIA, y conviene tenerla escrita: bajo `--skip` no se muere
+        # nadie de hambre salvo que el pack la declare letal en menos de lo que
+        # dura un dia simulado. Una carrera de cinco anyos con `--skip 14` no
+        # produce muertes por necesidad. Es una limitacion del atajo, no del
+        # motor, y sale del mismo sitio que las demas: lo que no se simula, no
+        # se inventa.
+        agente.agonia.clear()
         for bond in agente.bonds.values():
             bond.last_seen += ticks
         agente.sightings = {
