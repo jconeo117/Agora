@@ -61,6 +61,19 @@ class HealthReport:
     contar eventos diría lo contrario.
     """
 
+    muertes: int = 0
+    """Cuánta gente no llegó al final, sumando semillas.
+
+    Existe porque sin este número **el resto del panel miente en silencio** en
+    cuanto un pack declara algo letal. La diferenciación, la geografía y el
+    tiempo en tránsito se calculan sobre quien vive; si la mitad del mundo se
+    muere el tercer día, los números salen preciosos y describen a los seis
+    supervivientes.
+
+    Con muertes, un panel sano deja de significar lo mismo. Léase siempre este
+    primero.
+    """
+
     completed: int = 0
     aborted: int = 0
     stalls: int = 0
@@ -135,6 +148,10 @@ class HealthReport:
         salida = [
             f"  {self.days} días · {self.agents} agentes · semillas {list(self.seeds)}",
             "",
+            # Primero, y por eso rompe el orden del resto: si hay muertes, todo
+            # lo de abajo describe a los supervivientes.
+            f"  muertes                 {self.muertes:6}"
+            + ("   <-- el resto del panel es de quien queda" if self.muertes else ""),
             f"  tiempo en crisis        {self.crisis_time:6.1%}",
             f"  críticas simultáneas    {self.simultaneous_critical:6.2f}",
             f"  abandonos/completadas   {self.aborted:5}/{self.completed:<6}"
@@ -184,6 +201,7 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
     profiles: dict[AgentId, Counter[ActionId]] = {a.id: Counter() for a in pack.agents}
     where: dict[AgentId, Counter[PlaceId]] = {a.id: Counter() for a in pack.agents}
     out_of_bounds: list[str] = []
+    muertes = 0
     eventful = 0
     ocurridas: set[SituationId] = set()
 
@@ -231,6 +249,7 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
             profiles[actor].update(acciones)
             used.update(acciones)
 
+        muertes += population - len(sim.state.agents)
         for agent in sim.state.agents_in_order():
             for need, value in agent.needs.items():
                 if not 0.0 <= value <= 1.0:
@@ -245,7 +264,11 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
         crisis_time=crisis / max(samples, 1),
         simultaneous_critical=critical_count / max(samples, 1),
         abort_ratio=aborted / max(completed, 1),
-        transit_time=transit / max(ticks * population * len(seeds), 1),
+        # `samples` y no `ticks * population * len(seeds)`: son los tick-agente
+        # que de verdad ocurrieron. Con muertes, el producto cuenta los turnos de
+        # quien ya no está y el tránsito sale rebajado sin que nada lo diga.
+        transit_time=transit / max(samples, 1),
+        muertes=muertes,
         differentiation=_differentiation(profiles),
         geography=_differentiation(where),
         completed=completed,
@@ -318,7 +341,13 @@ def _differentiation[K: (ActionId, PlaceId)](
     """
     vectors: list[dict[K, float]] = []
     for counts in profiles.values():
-        total = sum(counts.values()) or 1
+        total = sum(counts.values())
+        # Un perfil VACÍO no es una biografía distinta, es una biografía que no
+        # existe — y como vector es máximamente distinto de todos, así que quien
+        # muriera antes de hacer nada subiría la cifra por no haber vivido. Sin
+        # esta línea, matar gente mejora la diferenciación.
+        if not total:
+            continue
         vectors.append({k: v / total for k, v in counts.items()})
 
     pairs = [
@@ -488,6 +517,11 @@ def check(pack: ContentPack, report: HealthReport | None = None) -> list[str]:
         problems.append(f"valores fuera de [0,1]: {report.out_of_bounds[:3]}")
     if report.completed == 0:
         problems.append("nadie completó ninguna acción en toda la corrida")
+    if spec.max_muertes is not None and report.muertes > spec.max_muertes:
+        problems.append(
+            f"{report.muertes} muertes por encima del máximo {spec.max_muertes}: "
+            f"lo de abajo describe a quien queda, no al mundo que se escribió"
+        )
 
     if spec.min_crisis is not None and report.crisis_time < spec.min_crisis:
         problems.append(

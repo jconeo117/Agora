@@ -1112,6 +1112,19 @@ class HealthSpec(Spec):
     """Distancia media entre las vidas de cada par de agentes. Es la métrica
     que caza el colapso: fichas distintas que producen vidas idénticas."""
 
+    max_muertes: int | None = Field(default=None, ge=0)
+    """Cuántos pueden morirse antes de que el mundo esté roto. `None` no lo mira.
+
+    Hace falta desde que existe `lethal_after`, y en las dos direcciones. Un
+    mundo que mata a la mitad de sus habitantes en tres semanas no es peligroso,
+    está mal calibrado — y sin este número el panel lo celebraría, porque la
+    diferenciación y la geografía se calculan sobre quien queda.
+
+    Se declara en absoluto y no en fracción a propósito: **cero es una respuesta
+    legítima y la más común**, y `0.0` en un campo de fracción se confunde con
+    *no lo he pensado*.
+    """
+
     may_go_unused: frozenset[ActionId] = Field(default_factory=frozenset)
     """Acciones que pueden no aparecer nunca sin que sea un fallo.
 
