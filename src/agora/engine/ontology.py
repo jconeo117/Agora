@@ -526,6 +526,77 @@ class ElasticSpec(Spec):
     """Suelo. Nadie se acuesta para quince minutos, aunque le sobre con eso."""
 
 
+class TargetSpec(Spec):
+    """A quién le hace algo una acción, y qué le hace.
+
+    **Se elige donde estás, no al planificar**, y esa es la decisión que hace
+    barato todo esto. Meter el destinatario en la deliberación llevaría el
+    espacio de 32 acciones por 25 lugares a multiplicarlo por 127 personas. Pero
+    que además sería falso: no puedes saber que alguien sangra desde el otro lado
+    del pueblo. Que solo se pueda apuntar a quien tienes delante sale de la misma
+    regla que `sightings` —se delibera sobre lo que se sabe— y de paso cuesta
+    nada.
+    """
+
+    gives: dict[NeedId, float] = Field(default_factory=dict)
+    """Lo que recibe **el otro**. Positivo da, negativo quita.
+
+    Negativo es agredir, y no hace falta nada más para que exista: quitarle
+    sangre a alguien es lo mismo que darle de comer, con el signo cambiado.
+    """
+
+    cures: frozenset[SituationId] = Field(default_factory=frozenset)
+    """Qué condiciones se le quitan **al otro**. Solo personales.
+
+    Es la mitad que faltaba de la regla de las heridas: `ActionSpec.cures` te
+    cura a ti, esto cura a quien no puede curarse solo.
+    """
+
+    inflicts: SituationId | None = None
+    """Qué condición se le pega **al otro**. Solo personal.
+
+    Herir, envenenar, contagiar, maldecir. Con `gives` negativo se le hace daño
+    ahora; con esto se le deja algo encima que sigue doliendo después.
+    """
+
+    marca: str = ""
+    """Con qué marca se le pega. Ver `Condicion.marca`: dos idénticas agravan, y
+    distintas se apilan."""
+
+    requires_condition: SituationId | None = None
+    """Solo vale sobre quien lleve esto encima. `None` = sobre cualquiera.
+
+    Es cómo se escribe *curar al herido*, y de paso resuelve la única cuestión de
+    percepción que había aquí: una condición **se ve** cuando estás delante —
+    alguien sangrando se nota— mientras que el valor exacto de sus necesidades
+    no. Apuntar por condición y no por "quien peor esté" evita que el motor lea
+    la ficha interna de nadie.
+    """
+
+    min_regard: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Aprecio mínimo para molestarse. 0.0 = con cualquiera.
+
+    Puerta dura, y por eso el defecto la deja abierta: úsala solo para lo que de
+    verdad exige cercanía. Para *la gente está poco dispuesta a ayudar a un
+    mendigo* la herramienta es la de abajo, no esta — una puerta dura lo haría
+    imposible, y lo que se pidió fue improbable.
+    """
+
+    regard_weight: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Cuánto depende de a QUIÉN. 0 = da igual; 1 = solo compensa con quien quieres.
+
+        factor = (1 - regard_weight) + regard_weight * max(0, aprecio)
+
+    **Es la respuesta a "poco probable, no completamente improbable".** No veta:
+    encoge la recompensa. Ayudar a un desconocido sigue valiendo algo, así que
+    ocurre cuando no hay nada mejor que hacer — que es exactamente lo que le pasa
+    a un mendigo herido en una calle con gente ocupada.
+
+    A 0 se comporta como un servicio: vender pan a un extraño paga lo mismo que
+    vendérselo a tu hermano. A 1, como un favor.
+    """
+
+
 class ActionSpec(Spec):
     """Algo que un agente puede hacer durante N ticks.
 
@@ -675,6 +746,28 @@ class ActionSpec(Spec):
     Es lo que impide que la capa relacional se quede en tintar números. Sin una
     puerta, tener una pareja solo haría que ciertos sitios apeteciesen un poco
     más; con ella hay cosas que solo existen si esa persona está.
+    """
+
+    target: TargetSpec | None = None
+    """A quién le hace algo. `None` = a nadie, que es todo lo que había hasta aquí.
+
+    **La mitad que le faltaba a la capa social.** Hasta este campo, `satisfies`,
+    `effects` y `costs` caían siempre sobre quien actúa: el motor eran ciento
+    veintisiete personas actuando sobre sí mismas en presencia de otras.
+    `requires_company` y `requires_relation` parecen sociales y no lo son — son
+    puertas, dicen quién tiene que ESTAR, no a quién le pasa nada.
+
+    Eso dejaba cuatro cosas sin poder escribirse, y las cuatro se pidieron:
+    curar a un herido que no puede curarse solo, que un recuerdo vaya sobre
+    alguien (`about` salía al 0 % en los dos mundos grandes), que un rumor lleve
+    noticias de personas en vez de expectativas, y que exista el rencor hacia
+    alguien.
+
+    **Y no hace falta que el motor sepa qué es el altruismo.** Ayudar paga lo que
+    el pack diga que paga: la acción satisface algo de QUIEN ACTÚA —vínculo,
+    propósito, reputación— y por eso se hace. Un motor de utilidad no necesita
+    una primitiva para la generosidad; necesita que la generosidad tenga precio y
+    premio, como todo lo demás.
     """
 
     cures: frozenset[SituationId] = Field(default_factory=frozenset)

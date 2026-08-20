@@ -549,6 +549,40 @@ class ContentPack(Spec):
                 for c in sorted(action.cures)
                 if str(c) not in personales
             ]
+            destino = action.target
+            if destino is None:
+                continue
+            problems += [
+                f"acción {action.id!r}.target.cures: {c!r} no es una situación "
+                f"personal"
+                for c in sorted(destino.cures)
+                if str(c) not in personales
+            ]
+            for campo, cual in (
+                ("inflicts", destino.inflicts),
+                ("requires_condition", destino.requires_condition),
+            ):
+                if cual is not None and str(cual) not in personales:
+                    problems.append(
+                        f"acción {action.id!r}.target.{campo}: {cual!r} no es una "
+                        f"situación personal"
+                    )
+            # Una acción dirigida que no le hace NADA al otro es contenido
+            # muerto que se lee como vivo, igual que una situación sin efectos:
+            # sale en el log, se elige un destinatario, y no pasa nada.
+            if not (destino.gives or destino.cures or destino.inflicts):
+                problems.append(
+                    f"acción {action.id!r} apunta a alguien y no le hace nada: "
+                    f"declara `gives`, `cures` o `inflicts`, o quita `target`"
+                )
+            if action.requires_company < 1:
+                # Sin esto, una acción dirigida es elegible a solas y se cae en
+                # la puerta de destinatario cada vez. Declararlo hace que el
+                # motor lo sepa ANTES de puntuar, y que el pack lo diga.
+                problems.append(
+                    f"acción {action.id!r} apunta a alguien y no exige compañía: "
+                    f"declara `requires_company: 1`"
+                )
         return problems
 
     def _check_situations_do_something(self) -> list[str]:

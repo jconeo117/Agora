@@ -92,6 +92,11 @@ class Decision:
     utility: float
     travel_ticks: int
 
+    target: AgentId | None = None
+    """A quién, si la acción apunta a alguien. Se elige al deliberar y se
+    arrastra hasta el final: una acción dirigida a alguien acaba dirigida a esa
+    persona o no acaba."""
+
 
 # -----------------------------------------------------------------------------
 # Personalidad -> pesos
@@ -422,6 +427,13 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
     tuning = pack.tuning
     horizon = tuning.sighting_horizon
 
+    # Quién tiene delante, de verdad y con su estado. Solo hace falta si algo
+    # apunta a alguien, y en un pack sin acciones dirigidas no se paga ni una
+    # lista: es la misma pereza que `sightings` con horizonte 0.
+    here: list[AgentState] = (
+        world.others_at(agent) if any(a.target is not None for a in pack.actions) else []
+    )
+
     # DOS relojes, y la distinción es el corazón del cronotipo.
     #
     # El del mundo es objetivo: la herrería cierra a la misma hora para todos, y
@@ -509,7 +521,27 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
                 action, place, headcount, agent.needs, open_phase, agent.traits, aqui, kin
             ):
                 continue
+            # OCTAVA PUERTA: hay a quién hacérselo, y está delante.
+            #
+            # Solo donde el agente ESTÁ, y las dos razones se sostienen solas.
+            # La barata: meter el destinatario en la deliberación multiplicaría
+            # el espacio por la población. La buena: no puedes saber que alguien
+            # sangra desde el otro lado del pueblo. `sightings` da una idea rancia
+            # de quién hay en un sitio, pero de sus condiciones no hay noticia
+            # ninguna, y suponer a favor llenaría el mundo de gente viajando a
+            # curar a nadie.
+            destinatario = None
+            if action.target is not None:
+                if place.id != agent.at:
+                    continue
+                destinatario = agent.elegir_destinatario(here, action.target)
+                if destinatario is None:
+                    continue
             reward = benefit(pack, agent, action, weights) * discount * place_taste
+            if destinatario is not None and action.target is not None:
+                # Encoge, no veta: ayudar a un desconocido sigue valiendo algo,
+                # así que ocurre cuando no hay nada mejor que hacer.
+                reward *= agent.disposicion(destinatario.spec_id, action.target)
             reward *= tastes.get(str(action.id), 1.0)
             reward *= novelty(agent, action.id, tuning.novelty_weight)
             reward *= companionship(
@@ -537,6 +569,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
                     place=place.id,
                     utility=reward - price,
                     travel_ticks=travel,
+                    target=None if destinatario is None else destinatario.spec_id,
                 )
             )
     return found

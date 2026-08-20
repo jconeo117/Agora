@@ -43,6 +43,7 @@ from agora.engine.ontology import (
     PlaceSpec,
     RelationId,
     SituationId,
+    TargetSpec,
     TraitId,
 )
 from agora.engine.outcome import company_saturation
@@ -66,6 +67,15 @@ class PerformingAction(BaseModel):
 
     action: ActionId
     ticks_remaining: int = Field(ge=0)
+
+    target: AgentId | None = None
+    """A quién se lo está haciendo. `None` en todo lo que no apunta a nadie.
+
+    Se guarda al empezar y no se vuelve a elegir al terminar, y es deliberado:
+    reelegir convertiría *vendar a mi hermano* en *vendar a quien quede*, y una
+    acción que empieza dirigida a alguien tiene que acabar dirigida a esa persona
+    o no acabar. Si se ha ido o se ha muerto, no le llega nada.
+    """
 
     total_ticks: int = Field(default=0, ge=0)
     """Cuánto se planificó al empezar. Con las acciones elásticas ya no se puede
@@ -718,6 +728,56 @@ class AgentState:
             self.bonds[other] = bond
         bond.encounters += 1
         bond.last_seen = tick
+
+    def lleva(self, situacion: SituationId) -> bool:
+        """Si lleva encima esa condición, con la marca que sea."""
+        return any(c.situacion == situacion for c in self.condiciones)
+
+    def elegir_destinatario(
+        self, presentes: Sequence[AgentState], spec: TargetSpec
+    ) -> AgentState | None:
+        """A quién de los que están aquí. `None` si a ninguno.
+
+        **Al que más aprecia de entre los que valen**, y el orden importa: el
+        filtro es objetivo —lleva la condición o no la lleva— y el desempate es
+        subjetivo. Al revés, ordenando por necesidad, el motor tendría que leer
+        la ficha interna de todo el mundo para compararlos, que es la omnisciencia
+        que `sightings` y el `owner` obligatorio de la memoria existen para
+        impedir.
+
+        Una condición **se ve** cuando estás delante: alguien sangrando se nota.
+        El valor exacto de sus necesidades, no.
+
+        Desempate por id, como en todas partes: sin él, dos procesos con la misma
+        semilla curarían a personas distintas.
+        """
+        mejor: AgentState | None = None
+        mejor_aprecio = 0.0
+        for otro in presentes:
+            if otro.spec_id == self.spec_id:
+                continue
+            if spec.requires_condition is not None and not otro.lleva(
+                spec.requires_condition
+            ):
+                continue
+            aprecio = self.bonds[otro.spec_id].regard if otro.spec_id in self.bonds else 0.0
+            if aprecio < spec.min_regard:
+                continue
+            if mejor is None or (aprecio, otro.spec_id) > (mejor_aprecio, mejor.spec_id):
+                mejor, mejor_aprecio = otro, aprecio
+        return mejor
+
+    def disposicion(self, hacia: AgentId, spec: TargetSpec) -> float:
+        """Cuánto le compensa hacérselo **a este**. Multiplica la recompensa.
+
+        No veta: encoge. Es la respuesta a *poco probable, no completamente
+        improbable* — ayudar a un desconocido sigue valiendo algo, así que ocurre
+        cuando no hay nada mejor que hacer.
+        """
+        if spec.regard_weight <= 0.0:
+            return 1.0
+        aprecio = max(0.0, self.bonds[hacia].regard if hacia in self.bonds else 0.0)
+        return (1.0 - spec.regard_weight) + spec.regard_weight * aprecio
 
     def afligir(
         self, situacion: SituationId, marca: str = "", hasta: int | None = None

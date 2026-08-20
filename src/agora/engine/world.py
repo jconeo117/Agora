@@ -807,13 +807,19 @@ class Simulation:
     def _complete(self, agent: AgentState, busy: Busy) -> None:
         match busy:
             case PerformingAction():
-                self._finish_action(agent, busy.action, busy.total_ticks)
+                self._finish_action(agent, busy.action, busy.total_ticks, busy.target)
             case Traveling():
                 self._arrive(agent, busy)
             case _:
                 assert_never(busy)
 
-    def _finish_action(self, agent: AgentState, action_id: ActionId, done: int) -> None:
+    def _finish_action(
+        self,
+        agent: AgentState,
+        action_id: ActionId,
+        done: int,
+        target: AgentId | None = None,
+    ) -> None:
         """Aplica el resultado real y aprende de la diferencia con lo prometido.
 
         El orden importa: el estado ANTES de aplicar es lo que permite saber si
@@ -927,6 +933,8 @@ class Simulation:
             testigos=len(others),
             valencia=signed_saturation(sorpresa),
         )
+        if spec.target is not None and target is not None:
+            self._entregar(agent, spec, target, event)
         # La mitad *por acción* de cómo se sale de una condición. Al terminar,
         # no al empezar: vendarse a medias no cura.
         for curada in sorted(spec.cures):
@@ -1033,18 +1041,28 @@ class Simulation:
             self._emit(EventKind.IDLE_STALLED, agent)
             return
         if choice.travel_ticks == 0:
-            self._start_action(agent, choice.action, choice.utility)
+            self._start_action(agent, choice.action, choice.utility, choice.target)
         else:
             self._start_travel(agent, choice)
 
-    def _start_action(self, agent: AgentState, action: ActionId, utility: float | None) -> None:
+    def _start_action(
+        self,
+        agent: AgentState,
+        action: ActionId,
+        utility: float | None,
+        target: AgentId | None = None,
+    ) -> None:
         spec = self.pack.action_by_id[action]
         # La duración se fija AQUÍ y se guarda: con lo elástico sale del déficit
         # de este agente en este sitio, y el pack ya no la sabe. Recalcularla por
         # tick alargaría el sueño cada vez que el agente se repone un poco.
         ticks = planned_duration(spec, agent, self.state.gains_at(agent.at))
-        agent.busy = PerformingAction(action=action, ticks_remaining=ticks, total_ticks=ticks)
+        agent.busy = PerformingAction(
+            action=action, ticks_remaining=ticks, total_ticks=ticks, target=target
+        )
         data: Payload = {} if utility is None else {"utility": round(utility, 4)}
+        if target is not None:
+            data = {**data, "target": str(target)}
         if spec.elastic is not None:
             data = {**data, "ticks": ticks}
         self._emit(EventKind.ACTION_STARTED, agent, action=action, data=data)
@@ -1154,6 +1172,75 @@ class Simulation:
     # -------------------------------------------------------------------------
     # Memoria episódica
     # -------------------------------------------------------------------------
+
+    def _entregar(
+        self,
+        agent: AgentState,
+        spec: ActionSpec,
+        a_quien: AgentId,
+        event: Event,
+    ) -> None:
+        """Lo que le llega al otro. **El primer efecto del motor que no cae sobre
+        quien actúa.**
+
+        Se comprueba que siga delante y no que siga existiendo: vendar a quien se
+        marchó a mitad no cura a nadie, y curarlo desde otro lugar sería
+        teletransportar el vendaje. Es la misma verdad-en-la-mano que el chasco de
+        llegada, en el otro extremo de la acción.
+
+        El daño se archiva con `endure` y la ayuda con `apply`, y la distinción no
+        es cosmética: lo que te hacen no lo decidiste tú, así que no puede
+        ensuciar tus creencias sobre lo que rinde cada acción. Es la misma razón
+        por la que una ventisca entra como pasivo.
+
+        Y **aquí es donde el motor empieza a producir hechos sociales**. El evento
+        lleva `subject`, así que el recuerdo del otro sale con `about` puesto — el
+        campo que la medición encontró al 0 % en los dos mundos grandes, y sin el
+        cual `duelo()` no tenía de qué alimentarse y los rumores solo podían
+        llevar expectativas.
+        """
+        otro = self.state.agents.get(a_quien)
+        if otro is None or otro.at != agent.at:
+            return
+        destino = spec.target
+        assert destino is not None
+
+        recibe = {n: v for n, v in destino.gives.items() if v > 0.0}
+        sufre = {n: v for n, v in destino.gives.items() if v < 0.0}
+        if recibe:
+            otro.apply(recibe, self.pack.need_by_id)
+        if sufre:
+            otro.endure(sufre, self.pack.need_by_id)
+        for curada in sorted(destino.cures):
+            otro.aliviar(curada)
+        if destino.inflicts is not None:
+            otro.afligir(destino.inflicts, destino.marca)
+
+        # El otro lo recuerda, y lo recuerda CON NOMBRE: `about` sale del
+        # `subject` del evento, que es quien actuó.
+        suyo = self.log.emit(
+            tick=self.state.tick,
+            kind=EventKind.ACTION_COMPLETED,
+            actor=a_quien,
+            place=otro.at,
+            action=spec.id,
+            subject=agent.spec_id,
+            data={"recibido": True},
+        )
+        self._grabar(
+            otro,
+            suyo,
+            urgencia=max(
+                (urgency(otro.needs[n], self.pack.need_by_id[n].urgency_exponent)
+                 for n in destino.gives),
+                default=0.0,
+            ),
+            # Que te hagan algo sorprende por definición: no lo habías decidido
+            # tú. El signo lo pone qué te hicieron.
+            sorpresa=1.0,
+            valencia=1.0 if recibe and not sufre else -1.0,
+        )
+        _ = event
 
     def _contar(
         self, narrador: AgentState, oyentes: list[AgentId], tick: int
