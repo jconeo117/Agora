@@ -37,6 +37,7 @@ from agora.engine.ontology import (
     AgentId,
     GoalStatus,
     NeedId,
+    PlaceId,
     RelationId,
     SituationId,
 )
@@ -305,21 +306,19 @@ class Simulation:
         if agente is None:
             raise KeyError(f"no está entre los vivos: {quien!r}")
 
-        cond = agente.afligir(
-            situacion, marca, None if ticks is None else self.state.tick + ticks
-        )
-        self.log.emit(
-            tick=self.state.tick,
-            kind=EventKind.SITUATION_BEGAN,
-            actor=quien,
-            place=agente.at,
-            data={
-                "situation": str(situacion),
-                "personal": True,
-                "marca": marca,
-                "veces": cond.veces,
-                "porque": porque,
-            },
+        # Pasa por la misma puerta que lo demás. La primera versión de este
+        # método llamaba a `afligir` por su cuenta y se dejaba el `donde`, así
+        # que una herida puesta a mano no sabía dónde te la hicieron y el miedo
+        # apuntaba a cualquier parte. Dos caminos para lo mismo divergen: es
+        # justo lo que `_infligir` existe para impedir.
+        self._infligir(
+            agente,
+            AflictionSpec(
+                situation=situacion,
+                marca=marca,
+                lasts=0 if ticks is None else ticks,
+            ),
+            porque=porque,
         )
 
     def aliviar(
@@ -604,6 +603,11 @@ class Simulation:
             # sabe dónde ocurrió, no si el sitio tuvo algo que ver — y el hambre
             # cruza su umbral donde uno pase más tiempo, que es su propia cama.
             culpables: dict[NeedId, SituationId] = {}
+            # Dónde ocurrió lo que va a hundir este eje. Solo lo llenan las
+            # CONDICIONES: una situación de lugar hace daño donde estás, y ahí
+            # el sitio ya es el correcto. Una herida no — te la hicieron en otra
+            # parte y la notas semanas después.
+            donde_paso: dict[NeedId, PlaceId] = {}
             for situation in self.state.situations_at(agent.at):
                 spec_sit = by_situation[situation]
                 # Quinto canal: lo que el mundo te deja encima. Va antes que el
@@ -641,6 +645,8 @@ class Simulation:
                 for need_id, delta in efectos.items():
                     if delta < 0.0:
                         culpables[need_id] = cond.situacion
+                        if cond.donde is not None:
+                            donde_paso[need_id] = cond.donde
 
             agent.recover_novelty(self.pack.tuning.saturation_recovery)
             # Después del decaimiento: el desgaste y el temperamento que se
@@ -678,7 +684,16 @@ class Simulation:
                     }
                     if culpable is not None:
                         datos["porque"] = str(culpable)
-                    event = self._emit(EventKind.NEED_CRITICAL, agent, data=datos)
+                    # No pasa por `_emit`, y esa es toda la corrección: `_emit`
+                    # sella el evento con `agent.at`, que para una herida es
+                    # dónde te diste cuenta y no dónde te la hicieron.
+                    event = self.log.emit(
+                        tick=self.state.tick,
+                        kind=EventKind.NEED_CRITICAL,
+                        actor=agent.spec_id,
+                        place=donde_paso.get(need_id, agent.at),
+                        data=datos,
+                    )
                     # *Lo que duele, se recuerda* — la frase con la que se
                     # declaró este evento en F0, cobrada por fin. Sin sorpresa:
                     # hundirse no desmiente ninguna expectativa, duele y ya.
@@ -1210,6 +1225,9 @@ class Simulation:
             aflige.situation,
             aflige.marca,
             None if aflige.lasts <= 0 else self.state.tick + aflige.lasts,
+            # Dónde te la hicieron, no dónde la notarás. Es la línea entera de
+            # la que depende que el miedo apunte a la mazmorra y no a la cama.
+            donde=quien.at,
         )
         self.log.emit(
             tick=self.state.tick,

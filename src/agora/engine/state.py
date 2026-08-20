@@ -183,6 +183,25 @@ class Condicion:
     y por eso da miedo.
     """
 
+    donde: PlaceId | None = None
+    """**Dónde te la hicieron.** No dónde estás ahora.
+
+    Existe por el único mecanismo del motor que llevaba dos campañas sin poder
+    funcionar. `miedo()` pide un recuerdo con lugar y con culpable, y una herida
+    ya da las dos cosas — pero el recuerdo se graba cuando la necesidad cruza su
+    umbral, y un herido sangra durante días: cruza el umbral **en su posada**, o
+    en el templo, o de camino. Sin este campo, la lección aprendida sería temer
+    la propia cama.
+
+    Es exactamente la contaminación que dejó el miedo parado la primera vez —
+    entonces por los chascos sociales, que también ocurren donde uno pasa el
+    tiempo— y por eso el arreglo tiene que ser este y no calibrar nada: **el
+    lugar de un daño es donde lo causaron, no donde se nota**.
+
+    `None` para lo que no tiene sitio: una maldición heredada, una enfermedad
+    congénita, algo que se puso por API sin escena.
+    """
+
 
 @dataclass(slots=True)
 class Bond:
@@ -780,7 +799,11 @@ class AgentState:
         return (1.0 - spec.regard_weight) + spec.regard_weight * aprecio
 
     def afligir(
-        self, situacion: SituationId, marca: str = "", hasta: int | None = None
+        self,
+        situacion: SituationId,
+        marca: str = "",
+        hasta: int | None = None,
+        donde: PlaceId | None = None,
     ) -> Condicion:
         """Le pasa algo. Si ya llevaba una idéntica, se agrava en vez de duplicar.
 
@@ -798,9 +821,15 @@ class AgentState:
                     cond.hasta = None
                 else:
                     cond.hasta = max(cond.hasta, hasta)
+                # El sitio se queda con el de la PRIMERA. Reescribirlo con el de
+                # la última haría que la mazmorra donde casi te matan se borrase
+                # por un rasguño reciente en la plaza, y lo que enseña a temer un
+                # lugar es lo que empezó, no lo que remató.
+                if cond.donde is None:
+                    cond.donde = donde
                 return cond
 
-        cond = Condicion(situacion=situacion, marca=marca, hasta=hasta)
+        cond = Condicion(situacion=situacion, marca=marca, hasta=hasta, donde=donde)
         self.condiciones.append(cond)
         # Orden estable y por clave, no de llegada: los efectos se aplican en
         # secuencia y sumar floats en otro orden da otro número.
