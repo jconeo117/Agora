@@ -526,6 +526,29 @@ class ContentPack(Spec):
                         f"situación {situation.id!r}: su disparador se exige a sí "
                         f"misma, así que no puede encenderse nunca"
                     )
+            if situation.personal:
+                # Lo que le pasa a una persona no ocurre en un sitio ni vuelve
+                # por calendario. Declararlo así es un malentendido sobre qué
+                # clase de cosa se está escribiendo, y no se ve en el log.
+                if situation.places:
+                    problems.append(
+                        f"situación {situation.id!r} es personal y declara "
+                        f"`places`: lo que le pasa a alguien viaja con quien lo "
+                        f"lleva"
+                    )
+                if situation.every:
+                    problems.append(
+                        f"situación {situation.id!r} es personal y es periódica: "
+                        f"una herida no vuelve cada primavera"
+                    )
+        personales = {str(s.id) for s in self.situations if s.personal}
+        for action in self.actions:
+            problems += [
+                f"acción {action.id!r}.cures: {c!r} no es una situación personal, "
+                f"así que nadie puede llevarla encima para que se la quiten"
+                for c in sorted(action.cures)
+                if str(c) not in personales
+            ]
         return problems
 
     def _check_situations_do_something(self) -> list[str]:

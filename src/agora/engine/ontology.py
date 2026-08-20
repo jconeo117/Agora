@@ -677,6 +677,24 @@ class ActionSpec(Spec):
     más; con ella hay cosas que solo existen si esa persona está.
     """
 
+    cures: frozenset[SituationId] = Field(default_factory=frozenset)
+    """Qué condiciones se quita al terminar esto. Solo las **personales**.
+
+    La mitad *por acción* de cómo se sale de una condición; la otra mitad es el
+    plazo, y las dos hacen falta. Sin plazo, una infección que nadie sabe curar
+    mata a todo el mundo; sin acción, curarse no es algo que se pueda decidir y
+    la condición deja de ser un problema con solución.
+
+    Quita **todas las marcas** de esa condición de golpe, no una. Vendar sabe
+    vendar heridas, no la del brazo derecho: el motor no puede saber qué es un
+    brazo, así que tampoco puede saber cuál elegir, y elegir por `seq` sería
+    inventarse un criterio médico.
+
+    Se aplica al que ACTÚA. Curar a otro no existe todavía —ninguna acción tiene
+    destinatario— y es lo que hace falta para que alguien pueda ayudar a un
+    herido que no puede ayudarse solo.
+    """
+
     situation_multipliers: dict[SituationId, PositiveFactor] = Field(default_factory=dict)
     """Cuánto apetece esto según cómo esté el mundo. Lo ausente vale 1.0.
 
@@ -1348,6 +1366,34 @@ class SituationSpec(Spec):
     Es lo que separa una guerra —que lo tiñe todo— de una feria en la plaza. El
     alcance se declara aquí y no al encenderla: así el pack dice de una vez qué
     clase de cosa es, y encenderla es solo encenderla.
+
+    No lo mira una situación `personal`: esas viajan con quien las lleva.
+    """
+
+    personal: bool = False
+    """Esto le pasa a **alguien**, no a un sitio. Una herida, una infección, un
+    veneno, una borrachera, una maldición.
+
+    **No es una primitiva nueva, es un alcance nuevo para la que ya había.** Una
+    situación ya era exactamente lo que hace falta —un estado con nombre, que va
+    y viene, que multiplica lo que rinde y lo que cuesta, y que puede hacer daño—
+    y lo único que le faltaba era poder pegarse a una persona en vez de a un
+    lugar. Toda la maquinaria de aplicar el daño ya era por agente: el bucle del
+    tick llama a `endure` uno por uno, y lo único que se consultaba por lugar era
+    *cuáles te alcanzan*.
+
+    Y de ahí sale, sin mecanismo de muerte nuevo, todo lo que no era agotamiento.
+    Una hemorragia no es *morir de pérdida de sangre*: es un estado que llevas y
+    que te drena, y morirse es lo que pasa si nadie lo para. Eso ya lo cobra
+    `lethal_after`. Una sola regla de muerte y tantas causas como el pack quiera:
+
+        herida       effects {sangre: -0.02}   lasts 200
+        infeccion    effects {salud: -0.005}   lasts 0     hasta que la curen
+        veneno       effects {salud: -0.05}    lasts 40
+        atravesado   effects {sangre: -1.0}    lasts 1
+
+    Incompatible con `places` y con `every`: lo que le pasa a una persona no
+    ocurre en un sitio ni vuelve por calendario. Se valida en el pack.
     """
 
     every: int = Field(default=0, ge=0)

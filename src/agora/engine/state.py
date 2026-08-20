@@ -135,6 +135,46 @@ runtime; aquí falla antes de ejecutar.
 
 
 @dataclass(slots=True)
+class Condicion:
+    """Algo que alguien lleva encima. Una herida, una infección, un veneno.
+
+    No es una primitiva nueva: es una `SituationSpec` marcada como `personal`,
+    pegada a una persona en vez de a un lugar. Lo que vive aquí es solo lo que
+    distingue **esta** de otra igual.
+    """
+
+    situacion: SituationId
+
+    marca: str = ""
+    """Cuál de ellas. Discriminador **opaco**: el motor compara cadenas y nunca
+    las interpreta.
+
+    Existe porque tres heridas —brazo, pierna, torso— drenan por separado y no
+    forman una herida mayor, mientras que dos en el mismo sitio sí empeoran. Sin
+    marca, o todo se apila o todo se funde, y las dos son falsas.
+
+    Y es opaco porque tiene que serlo: el motor no puede saber qué es un brazo.
+    Un pack de naves diría `motor` y `casco`; uno de política, `reputación` y
+    `salud`. La cadena vacía vale para lo que no tiene partes — una borrachera es
+    una borrachera.
+    """
+
+    veces: int = 1
+    """Cuántas idénticas se han acumulado aquí. Multiplica los efectos.
+
+    Dos heridas en el mismo brazo no duran más: **duelen más**. Alargar el plazo
+    modelaría una sola herida mal curada; multiplicar el daño modela dos.
+    """
+
+    hasta: int | None = None
+    """Tick en que se pasa sola. `None` = hasta que alguien la quite.
+
+    Las dos formas hacen falta. Un veneno se pasa; una infección no se pasa sola
+    y por eso da miedo.
+    """
+
+
+@dataclass(slots=True)
 class Bond:
     """Lo que un agente siente y recuerda de otro. Asimétrico a propósito.
 
@@ -340,6 +380,15 @@ class AgentState:
 
     Solo existe para las necesidades que declaran `max_debt`; las demás nunca
     entran aquí y el diccionario se queda vacío."""
+
+    condiciones: list[Condicion] = field(default_factory=list)
+    """Lo que lleva encima ahora mismo. Ordenada por (situación, marca).
+
+    Una `list` y no un `dict` porque la clave es un par y el orden tiene que ser
+    estable sin depender del hash: los efectos se aplican en secuencia y la
+    multiplicación de floats no es asociativa. Es la tercera vez que ese par
+    —hash y coma flotante— decide una estructura de datos en este motor.
+    """
 
     agonia: dict[NeedId, int] = field(default_factory=dict)
     """Ticks SEGUIDOS a cero, por necesidad. El reloj de lo que está matando.
@@ -669,6 +718,60 @@ class AgentState:
             self.bonds[other] = bond
         bond.encounters += 1
         bond.last_seen = tick
+
+    def afligir(
+        self, situacion: SituationId, marca: str = "", hasta: int | None = None
+    ) -> Condicion:
+        """Le pasa algo. Si ya llevaba una idéntica, se agrava en vez de duplicar.
+
+        *Idéntica* es misma situación **y** misma marca. Otro tajo en el mismo
+        brazo empeora el que había; uno en la pierna es otra cosa que drena
+        aparte.
+
+        El plazo se queda con el más largo de los dos. Envenenarse otra vez no
+        acorta lo que quedaba del primero.
+        """
+        for cond in self.condiciones:
+            if cond.situacion == situacion and cond.marca == marca:
+                cond.veces += 1
+                if hasta is None or cond.hasta is None:
+                    cond.hasta = None
+                else:
+                    cond.hasta = max(cond.hasta, hasta)
+                return cond
+
+        cond = Condicion(situacion=situacion, marca=marca, hasta=hasta)
+        self.condiciones.append(cond)
+        # Orden estable y por clave, no de llegada: los efectos se aplican en
+        # secuencia y sumar floats en otro orden da otro número.
+        self.condiciones.sort(key=lambda c: (c.situacion, c.marca))
+        return cond
+
+    def aliviar(self, situacion: SituationId, marca: str | None = None) -> int:
+        """Se le quita. `marca` a `None` quita **todas** las de esa situación.
+
+        Devuelve cuántas se fueron. Que el defecto sea *todas* es deliberado:
+        vendar sabe vendar heridas, no la del brazo derecho, y elegir una por
+        `seq` sería inventarse un criterio médico que el motor no tiene.
+        """
+        antes = len(self.condiciones)
+        self.condiciones = [
+            c
+            for c in self.condiciones
+            if c.situacion != situacion or (marca is not None and c.marca != marca)
+        ]
+        return antes - len(self.condiciones)
+
+    def expirar_condiciones(self, tick: int) -> list[SituationId]:
+        """Quita las que se han pasado solas. Devuelve cuáles, para el log."""
+        vencidas = [
+            c.situacion for c in self.condiciones if c.hasta is not None and tick >= c.hasta
+        ]
+        if vencidas:
+            self.condiciones = [
+                c for c in self.condiciones if c.hasta is None or tick < c.hasta
+            ]
+        return vencidas
 
     def forget_bonds(self, tick: int, horizon: int) -> None:
         """Borra a quien no ve desde hace demasiado.

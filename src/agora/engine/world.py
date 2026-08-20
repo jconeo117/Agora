@@ -274,6 +274,72 @@ class Simulation:
             },
         )
 
+    def afligir(
+        self,
+        quien: AgentId,
+        situacion: SituationId,
+        marca: str = "",
+        ticks: int | None = None,
+        porque: str = "a mano",
+    ) -> None:
+        """Le pasa algo a alguien. Herida, infección, veneno, borrachera.
+
+        Hermana de `begin_situation` sobre el otro alcance, y con los mismos
+        frenos: rechaza lo que no es personal en vez de ignorarlo, porque
+        aplicarle un invierno a una persona es un malentendido que no se ve en el
+        log; y `porque` va al log, que es la regla de que el log diga **por qué**.
+
+        `ticks` a `None` = hasta que alguien la quite. Es lo que separa un veneno
+        de una infección.
+        """
+        spec = self.pack.situation_by_id.get(situacion)
+        if spec is None:
+            raise KeyError(f"situación desconocida {situacion!r}")
+        if not spec.personal:
+            raise ValueError(
+                f"situación {situacion!r} no es personal: le pasa a un lugar, "
+                f"no a alguien. Se enciende con `begin_situation`."
+            )
+        agente = self.state.agents.get(quien)
+        if agente is None:
+            raise KeyError(f"no está entre los vivos: {quien!r}")
+
+        cond = agente.afligir(
+            situacion, marca, None if ticks is None else self.state.tick + ticks
+        )
+        self.log.emit(
+            tick=self.state.tick,
+            kind=EventKind.SITUATION_BEGAN,
+            actor=quien,
+            place=agente.at,
+            data={
+                "situation": str(situacion),
+                "personal": True,
+                "marca": marca,
+                "veces": cond.veces,
+                "porque": porque,
+            },
+        )
+
+    def aliviar(
+        self, quien: AgentId, situacion: SituationId, marca: str | None = None
+    ) -> int:
+        """Se le quita. Silencioso si no la llevaba. Devuelve cuántas se fueron."""
+        agente = self.state.agents.get(quien)
+        if agente is None:
+            raise KeyError(f"no está entre los vivos: {quien!r}")
+        cuantas = agente.aliviar(situacion, marca)
+        if cuantas:
+            self.log.emit(
+                tick=self.state.tick,
+                kind=EventKind.SITUATION_ENDED,
+                actor=quien,
+                place=agente.at,
+                data={"situation": str(situacion), "personal": True,
+                      "cuantas": cuantas},
+            )
+        return cuantas
+
     def _cobrar_muertes(self) -> None:
         """Se muere quien lleve demasiado a cero en algo que el pack declara
         mortal.
@@ -545,6 +611,29 @@ class Simulation:
                 for need_id, delta in efectos.items():
                     if delta < 0.0:
                         culpables[need_id] = situation
+
+            # Lo que lleva encima, después de lo que le pasa al sitio y con el
+            # mismo `endure`: una herida no es una decisión suya, así que se
+            # archiva como pasivo igual que una ventisca.
+            for vencida in agent.expirar_condiciones(self.state.tick):
+                self.log.emit(
+                    tick=self.state.tick,
+                    kind=EventKind.SITUATION_ENDED,
+                    actor=agent.spec_id,
+                    data={"situation": str(vencida), "personal": True},
+                )
+            for cond in agent.condiciones:
+                efectos = by_situation[cond.situacion].effects
+                if not efectos:
+                    continue
+                # `veces` multiplica: dos tajos en el mismo brazo no duran más,
+                # duelen más.
+                agent.endure(
+                    {n: v * cond.veces for n, v in efectos.items()}, specs
+                )
+                for need_id, delta in efectos.items():
+                    if delta < 0.0:
+                        culpables[need_id] = cond.situacion
 
             agent.recover_novelty(self.pack.tuning.saturation_recovery)
             # Después del decaimiento: el desgaste y el temperamento que se
@@ -838,6 +927,18 @@ class Simulation:
             testigos=len(others),
             valencia=signed_saturation(sorpresa),
         )
+        # La mitad *por acción* de cómo se sale de una condición. Al terminar,
+        # no al empezar: vendarse a medias no cura.
+        for curada in sorted(spec.cures):
+            if agent.aliviar(curada):
+                self.log.emit(
+                    tick=self.state.tick,
+                    kind=EventKind.SITUATION_ENDED,
+                    actor=agent.spec_id,
+                    place=agent.at,
+                    action=spec.id,
+                    data={"situation": str(curada), "personal": True},
+                )
         agent.busy = None
 
     def _arrive(self, agent: AgentState, busy: Traveling) -> None:

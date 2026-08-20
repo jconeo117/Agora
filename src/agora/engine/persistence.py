@@ -42,7 +42,14 @@ from agora.engine.ontology import (
     TraitId,
 )
 from agora.engine.pack import ContentPack
-from agora.engine.state import AgentState, Bond, PerformingAction, Traveling, WorldState
+from agora.engine.state import (
+    AgentState,
+    Bond,
+    Condicion,
+    PerformingAction,
+    Traveling,
+    WorldState,
+)
 
 FORMATO = 1
 """Version del formato en disco. Un guardado de otra version se rechaza en vez
@@ -109,6 +116,12 @@ def _agente_a_dict(agent: AgentState, recuerdos: tuple[Recuerdo, ...]) -> dict[s
         # Sin esto, guardar y reanudar le perdona a todo el mundo lo que llevaba
         # sin comer. La deuda ya se guardaba; el reloj que mata, no existía.
         "agonia": {str(k): v for k, v in agent.agonia.items()},
+        # Lo que lleva encima. Una lista de listas y no de dicts: se escribe una
+        # por herida y por cabeza, y aqui las claves repetidas pesan.
+        "condiciones": [
+            [str(c.situacion), c.marca, c.veces, -1 if c.hasta is None else c.hasta]
+            for c in agent.condiciones
+        ],
         "gain_beliefs": {
             str(a): {str(n): v for n, v in creencias.items()}
             for a, creencias in agent.gain_beliefs.items()
@@ -282,6 +295,17 @@ def _dict_a_agente(datos: dict[str, Any], pack: ContentPack) -> AgentState:
             for k, v in datos.get("agonia", {}).items()
             if k in conocidos_need
         },
+        # Una condicion cuya situacion ya no existe en el pack no vuelve, igual
+        # que un rasgo o un agente borrado: `by_situation` reventaria al aplicar
+        # sus efectos.
+        condiciones=[
+            Condicion(
+                situacion=SituationId(s), marca=str(marca), veces=int(veces),
+                hasta=None if int(hasta) < 0 else int(hasta),
+            )
+            for s, marca, veces, hasta in datos.get("condiciones", ())
+            if s in {str(x.id) for x in pack.situations}
+        ],
         gain_beliefs={
             ActionId(a): {NeedId(n): v for n, v in c.items()}
             for a, c in datos["gain_beliefs"].items()
