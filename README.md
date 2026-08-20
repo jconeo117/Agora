@@ -80,9 +80,10 @@ utilidad  = beneficio · descuento_viaje · gustos · novedad · compañía · h
           - aversión · (coste + peaje)
 ```
 
-- **Siete puertas duras** antes de puntuar: la affordance del lugar, su horario,
+- **Ocho puertas duras** antes de puntuar: la affordance del lugar, su horario,
   que ninguna situación lo cierre, que haya gente suficiente, que esté *quien*
-  tiene que estar, que alcancen los recursos y que seas quien hay que ser.
+  tiene que estar, que alcancen los recursos, que seas quien hay que ser, y —si
+  la acción apunta a alguien— que ese alguien esté delante.
 - **Compromiso con excepción de urgencia**: se delibera al quedar ocioso y lo
   elegido se termina, salvo que algo cruce su umbral crítico. Reevaluar cada
   tick produce agentes que no acaban nada.
@@ -91,7 +92,7 @@ utilidad  = beneficio · descuento_viaje · gustos · novedad · compañía · h
 
 ### Ser alguien
 
-- **Rasgos** con seis canales. La intensidad es un exponente: 0 neutraliza, −1
+- **Rasgos** con siete canales. La intensidad es un exponente: 0 neutraliza, −1
   invierte.
 
   | canal | qué dice |
@@ -100,16 +101,27 @@ utilidad  = beneficio · descuento_viaje · gustos · novedad · compañía · h
   | `gain_multipliers` | cuánto le **cunde** lo que gana (aptitud) |
   | `cost_multipliers` | cuánto le **duele** lo que gasta (temple) |
   | `cap_multipliers` | hasta **dónde** puede llegar (el don) |
+  | `memory_multipliers` | cuánto le **dura** lo que recuerda |
   | `temperament_multipliers` | cómo **decide** |
   | `phase_shift` | cuánto va adelantado su **reloj interno** |
 
-  Los dos últimos en llegar —**temple** y **techo**— salieron de un sistema de
-  magia. Una reserva grande no es más que *cada conjuro me drena menos*; y un
-  techo resultó ser lo único
-  que hace que una progresión signifique algo en una corrida larga — con un
-  ritmo bajo se tarda más en llegar al máximo, pero **con tiempo suficiente
-  llega todo el mundo**. Medido: doscientos agentes, año y medio, y los
-  doscientos al tope del mismo eje.
+  El séptimo es el único que **no se compone multiplicando**, y por aritmética:
+  un fade es la fracción que sobrevive cada tick, así que `0.99 × 4` da 3.96 —
+  que no es *recuerda cuatro veces más*, es un número inválido. Lo que se
+  multiplica es la media vida, y eso es un exponente: `fade ** (1/m)`.
+
+  **Temple** y **techo** salieron de un sistema de magia. Una reserva grande no
+  es más que *cada conjuro me drena menos*; y un techo resultó ser lo único que
+  hace que una progresión signifique algo en una corrida larga — con un ritmo
+  bajo se tarda más en llegar al máximo, pero **con tiempo suficiente llega todo
+  el mundo**. Medido: doscientos agentes, año y medio, y los doscientos al tope
+  del mismo eje.
+
+  El **olvido propio** salió de otra petición que el motor no podía cumplir: que
+  un duelo se supere en dos semanas y otro reordene una vida. Con un
+  `memory_fade` único del pack eso era imposible por construcción — los 127
+  olvidaban al mismo ritmo exacto, así que dos duelos solo podían diferenciarse
+  en cuánto pesaban el primer día.
 - **Temperamento** en cinco perillas —azar, aversión al precio, umbral de
   pánico, peso de la distancia y cuánto le atrae la gente— compuestas del mundo,
   de los rasgos y del desgaste actual.
@@ -134,11 +146,27 @@ utilidad  = beneficio · descuento_viaje · gustos · novedad · compañía · h
   ganando a la mala experiencia.
 - **Miedo a sitios**: donde te pasó algo malo que no fue culpa tuya. Se cobra en
   el viaje, no en la acción — se rodea el lugar, no se deja de comer.
+- **Duelo**: cuánto duele hoy la ausencia de alguien. Tercer índice y el primero
+  sobre un eje distinto: `rencor` mira lo que HICISTE, `miedo` DÓNDE estabas y
+  este A QUIÉN. Es el único que **no tiene un `_weight` al lado**, y la ausencia
+  es la mitad del diseño: de una acción y de un lugar uno puede apartarse, de un
+  ausente no. Lo que diferencia dos duelos no es una perilla — es de qué viene
+  acompañado el recuerdo (sin lugar duele y se pasa; con lugar, `miedo` le cambia
+  la rutina) y cuánto le dura a cada cual.
+- **Rumores**: un recuerdo que se copia. Lo que se cuenta es **lo que sorprendió,
+  no lo que apretó** — la urgencia es vívida para quien la vive y aburrida para
+  quien la oye. Se degrada por boca, el `seq` no cambia (así *¿ya me sé esto?* es
+  comparar enteros) y el `tick` tampoco, así que un rumor viejo llega ya
+  desdibujado. Y **si va sobre alguien, el peso lo pone quien escucha**: te
+  enteras de que murió tu ídolo por boca de alguien a quien le daba igual, y te
+  destroza igual.
 
-Las tres se apagan por pack. En `ciudad` van apagadas **tras medirlo**: el
-arrepentimiento homogeneizaba porque todos se llevaban el mismo chasco, y el
-miedo tenía la señal contaminada. El motor sabe hacer más cosas de las que este
-mundo le pide, y eso se documenta en vez de esconderse.
+Los cuatro se apagan por pack, y en `ciudad` van apagados **tras medirlo**: el
+arrepentimiento homogeneizaba porque todos se llevaban el mismo chasco, el miedo
+tenía la señal contaminada, y los rumores no encuentran sitio —los 127 van a
+40/40 de recuerdos propios, y de oídas llega a la mitad de peso, así que el
+olvido por valor lo tira al llegar—. El motor sabe hacer más cosas de las que
+este mundo le pide, y eso se documenta en vez de esconderse.
 
 ### Estar con otros
 
@@ -153,6 +181,20 @@ mundo le pide, y eso se documenta en vez de esconderse.
 - La compañía **condiciona y alivia**: pesa lo que rinde una acción, frena el
   decaimiento y atrae al deliberar. Cuánta gente es "una multitud" lo declara
   cada pack.
+- **Acciones con destinatario**: curar, dar, enseñar, agredir. Hasta que
+  existieron, todo `satisfies`/`effects`/`costs` caía sobre quien actúa y el
+  motor eran ciento veintisiete personas actuando sobre sí mismas en presencia de
+  otras. `requires_company` parece social y no lo es: dice quién tiene que
+  **estar**, no a quién le pasa nada.
+
+  El motor **no necesita saber qué es el altruismo**: ayudar paga lo que el pack
+  diga que paga, y por eso se hace. Y agredir no necesita primitiva — `gives`
+  negativo es dar con el signo cambiado.
+
+  A quién se elige **entre los que tienes delante**, filtrando por condición
+  —una herida se ve, el valor exacto de las necesidades de otro no— y
+  desempatando por aprecio. El aprecio **encoge la recompensa, no la veta**: a un
+  desconocido se le ayuda cuando no hay nada mejor que hacer.
 
 ### Tener cuerpo y horario
 
@@ -166,6 +208,24 @@ mundo le pide, y eso se documenta en vez de esconderse.
   Cada uno con su **techo por persona**, y el apremio medido contra ese techo:
   quien ya dio todo lo que podía deja de perseguir ese eje y gasta el tiempo en
   otra cosa, en vez de entrenar de por vida algo que no va a mejorar.
+- **Condiciones**: lo que uno lleva encima. Herida, infección, veneno,
+  borrachera. No es una primitiva nueva — es una situación pegada a una persona
+  en vez de a un lugar, y toda la maquinaria del daño ya era por agente.
+
+  Se **acumulan por marca**: brazo, pierna y torso drenan por separado; dos en el
+  mismo brazo no duran más, **duelen más**. La marca es opaca — el motor compara
+  cadenas y no puede saber qué es un brazo. Se quitan **por plazo y por acción**,
+  y las dos hacen falta: sin plazo, una infección que nadie sabe curar mata a
+  todo el mundo; sin acción, curarse no se puede decidir.
+- **Morir**: `lethal_after` declara cuántos ticks seguidos a cero aguanta un eje.
+  **Una sola regla de muerte y tantas causas como el pack quiera** — inanición,
+  deshidratación, sobrecarga de maná, desangrarse. No hay muerte-por-herida: hay
+  una herida que drena, un eje que llega a cero y un reloj que cobra.
+
+  Dos ejes que ya no se confunden: `debt` dice **cuán hundido** estás y se paga a
+  plazos; `agonia`, **cuánto llevas** hundido y se borra de golpe al levantar. Se
+  puede tocar fondo un instante sin morirse y vivir raspando el suelo un mes
+  tampoco mata.
 
 ### Tener mundo
 
@@ -220,43 +280,50 @@ por hacer en F2–F6 puede empezar sin él, y ya no lo bloquea.
 | ✅ | F1.11 | situaciones y relaciones con nombre |
 | ✅ | F1.12 | memoria episódica, arrepentimiento y miedo a lugares |
 | ✅ | F1.13 | disparadores, situaciones que dañan, techos, temple y el lazo que se gana |
+| ✅ | F1.14 | censo mutable, la pérdida, el duelo, el olvido propio y los rumores |
+| ✅ | F1.15 | morir con causa, condiciones, y acciones con destinatario |
 | ⬜ | F2 | diálogo y reflexión. Router LLM local/API |
 | ⬜ | F3 | el LLM planifica el día, valida, cae a fallback |
 | ⬜ | F4 | el jugador entra como un NPC más. Entra `RuleSystem` |
 | ⬜ | F5 | narrador/DM + RAG de lore |
 | ⬜ | F6 | DM director: ajusta ritmo y cámara, jamás resultados |
 
-## Lo siguiente: el censo deja de ser fijo
+## Lo siguiente: un mundo que use lo que el motor sabe
 
-Hoy **nadie puede nacer y nadie puede morir**. El reparto se fija al cargar el
-pack y no cambia: cada `AgentState` guarda un `spec_id` que apunta a una ficha
-del YAML, y **diecisiete puntos del código** dan por hecho que esa ficha existe
-—el render, las metas, la salud, la persistencia—. Un agente creado en marcha no
-tiene ficha, así que hoy no puede existir.
+**Cinco mecanismos se envían apagados**, y a estas alturas el patrón es el
+hallazgo: arrepentimiento, miedo, duelo, rumores y mortalidad están escritos,
+probados y sin usar en ningún pack. El motor va muy por delante de sus mundos.
 
-Es el siguiente paso porque es lo que bloquea casi todo lo demás:
+Ninguno se apagó por capricho. Cada uno tiene una medición detrás:
 
-| Bloqueado | Necesita |
+| mecanismo | por qué está apagado |
 |---|---|
-| edad, ventanas de aprendizaje, veteranía | que el tiempo cuente para alguien |
-| herencia, linajes, casas que se especializan | descendencia |
-| lo irreversible (muerte, ruina, exilio) | que el censo mengüe |
-| invocar, reclutar, fundar | que el censo crezca |
+| arrepentimiento | homogeneizaba: todos se llevan el mismo chasco |
+| miedo a lugares | la señal estaba contaminada por acciones sociales a solas |
+| duelo | `about` salía al **0 %** — nada de lo que se recordaba iba sobre nadie |
+| rumores | no hay sitio: los 127 van a 40/40 de recuerdos propios |
+| mortalidad | ningún pack declara nada letal |
 
-Y porque resuelve el hallazgo que dejó la última campaña: **hoy nada es
-irreversible**. Hay crisis —del 8 % al 15 % del tiempo— pero una crisis se pasa:
-se come, se duerme, se sigue. Un mundo sin nada que perder no alimenta la
-maquinaria que ya existe, y es la razón de que arrepentimiento y miedo vayan
-apagados en `ciudad`. La mortalidad no es una función más: es lo que le da
-precio a equivocarse.
+Los dos últimos ya no tienen excusa. Las acciones con destinatario producen
+hechos sociales, así que `about` deja de estar vacío; y `lethal_after` existe.
 
-Primer corte, en este orden:
+Así que la línea es **encender el motor en un mundo y medirlo**, no añadir un
+sexto mecanismo a la pila. La regla del proyecto dice que todo cambio de
+comportamiento se mide antes y después, y hay cinco que nunca se han medido en un
+mundo poblado. Concretamente:
 
-1. **Censo mutable.** Que un agente pueda existir sin ficha de pack. Es la parte
-   difícil y no cambia ninguna conducta: los mismos 686 tests deben pasar igual.
-2. **Muerte.** Salir del censo sin romper los vínculos de quien se queda —el
-   recuerdo debe sobrevivir a la persona.
-3. **Edad y descendencia**, ya sobre terreno firme.
+1. **Una necesidad letal** y una condición que la drene. Es donde se ve si la
+   muerte da el precio a equivocarse que el motor lleva tres campañas pidiendo.
+2. **Curar y agredir** en `ciudad`, para que `about` deje de ser cero.
+3. **Rumores encendidos**, con la capacidad de memoria que haga falta para que
+   quepan — el número está medido y documentado.
+4. **Volver a medir el panel entero**: diferenciación, geografía, divergencia. La
+   población deja de ser fija, así que hay que decidir qué significa una media
+   cuando la gente se muere.
+
+Detrás de eso, y ya con datos, quedan tres frentes grandes: **facciones**
+(RAÍZ 5, la última pieza social), **edad y descendencia** (que el censo mutable
+ya desbloqueó) y **propiedad** (RAÍZ 2).
 
 El resto de frentes —propiedad, facciones, ánimos, aforo— y qué desbloquea cada
 uno viven en `PLAN.md`.
@@ -319,14 +386,27 @@ Verificadas por la batería de tests, no por convención:
 - El salto temporal no apaga los disparadores. Se evalúan por tramo y no una vez
   cada N días: el salto aproxima —enciende como mucho una vez por zancada— pero
   el mundo no se queda en calma por correrlo rápido.
+- El salto temporal **sí borra el reloj de la agonía**, y es la única marca de
+  tiempo que no cobra la zancada. Cuenta ticks *seguidos*, y a través de trece
+  días sin simular «seguidos» es falso. Consecuencia declarada: **bajo `--skip`
+  no se muere nadie de hambre.** Lo que no se simula, no se inventa.
+- Un rumor no se refuerza por oírlo dos veces, ni degrada lo que uno vivió. Sin
+  esa guarda, un corrillo de ocho fabricaría certezas en vez de propagarlas.
+- Lo que otro te hace se archiva como **pasivo**, igual que una ventisca: no lo
+  decidiste tú, así que no puede ensuciar tus creencias sobre lo que rinde cada
+  acción.
+- Nadie cura ni agrede a distancia: se comprueba que el destinatario **siga
+  delante** al terminar, no que siga existiendo.
 - Cero vocabulario de ambientación en el motor.
 - Un pack no carga si tiene referencias rotas, acciones que nadie puede
   ejecutar, precondiciones más bajas de lo que la acción consume, efectos
   negativos sin coste declarado, un grafo que no es fuertemente conexo, una
   situación que no hace nada, un disparador activo sin cooldown o que se exige a
   sí mismo, una acción elástica que también fija en sus efectos el mismo eje que
-  la estira, dos parejas para la misma persona, inversas que no se corresponden,
-  o un alivio pasivo que supera al decaimiento.
+  la estira, una condición personal que declara lugar o calendario, una acción
+  que cura algo que nadie puede llevar encima, una acción que apunta a alguien y
+  no le hace nada o no exige compañía, dos parejas para la misma persona,
+  inversas que no se corresponden, o un alivio pasivo que supera al decaimiento.
 - Cada pack declara su propio contrato de salud y se comprueba en cada corrida
   de tests.
 
@@ -410,7 +490,7 @@ panel se veía sano.
 ## Desarrollo
 
 ```bash
-uv run pytest          # 686 tests
+uv run pytest          # 781 tests
 uv run mypy src tests  # estricto
 uv run ruff check
 ```
