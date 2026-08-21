@@ -113,7 +113,7 @@ conjuros = [
     A(id=f"conjurar_{e}", label=f"conjurar {e}", duration_ticks=8,
       requires_affordance="palestra",
       requires_traits={f"afin_{e}": 0.20},
-      requires={"mana": 0.28, "dominio": 0.18},
+      requires={"mana": 0.28},
       satisfies={"dominio": 0.9},
       costs={"mana": 1.0},
       effects={"dominio": 0.020, "mana": -0.22}, saturation_gain=0.07)
@@ -130,7 +130,7 @@ trabajar = [
       saturation_gain=0.06),
     # El gremio paga mejor pero pide rango y cobra mana: es trabajo de aventurero.
     A(id="contrato_del_gremio", label="tomar un contrato", duration_ticks=22,
-      requires_affordance="contratos", requires={"dominio": 0.12, "mana": 0.25},
+      requires_affordance="contratos", requires={"mana": 0.25},
       satisfies={"dinero": 1.0}, costs={"mana": 0.9, "descanso": 0.9},
       effects={"dinero": 0.28, "mana": -0.20, "descanso": -0.20, "dominio": 0.004},
       saturation_gain=0.10),
@@ -152,7 +152,7 @@ trabajar = [
     # Se arregla anunciando lo que la mazmorra da y un turno de trabajo no puede
     # dar: RANGO. Fregar platos no te hace mejor mago.
     A(id="expoliar", label="expoliar la mazmorra", duration_ticks=26,
-      requires_affordance="expolio", requires={"dominio": 0.30, "mana": 0.35},
+      requires_affordance="expolio", requires={"mana": 0.35},
       satisfies={"dinero": 1.0, "dominio": 0.55},
       costs={"mana": 0.85, "descanso": 0.90},
       effects={"dinero": 0.40, "mana": -0.30, "descanso": -0.26, "dominio": 0.010},
@@ -188,7 +188,7 @@ oficios = [
     # MAGO: teoria profunda. Pide rango y cobra en mana Y en descanso.
     A(id="investigar", label="investigar", duration_ticks=20,
       requires_affordance="archivo", requires_traits={"mago": 0.30},
-      requires={"dominio": 0.15, "mana": 0.22},
+      requires={"mana": 0.22},
       satisfies={"dominio": 1.0}, costs={"mana": 0.9, "descanso": 0.6},
       effects={"dominio": 0.030, "mana": -0.15, "descanso": -0.10},
       saturation_gain=0.08),
@@ -219,7 +219,7 @@ oficios = [
     # el sitio de las invocaciones y estaba vacio.
     A(id="sostener_un_pacto", label="sostener un pacto", duration_ticks=30,
       requires_affordance="invocacion", requires_traits={"invocador": 0.30},
-      requires={"mana": 0.40, "dominio": 0.10},
+      requires={"mana": 0.40}, requires_rank={"dominio": 1},
       satisfies={"dominio": 1.0}, costs={"mana": 1.0},
       effects={"dominio": 0.038, "mana": -0.34}, saturation_gain=0.06),
 ]

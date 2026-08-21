@@ -335,6 +335,7 @@ def is_available(
     traits: Mapping[TraitId, float] | None = None,
     situations: Sequence[SituationId] = (),
     kin: Mapping[RelationId, int] | None = None,
+    rango: Mapping[NeedId, int] | None = None,
 ) -> bool:
     """¿Se puede ejecutar esta acción aquí y ahora? Siete puertas duras:
 
@@ -395,6 +396,12 @@ def is_available(
         action.requires_relation is not None
         and kin is not None
         and kin.get(action.requires_relation, 0) < 1
+    ):
+        return False
+    # NOVENA PUERTA: el rango. Lo que has llegado a ser, no lo que tienes ahora.
+    # `None` la desactiva, para poder preguntar por una accion sin agente.
+    if rango is not None and any(
+        rango.get(eje, 0) < minimo for eje, minimo in action.requires_rank.items()
     ):
         return False
     return all(needs[need] >= minimum for need, minimum in action.requires.items())
@@ -518,7 +525,8 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
 
         for action in pack.actions:
             if not is_available(
-                action, place, headcount, agent.needs, open_phase, agent.traits, aqui, kin
+                action, place, headcount, agent.needs, open_phase, agent.traits, aqui,
+                kin, agent.rango
             ):
                 continue
             # OCTAVA PUERTA: hay a quién hacérselo, y está delante.

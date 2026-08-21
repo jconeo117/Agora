@@ -44,7 +44,29 @@ needs = [
     # El rango. Solo sube y nunca es una emergencia: ser novato no es una crisis.
     # De el cuelgan las puertas de los conjuros, que es como el sistema convierte
     # "Novato -> Trascendente" en algo que decide conducta.
-    N("dominio", "dominio", 0.0, 0.05, progression=True),
+    # RANGOS NUMERADOS, sin techo. El valor dice cuanto lleva del rango en curso;
+    # `rango` dice cuantos ha roto. Siempre se puede ser mas fuerte, y siempre
+    # cuesta mas: `rank_slowdown` 1.0 es inversamente proporcional, asi que el
+    # rango 3 sube a un cuarto de velocidad que el 0.
+    #
+    # Sustituye a un `cap` plano que se probo antes y empeoraba las cosas: hacia
+    # que la gente llegara a su tope ANTES, y el contenido que dependia del eje
+    # -las mazmorras- se moria aun mas deprisa. Ver ERRORES E-002.
+    #
+    # Empieza en 0.0 y no en 0.05: con rangos, el 0.05 era "ya llevas un 5 % del
+    # primero", que no queria decir nada.
+    # `cap` 0.06 es EL LISTON DE UN RANGO, no un techo de poder: lo que hay que
+    # acumular para romper el que llevas. Pequenyo a proposito.
+    #
+    # Salio de medir y de un error mio: al pasar de "toda tu carrera va de 0 a 1"
+    # a "un RANGO va de 0 a 1" no se reescalo nada, y con el liston en 1.0 un
+    # solo rango costaba mas que la progresion entera de antes. Resultado: CERO
+    # rangos rotos en sesenta dias, los 200 en rango 0.
+    #
+    # El eje ganaba ~0.87 en sesenta dias. Con la cuesta inversa, llegar al rango
+    # 5 pide 1+2+3+4+5 = 15 listones, asi que 0.87/15 = 0.058. Redondeado a 0.06.
+    N("dominio", "dominio", 0.0, 0.0, progression=True,
+      rank_slowdown=1.0, cap=0.50),
     # EL EJE MORTAL. No decae -nadie se desangra en su cama- y solo lo gasta
     # una herida. Sin `strain_weight` a proposito: se midio que anyadir una
     # necesidad es gratis, pero que una que declare desgaste recompone el de

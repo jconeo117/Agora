@@ -419,6 +419,20 @@ class AgentState:
     —hash y coma flotante— decide una estructura de datos en este motor.
     """
 
+    rango: dict[NeedId, int] = field(default_factory=dict)
+    """En qué rango va de cada eje que los tenga. Empieza en 0 y **no tiene
+    tope**.
+
+    El valor de la necesidad dice *cuánto lleva de este rango*; esto dice
+    **cuántos ha roto**. Separarlos es lo que permite que no haya techo: el eje
+    se recorre entero una y otra vez, y cada vuelta cuesta más que la anterior.
+
+    Es el número que se lee para saber quién es alguien. «Dominio 0.4» no dice
+    nada por sí solo; «rango 7, y va por el 0.4 del octavo» sí.
+
+    Disperso: solo aparecen los ejes que declaran `rank_slowdown`.
+    """
+
     agonia: dict[NeedId, int] = field(default_factory=dict)
     """Ticks SEGUIDOS a cero, por necesidad. El reloj de lo que está matando.
 
@@ -1010,8 +1024,8 @@ class AgentState:
         effects: Mapping[NeedId, float],
         need_specs: Mapping[NeedId, NeedSpec],
         world_gains: Mapping[NeedId, float] | None = None,
-    ) -> None:
-        """Suma los deltas de una acción completada. Resultado en [0, 1].
+    ) -> list[NeedId]:
+        """Suma los deltas de una acción completada. Devuelve los rangos rotos.
 
         Los deltas pueden ser negativos: trabajar da moneda y quita descanso.
         Una necesidad que la acción no menciona no se toca.
@@ -1032,7 +1046,12 @@ class AgentState:
                 # trabajar canse menos. Lo mismo vale para el sitio y para cómo
                 # esté el mundo: una hambruna quita alimento, no ganas de comer.
                 contexto = 1.0 if world_gains is None else world_gains.get(need_id, 1.0)
-                self.gain(need_id, delta * self.gains.get(need_id, 1.0) * contexto)
+                # Y el rango frena, que es el tercer factor sobre lo que se gana
+                # —después de la aptitud y del sitio— y el único que depende de
+                # cuánto llevas recorrido. Vale 1.0 en todo eje sin rangos.
+                spec = need_specs.get(need_id)
+                cuesta = 1.0 if spec is None else self.ritmo_de_rango(spec)
+                self.gain(need_id, delta * self.gains.get(need_id, 1.0) * contexto * cuesta)
             else:
                 # Y el temple escala lo que se GASTA, que es la mitad que
                 # faltaba. El sitio y la situación NO entran aquí: una hambruna
@@ -1042,6 +1061,19 @@ class AgentState:
                 if self.ledger is not None:
                     self.ledger.anotar(self.ledger.demanda, need_id, gasto)
                 self._spend(need_id, gasto, need_specs[need_id].max_debt)
+
+        # Y lo último: romper los rangos que se hayan llenado. Va AQUÍ dentro y
+        # no en el tick loop para que no existan dos caminos — quien llame a
+        # `apply` sube de rango, venga de donde venga la llamada.
+        rotos: list[NeedId] = []
+        for need_id in sorted(effects):
+            spec = need_specs.get(need_id)
+            if spec is None or spec.rank_slowdown <= 0.0:
+                continue
+            if self.needs[need_id] >= self.caps.get(need_id, 1.0) - 1e-9:
+                self.subir_de_rango(need_id)
+                rotos.append(need_id)
+        return rotos
 
     def endure(
         self, effects: Mapping[NeedId, float], need_specs: Mapping[NeedId, NeedSpec]
@@ -1096,6 +1128,31 @@ class AgentState:
         if raw < 0.0 and max_debt > 0.0:
             self.debt[need_id] = min(max_debt, self.debt.get(need_id, 0.0) - raw)
         self.needs[need_id] = self._clamp(need_id, raw)
+
+    def ritmo_de_rango(self, spec: NeedSpec) -> float:
+        """Cuánto le cunde este eje **en el rango en que va**. 1.0 si no tiene.
+
+            ritmo = 1 / (1 + rango) ** rank_slowdown
+
+        Al novato todo le enseña; al maestro ya casi nada. La cuesta no modela
+        que el mundo se ponga difícil, modela que **queda menos por aprender**.
+        """
+        if spec.rank_slowdown <= 0.0:
+            return 1.0
+        return float((1 + self.rango.get(spec.id, 0)) ** -spec.rank_slowdown)
+
+    def subir_de_rango(self, need_id: NeedId) -> int:
+        """Rompe el rango: sube uno y vuelve a empezar. Devuelve el nuevo.
+
+        **Se vuelve a cero y no se arrastra el sobrante.** Arrastrarlo sería más
+        exacto y menos legible: el sobrante viene medido con el ritmo del rango
+        viejo, así que al pasarlo al nuevo vale otra cosa. *Rompes un rango y
+        empiezas el siguiente desde el principio* se lee de una vez y no engaña.
+        """
+        nuevo = self.rango.get(need_id, 0) + 1
+        self.rango[need_id] = nuevo
+        self.needs[need_id] = 0.0
+        return nuevo
 
     def gain(self, need_id: NeedId, amount: float) -> float:
         """`restore` anotando en el libro. Es la puerta por la que entra lo que

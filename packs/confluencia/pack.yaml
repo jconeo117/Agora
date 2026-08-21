@@ -94,8 +94,10 @@ needs:
 - id: dominio
   label: dominio
   decay_per_tick: 0.0
-  initial: 0.05
+  initial: 0.0
   progression: true
+  rank_slowdown: 1.0
+  cap: 0.5
 - id: salud
   label: salud
   decay_per_tick: 0.0
@@ -387,7 +389,6 @@ actions:
     afin_fuego: 0.2
   requires:
     mana: 0.28
-    dominio: 0.18
   satisfies:
     dominio: 0.9
   costs:
@@ -404,7 +405,6 @@ actions:
     afin_agua: 0.2
   requires:
     mana: 0.28
-    dominio: 0.18
   satisfies:
     dominio: 0.9
   costs:
@@ -421,7 +421,6 @@ actions:
     afin_tierra: 0.2
   requires:
     mana: 0.28
-    dominio: 0.18
   satisfies:
     dominio: 0.9
   costs:
@@ -438,7 +437,6 @@ actions:
     afin_viento: 0.2
   requires:
     mana: 0.28
-    dominio: 0.18
   satisfies:
     dominio: 0.9
   costs:
@@ -465,7 +463,6 @@ actions:
   duration_ticks: 22
   requires_affordance: contratos
   requires:
-    dominio: 0.12
     mana: 0.25
   satisfies:
     dinero: 1.0
@@ -483,7 +480,6 @@ actions:
   duration_ticks: 26
   requires_affordance: expolio
   requires:
-    dominio: 0.3
     mana: 0.35
   satisfies:
     dinero: 1.0
@@ -521,7 +517,6 @@ actions:
   requires_traits:
     mago: 0.3
   requires:
-    dominio: 0.15
     mana: 0.22
   satisfies:
     dominio: 1.0
@@ -574,7 +569,8 @@ actions:
     invocador: 0.3
   requires:
     mana: 0.4
-    dominio: 0.1
+  requires_rank:
+    dominio: 1
   satisfies:
     dominio: 1.0
   costs:

@@ -116,6 +116,10 @@ def _agente_a_dict(agent: AgentState, recuerdos: tuple[Recuerdo, ...]) -> dict[s
         # Sin esto, guardar y reanudar le perdona a todo el mundo lo que llevaba
         # sin comer. La deuda ya se guardaba; el reloj que mata, no existía.
         "agonia": {str(k): v for k, v in agent.agonia.items()},
+        # Cuantos rangos lleva rotos. Sin esto, reanudar devuelve a todo el
+        # mundo a novato: el valor del eje se guarda, pero el valor de un eje
+        # con rangos no significa nada sin el rango que lo acompanya.
+        "rango": {str(k): v for k, v in agent.rango.items()},
         # Lo que lleva encima. Una lista de listas y no de dicts: se escribe una
         # por herida y por cabeza, y aqui las claves repetidas pesan.
         "condiciones": [
@@ -295,6 +299,11 @@ def _dict_a_agente(datos: dict[str, Any], pack: ContentPack) -> AgentState:
         agonia={
             NeedId(k): int(v)
             for k, v in datos.get("agonia", {}).items()
+            if k in conocidos_need
+        },
+        rango={
+            NeedId(k): int(v)
+            for k, v in datos.get("rango", {}).items()
             if k in conocidos_need
         },
         # Una condicion cuya situacion ya no existe en el pack no vuelve, igual

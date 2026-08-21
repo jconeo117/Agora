@@ -871,7 +871,13 @@ class Simulation:
         world_gains = self.state.gains_at(agent.at)
         if agent.ledger is not None:
             self._anotar_lo_incondicional(agent, spec)
-        agent.apply(received, self.pack.need_by_id, world_gains)
+        for eje in agent.apply(received, self.pack.need_by_id, world_gains):
+            self._emit(
+                EventKind.RANK_UP,
+                agent,
+                action=action_id,
+                data={"need": str(eje), "rango": agent.rango[eje]},
+            )
 
         if spec.elastic is not None and done > 0:
             rate = recovery_rate(spec, agent, world_gains)

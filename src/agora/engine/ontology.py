@@ -160,6 +160,40 @@ class NeedSpec(Spec):
     Es la diferencia entre estar acompañado y estar acompañado por alguien.
     """
 
+    rank_slowdown: float = Field(default=0.0, ge=0.0)
+    """Convierte este eje en **rangos numerados**. 0.0 lo desactiva.
+
+    **Un eje con rangos no tiene techo.** El valor sigue viviendo en `[0, 1]` y
+    significa *cuánto llevas de este rango*; al llenarlo, el rango sube uno y el
+    valor vuelve a empezar. Siempre se puede ser más fuerte, y **siempre cuesta
+    más que la vez anterior**.
+
+    El número dice cuánto se frena, como exponente sobre el rango:
+
+        ritmo(rango) = ritmo_base / (1 + rango) ** rank_slowdown
+
+    Con 1.0 es **inversamente proporcional**: el rango 3 sube a un cuarto de
+    velocidad que el 0. Con 0.5 la cuesta es suave; con 2.0, brutal.
+
+    **Por qué frena, y no es una perilla de dificultad.** A un novato todo le es
+    nuevo y cualquier cosa le enseña; a un maestro ya casi nada. La cuesta no
+    modela que el mundo se ponga difícil: modela que **queda menos por
+    aprender**.
+
+    Y de aquí sale, sin sistema de niveles ni tabla de nombres, que el tiempo
+    hasta el rango N crezca con el cuadrado de N. Con `rank_slowdown: 1.0` y un
+    ritmo base que llene el primer rango en medio día:
+
+        rango  5   ~8 días        rango 20   ~110 días       rango 50   ~2 años
+
+    Nadie termina. Los rangos altos son raros porque cuestan, no porque un tope
+    los prohíba — que es lo que un `cap` plano nunca pudo dar.
+
+    **Reemplaza al techo plano para los ejes de progresión.** Medido: un `cap`
+    fijo hacía que la gente llegara a su tope ANTES y el contenido que dependía
+    del eje se muriera aún más deprisa. Ver `ERRORES` E-002.
+    """
+
     lethal_after: int = Field(default=0, ge=0)
     """Cuántos ticks seguidos a cero puede aguantarse esto antes de morirse.
     **0 = nunca mata**, y es el defecto.
@@ -697,6 +731,18 @@ class ActionSpec(Spec):
     Puesto a la altura de lo que la acción consume, el efecto deja de truncarse
     — y `pack.py` rechaza declararlo por debajo, porque entonces no impediría
     nada de lo que dice impedir.
+    """
+
+    requires_rank: dict[NeedId, int] = Field(default_factory=dict)
+    """Rango mínimo en un eje con rangos. **Novena puerta dura.**
+
+    Es lo que `requires` no puede decir en un eje sin techo. Pedir
+    `dominio: 0.30` significaba *«que lleves el 30 % de tu rango actual»* — que
+    es cierto para un novato y para un maestro por igual, y por tanto no dice
+    nada. Lo que un conjuro difícil quiere es **rango 3**.
+
+    Separado de `requires` a propósito: aquel mira lo que tienes ahora —y se
+    gasta— y esto mira lo que has llegado a ser, que no se pierde.
     """
 
     requires_traits: dict[TraitId, float] = Field(default_factory=dict)

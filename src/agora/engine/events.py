@@ -73,6 +73,14 @@ class EventKind(StrEnum):
 
     RELATION_ENDED = "relation_ended"
 
+    RANK_UP = "rank_up"
+    """Alguien rompió un rango. `data` lleva el eje y el número nuevo.
+
+    Es lo que hace legible un eje sin techo: `dominio 0.4` no dice nada por sí
+    solo, `rango 7 y va por el 0.4 del octavo` sí. Y es de las pocas cosas de
+    este motor que un habitante **contaría en la taberna**.
+    """
+
     AGENT_DIED = "agent_died"
     """Alguien deja de estar. `actor` es quien se entera; `subject`, el muerto.
 

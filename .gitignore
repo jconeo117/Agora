@@ -16,3 +16,7 @@ PLAN.md
 # Partidas guardadas: son estado, no producto. Se regeneran corriendo.
 *.json
 !packs/**/*.json
+
+# Documentacion de desarrollo: viva y local mientras se escribe. Se debatira
+# incluirla cuando los seis modulos esten completos.
+docs/
