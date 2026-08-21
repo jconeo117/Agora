@@ -289,6 +289,107 @@ def test_the_pain_is_the_affection_and_not_the_relation() -> None:
     assert duelo_admirador.get(AG2, 0.0) > 0.0, "el aprecio solo, sí"
 
 
+# --- el suelo de la relación: lo que `morir` se estaba saltando --------------
+#
+# **Salió de medir, no de leer el código.** Cinco muertes en confluencia, 505
+# líneas de duelo grabadas, y al día 75 CERO dolientes de 195. Buscando por qué,
+# apareció que `morir` era el único sitio del motor que leía el afecto sin pasar
+# por `regard_for` — así que perdía el suelo de la relación y el desdibujado.
+
+
+def pareja_pack(**overrides: Any) -> ContentPack:
+    """Un mundo con dos lazos: uno con suelo y otro sin él, a propósito."""
+    return perdida_pack(**{
+        "relations": [
+            {"id": "pareja", "label": "pareja", "symmetric": True,
+             "regard_floor": 0.45},
+            # Sin suelo, como en ciudad: un hermano puede caerte fatal, y el
+            # pack tiene que poder escribirlo.
+            {"id": "hermano", "label": "hermano", "symmetric": True},
+        ],
+        "agents": [
+            {"id": "ag1", "label": "Uno", "home": "p1", "start_at": "p1",
+             "relations": {"pareja": ["ag2"]}},
+            {"id": "ag2", "label": "Dos", "home": "p1", "start_at": "p1"},
+            {"id": "ag3", "label": "Tres", "home": "p1", "start_at": "p1",
+             "relations": {"hermano": ["ag2"]}},
+        ],
+        **overrides,
+    })
+
+
+def test_losing_your_partner_hurts_without_any_shared_time() -> None:
+    """**Lo que este arreglo compra.** Nadie ha compartido nada con nadie: el
+    aprecio emergente de los tres es exactamente cero.
+
+    Antes, perder a tu pareja dolía lo que hubierais cenado juntos últimamente
+    —o sea, nada— porque `Bond.regard` en crudo no sabe que es tu pareja. El
+    suelo es justo lo que el pack escribió para decirlo.
+    """
+    sim = Simulation(pareja_pack(), seed=1)
+    sim.morir(AG2)
+
+    duelo = sim.state.memoria.duelo(AG1, sim.state.tick, escala=1.0)
+    assert duelo.get(AG2, 0.0) > 0.0
+
+
+def test_and_the_brother_without_a_floor_still_feels_nothing() -> None:
+    """**La mitad que no se puede perder al arreglarlo.** En el mismo mundo, la
+    misma muerte y el mismo trato (ninguno): el hermano no recibe nada.
+
+    Quién tiene suelo y quién no lo decide el pack, que es donde estaba la
+    decisión. El motor no sabe qué es una pareja ni qué es un hermano.
+    """
+    sim = Simulation(pareja_pack(), seed=1)
+    sim.morir(AG2)
+
+    duelo = sim.state.memoria.duelo(AG3, sim.state.tick, escala=1.0)
+    assert duelo.get(AG2, 0.0) == 0.0
+
+
+def test_affection_above_the_floor_still_wins() -> None:
+    """El suelo es un mínimo, no un valor fijo. Quien de verdad la quería llora
+    más que quien solo estaba casado con ella en el papel."""
+    sim = Simulation(pareja_pack(), seed=1)
+    con_aprecio(sim, AG3, AG2, veces=60)
+    sim.morir(AG2)
+
+    de_la_pareja = sim.state.memoria.duelo(AG1, sim.state.tick, escala=1.0)
+    del_hermano = sim.state.memoria.duelo(AG3, sim.state.tick, escala=1.0)
+    assert del_hermano[AG2] > de_la_pareja[AG2]
+
+
+def test_you_grieve_less_for_someone_you_stopped_seeing() -> None:
+    """La otra mitad de `regard_for`: el desdibujado por no verse. Ya lo decía
+    `bond_fade` en todas partes menos aquí.
+
+    Dos personas con el MISMO aprecio construido; a una se lo dejaron de ver
+    hace mucho. `bond_fade` se declara explícito porque el pack de este fichero
+    no lo traía, y estrenar el canal aquí no puede depender de un default.
+    """
+    pack = perdida_pack(**{
+        "agents": [
+            {"id": "ag1", "label": "Uno", "home": "p1", "start_at": "p1"},
+            {"id": "ag2", "label": "Dos", "home": "p1", "start_at": "p1"},
+            {"id": "ag3", "label": "Tres", "home": "p1", "start_at": "p1"},
+        ],
+        "tuning": {"memory_capacity": 40, "memory_fade": 0.99,
+                   "memory_scale": 1.0, "grief_scale": 1.0,
+                   "bond_fade": 0.999},
+    })
+    sim = Simulation(pack, seed=1)
+    con_aprecio(sim, AG1, AG2, veces=40)
+    con_aprecio(sim, AG3, AG2, veces=40)
+    # Al de AG1 lo vio ayer; al de AG3, hace mil ticks.
+    sim.state.agents[AG1].bonds[AG2].last_seen = sim.state.tick
+    sim.state.agents[AG3].bonds[AG2].last_seen = sim.state.tick - 1000
+    sim.morir(AG2)
+
+    reciente = sim.state.memoria.duelo(AG1, sim.state.tick, escala=1.0)
+    lejano = sim.state.memoria.duelo(AG3, sim.state.tick, escala=1.0)
+    assert reciente[AG2] > lejano[AG2]
+
+
 def test_only_the_witness_carries_the_place() -> None:
     """Al que estaba delante le entra además por `miedo` y puede acabar rodeando
     el sitio. Al que se enteró de lejos no: colgarle un lugar en el que no le

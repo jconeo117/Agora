@@ -391,15 +391,32 @@ class Simulation:
         que se puede perder de verdad.
 
         **A quién le duele.** A cada superviviente por separado, en proporción a
-        lo que le apreciaba —`Bond.regard`—, y ahí está la propiedad que se
-        buscaba: el peso NO sale de la relación con nombre sino del afecto. Un
-        padre que nunca reconoció a su hijo tiene la relación y no el aprecio, así
-        que apenas se entera; alguien que admiraba a un desconocido tiene el
-        aprecio sin relación ninguna, y se le cae el mundo encima. Sin un solo
-        caso especial: son dos campos distintos y siempre lo fueron.
+        lo que le apreciaba, y ahí está la propiedad que se buscaba: el peso NO
+        sale de la relación con nombre sino del afecto. Alguien que admiraba a un
+        desconocido tiene el aprecio sin relación ninguna, y se le cae el mundo
+        encima. Sin un solo caso especial: son dos campos distintos y siempre lo
+        fueron.
 
-        Quien no tenga vínculo no recibe nada. Una muerte que no le duele a nadie
-        no ocurre socialmente.
+        **El aprecio se lee por `regard_for`, no por `Bond.regard` en crudo**, y
+        esto era un fallo hasta que se midió: era el único sitio del motor que
+        leía el afecto saltándose la función que lo resuelve. Se perdían las dos
+        cosas que esa función aporta, y las dos importan aquí más que en ningún
+        otro lado:
+
+        - **el suelo de la relación.** Con `regard_floor`, perder a tu pareja
+          dolía lo que hubierais cenado juntos últimamente, ignorando que era tu
+          pareja. Y el caso contrario sigue escribiéndose igual de bien: un
+          `padre` declarado SIN suelo es exactamente el que nunca reconoció a su
+          hijo — tiene la relación y no el aprecio, así que apenas se entera. Lo
+          decide el pack, que es donde estaba la decisión.
+        - **el desdibujado por no verse.** A quien llevabas medio año sin ver le
+          lloras menos que a quien viste ayer, y eso ya lo decía `bond_fade` en
+          todas partes menos aquí.
+
+        Quien no tenga aprecio no recibe nada — y ahora *no tener vínculo* y *no
+        tener aprecio* dejan de ser lo mismo: tu hermana cuenta aunque llevéis
+        años sin cruzar palabra. Una muerte que no le duele a nadie no ocurre
+        socialmente.
 
         **Quien estaba delante se lleva además el lugar.** El recuerdo del testigo
         arrastra dónde pasó, así que le entra por `miedo()` y puede acabar
@@ -416,7 +433,9 @@ class Simulation:
             )
         donde = difunto.at
         memoria = self.state.memoria
-        escala = self.pack.tuning.memory_scale
+        tuning = self.pack.tuning
+        escala = tuning.memory_scale
+        tick = self.state.tick
 
         # Orden fijo por id: se graban recuerdos y el olvido por capacidad
         # desempata por `seq`, así que un orden que dependiera del hash haría
@@ -425,8 +444,11 @@ class Simulation:
             if otro_id == quien:
                 continue
             deudo = self.state.agents[otro_id]
-            bond = deudo.bonds.get(quien)
-            if bond is None or bond.regard <= 0.0:
+            aprecio = deudo.regard_for(
+                quien, tick, tuning.bond_fade,
+                deudo.relation_floor(self.pack, quien),
+            )
+            if aprecio <= 0.0:
                 continue
             testigo = deudo.at == donde
             evento = self.log.emit(
@@ -445,7 +467,7 @@ class Simulation:
                 # La importancia sale del aprecio y nada más. `valencia` a -1.0
                 # fija porque toda muerte es igual de mala en dirección: lo que
                 # cambia entre dos duelos es cuánto te marca, no hacia qué lado.
-                importancia=signed_saturation(bond.regard, escala),
+                importancia=signed_saturation(aprecio, escala),
                 valencia=-1.0,
             )
 
@@ -1383,13 +1405,20 @@ class Simulation:
                 continue
 
             if historia.about is not None:
-                bond = oyente.bonds.get(historia.about)
-                if bond is None or bond.regard <= 0.0:
+                # Mismo `regard_for` que en `morir`, y por lo mismo: leer el
+                # aprecio en crudo se saltaba el suelo de la relación y el
+                # desdibujado. Enterarte de algo de tu pareja no puede pesar lo
+                # que pesaría de un conocido cualquiera de igual trato.
+                aprecio = oyente.regard_for(
+                    historia.about, tick, tuning.bond_fade,
+                    oyente.relation_floor(self.pack, historia.about),
+                )
+                if aprecio <= 0.0:
                     # No le suena de nada. Se entera y no le mueve un pelo: no
                     # se guarda, porque un recuerdo de importancia cero no es un
                     # recuerdo, es ocupar sitio.
                     continue
-                importancia = signed_saturation(bond.regard, tuning.memory_scale)
+                importancia = signed_saturation(aprecio, tuning.memory_scale)
             else:
                 importancia = historia.importancia * tuning.rumor_decay
             memoria.oir(quien, historia, importancia)

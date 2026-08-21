@@ -238,6 +238,38 @@ def test_gossip_about_a_stranger_does_not_stick() -> None:
     assert not [r for r in sim.state.memoria.de(AG2) if r.seq == 1]
 
 
+def test_news_about_your_own_is_never_gossip_about_a_stranger() -> None:
+    """**El mismo arreglo que `morir`, en el otro sitio que lo tenía.**
+
+    Este camino leía `Bond.regard` en crudo igual que la muerte, así que una
+    noticia sobre tu pareja pesaba lo que pesaría la de un conocido cualquiera
+    de igual trato — y sin trato, nada en absoluto: se descartaba como cotilleo
+    sobre un extraño. `regard_floor` es lo que el pack escribió para decir que
+    eso no puede pasar.
+    """
+    pack = rumor_pack(**{
+        "relations": [{"id": "pareja", "label": "pareja", "symmetric": True,
+                       "regard_floor": 0.45}],
+        "agents": [
+            {"id": "ag1", "label": "Uno", "home": "p1", "start_at": "p1"},
+            {"id": "ag2", "label": "Dos", "home": "p1", "start_at": "p1",
+             "relations": {"pareja": ["idolo"]}},
+            {"id": "ag3", "label": "Tres", "home": "p1", "start_at": "p1"},
+            {"id": "idolo", "label": "Ausente", "home": "p1",
+             "start_at": "p1"},
+        ],
+    })
+    sim = Simulation(pack, seed=4)
+    # Cero trato compartido con nadie: el aprecio emergente de ag2 es 0.0.
+    sim.state.memoria.remember(AG1, hecho(1, 0, AG1, about=IDOLO),
+                               importancia=0.05, valencia=-0.9)
+    sim.run(6)
+
+    oidos = [r for r in sim.state.memoria.de(AG2) if r.seq == 1]
+    assert oidos, "la noticia sobre su pareja no le llegó"
+    assert oidos[0].importancia > 0.20
+
+
 # --- en un mundo corriendo ---------------------------------------------------
 
 
