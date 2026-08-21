@@ -92,12 +92,12 @@ aprender = [
     A(id="practicar", label="practicar", duration_ticks=12,
       requires_affordance="palestra", satisfies={"dominio": 1.0},
       requires={"mana": 0.20}, costs={"mana": 0.9, "descanso": 0.5},
-      effects={"dominio": 0.016, "mana": -0.13, "descanso": -0.09},
+      effects={"dominio": 0.012, "mana": -0.13, "descanso": -0.09},
       saturation_gain=0.10),
     A(id="estudiar", label="estudiar", duration_ticks=14,
       requires_affordance="archivo", satisfies={"dominio": 0.75},
       costs={"descanso": 0.7},
-      effects={"dominio": 0.011, "descanso": -0.12}, saturation_gain=0.14),
+      effects={"dominio": 0.006, "descanso": -0.12}, saturation_gain=0.14),
 ]
 
 # --- CONJURAR ----------------------------------------------------------------
@@ -122,6 +122,26 @@ conjuros = [
 
 # --- GANARSE LA VIDA ---------------------------------------------------------
 
+# EL ORDEN DE LAS FUENTES DE RANGO, y estaba al reves.
+#
+# `expoliar` daba 0.010: MENOS que estudiar en una biblioteca (0.011) y muy por
+# debajo de practicar (0.016). El combate real era la PEOR fuente de rango del
+# mundo.
+#
+# Ahora va por cuan REAL es la experiencia. Practicar y estudiar siguen contando
+# -hay que repetir lo aprendido para perfeccionarlo- pero la practica pesa mas
+# que la teoria, y bajar a una mazmorra pesa mas que las dos:
+#
+#   expoliar 0.075 · pacto 0.050 · contrato 0.030 · conjurar 0.020
+#   templar 0.014 · practicar 0.012 · investigar 0.010 · estudiar 0.006
+#
+# Y de aqui sale el DESACOPLAMIENTO: si el rango viene del combate, `practicar`
+# deja de ser la fuente principal y el liston puede bajar -rangos que avanzan-
+# sin aplanar el mundo, porque el agotamiento ya no cuelga de el.
+#
+# OJO al tocar estos numeros: van en `effects`, NO en `satisfies`. `satisfies` es
+# la PROMESA que la deliberacion lee y vive en 0..1; `effects` es lo que de
+# verdad pasa. Confundirlos deja el mundo sin motivo para perseguir rango.
 trabajar = [
     A(id="trabajar", label="trabajar", duration_ticks=18,
       requires_affordance="trabajo", satisfies={"dinero": 1.0},
@@ -132,7 +152,7 @@ trabajar = [
     A(id="contrato_del_gremio", label="tomar un contrato", duration_ticks=22,
       requires_affordance="contratos", requires={"mana": 0.25},
       satisfies={"dinero": 1.0}, costs={"mana": 0.9, "descanso": 0.9},
-      effects={"dinero": 0.28, "mana": -0.20, "descanso": -0.20, "dominio": 0.004},
+      effects={"dinero": 0.28, "mana": -0.20, "descanso": -0.20, "dominio": 0.030},
       saturation_gain=0.10),
     # Bajar a saquear. Paga mucho, cuesta mucho, y pide rango de verdad.
     # Es lo que da proposito a las mazmorras: sin esto son habitaciones vacias.
@@ -155,7 +175,7 @@ trabajar = [
       requires_affordance="expolio", requires={"mana": 0.35},
       satisfies={"dinero": 1.0, "dominio": 0.55},
       costs={"mana": 0.85, "descanso": 0.90},
-      effects={"dinero": 0.40, "mana": -0.30, "descanso": -0.26, "dominio": 0.010},
+      effects={"dinero": 0.40, "mana": -0.30, "descanso": -0.26, "dominio": 0.075},
       # Y se vuelve de ahi abajo con algo encima. Es lo que separa una mazmorra
       # de un turno peor pagado.
       inflicts={"situation": "herida", "marca": "cuerpo"},
@@ -183,14 +203,14 @@ oficios = [
     A(id="templar_el_cuerpo", label="templar el cuerpo", duration_ticks=14,
       requires_affordance="palestra", requires_traits={"guerrero": 0.30},
       satisfies={"dominio": 0.85}, costs={"descanso": 1.0},
-      effects={"dominio": 0.017, "descanso": -0.20}, saturation_gain=0.09),
+      effects={"dominio": 0.014, "descanso": -0.20}, saturation_gain=0.09),
 
     # MAGO: teoria profunda. Pide rango y cobra en mana Y en descanso.
     A(id="investigar", label="investigar", duration_ticks=20,
       requires_affordance="archivo", requires_traits={"mago": 0.30},
       requires={"mana": 0.22},
       satisfies={"dominio": 1.0}, costs={"mana": 0.9, "descanso": 0.6},
-      effects={"dominio": 0.030, "mana": -0.15, "descanso": -0.10},
+      effects={"dominio": 0.010, "mana": -0.15, "descanso": -0.10},
       saturation_gain=0.08),
 
     # ASESINO: rafagas cortas y dinero rapido, en el muelle de contrabandistas.
@@ -221,7 +241,7 @@ oficios = [
       requires_affordance="invocacion", requires_traits={"invocador": 0.30},
       requires={"mana": 0.40}, requires_rank={"dominio": 1},
       satisfies={"dominio": 1.0}, costs={"mana": 1.0},
-      effects={"dominio": 0.038, "mana": -0.34}, saturation_gain=0.06),
+      effects={"dominio": 0.050, "mana": -0.34}, saturation_gain=0.06),
 ]
 
 # --- LA RED DE SEGURIDAD -----------------------------------------------------

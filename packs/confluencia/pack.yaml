@@ -365,7 +365,7 @@ actions:
     mana: 0.9
     descanso: 0.5
   effects:
-    dominio: 0.016
+    dominio: 0.012
     mana: -0.13
     descanso: -0.09
   saturation_gain: 0.1
@@ -378,7 +378,7 @@ actions:
   costs:
     descanso: 0.7
   effects:
-    dominio: 0.011
+    dominio: 0.006
     descanso: -0.12
   saturation_gain: 0.14
 - id: conjurar_fuego
@@ -473,7 +473,7 @@ actions:
     dinero: 0.28
     mana: -0.2
     descanso: -0.2
-    dominio: 0.004
+    dominio: 0.03
   saturation_gain: 0.1
 - id: expoliar
   label: expoliar la mazmorra
@@ -491,7 +491,7 @@ actions:
     dinero: 0.4
     mana: -0.3
     descanso: -0.26
-    dominio: 0.01
+    dominio: 0.075
   inflicts:
     situation: herida
     marca: cuerpo
@@ -507,7 +507,7 @@ actions:
   costs:
     descanso: 1.0
   effects:
-    dominio: 0.017
+    dominio: 0.014
     descanso: -0.2
   saturation_gain: 0.09
 - id: investigar
@@ -524,7 +524,7 @@ actions:
     mana: 0.9
     descanso: 0.6
   effects:
-    dominio: 0.03
+    dominio: 0.01
     mana: -0.15
     descanso: -0.1
   saturation_gain: 0.08
@@ -576,7 +576,7 @@ actions:
   costs:
     mana: 1.0
   effects:
-    dominio: 0.038
+    dominio: 0.05
     mana: -0.34
   saturation_gain: 0.06
 - id: holgazanear
