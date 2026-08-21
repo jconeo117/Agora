@@ -5107,6 +5107,36 @@ situations:
     situation: herida
     marca: toque_del_lich
     chance: 0.05
+- id: ruptura_del_sello
+  label: Ruptura del Sello Profundo
+  places:
+  - mazmorra_menor
+  - mazmorra_media
+  - mazmorra_mayor
+  - guarida_goblin
+  - claro_del_ogro
+  - campamento_orco
+  - entrada_catacumbas
+  - catacumbas_profundas
+  - cripta_olvidada
+  - nido_dragonewt
+  - risco_de_los_majin
+  trigger:
+    expected_per_year: 0.05
+    lasts_min: 480
+    lasts_max: 1440
+    cooldown: 34560
+  gain_multipliers:
+    dinero: 3.0
+    dominio: 3.0
+  effects:
+    salud: -0.01
+  inflicts:
+    situation: herida
+    marca: desgarro
+    chance: 0.09
+    gravedad_min: 3.0
+    gravedad_max: 9.0
 - id: tormenta_electrica
   label: Tormenta electrica
   places:

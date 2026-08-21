@@ -349,6 +349,53 @@ sobrenatural = [
 
 
 # =============================================================================
+# CATACLISMOS — el orden de magnitud de arriba
+#
+# Un cataclismo NO es una tragedia grande: es la unica clase de evento escrita
+# para MATAR gente. Todo lo demas de este fichero hiere y se cura; esto abre un
+# agujero en el censo.
+#
+# Por eso son casi miticos (una vez por generacion) y por eso la recompensa
+# sube con el peligro: el evento no prohibe bajar, deja la decision en cada
+# cual. Un cataclismo que solo hace danyo vaciaria las mazmorras, y entonces no
+# mataria a nadie — que es exactamente lo contrario de para lo que existe.
+# =============================================================================
+
+cataclismos = [
+    # LA RUPTURA. El evento que existe para probar que se puede morir.
+    #
+    # Comparado con `la_bestia_despierta`, que es el mas peligroso de arriba:
+    #
+    #                          chance   gravedad   danyo esperado por tick
+    #   la_bestia_despierta      0.015    1.0             0.015
+    #   ruptura_del_sello        0.09     3.0-9.0         0.540      36x
+    #
+    # Y ese 36x no es una escala mas: cruza el umbral de lo curable. Una herida
+    # de gravedad 9 drena 0.0198 de salud por tick —de lleno a vacio en medio
+    # dia— y `vendarse` quita 1.2, asi que hacen falta OCHO vendajes seguidos
+    # mientras sigue sangrando. Ahi es donde `lethal_after` por fin cobra.
+    #
+    # La banda 3.0-9.0 es ancha a proposito: al mismo sitio y el mismo dia, uno
+    # sale cojeando y a otro lo sacan muerto. Un valor fijo haria que la
+    # supervivencia dependiera solo de quien estaba dentro.
+    E(id="ruptura_del_sello", label="Ruptura del Sello Profundo",
+      places=["mazmorra_menor", "mazmorra_media", "mazmorra_mayor",
+              "guarida_goblin", "claro_del_ogro", "campamento_orco",
+              "entrada_catacumbas", "catacumbas_profundas", "cripta_olvidada",
+              "nido_dragonewt", "risco_de_los_majin"],
+      trigger={"expected_per_year": 0.05, "lasts_min": 480, "lasts_max": 1440,
+               "cooldown": 34560},
+      # Lo que se saca tambien se multiplica. Es lo que hace que siga siendo una
+      # decision y no un muro: el temerario baja, el prudente espera, y el motor
+      # no tiene que saber cual es cual.
+      gain_multipliers={"dinero": 3.0, "dominio": 3.0},
+      effects={"salud": -0.010},
+      inflicts={"situation": "herida", "marca": "desgarro", "chance": 0.09,
+                "gravedad_min": 3.0, "gravedad_max": 9.0}),
+]
+
+
+# =============================================================================
 # CLIMATICAS
 # =============================================================================
 
@@ -370,7 +417,8 @@ clima = [
 ]
 
 
-eventos = festividades + sociales + economia + tragedias + sobrenatural + clima
+eventos = (festividades + sociales + economia + tragedias + sobrenatural
+           + cataclismos + clima)
 
 
 # =============================================================================
