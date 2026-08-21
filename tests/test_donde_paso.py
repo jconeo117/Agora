@@ -84,7 +84,7 @@ def test_the_first_one_keeps_the_place() -> None:
     sim.afligir(AG1, HERIDA, marca="cuerpo")
 
     cond = sim.state.agents[AG1].condiciones[0]
-    assert cond.veces == 2, "se agravó, como debe"
+    assert cond.gravedad == 2, "se agravó, como debe"
     assert cond.donde == MAZMORRA, "y sigue apuntando a donde empezó"
 
 
@@ -167,5 +167,5 @@ def test_an_old_save_reads_as_a_wound_without_a_place(tmp_path: Any) -> None:
 
     vuelto, _ = save_mod.load(fichero, pack)
     cond = vuelto.agents[AG1].condiciones[0]
-    assert cond.situacion == HERIDA and cond.veces == 1
+    assert cond.situacion == HERIDA and cond.gravedad == 1
     assert cond.donde is None

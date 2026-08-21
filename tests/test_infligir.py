@@ -129,11 +129,11 @@ def test_going_down_twice_hurts_twice() -> None:
     duran más, duelen más."""
     sim = Simulation(base_pack(), seed=1)
     sim.run(3)
-    primera = sim.state.agents[AG1].condiciones[0].veces
+    primera = sim.state.agents[AG1].condiciones[0].gravedad
     sim.run(3)
     condiciones = sim.state.agents[AG1].condiciones
     assert len(condiciones) == 1
-    assert condiciones[0].veces > primera
+    assert condiciones[0].gravedad > primera
 
 
 def test_a_cost_is_paid_once_and_a_wound_keeps_bleeding() -> None:
@@ -230,23 +230,23 @@ def test_exposure_is_what_makes_it_likely() -> None:
     sim = Simulation(ventisca_pack(chance=0.05), seed=3)
     sim.begin_situation(VENTISCA, ticks=4)
     sim.run(4)
-    corta = sim.state.agents[AG1].condiciones and sim.state.agents[AG1].condiciones[0].veces
+    corta = sim.state.agents[AG1].condiciones and sim.state.agents[AG1].condiciones[0].gravedad
 
     largo = Simulation(ventisca_pack(chance=0.05), seed=3)
     largo.begin_situation(VENTISCA, ticks=300)
     largo.run(300)
     assert largo.state.agents[AG1].lleva(HERIDA), "trescientos ticks a la intemperie"
-    assert largo.state.agents[AG1].condiciones[0].veces > (corta or 0)
+    assert largo.state.agents[AG1].condiciones[0].gravedad > (corta or 0)
 
 
 def test_the_draw_is_by_key_and_not_by_order() -> None:
     """Dos procesos con la misma semilla hieren exactamente a la misma gente."""
-    def correr() -> list[tuple[str, str, int]]:
+    def correr() -> list[tuple[str, str, float]]:
         sim = Simulation(ventisca_pack(chance=0.3), seed=9)
         sim.begin_situation(VENTISCA, ticks=200)
         sim.run(200)
         return [
-            (str(a.spec_id), c.marca, c.veces)
+            (str(a.spec_id), c.marca, c.gravedad)
             for a in sim.state.agents_in_order()
             for c in a.condiciones
         ]

@@ -21,7 +21,11 @@ vivir = [
     # Elastica: dura lo que haga falta segun el deficit, entre un suelo y un tope.
     # Sin `effects` sobre descanso: lo repone el ritmo elastico, y declararlo en
     # los dos sitios lo aplicaria dos veces. El validador lo caza.
+    #  en dormir es la regla "con reposo y cuidado se pasa": baja la
+    # fiebre poco a poco y no toca las heridas. Un cuerpo sabe pelear una
+    # infeccion; no sabe cerrarse un tajo.
     A(id="dormir", label="dormir", duration_ticks=40, requires_affordance="cama",
+      cures={"fiebre": 0.12},
       satisfies={"descanso": 1.0},
       elastic={"need": "descanso", "per_tick": 0.028, "min_ticks": 12},
       interruptible=True, phase_multipliers={"noche": 1.9, "manana": 0.5,
@@ -276,14 +280,14 @@ herida = [
     A(id="vendarse", label="vendarse", duration_ticks=12,
       requires_affordance="quietud", requires={"dinero": 0.22},
       satisfies={"salud": 0.90}, costs={"dinero": 0.45},
-      effects={"salud": 0.55, "dinero": -0.16}, cures=["herida"]),
+      effects={"salud": 0.55, "dinero": -0.16}, cures={"herida": 1.2, "fiebre": 0.8}),
     # Cuesta tiempo y no da salud a quien la hace: lo que gana es vinculo, y por
     # eso `regard_weight` alto. La sangre de otro es cosa suya salvo que le
     # tengas aprecio -y ahi esta el mendigo: poco probable, no imposible-.
     A(id="socorrer", label="socorrer a un herido", duration_ticks=10,
       requires_affordance="quietud", requires_company=1,
       satisfies={"vinculo": 0.80}, effects={"vinculo": 0.30},
-      target={"gives": {"salud": 0.50}, "cures": ["herida"],
+      target={"gives": {"salud": 0.50}, "cures": {"herida": 1.6, "fiebre": 1.2},
               "requires_condition": "herida", "regard_weight": 0.70}),
 ]
 actions = actions + herida

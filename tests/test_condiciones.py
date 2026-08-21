@@ -60,7 +60,7 @@ def cond_pack(**overrides: Any) -> ContentPack:
         "actions": [
             {"id": "vendar", "label": "vendar", "duration_ticks": 1,
              "requires_affordance": "botica", "satisfies": {"sangre": 1.0},
-             "effects": {"sangre": 0.10}, "cures": ["herida"]},
+             "effects": {"sangre": 0.10}, "cures": {"herida": 5.0}},
             {"id": "nada", "label": "nada", "duration_ticks": 1},
         ],
         "places": [
@@ -125,7 +125,7 @@ def test_you_cannot_cure_the_weather() -> None:
                    {"id": "vendar", "label": "vendar", "duration_ticks": 1,
                     "requires_affordance": "botica",
                     "satisfies": {"sangre": 1.0},
-                    "effects": {"sangre": 0.10}, "cures": ["invierno"]},
+                    "effects": {"sangre": 0.10}, "cures": {"invierno": 5.0}},
                    {"id": "nada", "label": "nada", "duration_ticks": 1}]}
         )
 
@@ -156,7 +156,7 @@ def test_three_wounds_in_three_places_drain_separately() -> None:
 
     condiciones = sim.state.agents[AG1].condiciones
     assert len(condiciones) == 3
-    assert all(c.veces == 1 for c in condiciones)
+    assert all(c.gravedad == 1 for c in condiciones)
 
 
 def test_two_wounds_in_the_same_arm_hurt_more_and_do_not_last_longer() -> None:
@@ -168,7 +168,7 @@ def test_two_wounds_in_the_same_arm_hurt_more_and_do_not_last_longer() -> None:
 
     condiciones = sim.state.agents[AG1].condiciones
     assert len(condiciones) == 1
-    assert condiciones[0].veces == 2
+    assert condiciones[0].gravedad == 2
     assert condiciones[0].hasta == sim.state.tick + 100, "no dura más"
 
 
@@ -202,7 +202,7 @@ def test_something_without_parts_needs_no_mark() -> None:
     sim.afligir(AG1, VENENO)
     sim.afligir(AG1, VENENO)
     assert len(sim.state.agents[AG1].condiciones) == 1
-    assert sim.state.agents[AG1].condiciones[0].veces == 2
+    assert sim.state.agents[AG1].condiciones[0].gravedad == 2
 
 
 # --- se quitan por tiempo Y por acción ---------------------------------------
@@ -314,9 +314,9 @@ def test_a_wound_survives_a_save(tmp_path: Any) -> None:
     condiciones = vuelto.agents[AG1].condiciones
     assert len(condiciones) == 2
     porsit = {c.situacion: c for c in condiciones}
-    assert porsit[HERIDA].veces == 2
+    assert porsit[HERIDA].gravedad == 2
     assert porsit[HERIDA].marca == "brazo"
-    assert porsit[VENENO].veces == 1
+    assert porsit[VENENO].gravedad == 1
 
 
 def test_nothing_changes_for_a_pack_without_conditions() -> None:
@@ -338,3 +338,96 @@ def test_nothing_changes_for_a_pack_without_conditions() -> None:
     sim.run(50)
     assert sim.state.agents[AG1].condiciones == []
     assert len(sim.state.agents) == 2
+
+
+# --- gravedad: no todas las heridas son iguales -------------------------------
+
+
+def test_a_condition_carries_its_own_severity() -> None:
+    """Sustituye a `veces`, que solo contaba repeticiones. Con un contador solo
+    se puede tener **más de lo mismo**, nunca algo peor: un corte en el costado y
+    un desmembramiento eran la misma herida repetida."""
+    sim = Simulation(sin_cura(), seed=1)
+    sim.state.agents[AG1].afligir(HERIDA, marca="torso", gravedad=2.5)
+    assert sim.state.agents[AG1].condiciones[0].gravedad == pytest.approx(2.5)
+
+
+def test_severity_scales_the_damage() -> None:
+    leve = Simulation(sin_cura(), seed=1)
+    leve.state.agents[AG1].afligir(HERIDA, marca="x", gravedad=0.5)
+    leve.run(3)
+
+    grave = Simulation(sin_cura(), seed=1)
+    grave.state.agents[AG1].afligir(HERIDA, marca="x", gravedad=2.0)
+    grave.run(3)
+
+    perdida_leve = 1.0 - leve.state.agents[AG1].needs[SANGRE]
+    perdida_grave = 1.0 - grave.state.agents[AG1].needs[SANGRE]
+    assert perdida_grave == pytest.approx(perdida_leve * 4, rel=0.01)
+
+
+def test_the_same_outbreak_hands_out_different_fevers() -> None:
+    """Con `gravedad_min` y `gravedad_max` distintos, la misma enfermedad se vive
+    de dos maneras — sin declarar `fiebre_leve` y `fiebre_grave` aparte."""
+    pack = sin_cura(**{"situations": [
+        {"id": "herida", "label": "herida", "personal": True,
+         "effects": {"sangre": -0.05}},
+        {"id": "veneno", "label": "veneno", "personal": True,
+         "effects": {"sangre": -0.02}},
+        {"id": "brote", "label": "brote",
+         "inflicts": {"situation": "herida", "marca": "fiebre",
+                      "gravedad_min": 0.4, "gravedad_max": 2.6}},
+    ]})
+    sim = Simulation(pack, seed=4)
+    sim.begin_situation(SituationId("brote"), ticks=5)
+    # UN solo tick: una situación inflige CADA tick, así que dos vueltas suman
+    # dos sorteos y se salen del rango. Lo pilló este mismo test fallando.
+    sim.run(1)
+
+    graves = {round(a.condiciones[0].gravedad, 4)
+              for a in sim.state.agents.values() if a.condiciones}
+    assert graves, "el brote no pegó nada"
+    assert all(0.4 <= g <= 2.6 for g in graves), sorted(graves)
+    assert len(graves) > 1, "a todos les tocó lo mismo: no se está sorteando"
+
+
+# --- curar deja de ser todo o nada --------------------------------------------
+
+
+def test_curing_takes_severity_off_instead_of_erasing() -> None:
+    """**La mitad del diseño de las enfermedades.** Una noche de sueño baja la
+    fiebre y no hace nada por una pierna rota, y eso sale del número — no de una
+    regla que diga que el sueño cura fiebres."""
+    sim = Simulation(sin_cura(), seed=1)
+    a = sim.state.agents[AG1]
+    a.afligir(HERIDA, marca="torso", gravedad=3.0)
+
+    assert a.aliviar(HERIDA, 1.0) == 0, "aún la lleva"
+    assert a.condiciones[0].gravedad == pytest.approx(2.0)
+    assert a.aliviar(HERIDA, 1.0) == 0
+    assert a.aliviar(HERIDA, 1.5) == 1, "al llegar a cero se va sola"
+    assert not a.condiciones
+
+
+def test_curing_with_no_amount_still_wipes_it() -> None:
+    """La API pública y el caso simple: quitar del todo sigue siendo posible."""
+    sim = Simulation(sin_cura(), seed=1)
+    a = sim.state.agents[AG1]
+    a.afligir(HERIDA, marca="torso", gravedad=9.0)
+    assert a.aliviar(HERIDA) == 1
+    assert not a.condiciones
+
+
+def test_rest_beats_a_fever_but_not_a_broken_leg() -> None:
+    """El escenario entero, con dos condiciones y una sola acción."""
+    sim = Simulation(sin_cura(), seed=1)
+    a = sim.state.agents[AG1]
+    a.afligir(HERIDA, marca="pierna", gravedad=3.0)
+    a.afligir(VENENO, gravedad=0.3)
+
+    for _ in range(4):          # cuatro noches de reposo
+        a.aliviar(VENENO, 0.12)
+        a.aliviar(HERIDA, 0.12)
+
+    assert not a.lleva(VENENO), "la fiebre se pasa con reposo"
+    assert a.lleva(HERIDA), "la pierna no"

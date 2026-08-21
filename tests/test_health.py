@@ -199,15 +199,20 @@ def test_places_that_are_used_are_not_deserted(
 # --- imprevistos: la línea base de la raíz 3 ---------------------------------
 
 
-def test_nothing_unexpected_happens_yet(world: tuple[ContentPack, HealthReport]) -> None:
-    """**La línea base contra la que se calibrarán los disparadores.**
+def test_a_world_can_have_things_happen_to_it(
+    world: tuple[ContentPack, HealthReport],
+) -> None:
+    """Sustituye a `test_nothing_unexpected_happens_yet`, que afirmaba que a
+    ningún mundo le pasaba nunca nada y **pedía por escrito que se le borrara**
+    el día que los disparadores existieran de verdad. Ese día llegó: confluencia
+    declara veinte eventuales y pasa el 61 % del tiempo con algo encendido.
 
-    Hoy nada llama a `begin_situation`, así que ninguna situación eventual
-    ocurre jamás. El día que este test falle será porque los disparadores
-    existen, y entonces hay que borrarlo — no arreglarlo.
+    Lo que se comprueba ahora es lo único universal: que la fracción sea una
+    fracción. Cuánto imprevisto es sano lo declara cada pack, no este test —
+    `ciudad` y `aldea` siguen en 0.0 legítimamente.
     """
     _, report = world
-    assert report.eventful_time == 0.0
+    assert 0.0 <= report.eventful_time <= 1.0
 
 
 def test_declared_eventual_situations_never_happen(
@@ -225,7 +230,11 @@ def test_declared_eventual_situations_never_happen(
     """
     pack, report = world
     eventuales = {s.id for s in pack.situations if not s.periodic and not s.personal}
-    assert report.never_happened == eventuales
+    # Subconjunto y no igualdad: desde que los disparadores funcionan, algunas
+    # SÍ ocurren. Lo que se sigue exigiendo es que el panel no invente ninguna
+    # que el pack no declare — y que las personales queden fuera, porque una
+    # condición nunca aparece en `state.situations`.
+    assert report.never_happened <= eventuales
 
 
 def test_a_situation_that_happens_is_not_reported_as_never() -> None:

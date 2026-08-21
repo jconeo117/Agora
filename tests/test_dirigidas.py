@@ -73,7 +73,7 @@ def dirigido_pack(**overrides: Any) -> ContentPack:
             {"id": "curar", "label": "curar", "duration_ticks": 1,
              "requires_affordance": "sitio", "requires_company": 1,
              "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
-             "target": {"cures": ["herida"], "gives": {"sangre": 0.30},
+             "target": {"cures": {"herida": 5.0}, "gives": {"sangre": 0.30},
                         "requires_condition": "herida"}},
             {"id": "nada", "label": "nada", "duration_ticks": 1},
         ],
@@ -209,7 +209,7 @@ def test_walking_off_mid_bandage_means_no_bandage() -> None:
         {"id": "curar", "label": "curar", "duration_ticks": 4,
          "requires_affordance": "sitio", "requires_company": 1,
          "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
-         "target": {"cures": ["herida"], "gives": {"sangre": 0.30},
+         "target": {"cures": {"herida": 5.0}, "gives": {"sangre": 0.30},
                     "requires_condition": "herida"}},
         {"id": "nada", "label": "nada", "duration_ticks": 1}]})
     sim = Simulation(pack, seed=1)
@@ -242,7 +242,7 @@ def test_a_stranger_is_helped_less_eagerly_but_not_never() -> None:
         {"id": "curar", "label": "curar", "duration_ticks": 1,
          "requires_affordance": "sitio", "requires_company": 1,
          "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
-         "target": {"cures": ["herida"], "gives": {"sangre": 0.30},
+         "target": {"cures": {"herida": 5.0}, "gives": {"sangre": 0.30},
                     "requires_condition": "herida", "regard_weight": 1.0}},
         {"id": "nada", "label": "nada", "duration_ticks": 1}]})
     destino = pack.action_by_id[CURAR].target
@@ -307,7 +307,7 @@ def test_the_loved_one_is_helped_sooner_and_oftener_than_the_beggar() -> None:
             {"id": "curar", "label": "curar", "duration_ticks": 1,
              "requires_affordance": "sitio", "requires_company": 1,
              "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
-             "target": {"cures": ["herida"], "gives": {"sangre": 0.30},
+             "target": {"cures": {"herida": 5.0}, "gives": {"sangre": 0.30},
                         "requires_condition": "herida", "regard_weight": 1.0}},
             {"id": "trabajar", "label": "trabajar", "duration_ticks": 1,
              "requires_affordance": "sitio", "satisfies": {"dinero": 1.0},

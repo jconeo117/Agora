@@ -244,6 +244,8 @@ actions:
   label: dormir
   duration_ticks: 40
   requires_affordance: cama
+  cures:
+    fiebre: 0.12
   satisfies:
     descanso: 1.0
   elastic:
@@ -600,7 +602,8 @@ actions:
     salud: 0.55
     dinero: -0.16
   cures:
-  - herida
+    herida: 1.2
+    fiebre: 0.8
 - id: socorrer
   label: socorrer a un herido
   duration_ticks: 10
@@ -614,7 +617,8 @@ actions:
     gives:
       salud: 0.5
     cures:
-    - herida
+      herida: 1.6
+      fiebre: 1.2
     requires_condition: herida
     regard_weight: 0.7
 places:
@@ -4747,3 +4751,393 @@ situations:
   personal: true
   effects:
     salud: -0.0022
+- id: fiebre
+  label: fiebre
+  personal: true
+  effects:
+    salud: -0.0009
+    descanso: -0.0012
+- id: festival_cosecha
+  label: Festival de la Cosecha
+  places:
+  - granja
+  - plaza_demihumana
+  every: 34560
+  lasts: 288
+  starts_at: 2400
+  gain_multipliers:
+    vinculo: 2.0
+    sustento: 1.8
+- id: noche_mareas
+  label: Noche de las Mareas
+  places:
+  - templo_mareas
+  - plaza_portuaria
+  every: 8640
+  lasts: 96
+  starts_at: 1200
+  gain_multipliers:
+    vinculo: 1.7
+    mana: 1.3
+- id: vigilia_viento
+  label: Vigilia del Viento Eterno
+  places:
+  - santuario_del_viento
+  every: 34560
+  lasts: 192
+  starts_at: 6000
+  gain_multipliers:
+    vinculo: 1.6
+    mana: 1.5
+- id: festival_yunque
+  label: Festival del Yunque
+  places:
+  - plaza_enana
+  - forjas
+  every: 34560
+  lasts: 192
+  starts_at: 14000
+  gain_multipliers:
+    vinculo: 1.8
+    dinero: 1.4
+- id: ronda_gigantes
+  label: Ronda de los Gigantes
+  places:
+  - plaza_gigante
+  - campo_gigante
+  every: 34560
+  lasts: 192
+  starts_at: 20000
+  gain_multipliers:
+    vinculo: 1.7
+    dominio: 1.4
+- id: solsticio_arcano
+  label: Solsticio Arcano
+  places:
+  - campo_de_practica_elemental
+  every: 34560
+  lasts: 288
+  starts_at: 26000
+  gain_multipliers:
+    dominio: 2.2
+    vinculo: 1.3
+- id: feria_mercaderes
+  label: Feria de Mercaderes
+  places:
+  - mercado_central
+  every: 8640
+  lasts: 384
+  starts_at: 4000
+  gain_multipliers:
+    dinero: 1.9
+    vinculo: 1.4
+- id: noche_corrillo
+  label: Noche de corrillo
+  places:
+  - taberna_central
+  - posada_central
+  - posada_elfica
+  - posada_enana
+  - posada_marea
+  - posada_de_la_manada
+  every: 665
+  lasts: 40
+  starts_at: 300
+  gain_multipliers:
+    vinculo: 1.8
+- id: refresco_contratos
+  label: Refresco de contratos
+  places:
+  - gremio_aventureros
+  every: 1440
+  lasts: 96
+  starts_at: 200
+  gain_multipliers:
+    dinero: 1.6
+- id: torneo_duelos
+  label: Torneo de duelos estudiantil
+  places:
+  - patio_de_duelos
+  every: 2880
+  lasts: 144
+  starts_at: 800
+  gain_multipliers:
+    dominio: 1.7
+    vinculo: 1.4
+- id: concurso_caza
+  label: Concurso de caza
+  places:
+  - campo_de_caza
+  every: 17280
+  lasts: 192
+  starts_at: 5000
+  gain_multipliers:
+    dinero: 1.5
+    vinculo: 1.5
+    dominio: 1.3
+- id: examen_rango
+  label: Examen de rango
+  places:
+  - torre_observacion
+  - campo_de_practica_elemental
+  every: 8640
+  lasts: 192
+  starts_at: 3000
+  gain_multipliers:
+    dominio: 1.9
+- id: simposio_elemental
+  label: Simposio de teoria elemental
+  places:
+  - gran_biblioteca
+  every: 17280
+  lasts: 192
+  starts_at: 9000
+  gain_multipliers:
+    dominio: 1.6
+    vinculo: 1.2
+- id: sesion_consejo
+  label: Sesion del consejo
+  places:
+  - salon_del_consejo
+  every: 1440
+  lasts: 96
+  starts_at: 600
+  gain_multipliers:
+    vinculo: 1.4
+    dinero: 1.2
+- id: pesca_alta
+  label: Temporada de pesca alta
+  places:
+  - muelle
+  - plaza_portuaria
+  every: 17280
+  lasts: 1440
+  starts_at: 7000
+  gain_multipliers:
+    dinero: 1.7
+    sustento: 1.5
+- id: vetas_ricas
+  label: Hallazgo de vetas ricas
+  places:
+  - mina
+  trigger:
+    expected_per_year: 1.0
+    lasts_min: 960
+    lasts_max: 2880
+    cooldown: 5760
+  gain_multipliers:
+    dinero: 2.0
+- id: redada_contrabando
+  label: Redada de contrabando
+  places:
+  - muelle_de_contrabandistas
+  trigger:
+    expected_per_year: 3.0
+    lasts_min: 192
+    lasts_max: 768
+    cooldown: 2880
+  gain_multipliers:
+    dinero: 0.15
+- id: huelga_canteros
+  label: Huelga de canteros
+  places:
+  - cantera
+  trigger:
+    expected_per_year: 0.2
+    lasts_min: 960
+    lasts_max: 2880
+    cooldown: 8640
+  gain_multipliers:
+    dinero: 0.2
+    vinculo: 1.5
+- id: colapso_tunel
+  label: Colapso de tunel
+  places:
+  - mina
+  trigger:
+    expected_per_year: 0.5
+    lasts_min: 96
+    lasts_max: 480
+    cooldown: 5760
+  gain_multipliers:
+    dinero: 0.3
+  effects:
+    salud: -0.004
+  inflicts:
+    situation: herida
+    marca: aplastamiento
+    chance: 0.02
+- id: incendio_forjal
+  label: Incendio en El Forjal
+  places:
+  - forjas
+  - plaza_enana
+  trigger:
+    expected_per_year: 0.5
+    lasts_min: 96
+    lasts_max: 384
+    cooldown: 5760
+  gain_multipliers:
+    dinero: 0.3
+  effects:
+    salud: -0.005
+  inflicts:
+    situation: herida
+    marca: quemadura
+    chance: 0.025
+- id: naufragio
+  label: Naufragio
+  places:
+  - muelle
+  - plaza_portuaria
+  trigger:
+    expected_per_year: 1.0
+    lasts_min: 192
+    lasts_max: 576
+    cooldown: 4320
+  gain_multipliers:
+    dinero: 0.4
+    vinculo: 1.4
+- id: brote_enfermedad
+  label: Brote de enfermedad
+  places:
+  - enfermeria
+  - plaza_mayor
+  - mercado_central
+  - posada_central
+  trigger:
+    expected_per_year: 0.1
+    lasts_min: 960
+    lasts_max: 2880
+    cooldown: 17280
+  gain_multipliers:
+    sustento: 0.7
+  inflicts:
+    situation: fiebre
+    chance: 0.004
+    gravedad_min: 0.4
+    gravedad_max: 2.6
+- id: incursion_orcos
+  label: Incursion de orcos
+  places:
+  - linde_salvaje
+  - puerta_norte
+  - granja
+  trigger:
+    expected_per_year: 1.5
+    lasts_min: 192
+    lasts_max: 768
+    cooldown: 4320
+  gain_multipliers:
+    sustento: 0.5
+    dominio: 1.5
+  effects:
+    salud: -0.003
+  inflicts:
+    situation: herida
+    marca: flecha
+    chance: 0.018
+- id: pulso_linea_ley
+  label: Pulso de la linea ley
+  places:
+  - catacumbas_profundas
+  trigger:
+    expected_per_year: 2.0
+    lasts_min: 96
+    lasts_max: 480
+    cooldown: 2880
+  gain_multipliers:
+    mana: 2.5
+    dominio: 1.8
+  effects:
+    salud: -0.006
+- id: plaga_no_muertos
+  label: Plaga de no muertos menor
+  places:
+  - mazmorra_menor
+  - mazmorra_media
+  - entrada_catacumbas
+  trigger:
+    expected_per_year: 2.0
+    lasts_min: 288
+    lasts_max: 1152
+    cooldown: 2880
+  gain_multipliers:
+    dinero: 0.6
+    dominio: 1.5
+  inflicts:
+    situation: herida
+    marca: mordisco
+    chance: 0.012
+- id: la_bestia_despierta
+  label: La bestia ha despertado
+  places:
+  - mazmorra_mayor
+  - catacumbas_profundas
+  - nido_dragonewt
+  trigger:
+    expected_per_year: 2.0
+    lasts_min: 480
+    lasts_max: 1920
+    cooldown: 2880
+  gain_multipliers:
+    dinero: 0.45
+    dominio: 1.6
+  inflicts:
+    situation: herida
+    marca: zarpazo
+    chance: 0.015
+- id: aparicion_lich
+  label: Aparicion de un Lich
+  places:
+  - mazmorra_mayor
+  - catacumbas_profundas
+  trigger:
+    expected_per_year: 0.02
+    lasts_min: 960
+    lasts_max: 2880
+    cooldown: 34560
+  gain_multipliers:
+    dinero: 0.2
+    dominio: 2.5
+  effects:
+    salud: -0.012
+    mana: -0.004
+  inflicts:
+    situation: herida
+    marca: toque_del_lich
+    chance: 0.05
+- id: tormenta_electrica
+  label: Tormenta electrica
+  places:
+  - plaza_mayor
+  - puerta_norte
+  - plaza_elfica
+  - plaza_gigante
+  - campo_de_practica_elemental
+  - patio_de_duelos
+  - granja
+  - campo_de_caza
+  - linde_salvaje
+  - cantera
+  trigger:
+    expected_per_year: 6.0
+    lasts_min: 96
+    lasts_max: 384
+    cooldown: 1440
+  gain_multipliers:
+    dominio: 0.6
+    vinculo: 0.7
+    descanso: 0.8
+- id: marea_inusual
+  label: Fenomeno de marea inusual
+  places:
+  - plaza_portuaria
+  - muelle
+  - templo_mareas
+  every: 17280
+  lasts: 384
+  starts_at: 11000
+  gain_multipliers:
+    dinero: 0.6
+    mana: 1.6

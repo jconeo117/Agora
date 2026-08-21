@@ -328,7 +328,7 @@ class Simulation:
         agente = self.state.agents.get(quien)
         if agente is None:
             raise KeyError(f"no está entre los vivos: {quien!r}")
-        cuantas = agente.aliviar(situacion, marca)
+        cuantas = agente.aliviar(situacion, marca=marca)
         if cuantas:
             self.log.emit(
                 tick=self.state.tick,
@@ -640,7 +640,7 @@ class Simulation:
                 # `veces` multiplica: dos tajos en el mismo brazo no duran más,
                 # duelen más.
                 agent.endure(
-                    {n: v * cond.veces for n, v in efectos.items()}, specs
+                    {n: v * cond.gravedad for n, v in efectos.items()}, specs
                 )
                 for need_id, delta in efectos.items():
                     if delta < 0.0:
@@ -970,8 +970,8 @@ class Simulation:
             self._infligir(agent, spec.inflicts, porque=str(spec.id))
         # La mitad *por acción* de cómo se sale de una condición. Al terminar,
         # no al empezar: vendarse a medias no cura.
-        for curada in sorted(spec.cures):
-            if agent.aliviar(curada):
+        for curada, cuanto in sorted(spec.cures.items()):
+            if agent.aliviar(curada, cuanto):
                 self.log.emit(
                     tick=self.state.tick,
                     kind=EventKind.SITUATION_ENDED,
@@ -1206,6 +1206,20 @@ class Simulation:
     # Memoria episódica
     # -------------------------------------------------------------------------
 
+    def _gravedad_de(self, aflige: AflictionSpec, quien: AgentState) -> float:
+        """Cuán grave sale ESTA. Sorteada en el rango que el pack declara.
+
+        Con mínimo y máximo iguales sale fija, que es el caso simple. Con rango,
+        el mismo brote reparte fiebres de 0.4 y fiebres de 2.5 — la misma
+        enfermedad vivida de dos maneras.
+        """
+        if aflige.gravedad_max <= aflige.gravedad_min:
+            return aflige.gravedad_min
+        rng = self.state.rng.stream(
+            "gravedad", quien.spec_id, aflige.situation, self.state.tick
+        )
+        return rng.uniform(aflige.gravedad_min, aflige.gravedad_max)
+
     def _infligir(
         self, quien: AgentState, aflige: AflictionSpec, porque: str
     ) -> bool:
@@ -1234,6 +1248,9 @@ class Simulation:
             # Dónde te la hicieron, no dónde la notarás. Es la línea entera de
             # la que depende que el miedo apunte a la mazmorra y no a la cama.
             donde=quien.at,
+            # Y cuán grave. Se sortea en el rango que el pack declara, así que un
+            # mismo brote reparte fiebres leves y fiebres que matan.
+            gravedad=self._gravedad_de(aflige, quien),
         )
         self.log.emit(
             tick=self.state.tick,
@@ -1244,7 +1261,7 @@ class Simulation:
                 "situation": str(aflige.situation),
                 "personal": True,
                 "marca": aflige.marca,
-                "veces": cond.veces,
+                "gravedad": round(cond.gravedad, 3),
                 "porque": porque,
             },
         )
@@ -1288,8 +1305,8 @@ class Simulation:
             otro.apply(recibe, self.pack.need_by_id)
         if sufre:
             otro.endure(sufre, self.pack.need_by_id)
-        for curada in sorted(destino.cures):
-            otro.aliviar(curada)
+        for curada, cuanto in sorted(destino.cures.items()):
+            otro.aliviar(curada, cuanto)
         if destino.inflicts is not None:
             self._infligir(otro, destino.inflicts, porque=str(spec.id))
 

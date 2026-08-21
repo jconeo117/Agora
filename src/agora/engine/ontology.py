@@ -580,6 +580,15 @@ class AflictionSpec(Spec):
     """Con qué marca. Ver `Condicion.marca`: dos idénticas agravan, distintas se
     apilan. Vacía para lo que no tiene partes."""
 
+    gravedad_min: float = Field(default=1.0, gt=0.0)
+    gravedad_max: float = Field(default=1.0, gt=0.0)
+    """Cuán grave sale. Se sortea en ese rango cada vez.
+
+    Con los dos iguales sale fija. Con rango, **un mismo brote reparte fiebres
+    leves y fiebres que matan** — la misma enfermedad vivida de dos maneras, sin
+    declarar `fiebre_leve` y `fiebre_grave` como cosas distintas.
+    """
+
     lasts: int = Field(default=0, ge=0)
     """Cuánto dura, en ticks. **0 = hasta que alguien la quite.**
 
@@ -625,8 +634,8 @@ class TargetSpec(Spec):
     sangre a alguien es lo mismo que darle de comer, con el signo cambiado.
     """
 
-    cures: frozenset[SituationId] = Field(default_factory=frozenset)
-    """Qué condiciones se le quitan **al otro**. Solo personales.
+    cures: dict[SituationId, float] = Field(default_factory=dict)
+    """Cuánta gravedad le quita **al otro** en cada condición. Solo personales.
 
     Es la mitad que faltaba de la regla de las heridas: `ActionSpec.cures` te
     cura a ti, esto cura a quien no puede curarse solo.
@@ -878,8 +887,17 @@ class ActionSpec(Spec):
     inabandonable ya se declara con `interruptible`.
     """
 
-    cures: frozenset[SituationId] = Field(default_factory=frozenset)
-    """Qué condiciones se quita al terminar esto. Solo las **personales**.
+    cures: dict[SituationId, float] = Field(default_factory=dict)
+    """Cuánta GRAVEDAD le quita a cada condición al terminar. Solo personales.
+
+    Un número y no una lista, y ahí está la mitad del diseño de las
+    enfermedades: **curar deja de ser todo o nada**. Una noche de sueño baja
+    0.15 de fiebre y no hace nada por una pierna rota; un curandero se lleva 3.0
+    de golpe. La condición se va cuando su gravedad llega a cero.
+
+    De aquí sale el oficio de curandero sin escribir una sola regla nueva: es
+    quien tiene una acción que quita mucha gravedad, exige ser quien hay que ser,
+    y cobra por ello.
 
     La mitad *por acción* de cómo se sale de una condición; la otra mitad es el
     plazo, y las dos hacen falta. Sin plazo, una infección que nadie sabe curar

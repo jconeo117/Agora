@@ -26,6 +26,7 @@ S = Path(__file__).parent
 sys.path.insert(0, str(S))
 
 from _acciones import actions  # noqa: E402
+from _eventos import condiciones, eventos  # noqa: E402
 from _catalogo import afinidades, caracter, clases, needs, razas, traits  # noqa: E402
 
 SEMILLA = 4271
@@ -315,10 +316,9 @@ pack = {
     #
     # Sin plazo a proposito: NO se pasa sola. Es lo que obliga a ir a que te la
     # quiten, y lo que convierte la mazmorra en una decision en vez de un grifo.
-    "situations": [
-        {"id": "herida", "label": "herida", "personal": True,
-         "effects": {"salud": -0.0022}},
-    ],
+    # Las condiciones y los eventos viven en , que lleva la
+    # plantilla y las reglas al lado.
+    "situations": condiciones + eventos,
 }
 
 (S / "pack.yaml").write_text(

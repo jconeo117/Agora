@@ -169,11 +169,25 @@ class Condicion:
     una borrachera.
     """
 
-    veces: int = 1
-    """Cuántas idénticas se han acumulado aquí. Multiplica los efectos.
+    gravedad: float = 1.0
+    """Cuán grave es **esta**. Multiplica los efectos, y baja al tratarla.
 
-    Dos heridas en el mismo brazo no duran más: **duelen más**. Alargar el plazo
-    modelaría una sola herida mal curada; multiplicar el daño modela dos.
+    Sustituye a un `veces: int` que solo contaba repeticiones, y eso dejaba fuera
+    la mitad del problema: **con un contador solo se puede tener más de lo mismo,
+    nunca algo peor**. Un corte en el costado y un desmembramiento eran la misma
+    herida repetida, y una fiebre leve y una que te mata, la misma fiebre.
+
+    Con un número:
+
+    - **Un brote reparte fiebres distintas.** El evento sortea la gravedad en un
+      rango, así que a uno le toca un 0.4 y a otro un 2.5, y son la misma
+      enfermedad vivida de dos maneras.
+    - **Dos idénticas siguen agravando**, que era la regla de siempre: ahora
+      suman gravedad en vez de contar veces. Mismo comportamiento, mejor dicho.
+    - **Y curar deja de ser todo o nada.** `cures` resta gravedad; al llegar a
+      cero la condición se va sola. De ahí sale que una noche de sueño rebaje
+      una fiebre y no haga nada por una pierna rota — sin escribir esa regla en
+      ningún sitio.
     """
 
     hasta: int | None = None
@@ -818,6 +832,7 @@ class AgentState:
         marca: str = "",
         hasta: int | None = None,
         donde: PlaceId | None = None,
+        gravedad: float = 1.0,
     ) -> Condicion:
         """Le pasa algo. Si ya llevaba una idéntica, se agrava en vez de duplicar.
 
@@ -830,7 +845,7 @@ class AgentState:
         """
         for cond in self.condiciones:
             if cond.situacion == situacion and cond.marca == marca:
-                cond.veces += 1
+                cond.gravedad += gravedad
                 if hasta is None or cond.hasta is None:
                     cond.hasta = None
                 else:
@@ -843,26 +858,45 @@ class AgentState:
                     cond.donde = donde
                 return cond
 
-        cond = Condicion(situacion=situacion, marca=marca, hasta=hasta, donde=donde)
+        cond = Condicion(situacion=situacion, marca=marca, hasta=hasta,
+                         donde=donde, gravedad=gravedad)
         self.condiciones.append(cond)
         # Orden estable y por clave, no de llegada: los efectos se aplican en
         # secuencia y sumar floats en otro orden da otro número.
         self.condiciones.sort(key=lambda c: (c.situacion, c.marca))
         return cond
 
-    def aliviar(self, situacion: SituationId, marca: str | None = None) -> int:
-        """Se le quita. `marca` a `None` quita **todas** las de esa situación.
+    def aliviar(
+        self, situacion: SituationId, cuanto: float = 0.0, marca: str | None = None
+    ) -> int:
+        """Le baja la gravedad. Devuelve cuántas condiciones desaparecieron.
 
-        Devuelve cuántas se fueron. Que el defecto sea *todas* es deliberado:
+        **`cuanto` a 0.0 las quita enteras**, que es lo que hace la API pública y
+        lo que hacía la versión anterior de este método. Con un número, resta esa
+        gravedad y la condición solo se va cuando llega a cero.
+
+        Esa es la mitad del diseño de las enfermedades: **curar deja de ser todo
+        o nada**. Una noche de sueño baja 0.15 de fiebre y no hace nada por una
+        pierna rota; un curandero se lleva 3.0 de golpe. Sin escribir en ningún
+        sitio que el sueño cura la fiebre y no los huesos — sale del número.
+
+        Que el defecto sea *todas las marcas* es deliberado:
         vendar sabe vendar heridas, no la del brazo derecho, y elegir una por
         `seq` sería inventarse un criterio médico que el motor no tiene.
         """
         antes = len(self.condiciones)
-        self.condiciones = [
-            c
-            for c in self.condiciones
-            if c.situacion != situacion or (marca is not None and c.marca != marca)
-        ]
+        if cuanto <= 0.0:
+            self.condiciones = [
+                c
+                for c in self.condiciones
+                if c.situacion != situacion or (marca is not None and c.marca != marca)
+            ]
+            return antes - len(self.condiciones)
+
+        for cond in self.condiciones:
+            if cond.situacion == situacion and (marca is None or cond.marca == marca):
+                cond.gravedad -= cuanto
+        self.condiciones = [c for c in self.condiciones if c.gravedad > 1e-9]
         return antes - len(self.condiciones)
 
     def expirar_condiciones(self, tick: int) -> list[SituationId]:

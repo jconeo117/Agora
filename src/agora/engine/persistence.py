@@ -123,7 +123,7 @@ def _agente_a_dict(agent: AgentState, recuerdos: tuple[Recuerdo, ...]) -> dict[s
         # Lo que lleva encima. Una lista de listas y no de dicts: se escribe una
         # por herida y por cabeza, y aqui las claves repetidas pesan.
         "condiciones": [
-            [str(c.situacion), c.marca, c.veces,
+            [str(c.situacion), c.marca, c.gravedad,
              -1 if c.hasta is None else c.hasta,
              "" if c.donde is None else str(c.donde)]
             for c in agent.condiciones
@@ -311,7 +311,7 @@ def _dict_a_agente(datos: dict[str, Any], pack: ContentPack) -> AgentState:
         # sus efectos.
         condiciones=[
             Condicion(
-                situacion=SituationId(s), marca=str(marca), veces=int(veces),
+                situacion=SituationId(s), marca=str(marca), gravedad=float(veces),
                 hasta=None if int(hasta) < 0 else int(hasta),
                 # Un lugar borrado del pack se lee como "sin sitio": la herida
                 # sigue doliendo, pero ya no se puede temer donde te la hicieron.
