@@ -390,6 +390,95 @@ def test_you_grieve_less_for_someone_you_stopped_seeing() -> None:
     assert reciente[AG2] > lejano[AG2]
 
 
+# --- la escala del aprecio: lo que hacía que el duelo no durase --------------
+#
+# Un recuerdo corriente saca su importancia de un bruto que compone urgencia,
+# sorpresa y testigos. Un duelo la saca del APRECIO, que es pequeño por
+# construcción. Metidos los dos por el mismo divisor, el duelo entraba por
+# debajo de lo más barato que hubiera guardado y el olvido por valor lo tiraba
+# el mismo día.
+
+
+def escala_pack(**tuning: Any) -> ContentPack:
+    base = {"memory_capacity": 40, "memory_fade": 0.99,
+            "memory_scale": 1.0, "grief_scale": 1.0}
+    return perdida_pack(**{"tuning": {**base, **tuning}})
+
+
+def importancia_del_duelo(pack: ContentPack) -> float:
+    sim = Simulation(pack, seed=1)
+    con_aprecio(sim, AG1, AG2, veces=40)
+    sim.morir(AG2)
+    duelos = [r for r in sim.state.memoria.de(AG1) if r.about == AG2]
+    assert duelos, "no se grabó el duelo"
+    return duelos[0].importancia
+
+
+def test_without_the_knob_nothing_changes_at_all() -> None:
+    """**La condición de este cambio.** `None` no es un número por defecto: es
+    que el motor haga exactamente lo que hacía. Si esto se mueve, el cambio deja
+    de ser un arreglo y pasa a ser otro mundo."""
+    assert escala_pack().tuning.regard_scale is None
+    assert importancia_del_duelo(escala_pack()) == pytest.approx(
+        importancia_del_duelo(escala_pack(memory_scale=1.0))
+    )
+
+
+def test_the_general_scale_is_what_it_falls_back_to() -> None:
+    """Sin perilla propia hereda la general, y por eso mover `memory_scale`
+    seguía moviendo el duelo — que es de donde venía la confusión."""
+    assert escala_pack(memory_scale=0.2).tuning.escala_del_aprecio == 0.2
+    assert escala_pack(memory_scale=0.2, regard_scale=1.0).tuning.escala_del_aprecio == 1.0
+
+
+def test_a_smaller_scale_makes_a_loss_weigh_more() -> None:
+    """**Lo que este arreglo compra.** El mismo aprecio, la misma muerte, y el
+    recuerdo entra pesando otra cosa."""
+    floja = importancia_del_duelo(escala_pack(regard_scale=1.0))
+    fuerte = importancia_del_duelo(escala_pack(regard_scale=0.1))
+    assert fuerte > floja * 2, f"{floja:.4f} -> {fuerte:.4f}"
+
+
+def test_it_does_not_touch_what_an_ordinary_memory_weighs() -> None:
+    """La otra mitad de la condición: es la escala del APRECIO, y solo la del
+    aprecio. Un recuerdo corriente sigue midiéndose con `memory_scale`.
+
+    Se compara la memoria de quien NO tiene nada que ver con la muerte: si la
+    perilla se hubiera colado en el camino general, aquí se notaría.
+    """
+    def ordinarios(pack: ContentPack) -> list[float]:
+        sim = Simulation(pack, seed=1)
+        sim.run(60)
+        return [r.importancia for r in sim.state.memoria.de(AG1)]
+
+    assert ordinarios(escala_pack()) == ordinarios(escala_pack(regard_scale=0.05))
+
+
+def test_who_you_loved_more_still_hurts_more() -> None:
+    """La escala mueve **cuánto** pesan, jamás **cuál** pesa más. Es una
+    saturación monótona, así que el orden de dos duelos no puede invertirse —
+    y eso es lo que permite subirla sin reescribir ninguna conducta."""
+    pack = perdida_pack(**{
+        "tuning": {"memory_capacity": 40, "memory_fade": 0.99,
+                   "memory_scale": 1.0, "grief_scale": 1.0,
+                   "regard_scale": 0.1},
+        "agents": [
+            {"id": "ag1", "label": "Uno", "home": "p1", "start_at": "p1"},
+            {"id": "ag2", "label": "Dos", "home": "p1", "start_at": "p1"},
+            {"id": "ag3", "label": "Tres", "home": "p1", "start_at": "p1"},
+        ]})
+    sim = Simulation(pack, seed=1)
+    con_aprecio(sim, AG1, AG2, veces=60)   # a este le quería mucho
+    con_aprecio(sim, AG3, AG2, veces=8)    # y este apenas le trataba
+    sim.morir(AG2)
+
+    def duelo_de(quien: AgentId) -> float:
+        return next(r.importancia for r in sim.state.memoria.de(quien)
+                    if r.about == AG2)
+
+    assert duelo_de(AG1) > duelo_de(AG3)
+
+
 def test_only_the_witness_carries_the_place() -> None:
     """Al que estaba delante le entra además por `miedo` y puede acabar rodeando
     el sitio. Al que se enteró de lejos no: colgarle un lugar en el que no le

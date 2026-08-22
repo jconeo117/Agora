@@ -2107,6 +2107,54 @@ class TuningSpec(Spec):
     importancias que salen.
     """
 
+    regard_scale: float | None = Field(default=None, gt=0.0)
+    """Cuánto APRECIO equivale a media importancia. `None` = usa `memory_scale`.
+
+        importancia = aprecio / (aprecio + regard_scale)
+
+    **Existe porque el aprecio y la saliencia no viven en la misma escala, y
+    hasta que se midió nadie lo había escrito.** Un recuerdo corriente saca su
+    importancia de un bruto que compone urgencia, sorpresa y testigos; un duelo
+    y una noticia sobre alguien la sacan del aprecio, que es un número pequeño
+    por construcción — sale de `bond_rate` moviendo poco a poco un valor acotado.
+
+    Metidos los dos por el mismo divisor, el resultado era éste:
+
+        importancia MEDIANA de lo guardado                 0.4422
+        importancia MÍNIMA retenida, con la memoria llena  0.2394
+        duelo típico   (aprecio 0.0746, escala 1.0)        0.0690
+        duelo MÁXIMO   (aprecio 0.4564, escala 1.0)        0.3134
+
+    Es como apuntar lo que marca cada cosa en una escala del 0 al 10 y apuntar
+    lo que marca una muerte en una escala del 0 al 3: **la peor pérdida posible
+    saca un 3 y una buena cena saca un 5**. El olvido por valor (`memoria` §32)
+    tira lo más barato, así que el duelo se iba el mismo día. Medido: cinco
+    muertes, y al día 75 **cero dolientes de 195 supervivientes**.
+
+    Lo gobierna todo el rango que el aprecio alcanza en ESE mundo, y por eso es
+    una perilla del pack y no una constante. Con el aprecio de confluencia:
+
+        escala   duelo típico   duelo máximo   contra el listón 0.2394
+        1.0          0.069          0.313       casi todo se tira
+        0.5          0.130          0.477       lo típico se sigue tirando
+        0.1          0.427          0.820       el conocido dura semanas,
+                                                el querido se queda
+
+    **`None` y no un número por defecto**, por lo mismo que todo lo demás: sin
+    tocarlo, el motor hace exactamente lo que hacía. Ver `regard_for` — la otra
+    mitad de este arreglo.
+    """
+
+    @property
+    def escala_del_aprecio(self) -> float:
+        """La que convierte aprecio en importancia. Una sola puerta.
+
+        Los dos sitios que graban a partir del afecto —una muerte y una noticia
+        sobre alguien— tienen que usar la misma, o el mismo aprecio pesaría una
+        cosa al perder a alguien y otra al enterarse de algo suyo.
+        """
+        return self.memory_scale if self.regard_scale is None else self.regard_scale
+
     regret_weight: float = Field(default=0.0, ge=0.0)
     """Cuánto pesa el escarmiento al deliberar. **0.0 desactiva el mecanismo.**
 

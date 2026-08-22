@@ -270,6 +270,33 @@ def test_news_about_your_own_is_never_gossip_about_a_stranger() -> None:
     assert oidos[0].importancia > 0.20
 
 
+def test_news_about_someone_uses_the_regard_scale_too() -> None:
+    """**Una sola puerta para las dos.** Perder a alguien y enterarse de algo
+    suyo graban los dos a partir del aprecio, así que tienen que convertirlo con
+    la misma escala — o el mismo afecto pesaría una cosa al perderle y otra al
+    saber de él.
+    """
+    def peso(**tuning: Any) -> float:
+        pack = rumor_pack(**{"tuning": {
+            "memory_capacity": 30, "memory_fade": 1.0, "memory_scale": 1.0,
+            "bond_rate": 0.3, "bond_scale": 1.0,
+            "rumor_rate": 1.0, "rumor_decay": 0.5, **tuning}})
+        sim = Simulation(pack, seed=4)
+        for t in range(50):
+            sim.state.agents[AG2].meet(IDOLO, tick=t)
+            sim.state.agents[AG2].remember_company([IDOLO], premium=0.6,
+                                                   rate=0.4, tick=t)
+        sim.state.memoria.remember(AG1, hecho(1, 0, AG1, about=IDOLO),
+                                   importancia=0.05, valencia=-0.9)
+        sim.run(6)
+        oidos = [r for r in sim.state.memoria.de(AG2) if r.seq == 1]
+        assert oidos, "no le llegó"
+        return oidos[0].importancia
+
+    assert peso() == pytest.approx(peso(regard_scale=1.0)), "sin tocarla, igual"
+    assert peso(regard_scale=0.1) > peso(regard_scale=1.0)
+
+
 # --- en un mundo corriendo ---------------------------------------------------
 
 

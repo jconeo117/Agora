@@ -54,6 +54,7 @@ ninguno.
     "memory_surprise_weight": 1.0,  # cuánto pesa que se saliera de lo esperado
     "memory_witness_weight": 0.5,   # cuánto pesa que hubiera alguien delante
     "memory_scale": 1.0,            # cuánto bruto equivale a media importancia
+    "regard_scale": None,           # cuánto APRECIO equivale a media importancia
 
     # === LOS TRES ÍNDICES. Todos estrenan a 0.0 ============================
     "regret_weight": 0.0,           # el escarmiento, por ACCIÓN
@@ -170,6 +171,42 @@ bond_horizon: 2880    a los 30 días sin verse, el vínculo se borra entero
 ⚠️ **Con la memoria llena, lo que entre por debajo del listón se tira de
 inmediato.** Medido en confluencia: la importancia mínima retenida es 0.2394 y
 la mediana 0.4422. Si un mecanismo tuyo graba por debajo de eso, **no existe**.
+
+## `regard_scale` — la escala del aprecio, y por qué es otra
+
+**El aprecio y la saliencia no viven en la misma escala.** Un recuerdo corriente
+saca su importancia de un bruto que compone urgencia, sorpresa y testigos. Un
+duelo —y una noticia sobre alguien— la saca del **aprecio**, que es un número
+pequeño por construcción: sale de `bond_rate` moviendo poco a poco un valor
+acotado.
+
+Metidos los dos por el mismo divisor:
+
+```
+importancia MEDIANA de lo guardado                 0.4422
+importancia MÍNIMA retenida, con la memoria llena  0.2394
+duelo típico   (aprecio 0.0746, escala 1.0)        0.0690
+duelo MÁXIMO   (aprecio 0.4564, escala 1.0)        0.3134
+```
+
+> Es como apuntar lo que marca cada cosa en una escala del 0 al 10 y apuntar lo
+> que marca una muerte en una del 0 al 3: **la peor pérdida posible saca un 3 y
+> una buena cena saca un 5.** El olvido por valor tira lo más barato, así que el
+> duelo se iba el mismo día. Medido: cinco muertes, y al día 75 **cero dolientes
+> de 195 supervivientes**.
+
+```
+escala   duelo típico   duelo máximo   contra el listón 0.2394
+1.0          0.069          0.313       casi todo se tira
+0.5          0.130          0.477       lo típico se sigue tirando
+0.1          0.427          0.820       el conocido dura semanas, el querido se queda
+```
+
+**Lo gobierna el rango que el aprecio alcanza en TU mundo**, que depende de
+`bond_rate` y `bond_scale`. Por eso es una perilla del pack y no una constante:
+**mídelo antes de ponerlo**.
+
+`None` = usa `memory_scale`, o sea exactamente lo de siempre.
 
 ## Los tres índices, y el que no tiene `_weight`
 

@@ -434,7 +434,10 @@ class Simulation:
         donde = difunto.at
         memoria = self.state.memoria
         tuning = self.pack.tuning
-        escala = tuning.memory_scale
+        # La del APRECIO, no la general: son dos escalas distintas y meterlas
+        # por el mismo divisor dejaba el duelo por debajo de lo más barato que
+        # hubiera guardado. Ver `TuningSpec.regard_scale`.
+        escala = tuning.escala_del_aprecio
         tick = self.state.tick
 
         # Orden fijo por id: se graban recuerdos y el olvido por capacidad
@@ -1418,7 +1421,7 @@ class Simulation:
                     # se guarda, porque un recuerdo de importancia cero no es un
                     # recuerdo, es ocupar sitio.
                     continue
-                importancia = signed_saturation(aprecio, tuning.memory_scale)
+                importancia = signed_saturation(aprecio, tuning.escala_del_aprecio)
             else:
                 importancia = historia.importancia * tuning.rumor_decay
             memoria.oir(quien, historia, importancia)
