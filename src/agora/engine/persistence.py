@@ -197,6 +197,18 @@ def save(world: WorldState, together: set[tuple[AgentId, AgentId]], path: Path) 
         "agents": [
             _agente_a_dict(a, world.memoria.de(a.spec_id)) for a in world.agents_in_order()
         ],
+        # QUIÉN NO ESTÁ, Y POR QUÉ NO ESTÁ.
+        #
+        # Sin esta lista, un muerto es indistinguible de una ficha nueva: los dos
+        # están en el pack y ninguno está en `agents`. Y como al cargar se parte
+        # de `WorldState.new` —que crea a TODOS los del pack— para que el elenco
+        # se pueda ampliar sin perder la partida, **el muerto volvía vivo**.
+        #
+        # Medido: 199 vivos antes de guardar, 200 después de reanudar.
+        #
+        # No es lo mismo que el censo, que se reconstruye del pack de hoy. Esto
+        # es lo único del reparto que no se puede derivar: la ausencia con causa.
+        "muertos": sorted(str(a) for a in set(world.censo) - set(world.agents)),
     }
     path.write_text(json.dumps(datos, indent=1, ensure_ascii=False), encoding="utf-8")
 
@@ -428,6 +440,21 @@ def load(path: Path, pack: ContentPack) -> tuple[WorldState, set[tuple[AgentId, 
     # perder la partida.
     for agente in agentes:
         world.agents[agente.spec_id] = agente
+
+    # Y los que faltaban POR MUERTOS se van otra vez. Es la contrapartida de lo
+    # de arriba: la misma tolerancia que deja entrar a una ficha nueva resucitaba
+    # a quien se habia muerto, porque los dos se ven igual desde aqui — estan en
+    # el pack y no estan en el guardado.
+    #
+    # `.get` con vacio por defecto: un guardado anterior a este campo se lee como
+    # una partida donde no habia muerto nadie, que es lo que casi siempre era.
+    # Bajar `FORMATO` a rechazarlo invalidaria todas las partidas por un campo
+    # que solo anyade informacion.
+    #
+    # Se quedan en el CENSO, que es lo que permite seguir nombrandolos: el mundo
+    # sigue sabiendo quien fue.
+    for difunto in datos.get("muertos", ()):
+        world.agents.pop(AgentId(difunto), None)
 
     together = {(AgentId(a), AgentId(b)) for a, b in datos["together"]}
     return world, together

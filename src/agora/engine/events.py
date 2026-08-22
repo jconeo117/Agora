@@ -66,6 +66,15 @@ class EventKind(StrEnum):
     GOAL_FAILED = "goal_failed"
     """Se le acabó el plazo. Suele ser el material más interesante de los dos."""
 
+    GOAL_UNLOCKED = "goal_unlocked"
+    """Se abrió el siguiente eslabón de un arco: la meta que lo precedía se logró
+    y esta pasa de `LOCKED` a `ACTIVE`.
+
+    Es un evento propio y no una nota dentro de `GOAL_ACHIEVED` porque son dos
+    cosas distintas y el narrador las cuenta distinto: una es cerrar algo, la
+    otra es que se abra un camino. Con arcos largos, saber en qué eslabón anda
+    cada cual es la mitad de la historia."""
+
     RELATION_BEGAN = "relation_began"
     """Dos personas pasan a ser algo el uno del otro. Casarse, tomar un
     discipulo, declararse enemigos — y mas adelante nacer, que no es otra cosa

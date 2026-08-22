@@ -35,6 +35,7 @@ from agora.engine.ontology import (
     ActionSpec,
     AflictionSpec,
     AgentId,
+    GoalSpec,
     GoalStatus,
     NeedId,
     PlaceId,
@@ -738,6 +739,59 @@ class Simulation:
                         culpable=culpable,
                     )
 
+    def _meta_cumplida(self, agent: AgentState, goal: GoalSpec) -> bool:
+        """Si esta meta ya está. Cuatro varas, y el pack declara exactamente una.
+
+        Puerta única para no repartir la comparación: el día que haya una quinta
+        se añade aquí y en ningún otro sitio.
+
+        - **el rango** es el único número del motor que solo sube. El valor del
+          eje vuelve a cero al romper uno, así que un umbral sobre él se
+          cumpliría con el primero
+        - **los rasgos** y **los tuyos** piden TODO lo que nombran: dentro de una
+          condición hay conjunción; entre condiciones distintas, `requires_goal`
+        """
+        if goal.at_rank is not None:
+            return agent.rango.get(goal.need, 0) >= goal.at_rank
+        if goal.at_traits:
+            return all(
+                agent.traits.get(trait, 0.0) >= minimo
+                for trait, minimo in sorted(goal.at_traits.items())
+            )
+        if goal.at_kin:
+            return all(
+                len(agent.relations.get(rel, ())) >= cuantos
+                for rel, cuantos in sorted(goal.at_kin.items())
+            )
+        return agent.needs[goal.need] >= (goal.at_least or 0.0)
+
+    def _lo_que_exigia(self, goal: GoalSpec) -> float:
+        """Cuán exigente era, en la escala que `urgency` entiende.
+
+        **OJO AL SIGNO, que ya mordió una vez.** `urgency` recibe *lo lleno que
+        está el eje*, no el déficit — por eso todas las ramas devuelven `1 - x`.
+        Sin ese giro, una meta más ambiciosa se grababa como MENOS importante:
+        pedir el rango 4 marcaba 0.038 y pedir el rango 1, 0.200.
+
+        Y se mide por lo que la meta EXIGÍA, nunca por cómo anda el eje al
+        cerrarla: cumplirla lo deja lleno, urgencia cero, y el logro de una vida
+        se grabaría con la misma fuerza que una siesta.
+
+        Las tres varas que no son un valor de eje pasan por la saturación de
+        siempre, `n/(n+1)`, que es la única curva compartida del motor: crece
+        sin salirse de escala, que es lo que hace falta cuando el número no tiene
+        techo. Rango 1 marca 0.50, rango 10 marca 0.91, rango 30 marca 0.97.
+        """
+        if goal.at_rank is not None:
+            return 1.0 - signed_saturation(float(goal.at_rank), 1.0)
+        if goal.at_traits:
+            # La intensidad ya vive en 0..1: pedir un rasgo a 0.9 es mucho más
+            # que pedirlo a 0.3, y manda el más exigente de los que nombre.
+            return 1.0 - float(max(goal.at_traits.values()))
+        if goal.at_kin:
+            return 1.0 - signed_saturation(float(max(goal.at_kin.values())), 1.0)
+        return 1.0 - (goal.at_least or 0.0)
+
     def _settle_goals(self, agent: AgentState) -> None:
         """Cierra las metas que se han cumplido o se han quedado sin plazo.
 
@@ -750,19 +804,32 @@ class Simulation:
         personaje llega a su meta y sigue siendo exactamente quien era.
         """
         spec = self.state.spec_of(agent)
+        # Primero se abre lo que toque. Va antes del bucle de cierre y en el
+        # mismo tick a propósito: una meta que se desbloquea empieza a empujar
+        # YA, igual que la que se cierra deja de hacerlo ya. Al revés, el arco
+        # perdería un tick en cada eslabón — invisible con cuatro, absurdo con
+        # veinte.
         for goal in spec.goals:
+            if (
+                agent.goals.get(goal.id) is GoalStatus.LOCKED
+                and goal.requires_goal is not None
+                and agent.goals.get(goal.requires_goal) is GoalStatus.ACHIEVED
+            ):
+                agent.goals[goal.id] = GoalStatus.ACTIVE
+                self._emit(
+                    EventKind.GOAL_UNLOCKED,
+                    agent,
+                    data={"goal": str(goal.id), "tras": str(goal.requires_goal)},
+                )
+
+        for goal in spec.goals:
+            # Lo bloqueado no se cierra NI SE PIERDE. No puedes perder lo que aún
+            # no habías empezado, y un plazo corriendo mientras esperas
+            # castigaría por algo que no dependía de ti.
             if agent.goals.get(goal.id) is not GoalStatus.ACTIVE:
                 continue
 
-            # Dos formas de medirlo, y el pack declara exactamente una. El rango
-            # es el único número de este motor que solo sube: el valor del eje
-            # vuelve a cero cada vez que se rompe uno, así que un umbral sobre él
-            # se cumpliría con el primero.
-            logrado = (
-                agent.rango.get(goal.need, 0) >= goal.at_rank
-                if goal.at_rank is not None
-                else agent.needs[goal.need] >= (goal.at_least or 0.0)
-            )
+            logrado = self._meta_cumplida(agent, goal)
             if logrado:
                 resultado, derivas = GoalStatus.ACHIEVED, goal.on_success
             elif goal.deadline is not None and self.state.tick >= goal.deadline:
@@ -788,26 +855,12 @@ class Simulation:
             # meta que pedía llenar el eje al 90 % pesa mucho; una que se
             # conformaba con el 20 %, poco. La curva es la misma del pack, así
             # que un mundo de necesidades tiránicas también tiene metas tiránicas.
-            # Y para una meta de rango, lo que la meta exigía sale de la curva de
-            # saturación de siempre sobre el rango pedido: `n/(n+1)`, que marca
-            # 0.50 en el rango 1, 0.91 en el 10 y 0.97 en el 30 — crece y nunca
-            # se sale de escala, que es lo que hace falta en un eje sin techo. Es
-            # la misma curva que el resto del motor, no una nueva.
-            #
-            # OJO al signo: `urgency` recibe **lo lleno que está el eje**, no el
-            # déficit, y por eso la rama de `at_least` pasa `1 - umbral`. Aquí
-            # hace falta el mismo giro, o una meta más ambiciosa se grabaría como
-            # menos importante — que es exactamente lo que pasó al escribirlo.
-            exigia = (
-                1.0 - signed_saturation(float(goal.at_rank), 1.0)
-                if goal.at_rank is not None
-                else 1.0 - (goal.at_least or 0.0)
-            )
             self._grabar(
                 agent,
                 event,
                 urgencia=urgency(
-                    exigia, self.pack.need_by_id[goal.need].urgency_exponent
+                    self._lo_que_exigia(goal),
+                    self.pack.need_by_id[goal.need].urgency_exponent,
                 ),
                 # La única valencia sin ambigüedad del motor. Una meta que vence
                 # sin cumplirse no necesita interpretarse: salió mal, y punto.

@@ -334,6 +334,25 @@ raro = [
     T("nocturnidad", "nocturnidad", phase_shift=22),
 ]
 
+# -----------------------------------------------------------------------------
+# TITULOS — rasgos que NO se sortean: se ganan.
+#
+# No entran en el sorteo del generador. Los concede el `on_success` de una meta,
+# que es el unico camino que hay hoy para que un rasgo cambie con la vida, y
+# sirven de vara para el eslabon siguiente de un arco (`at_traits`).
+#
+# Llevan un efecto pequenyo a proposito. Podrian no llevar ninguno -un titulo es
+# legitimo aunque no haga nada, como una relacion- pero si algo se GANA conviene
+# que se note, aunque sea poco.
+# -----------------------------------------------------------------------------
+titulos = [
+    # A quien ya se le conoce, la gente se le acerca antes.
+    T("nombrado", "de nombre conocido", gain_multipliers={"vinculo": 1.15}),
+]
+
+# `caracter` es lo que el generador sortea. Los titulos van aparte a proposito:
+# meterlos en la bolsa haria que alguien naciera con un nombre que no se ha
+# ganado, y entonces el arco que lo concede no significaria nada.
 caracter = decidir + querer + poder + raro
 
-traits = razas + afinidades + clases + caracter
+traits = razas + afinidades + clases + caracter + titulos

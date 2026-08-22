@@ -260,6 +260,60 @@ METAS: dict[
 }
 
 
+# =============================================================================
+# LA SENDA — un arco de tres eslabones, y el unico que este mundo puede medir
+# entero hoy.
+#
+# Cada eslabon se mide con una vara DISTINTA, que es exactamente lo que las tres
+# piezas nuevas vinieron a permitir:
+#
+#   1  rango 2            `at_rank`      abierta de salida
+#   2  ser `nombrado`     `at_traits`    la abre la 1
+#   3  rango 5            `at_rank`      la abre la 2
+#
+# El rasgo del segundo NO lo mueve el mundo: se lo concede el `on_success` del
+# primero. Es el unico camino que hay hoy para que un rasgo cambie con la vida,
+# y por eso `at_traits` y `requires_goal` se escribieron a la vez. Sin esa
+# deriva el eslabon del medio seria inalcanzable y el pack NO CARGARIA — lo
+# comprueba el validador.
+#
+# EL EMPUJE VA BAJO, Y ESO SE MIDIO A COSTA DE SEIS MUERTOS.
+#
+# Con `weight_multiplier` 2.0 el arco se suicidaba: la senda solo se le da a
+# quien ya tiene inclinacion, y `ambicion` YA multiplica `dominio` por 1.7. Los
+# dos juntos son 3.4x sobre un eje cuya via rapida son las mazmorras.
+#
+#     dia 30, con 2.0:   6 de 14 con senda MUERTOS   (el resto muere al 1.6 %)
+#                        senda_1 activa en 8, ninguno habia roto el rango 2
+#
+# El arco funcionaba como mecanismo y fallaba como contenido: nadie llegaba al
+# segundo eslabon, asi que el tercero no existia. La leccion es del pack y no
+# del motor — una meta MULTIPLICA lo que ya te importaba, asi que ponerla sobre
+# el eje que define a alguien compone, no suma.
+#
+# El plazo solo va en el primero. Los otros dos no pueden fallar por tiempo, y
+# es deliberado: quien llega tarde al primer eslabon ya se queda sin senda, y
+# poner un reloj a los siguientes castigaria dos veces lo mismo.
+# =============================================================================
+
+SENDA = [
+    {"id": "senda_1", "label": "que le tomen en serio",
+     "need": "dominio", "at_rank": 2, "weight_multiplier": 1.35,
+     "deadline": PLAZO,
+     "on_success": {"nombrado": 1.0, "ambicion": 0.20},
+     "on_failure": {"ambicion": -0.45, "pereza": 0.35}},
+    {"id": "senda_2", "label": "hacerse un nombre",
+     "need": "dominio", "at_traits": {"nombrado": 1.0},
+     "requires_goal": "senda_1", "weight_multiplier": 1.2,
+     "on_success": {"audacia": 0.25}},
+    {"id": "senda_3", "label": "que su nombre llegue lejos",
+     "need": "dominio", "at_rank": 5, "requires_goal": "senda_2",
+     "weight_multiplier": 1.5,
+     "on_success": {"ambicion": 0.35, "sociabilidad": 0.25},
+     "on_failure": {"ambicion": -0.30, "aprension": 0.30}},
+]
+
+
 def _id(texto: str) -> str:
     plano = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
     return plano.lower().replace(" ", "_")
@@ -354,12 +408,22 @@ def poblar() -> list[dict]:
             "tastes": gustos,
         }
 
-        # EL ARCO. Dos de cada tres, y solo metas que le peguen a su clase o a
-        # su raza. El que no tiene ninguna no es un personaje incompleto: es la
-        # mayoria silenciosa que hace que los que SI persiguen algo destaquen.
+        # EL ARCO se mira PRIMERO, y no despues de la meta suelta: puesto detras
+        # con un `elif`, solo llegaban a el los que se habian quedado sin meta
+        # -un tercio- y salian DOS de doscientos. Un arco raro esta bien; uno
+        # invisible no se puede medir.
+        #
+        # Se pide inclinacion, no se sortea a ciegas: `ambicion`, `talento` o
+        # `prodigio` por encima de 0.3. Una senda de tres eslabones en alguien a
+        # quien le da igual llegar lejos es una etiqueta, no una historia.
+        inclinado = max(rasgos.get(r, 0.0)
+                        for r in ("ambicion", "talento", "prodigio"))
         suyos = {clase, raza}
         posibles = sorted(k for k, v in METAS.items() if suyos & v[5])
-        if posibles and rng.random() < 0.66:
+
+        if inclinado > 0.30 and rng.random() < 0.70:
+            ficha["goals"] = SENDA
+        elif posibles and rng.random() < 0.66:
             elegida = rng.choice(posibles)
             eje, umbral, rango_pedido, ok, ko, _ = METAS[elegida]
             meta = {
@@ -373,6 +437,7 @@ def poblar() -> list[dict]:
             else:
                 meta["at_least"] = umbral
             ficha["goals"] = [meta]
+
 
         fichas.append(ficha)
     return fichas

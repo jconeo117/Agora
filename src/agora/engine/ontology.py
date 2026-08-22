@@ -1052,11 +1052,23 @@ class TasteSpec(Spec):
 # Agentes
 # ---------------------------------------------------------------------------
 class GoalStatus(StrEnum):
-    """En qué anda una meta. Tres estados y no hay más.
+    """En qué anda una meta. Cuatro estados y no hay más.
 
     Lo logrado y lo perdido son distintos aunque los dos dejen de empujar: mueven
     rasgos opuestos, y el narrador no puede contar igual a quien lo consiguió que
     a quien se quedó a las puertas.
+    """
+
+    LOCKED = "locked"
+    """Todavía no le toca: espera a que se cumpla la que la abre.
+
+    **Es lo que convierte metas sueltas en un arco.** Sin este estado, las cuatro
+    metas de una ambición larga estarían abiertas a la vez, empujarían todas sus
+    ejes desde el primer día y se cerrarían en cualquier orden — que es una lista
+    de deseos, no una historia.
+
+    No empuja nada mientras dura: `pursuing` solo devuelve las activas, así que
+    una meta bloqueada no toca ni un peso.
     """
 
     ACTIVE = "active"
@@ -1131,21 +1143,84 @@ class GoalSpec(Spec):
     alguien escorado de por vida hacia algo imposible.
     """
 
+    at_traits: dict[TraitId, float] = Field(default_factory=dict)
+    """Ser quien hay que ser: cada rasgo, al menos a esta intensidad.
+
+    Es una **conjunción**: hacen falta todos. *«Dominar una segunda afinidad»* se
+    escribe nombrando la que le falta a esa persona concreta, que el generador sí
+    sabe cuál es — el motor no tiene forma de decir «dos cualesquiera de estas
+    cuatro» y no la necesita.
+
+    **Solo es alcanzable si algo mueve ese rasgo**, y hoy lo único que lo hace es
+    el `on_success`/`on_failure` de otra meta. Eso no es una limitación de este
+    campo: es exactamente el caso de uso — *graduarse* concede el rasgo que abre
+    la meta siguiente. Lo comprueba el validador.
+    """
+
+    at_kin: dict[RelationId, int] = Field(default_factory=dict)
+    """Tener a los tuyos: al menos esta cantidad de cada relación.
+
+    También conjunción. *«Tener tres discípulos»* es `{"discipulo": 3}`.
+
+    ⚠️ **Hoy nada crea ni deshace relaciones en marcha.** `begin_relation` y
+    `end_relation` son API pública y ningún contenido las llama, así que esta
+    condición se decide en el tick 0 y no vuelve a cambiar. Se implementa
+    igualmente —es correcta y son cuatro líneas— pero **no escribas un arco que
+    dependa de ella** hasta que una acción pueda anudar un lazo. El validador
+    avisa cuando la meta ya está cumplida de salida.
+    """
+
+    requires_goal: GoalId | None = None
+    """No empieza hasta que esta otra se haya LOGRADO. **Esto es el arco.**
+
+    Sin un orden, las metas de una ambición larga están abiertas a la vez,
+    empujan sus ejes desde el primer día y se cierran en cualquier orden — que es
+    una lista de deseos, no una historia.
+
+    Mientras espera, la meta está en `LOCKED`: **no empuja ningún peso y no puede
+    fallar**. Lo segundo es deliberado — no puedes perder lo que aún no habías
+    empezado, y un plazo que corre mientras estás bloqueado castigaría por algo
+    que no dependía de ti. El plazo sigue siendo absoluto, así que desbloquear
+    tarde deja poco tiempo, y eso sí es del personaje.
+
+    Si la que la abre se **pierde**, esta se queda bloqueada para siempre. Es
+    correcto y es la mitad del drama: quien no se gradúa no llega a intentar lo
+    que venía después.
+
+    **El arco es una etiqueta, no una estructura.** Aquí solo se declara de quién
+    depende cada meta; agruparlas en un objeto «arco» obligaría a duplicar las
+    que sirven a dos historias — *«llegar a rango 10»* es el primer paso del
+    guerrero y también del líder.
+    """
+
     @model_validator(mode="after")
     def _one_way_to_measure_it(self) -> GoalSpec:
         """Exactamente una condición. Ni cero ni dos.
 
-        Con las dos, habría que decidir si se cumple con una o con ambas, y
-        cualquiera de las dos respuestas sería una convención que nadie recuerda
-        al leer el pack. Con ninguna, la meta no se puede cerrar jamás.
+        Con dos, habría que decidir si se cumple con una o con ambas, y
+        cualquiera de las respuestas sería una convención que nadie recuerda al
+        leer el pack. Y con la conjunción ya cubierta dentro de cada condición
+        —`at_traits` y `at_kin` piden todo lo que nombran— lo que quedaría fuera
+        es mezclar clases distintas de medida, que es justo lo que `requires_goal`
+        hace mejor: dos metas encadenadas en vez de una con dos varas.
+
+        Con ninguna, la meta no se puede cerrar jamás.
         """
-        cuantas = (self.at_least is not None) + (self.at_rank is not None)
+        cuantas = (
+            (self.at_least is not None)
+            + (self.at_rank is not None)
+            + bool(self.at_traits)
+            + bool(self.at_kin)
+        )
         if cuantas != 1:
             raise ValueError(
-                f"meta {self.id!r}: hace falta EXACTAMENTE una de `at_least` "
-                f"(el valor del eje) o `at_rank` (cuántos rangos ha roto), "
+                f"meta {self.id!r}: hace falta EXACTAMENTE una condición de "
+                f"`at_least` (el valor del eje), `at_rank` (rangos rotos), "
+                f"`at_traits` (ser quien hay que ser) o `at_kin` (los tuyos), "
                 f"y hay {cuantas}"
             )
+        if self.requires_goal == self.id:
+            raise ValueError(f"meta {self.id!r}: se abre a sí misma")
         return self
 
     weight_multiplier: PositiveFactor = 2.0

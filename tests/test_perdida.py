@@ -527,3 +527,67 @@ def test_the_world_goes_on_without_them() -> None:
 
     assert AG2 not in sim.state.agents
     assert sim.state.agents[AG1].needs[NeedId("n1")] >= 0.0
+
+
+# --- y sobrevive a un guardado -----------------------------------------------
+
+
+def test_the_dead_do_not_come_back_from_a_save(tmp_path: Any) -> None:
+    """**Un bug que vivio meses.** Al cargar se parte de `WorldState.new`, que
+    crea a TODOS los del pack, y luego se sobreescribe con lo guardado. Un
+    muerto no esta en el guardado... y tampoco una ficha nueva. Los dos se ven
+    IGUAL desde ahi, asi que la tolerancia que permite ampliar el elenco sin
+    perder la partida resucitaba a quien se habia muerto.
+
+    Medido en confluencia: 199 vivos antes de guardar, 200 al reanudar.
+
+    Solo se ve si se guarda un mundo donde ya murio alguien, y ningun test
+    juntaba las dos cosas.
+    """
+    sim = Simulation(perdida_pack(), seed=1)
+    con_aprecio(sim, AG1, AG2, veces=40)
+    sim.morir(AG2, porque="test")
+    fichero = tmp_path / "con_un_muerto.json"
+    sim.save(fichero)
+
+    vuelto = Simulation.resume(fichero, sim.pack)
+    assert AG2 not in vuelto.state.agents, "volvió de entre los muertos"
+    assert len(vuelto.state.agents) == len(sim.state.agents)
+    # Y sigue en el censo: el mundo tiene que poder seguir nombrándolo.
+    assert vuelto.state.existe(AG2)
+
+
+def test_a_save_from_before_this_field_reads_as_nobody_dead(tmp_path: Any) -> None:
+    """Compatibilidad hacia atras: quitarle la lista a un guardado lo deja como
+    una partida donde no murio nadie, que es lo que casi siempre era. Bajar
+    `FORMATO` a rechazarlo invalidaria todas las partidas por un campo que solo
+    anyade informacion."""
+    import json
+
+    sim = Simulation(perdida_pack(), seed=1)
+    fichero = tmp_path / "vieja.json"
+    sim.save(fichero)
+    datos = json.loads(fichero.read_text(encoding="utf-8"))
+    assert "muertos" in datos
+    del datos["muertos"]
+    fichero.write_text(json.dumps(datos), encoding="utf-8")
+
+    vuelto = Simulation.resume(fichero, sim.pack)
+    assert len(vuelto.state.agents) == len(sim.state.agents)
+
+
+def test_a_new_face_in_the_pack_still_joins(tmp_path: Any) -> None:
+    """La otra mitad, que es lo que el arreglo NO puede romper: una ficha que el
+    pack tiene y el guardado no entra fresca. Es el caso legitimo que se
+    confundia con la muerte."""
+    sim = Simulation(perdida_pack(), seed=1)
+    fichero = tmp_path / "antes.json"
+    sim.save(fichero)
+
+    ampliado = perdida_pack(agents=[
+        {"id": "ag1", "label": "Uno", "home": "p1", "start_at": "p1"},
+        {"id": "ag2", "label": "Dos", "home": "p1", "start_at": "p1"},
+        {"id": "ag3", "label": "Tres", "home": "p1", "start_at": "p1"},
+    ])
+    vuelto = Simulation.resume(fichero, ampliado)
+    assert AG3 in vuelto.state.agents, "la cara nueva no entró"

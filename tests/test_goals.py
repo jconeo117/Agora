@@ -493,3 +493,173 @@ def test_a_rank_goal_on_an_axis_without_ranks_does_not_load() -> None:
             "id": "ag1", "label": "ag1", "home": "p1", "start_at": "p1",
             "goals": [{"id": "x", "label": "x", "need": "pan", "at_rank": 2}],
         }])
+
+
+# --- las otras dos varas, y EL ORDEN -----------------------------------------
+#
+# Un arco no necesita primitiva: es lo que emerge de metas encadenadas. Lo que
+# faltaba era poder medir mas de una cosa y poder decir cual va antes.
+
+
+def arco_pack(**overrides: Any) -> ContentPack:
+    """Un arco de tres eslabones sobre el mismo mundo de rangos.
+
+        1  llegar a rango 1                    abierta de salida
+        2  ser alguien (rasgo `nombrado`)      la abre la 1, y la 1 lo concede
+        3  llegar a rango 3                    la abre la 2
+
+    El rasgo del eslabon 2 no lo mueve nada del mundo: lo concede el
+    `on_success` del 1. Es el unico camino que hay hoy para que un rasgo cambie,
+    y por eso `at_traits` y `requires_goal` se escribieron juntos.
+    """
+    data: dict[str, Any] = {
+        "id": "test",
+        "label": "test",
+        "needs": [
+            {"id": "pan", "label": "pan", "decay_per_tick": 0.02, "initial": 0.9},
+            {"id": "arte", "label": "arte", "decay_per_tick": 0.0, "initial": 0.0,
+             "progression": True, "rank_slowdown": 1.0, "cap": 0.20},
+        ],
+        "traits": [{"id": "nombrado", "label": "nombrado",
+                    "need_weight_multipliers": {"arte": 1.2}}],
+        "actions": [
+            {"id": "ensayar", "label": "ensayar", "duration_ticks": 2,
+             "satisfies": {"arte": 1.0}, "effects": {"arte": 0.05}},
+            {"id": "comer", "label": "comer", "duration_ticks": 2,
+             "satisfies": {"pan": 0.9}, "effects": {"pan": 0.9}},
+        ],
+        "places": [{"id": "p1", "label": "p1", "neighbors": {}}],
+        "agents": [{
+            "id": "ag1", "label": "ag1", "home": "p1", "start_at": "p1",
+            "goals": [
+                {"id": "primero", "label": "empezar", "need": "arte",
+                 "at_rank": 1, "on_success": {"nombrado": 1.0}},
+                {"id": "segundo", "label": "ser alguien", "need": "arte",
+                 "at_traits": {"nombrado": 1.0}, "requires_goal": "primero"},
+                {"id": "tercero", "label": "llegar lejos", "need": "arte",
+                 "at_rank": 3, "requires_goal": "segundo"},
+            ],
+        }],
+        "tuning": {"critical_need_threshold": 0.15, "memory_capacity": 400,
+                   "memory_scale": 1.0},
+    }
+    data.update(copy.deepcopy(overrides))
+    return ContentPack.model_validate(data)
+
+
+def test_what_depends_on_another_is_born_locked() -> None:
+    world = WorldState.new(arco_pack(), seed=1)
+    metas = world.agents[AG1].goals
+    assert metas[GoalId("primero")] is GoalStatus.ACTIVE
+    assert metas[GoalId("segundo")] is GoalStatus.LOCKED
+    assert metas[GoalId("tercero")] is GoalStatus.LOCKED
+
+
+def test_a_locked_goal_pushes_nothing() -> None:
+    """Si empujara mientras espera, el arco no seria un orden: seria tres deseos
+    a la vez con nombres distintos."""
+    world = WorldState.new(arco_pack(), seed=1)
+    assert [g.id for g in world.agents[AG1].pursuing(world.pack)] == [GoalId("primero")]
+
+
+def test_a_locked_goal_cannot_fail() -> None:
+    """No puedes perder lo que aun no habias empezado. Un plazo corriendo
+    mientras esperas castigaria por algo que no dependia de ti."""
+    pack = arco_pack(agents=[{
+        "id": "ag1", "label": "ag1", "home": "p1", "start_at": "p1",
+        "goals": [
+            {"id": "primero", "label": "empezar", "need": "arte", "at_rank": 40},
+            {"id": "segundo", "label": "despues", "need": "arte", "at_rank": 1,
+             "requires_goal": "primero", "deadline": 5},
+        ],
+    }])
+    sim = Simulation(pack, seed=1)
+    sim.run(60)
+    assert sim.state.agents[AG1].goals[GoalId("segundo")] is GoalStatus.LOCKED
+    assert sim.log.of_kind(EventKind.GOAL_FAILED) == []
+
+
+def test_the_whole_chain_runs_by_itself() -> None:
+    """**Lo que estas tres piezas compran, de una pieza.** Nadie orquesta nada:
+    cada eslabon se abre cuando el anterior se cierra, y el del medio se mide
+    con un rasgo que la primera meta concedio."""
+    sim = Simulation(arco_pack(), seed=1)
+    sim.run(4000)
+    metas = sim.state.agents[AG1].goals
+    assert metas[GoalId("primero")] is GoalStatus.ACHIEVED
+    assert metas[GoalId("segundo")] is GoalStatus.ACHIEVED
+    assert metas[GoalId("tercero")] is GoalStatus.ACHIEVED
+
+    abiertas = sim.log.of_kind(EventKind.GOAL_UNLOCKED)
+    assert [e.data["goal"] for e in abiertas] == ["segundo", "tercero"]
+    # Y en ORDEN: cada una se abre despues de que se cierre la suya.
+    cierres = {e.data["goal"]: e.tick for e in sim.log.of_kind(EventKind.GOAL_ACHIEVED)}
+    assert cierres["primero"] <= cierres["segundo"] <= cierres["tercero"]
+
+
+def test_a_trait_goal_reads_the_trait_and_not_the_axis() -> None:
+    sim = Simulation(arco_pack(), seed=1)
+    sim.run(4000)
+    # El rasgo llego por la deriva de la primera meta, no por el mundo.
+    assert sim.state.agents[AG1].traits[TraitId("nombrado")] >= 1.0
+
+
+def test_counting_kin_is_a_conjunction() -> None:
+    """Pide TODO lo que nombra. Y hoy se decide en el tick 0: nada anuda lazos
+    en marcha, asi que el validador avisa de las dos formas de ser inutil."""
+    with pytest.raises(ValueError, match=r"se cerraría en el primer tick"):
+        arco_pack(
+            relations=[{"id": "discipulo", "label": "discipulo", "symmetric": True}],
+            agents=[{
+                "id": "ag1", "label": "ag1", "home": "p1", "start_at": "p1",
+                "relations": {"discipulo": ["ag2"]},
+                "goals": [{"id": "x", "label": "x", "need": "arte",
+                           "at_kin": {"discipulo": 1}}],
+            }, {"id": "ag2", "label": "ag2", "home": "p1", "start_at": "p1"}],
+        )
+
+
+def test_a_trait_nobody_grants_is_caught() -> None:
+    with pytest.raises(ValueError, match="solo las derivas mueven un rasgo"):
+        arco_pack(agents=[{
+            "id": "ag1", "label": "ag1", "home": "p1", "start_at": "p1",
+            "goals": [{"id": "x", "label": "x", "need": "arte",
+                       "at_traits": {"nombrado": 1.0}}],
+        }])
+
+
+def test_waiting_for_someone_elses_goal_is_caught() -> None:
+    with pytest.raises(ValueError, match="no es una meta suya"):
+        arco_pack(agents=[{
+            "id": "ag1", "label": "ag1", "home": "p1", "start_at": "p1",
+            "goals": [{"id": "x", "label": "x", "need": "arte", "at_rank": 1,
+                       "requires_goal": "la_de_otro"}],
+        }])
+
+
+def test_a_chain_that_bites_its_tail_is_caught() -> None:
+    """Un ciclo deja a todas sus metas bloqueadas para siempre, y en silencio:
+    no fallan, no empujan, no salen en el panel."""
+    with pytest.raises(ValueError, match="ciclo de metas"):
+        arco_pack(agents=[{
+            "id": "ag1", "label": "ag1", "home": "p1", "start_at": "p1",
+            "goals": [
+                {"id": "a", "label": "a", "need": "arte", "at_rank": 1,
+                 "requires_goal": "b"},
+                {"id": "b", "label": "b", "need": "arte", "at_rank": 2,
+                 "requires_goal": "a"},
+            ],
+        }])
+
+
+def test_a_goal_cannot_open_itself() -> None:
+    with pytest.raises(ValidationError, match="se abre a sí misma"):
+        GoalSpec.model_validate({"id": "x", "label": "x", "need": "arte",
+                                 "at_rank": 1, "requires_goal": "x"})
+
+
+def test_still_exactly_one_condition_with_four_to_choose_from() -> None:
+    for mal in ({}, {"at_rank": 1, "at_traits": {"nombrado": 1.0}},
+                {"at_least": 0.5, "at_kin": {"discipulo": 2}}):
+        with pytest.raises(ValidationError, match="EXACTAMENTE una"):
+            GoalSpec.model_validate({"id": "x", "label": "x", "need": "arte", **mal})

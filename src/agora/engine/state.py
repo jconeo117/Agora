@@ -585,7 +585,17 @@ class AgentState:
             needs=needs,
             traits=dict(spec.traits),
             tastes=compose_tastes(spec.tastes),
-            goals={goal.id: GoalStatus.ACTIVE for goal in spec.goals},
+            # Lo que depende de otra nace BLOQUEADO: no empuja ni un peso hasta
+            # que la que la abre se logre. Es lo que hace que un arco se recorra
+            # en orden en vez de ser cuatro deseos simultáneos.
+            goals={
+                goal.id: (
+                    GoalStatus.LOCKED
+                    if goal.requires_goal is not None
+                    else GoalStatus.ACTIVE
+                )
+                for goal in spec.goals
+            },
             need_weights=compose_need_weights(pack, spec.traits, spec.goals),
             phase_shift=compose_phase_shift(pack, spec.traits),
             gains=compose_gains(pack, spec.traits),

@@ -30,6 +30,8 @@ from agora.engine.ontology import (
     AgentId,
     AgentSpec,
     ClockSpec,
+    GoalId,
+    GoalSpec,
     HealthSpec,
     NeedId,
     NeedSpec,
@@ -339,6 +341,83 @@ class ContentPack(Spec):
             if goal.at_rank is not None
             and (goal.need not in by_id or by_id[goal.need].rank_slowdown <= 0.0)
         ]
+        for agent in self.agents:
+            suyas = {goal.id: goal for goal in agent.goals}
+            for goal in agent.goals:
+                problems += self._check_one_goal_can_happen(agent, goal, suyas)
+        return problems
+
+    def _check_one_goal_can_happen(
+        self, agent: AgentSpec, goal: GoalSpec, suyas: dict[GoalId, GoalSpec]
+    ) -> list[str]:
+        """Las tres varas nuevas, cada una con su forma de ser imposible.
+
+        Van juntas porque comparten la pregunta —*¿puede pasar esto alguna vez?*—
+        y separarlas repartiría por tres sitios la misma respuesta.
+        """
+        problems: list[str] = []
+
+        # UN RASGO. Solo se mueve por el `on_success`/`on_failure` de otra meta:
+        # nada más en el motor toca la intensidad de un rasgo. Así que o ya lo
+        # tiene, o alguna meta suya se lo va a dar.
+        concede = {
+            trait: delta
+            for otra in suyas.values()
+            for derivas in (otra.on_success, otra.on_failure)
+            for trait, delta in derivas.items()
+        }
+        for trait, minimo in sorted(goal.at_traits.items()):
+            alcanzable = agent.traits.get(trait, 0.0) + max(concede.get(trait, 0.0), 0.0)
+            if alcanzable < minimo:
+                problems.append(
+                    f"agente {agent.id!r}, meta {goal.id!r}: pide {trait!r} a "
+                    f"{minimo}, tiene {agent.traits.get(trait, 0.0)} y ninguna "
+                    f"de sus metas se lo sube — solo las derivas mueven un rasgo"
+                )
+
+        # LOS TUYOS. Hoy nada anuda ni deshace lazos en marcha, así que esto se
+        # decide en el tick 0. Si YA lo cumple, la meta se cierra el primer tick
+        # y es un logro regalado; si no lo cumple, no lo cumplirá nunca.
+        if goal.at_kin:
+            ya = all(
+                len(agent.relations.get(rel, frozenset())) >= cuantos
+                for rel, cuantos in sorted(goal.at_kin.items())
+            )
+            problems.append(
+                f"agente {agent.id!r}, meta {goal.id!r}: pide {dict(goal.at_kin)} "
+                + (
+                    "y ya lo tiene, así que se cerraría en el primer tick"
+                    if ya
+                    else "y no lo tiene. Nada anuda lazos en marcha, así que no "
+                    "podrá cumplirla nunca"
+                )
+            )
+
+        # LA QUE LA ABRE. Tiene que ser una meta SUYA: apuntar a la de otro
+        # dejaría la cadena esperando algo que este agente no puede provocar.
+        if goal.requires_goal is not None and goal.requires_goal not in suyas:
+            problems.append(
+                f"agente {agent.id!r}, meta {goal.id!r}: espera a "
+                f"{goal.requires_goal!r}, que no es una meta suya"
+            )
+            return problems
+
+        # Y LA CADENA NO PUEDE MORDERSE LA COLA. Un ciclo deja a todas sus metas
+        # en `LOCKED` para siempre, sin ruido: no fallan, no empujan, no salen en
+        # el panel. Es la clase de error que solo se nota meses después, cuando
+        # alguien se pregunta por qué ese arco nunca arrancó.
+        visto: list[GoalId] = []
+        actual: GoalId | None = goal.id
+        while actual is not None and actual in suyas:
+            if actual in visto:
+                cadena = " -> ".join(str(g) for g in [*visto, actual])
+                problems.append(
+                    f"agente {agent.id!r}: ciclo de metas {cadena}. Ninguna se "
+                    f"abriría jamás"
+                )
+                break
+            visto.append(actual)
+            actual = suyas[actual].requires_goal
         return problems
 
     def _check_elastic_is_coherent(self) -> list[str]:
