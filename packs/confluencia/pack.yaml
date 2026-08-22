@@ -208,7 +208,18 @@ traits:
   label: audacia
   temperament_multipliers:
     critical_need_threshold: 0.6
-    loss_aversion: 0.65
+- id: impulsividad
+  label: impulsividad
+  temperament_multipliers:
+    temperature: 2.8
+- id: calculo
+  label: calculo
+  temperament_multipliers:
+    loss_aversion: 1.9
+- id: arraigo
+  label: arraigo
+  temperament_multipliers:
+    travel_discount: 0.85
 - id: sociabilidad
   label: sociabilidad
   need_weight_multipliers:
@@ -220,6 +231,52 @@ traits:
   need_weight_multipliers:
     dominio: 1.7
     dinero: 1.3
+- id: codicia
+  label: codicia
+  need_weight_multipliers:
+    dinero: 2.0
+    vinculo: 0.75
+- id: gula
+  label: gula
+  need_weight_multipliers:
+    sustento: 1.8
+    dinero: 0.85
+- id: pereza
+  label: pereza
+  need_weight_multipliers:
+    descanso: 1.8
+    dominio: 0.7
+- id: devocion
+  label: devocion
+  need_weight_multipliers:
+    mana: 1.9
+    dinero: 0.75
+- id: aprension
+  label: aprension
+  need_weight_multipliers:
+    salud: 2.2
+- id: talento
+  label: talento
+  gain_multipliers:
+    dominio: 1.5
+    mana: 1.2
+- id: dureza
+  label: dureza
+  cost_multipliers:
+    salud: 0.72
+    descanso: 0.85
+- id: templanza
+  label: templanza
+  cost_multipliers:
+    sustento: 0.72
+    descanso: 0.75
+- id: tenacidad
+  label: tenacidad
+  memory_multipliers: 3.2
+- id: prodigio
+  label: prodigio
+  cap_multipliers:
+    dominio: 0.55
 - id: nocturnidad
   label: nocturnidad
   phase_shift: 22
@@ -313,6 +370,29 @@ actions:
   effects_per_company:
     vinculo: 0.7
   saturation_gain: 0.22
+- id: cenar_con_los_tuyos
+  label: cenar con los tuyos
+  duration_ticks: 6
+  requires_affordance: mesa
+  requires_relation: pareja
+  requires:
+    dinero: 0.08
+  satisfies:
+    vinculo: 0.55
+    sustento: 0.45
+  costs:
+    dinero: 0.35
+    descanso: 0.08
+  effects:
+    vinculo: 0.2
+    sustento: 0.38
+    dinero: -0.08
+  effects_per_company:
+    vinculo: 0.16
+  phase_multipliers:
+    noche: 1.8
+    tarde: 1.1
+  saturation_gain: 0.1
 - id: meditar
   label: meditar
   duration_ticks: 24
@@ -605,6 +685,27 @@ actions:
       fiebre: 1.2
     requires_condition: herida
     regard_weight: 0.7
+relations:
+- id: pareja
+  label: pareja
+  symmetric: true
+  exclusive: true
+  regard_floor: 0.45
+  company_multiplier: 2.0
+- id: hermano
+  label: hermano
+  symmetric: true
+  company_multiplier: 1.5
+- id: maestro
+  label: maestro de
+  inverse: discipulo
+  regard_floor: 0.2
+  company_multiplier: 1.4
+- id: discipulo
+  label: discipulo de
+  inverse: maestro
+  regard_floor: 0.3
+  company_multiplier: 1.6
 places:
 - id: plaza_mayor
   label: la plaza mayor
@@ -1207,235 +1308,365 @@ agents:
   start_at: plaza_enana
   traits:
     afin_fuego: 1.0
-    audacia: -0.49
+    devocion: 0.89
     enano: 1.0
-    guerrero: 0.78
-    nocturnidad: 0.77
+    guerrero: 0.76
+    templanza: 0.83
   tastes:
   - target: plaza_enana
-    multiplier: 1.33
+    multiplier: 1.21
   - target: posada_enana
-    multiplier: 1.33
+    multiplier: 1.21
   - target: forjas
-    multiplier: 1.33
+    multiplier: 1.21
   - target: posada_enana
-    multiplier: 1.33
-- id: hale_vadohondo
-  label: Hale Vadohondo
+    multiplier: 1.21
+  relations:
+    pareja:
+    - orin_vadohondo_192
+    hermano:
+    - isla_hierrogris
+  initial_bonds:
+    orin_vadohondo_192: 0.55
+- id: adze_piedraparda
+  label: Adze Piedraparda
   home: posada_elfica
   start_at: plaza_elfica
   traits:
     afin_agua: 1.0
-    afin_viento: 0.27
-    audacia: 0.67
+    aprension: 0.57
     elfo: 1.0
-    guerrero: 0.81
-    nocturnidad: -0.43
+    invocador: 0.75
+    templanza: 0.74
   tastes:
   - target: plaza_elfica
-    multiplier: 0.99
+    multiplier: 1.34
   - target: posada_elfica
-    multiplier: 0.99
+    multiplier: 1.34
   - target: arboleda_ancestral
-    multiplier: 0.99
+    multiplier: 1.34
   - target: santuario_del_viento
-    multiplier: 0.99
-- id: dorn_cantorroto
-  label: Dorn Cantorroto
+    multiplier: 1.34
+  goals:
+  - id: que_le_conozcan_en_la_ciudad
+    label: que le conozcan en la ciudad
+    need: vinculo
+    at_least: 0.94
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: &id005
+      sociabilidad: 0.3
+      ambicion: 0.25
+    on_failure: &id006
+      sociabilidad: -0.3
+      audacia: -0.25
+  relations:
+    pareja:
+    - gwen_nieblalta
+    hermano:
+    - ivar_fuegolento
+  initial_bonds:
+    gwen_nieblalta: 0.55
+- id: dain_nieblalta
+  label: Dain Nieblalta
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 1.0
+    audacia: -0.82
+    guerrero: 0.97
+    humano: 1.0
+    talento: 0.68
+    templanza: 0.63
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.17
+  - target: posada_marea
+    multiplier: 1.17
+  - target: muelle
+    multiplier: 1.17
+  - target: templo_mareas
+    multiplier: 1.17
+  relations:
+    pareja:
+    - torv_nieblalta
+    hermano:
+    - rask_nieblalta
+    - xan_fuegolento
+    maestro:
+    - isla_vadohondo
+  initial_bonds:
+    torv_nieblalta: 0.55
+    isla_vadohondo: 0.3
+- id: lira_cenizal
+  label: Lira Cenizal
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_viento: 1.0
+    asesino: 0.79
+    demihumano: 1.0
+    tenacidad: -0.93
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.21
+  - target: posada_de_la_manada
+    multiplier: 1.21
+  - target: campo_de_caza
+    multiplier: 1.21
+  - target: posada_de_la_manada
+    multiplier: 1.21
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: &id003
+      sociabilidad: 0.35
+    on_failure: &id004
+      sociabilidad: -0.55
+      ambicion: 0.25
+  relations:
+    pareja:
+    - rask_cantorroto_198
+    hermano:
+    - varn_vadohondo
+    - quen_rocaviva
+  initial_bonds:
+    rask_cantorroto_198: 0.55
+- id: isla_hierrogris
+  label: Isla Hierrogris
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    enano: 1.0
+    guerrero: 0.97
+    impulsividad: 0.91
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.37
+  - target: posada_enana
+    multiplier: 1.37
+  - target: forjas
+    multiplier: 1.37
+  - target: posada_enana
+    multiplier: 1.37
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: &id001
+      ambicion: 0.35
+    on_failure: &id002
+      ambicion: -0.4
+      sociabilidad: 0.3
+  relations:
+    pareja:
+    - ivar_fuegolento_191
+    hermano:
+    - cyra_nieblalta
+    maestro:
+    - zar_piedraparda
+  initial_bonds:
+    ivar_fuegolento_191: 0.55
+    zar_piedraparda: 0.3
+- id: wyn_hojaclara
+  label: Wyn Hojaclara
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_fuego: 1.0
+    calculo: 0.7
+    gigante: 1.0
+    guerrero: 0.73
+  tastes:
+  - target: plaza_gigante
+    multiplier: 1.17
+  - target: salon_comunal_gigante
+    multiplier: 1.17
+  - target: campo_gigante
+    multiplier: 1.17
+  - target: salon_comunal_gigante
+    multiplier: 1.17
+  relations:
+    pareja:
+    - wyn_yunquenegro
+    hermano:
+    - xan_fuegolento_24
+  initial_bonds:
+    wyn_yunquenegro: 0.55
+- id: adze_cantorroto
+  label: Adze Cantorroto
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    aprension: -0.44
+    devocion: -0.67
+    enano: 1.0
+    guerrero: 0.79
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.08
+  - target: posada_enana
+    multiplier: 1.08
+  - target: forjas
+    multiplier: 1.08
+  - target: posada_enana
+    multiplier: 1.08
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+  relations:
+    pareja:
+    - aral_piedraparda
+    hermano:
+    - cyra_hierrogris
+  initial_bonds:
+    aral_piedraparda: 0.55
+- id: ivar_fuegolento
+  label: Ivar Fuegolento
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_agua: 0.37
+    afin_viento: 1.0
+    codicia: -0.93
+    dureza: 0.68
+    elfo: 1.0
+    guerrero: 0.78
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.01
+  - target: posada_elfica
+    multiplier: 1.01
+  - target: arboleda_ancestral
+    multiplier: 1.01
+  - target: santuario_del_viento
+    multiplier: 1.01
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+  relations:
+    pareja:
+    - rask_fuegolento
+    hermano:
+    - adze_piedraparda
+  initial_bonds:
+    rask_fuegolento: 0.55
+- id: rask_nieblalta
+  label: Rask Nieblalta
   home: posada_marea
   start_at: plaza_portuaria
   traits:
     afin_tierra: 1.0
-    audacia: -0.66
+    ambicion: 0.87
+    asesino: 0.71
+    gula: 0.95
     humano: 1.0
-    montaraz: 0.89
-    sociabilidad: -0.61
   tastes:
   - target: plaza_portuaria
-    multiplier: 1.01
+    multiplier: 0.97
   - target: posada_marea
-    multiplier: 1.01
+    multiplier: 0.97
   - target: muelle
-    multiplier: 1.01
+    multiplier: 0.97
   - target: templo_mareas
-    multiplier: 1.01
+    multiplier: 0.97
+  relations:
+    pareja:
+    - adze_vientolargo_195
+    hermano:
+    - dain_nieblalta
+    - xan_fuegolento
+  initial_bonds:
+    adze_vientolargo_195: 0.55
 - id: yves_cenizal
   label: Yves Cenizal
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_viento: 1.0
-    audacia: 0.86
-    demihumano: 1.0
-    guerrero: 0.79
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.38
-  - target: posada_de_la_manada
-    multiplier: 1.38
-  - target: campo_de_caza
-    multiplier: 1.38
-  - target: posada_de_la_manada
-    multiplier: 1.38
-- id: rask_umbrio
-  label: Rask Umbrio
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_tierra: 1.0
-    afin_viento: 0.39
-    ambicion: 0.72
-    enano: 1.0
-    guerrero: 0.74
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.38
-  - target: posada_enana
-    multiplier: 1.38
-  - target: forjas
-    multiplier: 1.38
-  - target: posada_enana
-    multiplier: 1.38
-- id: dain_yunquenegro
-  label: Dain Yunquenegro
-  home: salon_comunal_gigante
-  start_at: plaza_gigante
-  traits:
-    afin_tierra: 1.0
-    ambicion: 0.56
-    gigante: 1.0
-    guerrero: 0.72
-    sociabilidad: -0.96
-  tastes:
-  - target: plaza_gigante
-    multiplier: 1.2
-  - target: salon_comunal_gigante
-    multiplier: 1.2
-  - target: campo_gigante
-    multiplier: 1.2
-  - target: salon_comunal_gigante
-    multiplier: 1.2
-- id: bern_vientolargo
-  label: Bern Vientolargo
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_fuego: 0.31
-    afin_tierra: 1.0
-    audacia: 0.57
-    enano: 1.0
-    montaraz: 0.83
-    nocturnidad: 0.73
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.28
-  - target: posada_enana
-    multiplier: 1.28
-  - target: forjas
-    multiplier: 1.28
-  - target: posada_enana
-    multiplier: 1.28
-- id: mor_umbrio
-  label: Mor Umbrio
   home: posada_elfica
   start_at: plaza_elfica
   traits:
+    afin_agua: 0.45
     afin_viento: 1.0
-    ambicion: -0.42
-    asesino: 0.8
+    codicia: -0.95
     elfo: 1.0
-    sociabilidad: 0.81
+    montaraz: 0.98
+    sociabilidad: 0.67
+    tenacidad: 0.54
   tastes:
   - target: plaza_elfica
-    multiplier: 1.13
+    multiplier: 1.02
   - target: posada_elfica
-    multiplier: 1.13
+    multiplier: 1.02
   - target: arboleda_ancestral
-    multiplier: 1.13
+    multiplier: 1.02
   - target: santuario_del_viento
-    multiplier: 1.13
-- id: rask_solraso
-  label: Rask Solraso
+    multiplier: 1.02
+  relations:
+    pareja:
+    - jarl_cantorroto
+    hermano:
+    - dorn_hojaclara
+    maestro:
+    - fenn_cenizal
+  initial_bonds:
+    jarl_cantorroto: 0.55
+    fenn_cenizal: 0.3
+- id: xan_fuegolento
+  label: Xan Fuegolento
   home: posada_central
   start_at: plaza_mayor
   traits:
-    afin_tierra: 1.0
-    asesino: 0.97
+    afin_agua: 1.0
+    dureza: -0.67
     humano: 1.0
-    sociabilidad: -0.51
+    montaraz: 0.91
+    sociabilidad: -0.92
+    talento: -0.63
   tastes:
   - target: plaza_mayor
     multiplier: 0.99
   - target: posada_central
     multiplier: 0.99
-- id: hurn_umbrio
-  label: Hurn Umbrio
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_fuego: 0.42
-    afin_viento: 1.0
-    asesino: 0.75
-    elfo: 1.0
-    nocturnidad: -0.88
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.01
-  - target: posada_elfica
-    multiplier: 1.01
-  - target: arboleda_ancestral
-    multiplier: 1.01
-  - target: santuario_del_viento
-    multiplier: 1.01
-- id: eris_vientolargo
-  label: Eris Vientolargo
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_viento: 1.0
-    asesino: 0.94
-    audacia: -0.68
-    humano: 1.0
-    sociabilidad: 0.64
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.42
-  - target: posada_central
-    multiplier: 1.42
-- id: dain_solraso
-  label: Dain Solraso
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_fuego: 1.0
-    afin_tierra: 0.25
-    ambicion: 0.48
-    humano: 1.0
-    montaraz: 0.93
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.14
-  - target: posada_central
-    multiplier: 1.14
-- id: jora_cantorroto
-  label: Jora Cantorroto
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_viento: 1.0
-    ambicion: -0.78
-    demihumano: 1.0
-    guerrero: 0.91
-    sociabilidad: 0.79
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 0.99
-  - target: posada_de_la_manada
-    multiplier: 0.99
-  - target: campo_de_caza
-    multiplier: 0.99
-  - target: posada_de_la_manada
-    multiplier: 0.99
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: &id009
+      audacia: 0.25
+      sociabilidad: 0.25
+    on_failure: &id010
+      sociabilidad: -0.45
+      audacia: -0.2
+  relations:
+    pareja:
+    - rask_rocaviva_199
+    hermano:
+    - dain_nieblalta
+    - rask_nieblalta
+  initial_bonds:
+    rask_rocaviva_199: 0.55
 - id: varn_fuegolento
   label: Varn Fuegolento
   home: posada_central
@@ -1443,123 +1674,214 @@ agents:
   traits:
     afin_fuego: 1.0
     afin_tierra: 0.3
-    ambicion: 0.44
+    ambicion: 0.43
+    audacia: -0.88
     humano: 1.0
-    montaraz: 0.91
-    nocturnidad: 0.63
+    mago: 1.0
+    talento: 0.87
   tastes:
   - target: plaza_mayor
-    multiplier: 1.34
+    multiplier: 1.06
   - target: posada_central
-    multiplier: 1.34
-- id: mor_marfrio
-  label: Mor Marfrio
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_agua: 1.0
-    afin_viento: 0.33
-    guerrero: 0.76
-    humano: 1.0
-    sociabilidad: -0.66
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.16
-  - target: posada_central
-    multiplier: 1.16
-- id: ulla_yunquenegro
-  label: Ulla Yunquenegro
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_tierra: 1.0
-    audacia: -0.48
-    enano: 1.0
-    mago: 0.8
-    sociabilidad: -0.56
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.09
-  - target: posada_enana
-    multiplier: 1.09
-  - target: forjas
-    multiplier: 1.09
-  - target: posada_enana
-    multiplier: 1.09
-- id: jarl_cantorroto
-  label: Jarl Cantorroto
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_agua: 0.3
-    afin_tierra: 1.0
-    audacia: 0.53
-    guerrero: 0.78
-    humano: 1.0
-    sociabilidad: 0.7
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.18
-  - target: posada_marea
-    multiplier: 1.18
-  - target: muelle
-    multiplier: 1.18
-  - target: templo_mareas
-    multiplier: 1.18
-- id: fenn_vientolargo
-  label: Fenn Vientolargo
+    multiplier: 1.06
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  relations:
+    pareja:
+    - kel_umbrio
+    hermano:
+    - hale_vadohondo
+    maestro:
+    - xan_cantorroto
+    - eyla_zarzal
+  initial_bonds:
+    kel_umbrio: 0.55
+    xan_cantorroto: 0.3
+    eyla_zarzal: 0.3
+- id: varn_vadohondo
+  label: Varn Vadohondo
   home: posada_de_la_manada
   start_at: plaza_demihumana
   traits:
-    afin_agua: 0.34
-    afin_tierra: 1.0
-    audacia: -0.8
+    afin_viento: 1.0
+    ambicion: 0.65
+    arraigo: -0.49
     demihumano: 1.0
-    montaraz: 0.82
-    sociabilidad: -0.91
+    montaraz: 1.0
+    sociabilidad: -0.94
   tastes:
   - target: plaza_demihumana
-    multiplier: 1.21
+    multiplier: 0.96
   - target: posada_de_la_manada
-    multiplier: 1.21
+    multiplier: 0.96
   - target: campo_de_caza
-    multiplier: 1.21
+    multiplier: 0.96
   - target: posada_de_la_manada
-    multiplier: 1.21
-- id: nyx_marfrio
-  label: Nyx Marfrio
+    multiplier: 0.96
+  relations:
+    pareja:
+    - eyla_yunquenegro
+    hermano:
+    - lira_cenizal
+    - quen_rocaviva
+    maestro:
+    - ivar_hojaclara
+    - jarl_vadohondo
+  initial_bonds:
+    eyla_yunquenegro: 0.55
+    ivar_hojaclara: 0.3
+    jarl_vadohondo: 0.3
+- id: hale_vadohondo
+  label: Hale Vadohondo
   home: posada_central
   start_at: plaza_mayor
   traits:
     afin_tierra: 1.0
-    asesino: 0.91
-    audacia: 0.55
+    guerrero: 0.97
     humano: 1.0
+    nocturnidad: 0.57
+    sociabilidad: -0.73
   tastes:
   - target: plaza_mayor
-    multiplier: 1.19
+    multiplier: 0.95
   - target: posada_central
-    multiplier: 1.19
-- id: torv_cantorroto
-  label: Torv Cantorroto
+    multiplier: 0.95
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  relations:
+    pareja:
+    - fror_marfrio
+    hermano:
+    - varn_fuegolento
+    maestro:
+    - sela_hojaclara
+  initial_bonds:
+    fror_marfrio: 0.55
+    sela_hojaclara: 0.3
+- id: rask_zarzal
+  label: Rask Zarzal
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_agua: 1.0
+    calculo: -0.45
+    guerrero: 0.89
+    gula: 0.44
+    humano: 1.0
+    impulsividad: 0.92
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.05
+  - target: posada_marea
+    multiplier: 1.05
+  - target: muelle
+    multiplier: 1.05
+  - target: templo_mareas
+    multiplier: 1.05
+  goals:
+  - id: que_le_conozcan_en_la_ciudad
+    label: que le conozcan en la ciudad
+    need: vinculo
+    at_least: 0.94
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id005
+    on_failure: *id006
+  relations:
+    pareja:
+    - xan_yunquenegro_189
+    hermano:
+    - fror_piedraparda
+  initial_bonds:
+    xan_yunquenegro_189: 0.55
+- id: cyra_hierrogris
+  label: Cyra Hierrogris
   home: posada_enana
   start_at: plaza_enana
   traits:
-    afin_fuego: 1.0
-    afin_tierra: 0.3
-    ambicion: 0.98
+    afin_tierra: 1.0
+    aprension: 0.49
+    dureza: -0.83
     enano: 1.0
-    guerrero: 0.98
-    nocturnidad: 0.75
+    mago: 0.9
   tastes:
   - target: plaza_enana
-    multiplier: 1.35
+    multiplier: 1.01
   - target: posada_enana
-    multiplier: 1.35
+    multiplier: 1.01
   - target: forjas
-    multiplier: 1.35
+    multiplier: 1.01
   - target: posada_enana
-    multiplier: 1.35
+    multiplier: 1.01
+  goals:
+  - id: dominar_su_reserva
+    label: dominar su reserva
+    need: mana
+    at_least: 0.96
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: &id007
+      ambicion: 0.3
+      audacia: 0.25
+    on_failure: &id008
+      ambicion: -0.35
+      audacia: -0.3
+  relations:
+    pareja:
+    - ulla_vientolargo
+    hermano:
+    - adze_cantorroto
+  initial_bonds:
+    ulla_vientolargo: 0.55
+- id: fror_piedraparda
+  label: Fror Piedraparda
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_viento: 1.0
+    guerrero: 0.71
+    humano: 1.0
+    nocturnidad: 0.46
+    sociabilidad: -0.58
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.43
+  - target: posada_marea
+    multiplier: 1.43
+  - target: muelle
+    multiplier: 1.43
+  - target: templo_mareas
+    multiplier: 1.43
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+  relations:
+    pareja:
+    - brix_marfrio
+    hermano:
+    - rask_zarzal
+  initial_bonds:
+    brix_marfrio: 0.55
 - id: quen_rocaviva
   label: Quen Rocaviva
   home: posada_de_la_manada
@@ -1567,7 +1889,7 @@ agents:
   traits:
     afin_viento: 1.0
     demihumano: 1.0
-    invocador: 0.89
+    mago: 0.88
     sociabilidad: 0.9
   tastes:
   - target: plaza_demihumana
@@ -1578,1405 +1900,55 @@ agents:
     multiplier: 1.11
   - target: posada_de_la_manada
     multiplier: 1.11
-- id: ulla_zarzal
-  label: Ulla Zarzal
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_agua: 1.0
-    audacia: -0.85
-    humano: 1.0
-    invocador: 1.0
-    sociabilidad: -0.71
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.04
-  - target: posada_marea
-    multiplier: 1.04
-  - target: muelle
-    multiplier: 1.04
-  - target: templo_mareas
-    multiplier: 1.04
-- id: xan_vadohondo
-  label: Xan Vadohondo
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_tierra: 1.0
-    audacia: -0.61
-    enano: 1.0
-    montaraz: 0.77
-    nocturnidad: -0.41
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.39
-  - target: posada_enana
-    multiplier: 1.39
-  - target: forjas
-    multiplier: 1.39
-  - target: posada_enana
-    multiplier: 1.39
-- id: gith_umbrio
-  label: Gith Umbrio
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_fuego: 1.0
-    enano: 1.0
-    guerrero: 0.72
-    nocturnidad: 0.48
-    sociabilidad: 0.68
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.21
-  - target: posada_enana
-    multiplier: 1.21
-  - target: forjas
-    multiplier: 1.21
-  - target: posada_enana
-    multiplier: 1.21
-- id: orin_vientolargo
-  label: Orin Vientolargo
-  home: salon_comunal_gigante
-  start_at: plaza_gigante
-  traits:
-    afin_viento: 1.0
-    gigante: 1.0
-    mago: 0.77
-    sociabilidad: 0.89
-  tastes:
-  - target: plaza_gigante
-    multiplier: 1.35
-  - target: salon_comunal_gigante
-    multiplier: 1.35
-  - target: campo_gigante
-    multiplier: 1.35
-  - target: salon_comunal_gigante
-    multiplier: 1.35
-- id: hurn_piedraparda
-  label: Hurn Piedraparda
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_tierra: 1.0
-    enano: 1.0
-    guerrero: 0.84
-    nocturnidad: -0.48
-    sociabilidad: -0.61
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.33
-  - target: posada_enana
-    multiplier: 1.33
-  - target: forjas
-    multiplier: 1.33
-  - target: posada_enana
-    multiplier: 1.33
-- id: hale_nieblalta
-  label: Hale Nieblalta
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_agua: 1.0
-    asesino: 0.97
-    demihumano: 1.0
-    nocturnidad: 0.8
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.11
-  - target: posada_de_la_manada
-    multiplier: 1.11
-  - target: campo_de_caza
-    multiplier: 1.11
-  - target: posada_de_la_manada
-    multiplier: 1.11
-- id: adze_hierrogris
-  label: Adze Hierrogris
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_agua: 0.38
-    afin_viento: 1.0
-    asesino: 0.98
-    audacia: 0.61
-    elfo: 1.0
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.17
-  - target: posada_elfica
-    multiplier: 1.17
-  - target: arboleda_ancestral
-    multiplier: 1.17
-  - target: santuario_del_viento
-    multiplier: 1.17
-- id: aral_cantorroto
-  label: Aral Cantorroto
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_viento: 1.0
-    asesino: 1.0
-    audacia: 0.52
-    humano: 1.0
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.15
-  - target: posada_marea
-    multiplier: 1.15
-  - target: muelle
-    multiplier: 1.15
-  - target: templo_mareas
-    multiplier: 1.15
-- id: wyn_vientolargo
-  label: Wyn Vientolargo
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_tierra: 1.0
-    enano: 1.0
-    invocador: 0.91
-    sociabilidad: -0.95
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.09
-  - target: posada_enana
-    multiplier: 1.09
-  - target: forjas
-    multiplier: 1.09
-  - target: posada_enana
-    multiplier: 1.09
-- id: varn_yunquenegro
-  label: Varn Yunquenegro
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_viento: 1.0
-    elfo: 1.0
-    montaraz: 0.71
-    sociabilidad: 0.95
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.0
-  - target: posada_elfica
-    multiplier: 1.0
-  - target: arboleda_ancestral
-    multiplier: 1.0
-  - target: santuario_del_viento
-    multiplier: 1.0
-- id: brix_yunquenegro
-  label: Brix Yunquenegro
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_fuego: 1.0
-    afin_viento: 0.39
-    humano: 1.0
-    mago: 0.71
-    nocturnidad: 0.99
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.25
-  - target: posada_central
-    multiplier: 1.25
-- id: brix_cenizal
-  label: Brix Cenizal
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_fuego: 1.0
-    audacia: -0.43
-    enano: 1.0
-    invocador: 0.87
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.37
-  - target: posada_enana
-    multiplier: 1.37
-  - target: forjas
-    multiplier: 1.37
-  - target: posada_enana
-    multiplier: 1.37
-- id: sela_cantorroto
-  label: Sela Cantorroto
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_viento: 1.0
-    ambicion: -0.94
-    audacia: -0.6
-    humano: 1.0
-    mago: 0.94
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.03
-  - target: posada_marea
-    multiplier: 1.03
-  - target: muelle
-    multiplier: 1.03
-  - target: templo_mareas
-    multiplier: 1.03
-- id: zar_cenizal
-  label: Zar Cenizal
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_tierra: 1.0
-    ambicion: -0.51
-    audacia: -0.48
-    guerrero: 0.98
-    humano: 1.0
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.28
-  - target: posada_marea
-    multiplier: 1.28
-  - target: muelle
-    multiplier: 1.28
-  - target: templo_mareas
-    multiplier: 1.28
-- id: quen_nieblalta
-  label: Quen Nieblalta
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_viento: 1.0
-    asesino: 0.92
-    audacia: -0.53
-    demihumano: 1.0
-    nocturnidad: 0.54
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.37
-  - target: posada_de_la_manada
-    multiplier: 1.37
-  - target: campo_de_caza
-    multiplier: 1.37
-  - target: posada_de_la_manada
-    multiplier: 1.37
-- id: bern_hierrogris
-  label: Bern Hierrogris
+  goals:
+  - id: dominar_su_reserva
+    label: dominar su reserva
+    need: mana
+    at_least: 0.96
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id007
+    on_failure: *id008
+  relations:
+    pareja:
+    - fror_solraso
+    hermano:
+    - lira_cenizal
+    - varn_vadohondo
+  initial_bonds:
+    fror_solraso: 0.55
+- id: fenn_cenizal
+  label: Fenn Cenizal
   home: posada_central
   start_at: plaza_mayor
   traits:
     afin_agua: 1.0
-    afin_tierra: 0.41
-    ambicion: -0.54
-    audacia: -0.42
-    humano: 1.0
-    montaraz: 0.91
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.3
-  - target: posada_central
-    multiplier: 1.3
-- id: mor_hojaclara
-  label: Mor Hojaclara
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_viento: 1.0
-    asesino: 0.87
-    audacia: -0.77
-    humano: 1.0
-    nocturnidad: -0.73
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.37
-  - target: posada_marea
-    multiplier: 1.37
-  - target: muelle
-    multiplier: 1.37
-  - target: templo_mareas
-    multiplier: 1.37
-- id: eris_piedraparda
-  label: Eris Piedraparda
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_agua: 0.31
-    afin_fuego: 1.0
-    humano: 1.0
-    montaraz: 0.96
-    nocturnidad: -0.65
-    sociabilidad: -0.52
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.3
-  - target: posada_marea
-    multiplier: 1.3
-  - target: muelle
-    multiplier: 1.3
-  - target: templo_mareas
-    multiplier: 1.3
-- id: wyn_umbrio
-  label: Wyn Umbrio
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_agua: 1.0
-    ambicion: 0.95
-    asesino: 0.73
-    demihumano: 1.0
-    nocturnidad: 0.77
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.43
-  - target: posada_de_la_manada
-    multiplier: 1.43
-  - target: campo_de_caza
-    multiplier: 1.43
-  - target: posada_de_la_manada
-    multiplier: 1.43
-- id: dain_umbrio
-  label: Dain Umbrio
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_fuego: 1.0
-    enano: 1.0
-    guerrero: 0.85
-    sociabilidad: 0.54
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.41
-  - target: posada_enana
-    multiplier: 1.41
-  - target: forjas
-    multiplier: 1.41
-  - target: posada_enana
-    multiplier: 1.41
-- id: eris_piedraparda_41
-  label: Eris Piedraparda
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_viento: 1.0
-    ambicion: 0.5
-    enano: 1.0
-    guerrero: 0.88
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.06
-  - target: posada_enana
-    multiplier: 1.06
-  - target: forjas
-    multiplier: 1.06
-  - target: posada_enana
-    multiplier: 1.06
-- id: dain_fuegolento
-  label: Dain Fuegolento
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_fuego: 1.0
-    afin_tierra: 0.42
-    enano: 1.0
-    guerrero: 0.97
-    nocturnidad: 0.96
-  tastes:
-  - target: plaza_enana
-    multiplier: 0.96
-  - target: posada_enana
-    multiplier: 0.96
-  - target: forjas
-    multiplier: 0.96
-  - target: posada_enana
-    multiplier: 0.96
-- id: aral_umbrio
-  label: Aral Umbrio
-  home: salon_comunal_gigante
-  start_at: plaza_gigante
-  traits:
-    afin_agua: 1.0
-    ambicion: 0.64
-    gigante: 1.0
-    montaraz: 0.85
-  tastes:
-  - target: plaza_gigante
-    multiplier: 1.4
-  - target: salon_comunal_gigante
-    multiplier: 1.4
-  - target: campo_gigante
-    multiplier: 1.4
-  - target: salon_comunal_gigante
-    multiplier: 1.4
-- id: cael_vadohondo
-  label: Cael Vadohondo
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_viento: 1.0
-    asesino: 0.77
-    demihumano: 1.0
-    nocturnidad: 0.5
-    sociabilidad: -0.92
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.01
-  - target: posada_de_la_manada
-    multiplier: 1.01
-  - target: campo_de_caza
-    multiplier: 1.01
-  - target: posada_de_la_manada
-    multiplier: 1.01
-- id: quen_marfrio
-  label: Quen Marfrio
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_viento: 1.0
-    ambicion: 0.99
-    asesino: 0.81
-    audacia: -0.85
-    demihumano: 1.0
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.01
-  - target: posada_de_la_manada
-    multiplier: 1.01
-  - target: campo_de_caza
-    multiplier: 1.01
-  - target: posada_de_la_manada
-    multiplier: 1.01
-- id: aral_zarzal
-  label: Aral Zarzal
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_agua: 0.32
-    afin_tierra: 1.0
-    ambicion: -0.63
-    asesino: 0.99
-    humano: 1.0
-    sociabilidad: 0.98
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.29
-  - target: posada_central
-    multiplier: 1.29
-- id: pell_cenizal
-  label: Pell Cenizal
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_agua: 1.0
-    audacia: -0.76
-    enano: 1.0
-    guerrero: 0.82
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.42
-  - target: posada_enana
-    multiplier: 1.42
-  - target: forjas
-    multiplier: 1.42
-  - target: posada_enana
-    multiplier: 1.42
-- id: eyla_piedraparda
-  label: Eyla Piedraparda
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_tierra: 1.0
-    audacia: -0.82
-    enano: 1.0
-    guerrero: 0.94
-    nocturnidad: -0.98
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.0
-  - target: posada_enana
-    multiplier: 1.0
-  - target: forjas
-    multiplier: 1.0
-  - target: posada_enana
-    multiplier: 1.0
-- id: mor_hierrogris
-  label: Mor Hierrogris
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_agua: 0.41
-    afin_viento: 1.0
-    elfo: 1.0
-    invocador: 0.92
-    nocturnidad: -0.68
-    sociabilidad: 0.75
-  tastes:
-  - target: plaza_elfica
-    multiplier: 0.95
-  - target: posada_elfica
-    multiplier: 0.95
-  - target: arboleda_ancestral
-    multiplier: 0.95
-  - target: santuario_del_viento
-    multiplier: 0.95
-- id: jarl_cenizal
-  label: Jarl Cenizal
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_tierra: 1.0
-    afin_viento: 0.37
-    ambicion: -0.97
-    humano: 1.0
-    mago: 0.85
-    sociabilidad: -0.74
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.37
-  - target: posada_central
-    multiplier: 1.37
-- id: lira_vientolargo
-  label: Lira Vientolargo
-  home: salon_comunal_gigante
-  start_at: plaza_gigante
-  traits:
-    afin_agua: 0.46
-    afin_viento: 1.0
-    ambicion: 0.88
-    audacia: 0.83
-    gigante: 1.0
-    montaraz: 0.9
-  tastes:
-  - target: plaza_gigante
-    multiplier: 1.23
-  - target: salon_comunal_gigante
-    multiplier: 1.23
-  - target: campo_gigante
-    multiplier: 1.23
-  - target: salon_comunal_gigante
-    multiplier: 1.23
-- id: torv_zarzal
-  label: Torv Zarzal
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_fuego: 0.33
-    afin_viento: 1.0
-    ambicion: 0.64
-    elfo: 1.0
-    mago: 0.77
-    sociabilidad: 0.49
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.09
-  - target: posada_elfica
-    multiplier: 1.09
-  - target: arboleda_ancestral
-    multiplier: 1.09
-  - target: santuario_del_viento
-    multiplier: 1.09
-- id: hurn_umbrio_53
-  label: Hurn Umbrio
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_fuego: 0.35
-    afin_tierra: 1.0
-    humano: 1.0
-    montaraz: 0.74
-    nocturnidad: 0.79
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 0.97
-  - target: posada_marea
-    multiplier: 0.97
-  - target: muelle
-    multiplier: 0.97
-  - target: templo_mareas
-    multiplier: 0.97
-- id: eyla_cenizal
-  label: Eyla Cenizal
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_fuego: 0.32
-    afin_tierra: 1.0
-    humano: 1.0
-    mago: 0.82
-    nocturnidad: -0.67
-    sociabilidad: -0.84
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.28
-  - target: posada_marea
-    multiplier: 1.28
-  - target: muelle
-    multiplier: 1.28
-  - target: templo_mareas
-    multiplier: 1.28
-- id: dain_hierrogris
-  label: Dain Hierrogris
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_agua: 1.0
-    ambicion: -0.72
-    enano: 1.0
-    guerrero: 0.71
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.33
-  - target: posada_enana
-    multiplier: 1.33
-  - target: forjas
-    multiplier: 1.33
-  - target: posada_enana
-    multiplier: 1.33
-- id: eyla_fuegolento
-  label: Eyla Fuegolento
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_agua: 0.29
-    afin_viento: 1.0
-    audacia: 0.72
-    elfo: 1.0
-    invocador: 0.83
-    sociabilidad: 0.45
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.05
-  - target: posada_elfica
-    multiplier: 1.05
-  - target: arboleda_ancestral
-    multiplier: 1.05
-  - target: santuario_del_viento
-    multiplier: 1.05
-- id: dorn_vadohondo
-  label: Dorn Vadohondo
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_fuego: 1.0
-    afin_tierra: 0.25
-    ambicion: -0.94
-    enano: 1.0
-    guerrero: 0.74
-    nocturnidad: 0.43
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.26
-  - target: posada_enana
-    multiplier: 1.26
-  - target: forjas
-    multiplier: 1.26
-  - target: posada_enana
-    multiplier: 1.26
-- id: dain_cenizal
-  label: Dain Cenizal
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_agua: 1.0
-    afin_viento: 0.26
-    audacia: 0.96
-    guerrero: 0.74
-    humano: 1.0
-    sociabilidad: -0.97
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.16
-  - target: posada_marea
-    multiplier: 1.16
-  - target: muelle
-    multiplier: 1.16
-  - target: templo_mareas
-    multiplier: 1.16
-- id: hurn_yunquenegro
-  label: Hurn Yunquenegro
-  home: salon_comunal_gigante
-  start_at: plaza_gigante
-  traits:
-    afin_tierra: 1.0
-    asesino: 0.96
-    audacia: -0.56
-    gigante: 1.0
-  tastes:
-  - target: plaza_gigante
-    multiplier: 1.33
-  - target: salon_comunal_gigante
-    multiplier: 1.33
-  - target: campo_gigante
-    multiplier: 1.33
-  - target: salon_comunal_gigante
-    multiplier: 1.33
-- id: hale_fuegolento
-  label: Hale Fuegolento
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_tierra: 1.0
-    ambicion: -0.86
-    asesino: 0.88
-    demihumano: 1.0
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.04
-  - target: posada_de_la_manada
-    multiplier: 1.04
-  - target: campo_de_caza
-    multiplier: 1.04
-  - target: posada_de_la_manada
-    multiplier: 1.04
-- id: torv_hierrogris
-  label: Torv Hierrogris
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_viento: 1.0
-    ambicion: 0.79
-    elfo: 1.0
-    mago: 0.92
-    nocturnidad: -0.9
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.22
-  - target: posada_elfica
-    multiplier: 1.22
-  - target: arboleda_ancestral
-    multiplier: 1.22
-  - target: santuario_del_viento
-    multiplier: 1.22
-- id: adze_fuegolento
-  label: Adze Fuegolento
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_agua: 1.0
-    ambicion: 0.69
-    enano: 1.0
-    montaraz: 0.83
-    nocturnidad: 0.9
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.41
-  - target: posada_enana
-    multiplier: 1.41
-  - target: forjas
-    multiplier: 1.41
-  - target: posada_enana
-    multiplier: 1.41
-- id: wyn_yunquenegro
-  label: Wyn Yunquenegro
-  home: salon_comunal_gigante
-  start_at: plaza_gigante
-  traits:
-    afin_agua: 1.0
-    gigante: 1.0
-    guerrero: 0.99
-    sociabilidad: -0.92
-  tastes:
-  - target: plaza_gigante
-    multiplier: 1.02
-  - target: salon_comunal_gigante
-    multiplier: 1.02
-  - target: campo_gigante
-    multiplier: 1.02
-  - target: salon_comunal_gigante
-    multiplier: 1.02
-- id: brix_fuegolento
-  label: Brix Fuegolento
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_fuego: 1.0
-    ambicion: -0.93
-    elfo: 1.0
-    guerrero: 0.72
-    nocturnidad: 0.58
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.21
-  - target: posada_elfica
-    multiplier: 1.21
-  - target: arboleda_ancestral
-    multiplier: 1.21
-  - target: santuario_del_viento
-    multiplier: 1.21
-- id: gith_vientolargo
-  label: Gith Vientolargo
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_agua: 1.0
-    asesino: 0.96
-    elfo: 1.0
-    nocturnidad: 0.49
-    sociabilidad: -0.81
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.27
-  - target: posada_elfica
-    multiplier: 1.27
-  - target: arboleda_ancestral
-    multiplier: 1.27
-  - target: santuario_del_viento
-    multiplier: 1.27
-- id: hurn_fuegolento
-  label: Hurn Fuegolento
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_tierra: 1.0
-    afin_viento: 0.49
-    audacia: 0.7
-    guerrero: 0.86
-    humano: 1.0
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.12
-  - target: posada_central
-    multiplier: 1.12
-- id: gwen_vadohondo
-  label: Gwen Vadohondo
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_tierra: 1.0
-    audacia: -0.45
-    enano: 1.0
-    montaraz: 0.99
-    sociabilidad: -0.55
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.2
-  - target: posada_enana
-    multiplier: 1.2
-  - target: forjas
-    multiplier: 1.2
-  - target: posada_enana
-    multiplier: 1.2
-- id: cael_umbrio
-  label: Cael Umbrio
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_tierra: 1.0
-    enano: 1.0
-    invocador: 0.88
-    nocturnidad: -0.73
-    sociabilidad: -0.49
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.04
-  - target: posada_enana
-    multiplier: 1.04
-  - target: forjas
-    multiplier: 1.04
-  - target: posada_enana
-    multiplier: 1.04
-- id: jora_zarzal
-  label: Jora Zarzal
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_tierra: 1.0
-    ambicion: 0.55
-    audacia: -0.96
-    humano: 1.0
-    mago: 0.99
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.16
-  - target: posada_central
-    multiplier: 1.16
-- id: eyla_cenizal_70
-  label: Eyla Cenizal
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_agua: 0.39
-    afin_viento: 1.0
-    ambicion: 0.61
-    elfo: 1.0
-    mago: 0.98
-    sociabilidad: 0.94
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.13
-  - target: posada_elfica
-    multiplier: 1.13
-  - target: arboleda_ancestral
-    multiplier: 1.13
-  - target: santuario_del_viento
-    multiplier: 1.13
-- id: gith_zarzal
-  label: Gith Zarzal
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_fuego: 1.0
-    ambicion: -0.44
-    humano: 1.0
-    montaraz: 0.75
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.09
-  - target: posada_central
-    multiplier: 1.09
-- id: orin_umbrio
-  label: Orin Umbrio
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_fuego: 0.26
-    afin_tierra: 1.0
-    audacia: 0.75
-    humano: 1.0
-    mago: 0.76
-    nocturnidad: 0.92
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.28
-  - target: posada_marea
-    multiplier: 1.28
-  - target: muelle
-    multiplier: 1.28
-  - target: templo_mareas
-    multiplier: 1.28
-- id: xan_hierrogris
-  label: Xan Hierrogris
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_agua: 1.0
-    afin_tierra: 0.49
-    ambicion: 0.49
-    enano: 1.0
-    guerrero: 1.0
-    nocturnidad: 0.47
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.03
-  - target: posada_enana
-    multiplier: 1.03
-  - target: forjas
-    multiplier: 1.03
-  - target: posada_enana
-    multiplier: 1.03
-- id: dorn_rocaviva
-  label: Dorn Rocaviva
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_fuego: 0.27
-    afin_viento: 1.0
-    ambicion: -0.52
-    asesino: 0.74
-    elfo: 1.0
-    nocturnidad: 0.89
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.15
-  - target: posada_elfica
-    multiplier: 1.15
-  - target: arboleda_ancestral
-    multiplier: 1.15
-  - target: santuario_del_viento
-    multiplier: 1.15
-- id: ulla_hojaclara
-  label: Ulla Hojaclara
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_agua: 1.0
-    ambicion: 0.41
-    guerrero: 0.96
-    humano: 1.0
-    nocturnidad: 0.62
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.37
-  - target: posada_central
-    multiplier: 1.37
-- id: quen_nieblalta_76
-  label: Quen Nieblalta
-  home: salon_comunal_gigante
-  start_at: plaza_gigante
-  traits:
-    afin_agua: 1.0
-    audacia: -0.91
-    gigante: 1.0
-    guerrero: 0.87
-    sociabilidad: 0.5
-  tastes:
-  - target: plaza_gigante
-    multiplier: 1.12
-  - target: salon_comunal_gigante
-    multiplier: 1.12
-  - target: campo_gigante
-    multiplier: 1.12
-  - target: salon_comunal_gigante
-    multiplier: 1.12
-- id: cael_hojaclara
-  label: Cael Hojaclara
-  home: salon_comunal_gigante
-  start_at: plaza_gigante
-  traits:
-    afin_tierra: 1.0
-    asesino: 0.88
-    audacia: -0.85
-    gigante: 1.0
-    nocturnidad: -0.97
-  tastes:
-  - target: plaza_gigante
-    multiplier: 0.97
-  - target: salon_comunal_gigante
-    multiplier: 0.97
-  - target: campo_gigante
-    multiplier: 0.97
-  - target: salon_comunal_gigante
-    multiplier: 0.97
-- id: kel_piedraparda
-  label: Kel Piedraparda
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_tierra: 1.0
-    afin_viento: 0.29
-    asesino: 0.83
-    humano: 1.0
-    nocturnidad: 0.62
-  tastes:
-  - target: plaza_mayor
-    multiplier: 0.95
-  - target: posada_central
-    multiplier: 0.95
-- id: bern_cenizal
-  label: Bern Cenizal
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_tierra: 0.44
-    afin_viento: 1.0
-    audacia: -0.62
-    enano: 1.0
-    mago: 0.76
-    sociabilidad: -0.62
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.07
-  - target: posada_enana
-    multiplier: 1.07
-  - target: forjas
-    multiplier: 1.07
-  - target: posada_enana
-    multiplier: 1.07
-- id: yves_solraso
-  label: Yves Solraso
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_fuego: 1.0
-    afin_tierra: 0.25
-    asesino: 0.75
-    enano: 1.0
-    sociabilidad: -0.71
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.12
-  - target: posada_enana
-    multiplier: 1.12
-  - target: forjas
-    multiplier: 1.12
-  - target: posada_enana
-    multiplier: 1.12
-- id: rask_piedraparda
-  label: Rask Piedraparda
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_tierra: 1.0
-    audacia: 0.57
-    enano: 1.0
-    guerrero: 0.74
-    nocturnidad: -0.7
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.31
-  - target: posada_enana
-    multiplier: 1.31
-  - target: forjas
-    multiplier: 1.31
-  - target: posada_enana
-    multiplier: 1.31
-- id: xan_hojaclara
-  label: Xan Hojaclara
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_fuego: 0.45
-    afin_viento: 1.0
-    audacia: 0.47
+    gula: 0.5
     humano: 1.0
     montaraz: 0.95
-    nocturnidad: 0.78
+    prodigio: -0.71
   tastes:
   - target: plaza_mayor
-    multiplier: 1.22
+    multiplier: 1.13
   - target: posada_central
-    multiplier: 1.22
-- id: pell_piedraparda
-  label: Pell Piedraparda
-  home: posada_marea
-  start_at: plaza_portuaria
+    multiplier: 1.13
+  relations:
+    pareja:
+    - sela_cantorroto
+    hermano:
+    - isla_vadohondo
+  initial_bonds:
+    sela_cantorroto: 0.55
+    yves_cenizal: 0.38
+- id: orin_zarzal
+  label: Orin Zarzal
+  home: posada_enana
+  start_at: plaza_enana
   traits:
-    afin_agua: 1.0
-    audacia: 0.81
-    guerrero: 0.87
-    humano: 1.0
-    sociabilidad: 0.97
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.1
-  - target: posada_marea
-    multiplier: 1.1
-  - target: muelle
-    multiplier: 1.1
-  - target: templo_mareas
-    multiplier: 1.1
-- id: gwen_vientolargo
-  label: Gwen Vientolargo
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_viento: 1.0
+    afin_tierra: 1.0
     ambicion: 0.41
-    demihumano: 1.0
-    montaraz: 0.76
-    sociabilidad: 0.88
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 0.95
-  - target: posada_de_la_manada
-    multiplier: 0.95
-  - target: campo_de_caza
-    multiplier: 0.95
-  - target: posada_de_la_manada
-    multiplier: 0.95
-- id: dain_marfrio
-  label: Dain Marfrio
-  home: salon_comunal_gigante
-  start_at: plaza_gigante
-  traits:
-    afin_tierra: 1.0
-    ambicion: -0.91
-    gigante: 1.0
-    mago: 0.92
-    nocturnidad: -0.67
-  tastes:
-  - target: plaza_gigante
-    multiplier: 1.27
-  - target: salon_comunal_gigante
-    multiplier: 1.27
-  - target: campo_gigante
-    multiplier: 1.27
-  - target: salon_comunal_gigante
-    multiplier: 1.27
-- id: orin_cenizal
-  label: Orin Cenizal
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_agua: 1.0
-    asesino: 0.7
-    audacia: -0.97
-    humano: 1.0
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.26
-  - target: posada_marea
-    multiplier: 1.26
-  - target: muelle
-    multiplier: 1.26
-  - target: templo_mareas
-    multiplier: 1.26
-- id: adze_zarzal
-  label: Adze Zarzal
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_fuego: 1.0
-    elfo: 1.0
-    montaraz: 0.94
-    sociabilidad: 0.87
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.11
-  - target: posada_elfica
-    multiplier: 1.11
-  - target: arboleda_ancestral
-    multiplier: 1.11
-  - target: santuario_del_viento
-    multiplier: 1.11
-- id: wyn_umbrio_88
-  label: Wyn Umbrio
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_tierra: 1.0
-    audacia: 0.81
-    humano: 1.0
-    montaraz: 0.92
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.42
-  - target: posada_central
-    multiplier: 1.42
-- id: varn_nieblalta
-  label: Varn Nieblalta
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_viento: 1.0
-    ambicion: 0.48
-    demihumano: 1.0
-    mago: 0.72
-    nocturnidad: 0.99
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.4
-  - target: posada_de_la_manada
-    multiplier: 1.4
-  - target: campo_de_caza
-    multiplier: 1.4
-  - target: posada_de_la_manada
-    multiplier: 1.4
-- id: eyla_yunquenegro
-  label: Eyla Yunquenegro
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_agua: 0.37
-    afin_fuego: 1.0
-    audacia: -0.99
-    elfo: 1.0
-    montaraz: 0.81
-    sociabilidad: -0.57
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.44
-  - target: posada_elfica
-    multiplier: 1.44
-  - target: arboleda_ancestral
-    multiplier: 1.44
-  - target: santuario_del_viento
-    multiplier: 1.44
-- id: eris_solraso
-  label: Eris Solraso
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_tierra: 1.0
-    humano: 1.0
-    mago: 0.99
-    sociabilidad: 0.45
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.16
-  - target: posada_marea
-    multiplier: 1.16
-  - target: muelle
-    multiplier: 1.16
-  - target: templo_mareas
-    multiplier: 1.16
-- id: nyx_umbrio
-  label: Nyx Umbrio
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_tierra: 0.29
-    afin_viento: 1.0
-    asesino: 0.89
-    audacia: -0.71
-    elfo: 1.0
-    sociabilidad: -0.46
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.42
-  - target: posada_elfica
-    multiplier: 1.42
-  - target: arboleda_ancestral
-    multiplier: 1.42
-  - target: santuario_del_viento
-    multiplier: 1.42
-- id: cael_rocaviva
-  label: Cael Rocaviva
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_agua: 0.26
-    afin_fuego: 1.0
-    asesino: 0.73
-    audacia: 0.72
-    humano: 1.0
-    sociabilidad: 0.41
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.06
-  - target: posada_central
-    multiplier: 1.06
-- id: bern_umbrio
-  label: Bern Umbrio
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_tierra: 1.0
-    demihumano: 1.0
-    montaraz: 0.82
-    sociabilidad: -0.63
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.23
-  - target: posada_de_la_manada
-    multiplier: 1.23
-  - target: campo_de_caza
-    multiplier: 1.23
-  - target: posada_de_la_manada
-    multiplier: 1.23
-- id: hurn_umbrio_95
-  label: Hurn Umbrio
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_agua: 1.0
-    ambicion: -0.72
-    guerrero: 0.72
-    humano: 1.0
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.38
-  - target: posada_central
-    multiplier: 1.38
-- id: adze_rocaviva
-  label: Adze Rocaviva
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_fuego: 1.0
-    afin_viento: 0.27
-    humano: 1.0
-    montaraz: 0.85
-    nocturnidad: 0.96
-    sociabilidad: 0.78
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.37
-  - target: posada_central
-    multiplier: 1.37
-- id: adze_piedraparda
-  label: Adze Piedraparda
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_fuego: 0.46
-    afin_tierra: 1.0
-    audacia: -0.42
     enano: 1.0
-    guerrero: 0.87
-    sociabilidad: -0.5
+    montaraz: 0.78
   tastes:
   - target: plaza_enana
     multiplier: 1.12
@@ -2986,534 +1958,1263 @@ agents:
     multiplier: 1.12
   - target: posada_enana
     multiplier: 1.12
-- id: fror_vientolargo
-  label: Fror Vientolargo
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_fuego: 1.0
-    ambicion: 0.85
-    audacia: -0.49
-    humano: 1.0
-    montaraz: 0.84
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 0.99
-  - target: posada_marea
-    multiplier: 0.99
-  - target: muelle
-    multiplier: 0.99
-  - target: templo_mareas
-    multiplier: 0.99
-- id: cyra_fuegolento
-  label: Cyra Fuegolento
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_tierra: 1.0
-    ambicion: -0.64
-    audacia: 0.42
-    enano: 1.0
-    guerrero: 0.93
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.11
-  - target: posada_enana
-    multiplier: 1.11
-  - target: forjas
-    multiplier: 1.11
-  - target: posada_enana
-    multiplier: 1.11
-- id: quen_rocaviva_100
-  label: Quen Rocaviva
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_fuego: 1.0
-    afin_tierra: 0.48
-    audacia: 0.87
-    enano: 1.0
-    montaraz: 0.75
-    sociabilidad: 0.59
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.35
-  - target: posada_enana
-    multiplier: 1.35
-  - target: forjas
-    multiplier: 1.35
-  - target: posada_enana
-    multiplier: 1.35
-- id: xan_fuegolento
-  label: Xan Fuegolento
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_tierra: 1.0
-    ambicion: 0.52
-    asesino: 0.71
-    demihumano: 1.0
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.26
-  - target: posada_de_la_manada
-    multiplier: 1.26
-  - target: campo_de_caza
-    multiplier: 1.26
-  - target: posada_de_la_manada
-    multiplier: 1.26
-- id: isla_cantorroto
-  label: Isla Cantorroto
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_tierra: 1.0
-    ambicion: -0.65
-    demihumano: 1.0
-    montaraz: 0.85
-    sociabilidad: 0.76
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.09
-  - target: posada_de_la_manada
-    multiplier: 1.09
-  - target: campo_de_caza
-    multiplier: 1.09
-  - target: posada_de_la_manada
-    multiplier: 1.09
-- id: yves_yunquenegro
-  label: Yves Yunquenegro
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_tierra: 1.0
-    enano: 1.0
-    invocador: 0.96
-    sociabilidad: 0.91
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.25
-  - target: posada_enana
-    multiplier: 1.25
-  - target: forjas
-    multiplier: 1.25
-  - target: posada_enana
-    multiplier: 1.25
-- id: cyra_rocaviva
-  label: Cyra Rocaviva
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_tierra: 1.0
-    ambicion: -0.91
-    elfo: 1.0
-    invocador: 0.85
-    nocturnidad: 0.98
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.06
-  - target: posada_elfica
-    multiplier: 1.06
-  - target: arboleda_ancestral
-    multiplier: 1.06
-  - target: santuario_del_viento
-    multiplier: 1.06
-- id: ivar_rocaviva
-  label: Ivar Rocaviva
+  relations:
+    pareja:
+    - gith_marfrio_174
+    hermano:
+    - gwen_rocaviva
+  initial_bonds:
+    gith_marfrio_174: 0.55
+- id: torv_rocaviva
+  label: Torv Rocaviva
   home: posada_de_la_manada
   start_at: plaza_demihumana
   traits:
     afin_fuego: 1.0
-    audacia: 0.66
+    afin_viento: 0.35
+    arraigo: -0.65
     demihumano: 1.0
-    montaraz: 0.86
+    guerrero: 0.71
+    templanza: -0.47
   tastes:
   - target: plaza_demihumana
-    multiplier: 1.0
+    multiplier: 1.21
   - target: posada_de_la_manada
-    multiplier: 1.0
+    multiplier: 1.21
   - target: campo_de_caza
-    multiplier: 1.0
+    multiplier: 1.21
   - target: posada_de_la_manada
-    multiplier: 1.0
-- id: lira_umbrio
-  label: Lira Umbrio
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_tierra: 1.0
-    audacia: 0.53
-    elfo: 1.0
-    montaraz: 0.97
-    sociabilidad: -0.99
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.2
-  - target: posada_elfica
-    multiplier: 1.2
-  - target: arboleda_ancestral
-    multiplier: 1.2
-  - target: santuario_del_viento
-    multiplier: 1.2
-- id: bern_hojaclara
-  label: Bern Hojaclara
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_fuego: 1.0
-    ambicion: 0.98
-    audacia: -0.61
-    guerrero: 0.93
-    humano: 1.0
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.04
-  - target: posada_marea
-    multiplier: 1.04
-  - target: muelle
-    multiplier: 1.04
-  - target: templo_mareas
-    multiplier: 1.04
-- id: bern_cenizal_108
-  label: Bern Cenizal
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_fuego: 1.0
-    audacia: -0.63
-    demihumano: 1.0
-    montaraz: 0.99
-    nocturnidad: 0.62
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.18
-  - target: posada_de_la_manada
-    multiplier: 1.18
-  - target: campo_de_caza
-    multiplier: 1.18
-  - target: posada_de_la_manada
-    multiplier: 1.18
-- id: orin_marfrio
-  label: Orin Marfrio
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_fuego: 1.0
-    ambicion: 0.59
-    audacia: -0.92
-    guerrero: 0.88
-    humano: 1.0
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.22
-  - target: posada_marea
-    multiplier: 1.22
-  - target: muelle
-    multiplier: 1.22
-  - target: templo_mareas
-    multiplier: 1.22
-- id: ivar_umbrio
-  label: Ivar Umbrio
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_fuego: 1.0
-    ambicion: -0.55
-    enano: 1.0
-    guerrero: 0.93
-    nocturnidad: -0.95
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.24
-  - target: posada_enana
-    multiplier: 1.24
-  - target: forjas
-    multiplier: 1.24
-  - target: posada_enana
-    multiplier: 1.24
-- id: eyla_rocaviva
-  label: Eyla Rocaviva
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_fuego: 1.0
-    afin_tierra: 0.37
-    ambicion: -0.73
-    elfo: 1.0
-    mago: 0.83
-    sociabilidad: 0.92
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.02
-  - target: posada_elfica
-    multiplier: 1.02
-  - target: arboleda_ancestral
-    multiplier: 1.02
-  - target: santuario_del_viento
-    multiplier: 1.02
-- id: isla_marfrio
-  label: Isla Marfrio
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_tierra: 1.0
-    ambicion: -0.9
-    demihumano: 1.0
-    montaraz: 0.91
-    nocturnidad: 0.75
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.07
-  - target: posada_de_la_manada
-    multiplier: 1.07
-  - target: campo_de_caza
-    multiplier: 1.07
-  - target: posada_de_la_manada
-    multiplier: 1.07
-- id: adze_cantorroto
-  label: Adze Cantorroto
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_agua: 1.0
-    afin_viento: 0.34
-    ambicion: -0.67
-    humano: 1.0
-    mago: 0.78
-    sociabilidad: -0.47
-  tastes:
-  - target: plaza_mayor
-    multiplier: 0.96
-  - target: posada_central
-    multiplier: 0.96
-- id: fenn_fuegolento
-  label: Fenn Fuegolento
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_tierra: 1.0
-    ambicion: 0.95
-    asesino: 0.77
-    humano: 1.0
-    nocturnidad: -0.51
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.01
-  - target: posada_marea
-    multiplier: 1.01
-  - target: muelle
-    multiplier: 1.01
-  - target: templo_mareas
-    multiplier: 1.01
-- id: cael_zarzal
-  label: Cael Zarzal
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_fuego: 1.0
-    ambicion: 0.59
-    guerrero: 0.97
-    humano: 1.0
-    nocturnidad: -0.83
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.09
-  - target: posada_marea
-    multiplier: 1.09
-  - target: muelle
-    multiplier: 1.09
-  - target: templo_mareas
-    multiplier: 1.09
-- id: quen_vadohondo
-  label: Quen Vadohondo
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_agua: 1.0
-    demihumano: 1.0
-    guerrero: 0.75
-    nocturnidad: -0.73
-    sociabilidad: 0.73
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.44
-  - target: posada_de_la_manada
-    multiplier: 1.44
-  - target: campo_de_caza
-    multiplier: 1.44
-  - target: posada_de_la_manada
-    multiplier: 1.44
-- id: eyla_piedraparda_117
-  label: Eyla Piedraparda
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_tierra: 1.0
-    audacia: 0.82
-    humano: 1.0
-    invocador: 0.84
-    nocturnidad: -0.49
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.23
-  - target: posada_central
-    multiplier: 1.23
-- id: nyx_cenizal
-  label: Nyx Cenizal
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_tierra: 1.0
-    ambicion: -0.79
-    audacia: -0.83
-    demihumano: 1.0
-    montaraz: 0.77
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.43
-  - target: posada_de_la_manada
-    multiplier: 1.43
-  - target: campo_de_caza
-    multiplier: 1.43
-  - target: posada_de_la_manada
-    multiplier: 1.43
-- id: bern_zarzal
-  label: Bern Zarzal
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_viento: 1.0
-    demihumano: 1.0
-    montaraz: 0.77
-    sociabilidad: -0.4
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.01
-  - target: posada_de_la_manada
-    multiplier: 1.01
-  - target: campo_de_caza
-    multiplier: 1.01
-  - target: posada_de_la_manada
-    multiplier: 1.01
-- id: dorn_fuegolento
-  label: Dorn Fuegolento
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_fuego: 1.0
-    afin_viento: 0.48
-    audacia: -0.59
-    elfo: 1.0
-    mago: 0.98
-    sociabilidad: -0.94
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.12
-  - target: posada_elfica
-    multiplier: 1.12
-  - target: arboleda_ancestral
-    multiplier: 1.12
-  - target: santuario_del_viento
-    multiplier: 1.12
-- id: ivar_piedraparda
-  label: Ivar Piedraparda
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_agua: 1.0
-    audacia: -0.7
-    humano: 1.0
-    montaraz: 0.98
-    sociabilidad: -0.85
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.23
-  - target: posada_central
-    multiplier: 1.23
-- id: aral_hierrogris
-  label: Aral Hierrogris
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_fuego: 0.5
-    afin_tierra: 1.0
-    humano: 1.0
-    montaraz: 0.98
-    nocturnidad: 0.99
-    sociabilidad: -0.62
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.19
-  - target: posada_marea
-    multiplier: 1.19
-  - target: muelle
-    multiplier: 1.19
-  - target: templo_mareas
-    multiplier: 1.19
-- id: yves_nieblalta
-  label: Yves Nieblalta
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_tierra: 0.34
-    afin_viento: 1.0
-    audacia: -0.44
-    elfo: 1.0
-    montaraz: 0.75
-    nocturnidad: -0.81
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.42
-  - target: posada_elfica
-    multiplier: 1.42
-  - target: arboleda_ancestral
-    multiplier: 1.42
-  - target: santuario_del_viento
-    multiplier: 1.42
-- id: fenn_yunquenegro
-  label: Fenn Yunquenegro
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_tierra: 1.0
-    asesino: 0.79
-    audacia: -0.42
-    demihumano: 1.0
-    nocturnidad: -0.94
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.34
-  - target: posada_de_la_manada
-    multiplier: 1.34
-  - target: campo_de_caza
-    multiplier: 1.34
-  - target: posada_de_la_manada
-    multiplier: 1.34
+    multiplier: 1.21
+  relations:
+    pareja:
+    - wyn_hojaclara_180
+    hermano:
+    - bern_piedraparda
+    - cyra_vadohondo
+  initial_bonds:
+    wyn_hojaclara_180: 0.55
 - id: isla_vadohondo
   label: Isla Vadohondo
   home: posada_central
   start_at: plaza_mayor
   traits:
-    afin_tierra: 0.25
-    afin_viento: 1.0
-    audacia: -0.65
+    afin_fuego: 1.0
+    guerrero: 0.95
     humano: 1.0
-    mago: 0.95
-    nocturnidad: 0.65
+    pereza: 0.69
   tastes:
   - target: plaza_mayor
-    multiplier: 1.23
+    multiplier: 1.3
   - target: posada_central
-    multiplier: 1.23
-- id: eyla_nieblalta
-  label: Eyla Nieblalta
+    multiplier: 1.3
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  relations:
+    pareja:
+    - xan_cantorroto
+    hermano:
+    - fenn_cenizal
+  initial_bonds:
+    xan_cantorroto: 0.55
+    dain_nieblalta: 0.38
+- id: gwen_rocaviva
+  label: Gwen Rocaviva
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    calculo: 0.8
+    enano: 1.0
+    mago: 0.87
+    talento: -0.86
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.11
+  - target: posada_enana
+    multiplier: 1.11
+  - target: forjas
+    multiplier: 1.11
+  - target: posada_enana
+    multiplier: 1.11
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  relations:
+    pareja:
+    - quen_hierrogris
+    hermano:
+    - orin_zarzal
+  initial_bonds:
+    quen_hierrogris: 0.55
+- id: gith_solraso
+  label: Gith Solraso
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    devocion: 0.61
+    enano: 1.0
+    montaraz: 0.71
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.17
+  - target: posada_enana
+    multiplier: 1.17
+  - target: forjas
+    multiplier: 1.17
+  - target: posada_enana
+    multiplier: 1.17
+  relations:
+    hermano:
+    - lira_fuegolento
+- id: xan_fuegolento_24
+  label: Xan Fuegolento
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_agua: 0.5
+    afin_viento: 1.0
+    aprension: 0.69
+    gigante: 1.0
+    guerrero: 0.75
+    pereza: -0.76
+    tenacidad: -0.98
+  tastes:
+  - target: plaza_gigante
+    multiplier: 1.27
+  - target: salon_comunal_gigante
+    multiplier: 1.27
+  - target: campo_gigante
+    multiplier: 1.27
+  - target: salon_comunal_gigante
+    multiplier: 1.27
+  goals:
+  - id: que_le_conozcan_en_la_ciudad
+    label: que le conozcan en la ciudad
+    need: vinculo
+    at_least: 0.94
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id005
+    on_failure: *id006
+  relations:
+    pareja:
+    - lira_hierrogris
+    hermano:
+    - wyn_hojaclara
+  initial_bonds:
+    lira_hierrogris: 0.55
+- id: lira_fuegolento
+  label: Lira Fuegolento
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    afin_viento: 0.4
+    audacia: -0.48
+    enano: 1.0
+    mago: 0.76
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.34
+  - target: posada_enana
+    multiplier: 1.34
+  - target: forjas
+    multiplier: 1.34
+  - target: posada_enana
+    multiplier: 1.34
+  goals:
+  - id: que_le_conozcan_en_la_ciudad
+    label: que le conozcan en la ciudad
+    need: vinculo
+    at_least: 0.94
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id005
+    on_failure: *id006
+  relations:
+    hermano:
+    - gith_solraso
+- id: bern_piedraparda
+  label: Bern Piedraparda
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_viento: 1.0
+    arraigo: 0.44
+    demihumano: 1.0
+    guerrero: 0.8
+    sociabilidad: 0.69
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.22
+  - target: posada_de_la_manada
+    multiplier: 1.22
+  - target: campo_de_caza
+    multiplier: 1.22
+  - target: posada_de_la_manada
+    multiplier: 1.22
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  relations:
+    pareja:
+    - gith_piedraparda_158
+    hermano:
+    - torv_rocaviva
+    - cyra_vadohondo
+  initial_bonds:
+    gith_piedraparda_158: 0.55
+- id: dorn_hojaclara
+  label: Dorn Hojaclara
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_tierra: 0.47
+    afin_viento: 1.0
+    dureza: -0.73
+    elfo: 1.0
+    montaraz: 0.87
+    prodigio: 0.56
+    tenacidad: -0.64
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.26
+  - target: posada_elfica
+    multiplier: 1.26
+  - target: arboleda_ancestral
+    multiplier: 1.26
+  - target: santuario_del_viento
+    multiplier: 1.26
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+  relations:
+    pareja:
+    - fror_cenizal_159
+    hermano:
+    - yves_cenizal
+  initial_bonds:
+    fror_cenizal_159: 0.55
+- id: yves_umbrio
+  label: Yves Umbrio
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    humano: 1.0
+    impulsividad: -0.51
+    mago: 0.88
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.02
+  - target: posada_central
+    multiplier: 1.02
+  goals:
+  - id: que_le_conozcan_en_la_ciudad
+    label: que le conozcan en la ciudad
+    need: vinculo
+    at_least: 0.94
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id005
+    on_failure: *id006
+  relations:
+    pareja:
+    - adze_zarzal_183
+    hermano:
+    - orin_marfrio
+  initial_bonds:
+    adze_zarzal_183: 0.55
+- id: eris_cenizal
+  label: Eris Cenizal
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    dureza: -0.77
+    enano: 1.0
+    guerrero: 0.89
+    sociabilidad: -0.44
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.42
+  - target: posada_enana
+    multiplier: 1.42
+  - target: forjas
+    multiplier: 1.42
+  - target: posada_enana
+    multiplier: 1.42
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+  relations:
+    hermano:
+    - ivar_hojaclara
+    - bern_nieblalta
+- id: gith_piedraparda
+  label: Gith Piedraparda
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_agua: 1.0
+    elfo: 1.0
+    mago: 0.91
+    templanza: -0.54
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.37
+  - target: posada_elfica
+    multiplier: 1.37
+  - target: arboleda_ancestral
+    multiplier: 1.37
+  - target: santuario_del_viento
+    multiplier: 1.37
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  relations:
+    pareja:
+    - lira_cantorroto
+    hermano:
+    - adze_vientolargo
+  initial_bonds:
+    lira_cantorroto: 0.55
+    hurn_vientolargo: 0.38
+- id: orin_marfrio
+  label: Orin Marfrio
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    ambicion: -0.47
+    guerrero: 0.97
+    humano: 1.0
+    tenacidad: -0.96
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.26
+  - target: posada_central
+    multiplier: 1.26
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+  relations:
+    pareja:
+    - hurn_yunquenegro
+    hermano:
+    - yves_umbrio
+    maestro:
+    - mor_fuegolento
+  initial_bonds:
+    hurn_yunquenegro: 0.55
+    mor_fuegolento: 0.3
+- id: ivar_hojaclara
+  label: Ivar Hojaclara
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_fuego: 1.0
+    audacia: 0.8
+    devocion: 0.92
+    enano: 1.0
+    montaraz: 0.97
+    nocturnidad: -0.51
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.14
+  - target: posada_enana
+    multiplier: 1.14
+  - target: forjas
+    multiplier: 1.14
+  - target: posada_enana
+    multiplier: 1.14
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+  relations:
+    hermano:
+    - eris_cenizal
+    - bern_nieblalta
+  initial_bonds:
+    varn_vadohondo: 0.38
+- id: fenn_cantorroto
+  label: Fenn Cantorroto
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    asesino: 0.77
+    dureza: -0.67
+    humano: 1.0
+    pereza: 0.53
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.05
+  - target: posada_central
+    multiplier: 1.05
+  relations:
+    pareja:
+    - varn_rocaviva
+    hermano:
+    - eyla_hojaclara
+  initial_bonds:
+    varn_rocaviva: 0.55
+- id: eyla_hojaclara
+  label: Eyla Hojaclara
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_agua: 0.39
+    afin_fuego: 1.0
+    arraigo: -0.44
+    humano: 1.0
+    montaraz: 0.91
+    tenacidad: 0.73
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.0
+  - target: posada_central
+    multiplier: 1.0
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+  relations:
+    hermano:
+    - fenn_cantorroto
+- id: cyra_vadohondo
+  label: Cyra Vadohondo
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_tierra: 1.0
+    ambicion: -0.51
+    calculo: -0.92
+    demihumano: 1.0
+    montaraz: 0.73
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.28
+  - target: posada_de_la_manada
+    multiplier: 1.28
+  - target: campo_de_caza
+    multiplier: 1.28
+  - target: posada_de_la_manada
+    multiplier: 1.28
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+  relations:
+    hermano:
+    - torv_rocaviva
+    - bern_piedraparda
+- id: brix_fuegolento
+  label: Brix Fuegolento
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    dureza: -0.81
+    humano: 1.0
+    mago: 0.9
+    prodigio: 0.54
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.28
+  - target: posada_central
+    multiplier: 1.28
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  relations:
+    hermano:
+    - wyn_umbrio
+- id: wyn_umbrio
+  label: Wyn Umbrio
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_agua: 1.0
+    afin_fuego: 0.4
+    codicia: 0.67
+    humano: 1.0
+    montaraz: 0.76
+    sociabilidad: 0.58
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.32
+  - target: posada_marea
+    multiplier: 1.32
+  - target: muelle
+    multiplier: 1.32
+  - target: templo_mareas
+    multiplier: 1.32
+  relations:
+    pareja:
+    - fror_vientolargo_172
+    hermano:
+    - brix_fuegolento
+  initial_bonds:
+    fror_vientolargo_172: 0.55
+- id: sela_piedraparda
+  label: Sela Piedraparda
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    calculo: -0.46
+    humano: 1.0
+    mago: 0.78
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.14
+  - target: posada_central
+    multiplier: 1.14
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  relations:
+    hermano:
+    - cyra_cenizal
+- id: pell_cenizal
+  label: Pell Cenizal
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_agua: 1.0
+    codicia: -0.76
+    demihumano: 1.0
+    guerrero: 0.78
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.42
+  - target: posada_de_la_manada
+    multiplier: 1.42
+  - target: campo_de_caza
+    multiplier: 1.42
+  - target: posada_de_la_manada
+    multiplier: 1.42
+  relations:
+    hermano:
+    - kel_hierrogris
+- id: bern_nieblalta
+  label: Bern Nieblalta
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    audacia: -0.53
+    enano: 1.0
+    gula: -0.67
+    invocador: 0.72
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.25
+  - target: posada_enana
+    multiplier: 1.25
+  - target: forjas
+    multiplier: 1.25
+  - target: posada_enana
+    multiplier: 1.25
+  goals:
+  - id: dominar_su_reserva
+    label: dominar su reserva
+    need: mana
+    at_least: 0.96
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id007
+    on_failure: *id008
+  relations:
+    hermano:
+    - eris_cenizal
+    - ivar_hojaclara
+- id: sela_piedraparda_41
+  label: Sela Piedraparda
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_fuego: 1.0
+    ambicion: -0.74
+    enano: 1.0
+    invocador: 0.84
+    pereza: 0.68
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.3
+  - target: posada_enana
+    multiplier: 1.3
+  - target: forjas
+    multiplier: 1.3
+  - target: posada_enana
+    multiplier: 1.3
+  goals:
+  - id: dominar_su_reserva
+    label: dominar su reserva
+    need: mana
+    at_least: 0.96
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id007
+    on_failure: *id008
+- id: pell_fuegolento
+  label: Pell Fuegolento
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    aprension: -0.95
+    asesino: 0.95
+    codicia: -0.41
+    enano: 1.0
+    nocturnidad: -0.46
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.26
+  - target: posada_enana
+    multiplier: 1.26
+  - target: forjas
+    multiplier: 1.26
+  - target: posada_enana
+    multiplier: 1.26
+  relations:
+    maestro:
+    - kel_umbrio
+    - fror_vadohondo
+  initial_bonds:
+    kel_umbrio: 0.3
+    fror_vadohondo: 0.3
+- id: bern_zarzal
+  label: Bern Zarzal
   home: salon_comunal_gigante
   start_at: plaza_gigante
   traits:
     afin_tierra: 1.0
-    ambicion: -0.48
     gigante: 1.0
-    mago: 0.94
+    impulsividad: -0.78
+    invocador: 0.87
+    nocturnidad: -0.74
+  tastes:
+  - target: plaza_gigante
+    multiplier: 0.96
+  - target: salon_comunal_gigante
+    multiplier: 0.96
+  - target: campo_gigante
+    multiplier: 0.96
+  - target: salon_comunal_gigante
+    multiplier: 0.96
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+  relations:
+    hermano:
+    - fror_vadohondo
+- id: kel_hierrogris
+  label: Kel Hierrogris
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_viento: 1.0
+    demihumano: 1.0
+    devocion: -0.48
+    guerrero: 0.96
+    prodigio: -0.47
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.12
+  - target: posada_de_la_manada
+    multiplier: 1.12
+  - target: campo_de_caza
+    multiplier: 1.12
+  - target: posada_de_la_manada
+    multiplier: 1.12
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  relations:
+    hermano:
+    - pell_cenizal
+  initial_bonds:
+    varn_rocaviva: 0.38
+- id: fror_piedraparda_45
+  label: Fror Piedraparda
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_viento: 1.0
+    demihumano: 1.0
+    devocion: -0.58
+    guerrero: 0.92
+    prodigio: -0.86
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.33
+  - target: posada_de_la_manada
+    multiplier: 1.33
+  - target: campo_de_caza
+    multiplier: 1.33
+  - target: posada_de_la_manada
+    multiplier: 1.33
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+  relations:
+    hermano:
+    - kel_marfrio
+- id: cyra_cenizal
+  label: Cyra Cenizal
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    humano: 1.0
+    invocador: 0.73
+    templanza: 0.46
+  tastes:
+  - target: plaza_mayor
+    multiplier: 0.99
+  - target: posada_central
+    multiplier: 0.99
+  goals:
+  - id: dominar_su_reserva
+    label: dominar su reserva
+    need: mana
+    at_least: 0.96
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id007
+    on_failure: *id008
+  relations:
+    hermano:
+    - sela_piedraparda
+- id: eyla_fuegolento
+  label: Eyla Fuegolento
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_fuego: 0.29
+    afin_tierra: 1.0
+    enano: 1.0
+    guerrero: 0.8
+    prodigio: 0.61
+    tenacidad: -0.81
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.14
+  - target: posada_enana
+    multiplier: 1.14
+  - target: forjas
+    multiplier: 1.14
+  - target: posada_enana
+    multiplier: 1.14
+- id: isla_vientolargo
+  label: Isla Vientolargo
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_fuego: 1.0
+    ambicion: 0.56
+    devocion: 0.46
+    enano: 1.0
+    montaraz: 0.89
+    pereza: -0.58
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.23
+  - target: posada_enana
+    multiplier: 1.23
+  - target: forjas
+    multiplier: 1.23
+  - target: posada_enana
+    multiplier: 1.23
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+- id: adze_vientolargo
+  label: Adze Vientolargo
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_fuego: 0.37
+    afin_viento: 1.0
+    devocion: 0.71
+    elfo: 1.0
+    montaraz: 0.74
+    prodigio: 0.47
+    tenacidad: 0.64
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.07
+  - target: posada_elfica
+    multiplier: 1.07
+  - target: arboleda_ancestral
+    multiplier: 1.07
+  - target: santuario_del_viento
+    multiplier: 1.07
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+  relations:
+    hermano:
+    - gith_piedraparda
+- id: quen_rocaviva_50
+  label: Quen Rocaviva
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    audacia: 0.47
+    humano: 1.0
+    mago: 0.77
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.42
+  - target: posada_central
+    multiplier: 1.42
+  relations:
+    hermano:
+    - brix_fuegolento_53
+- id: fror_vadohondo
+  label: Fror Vadohondo
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_tierra: 1.0
+    aprension: 0.53
+    asesino: 0.87
+    gigante: 1.0
+    pereza: 0.83
+  tastes:
+  - target: plaza_gigante
+    multiplier: 1.16
+  - target: salon_comunal_gigante
+    multiplier: 1.16
+  - target: campo_gigante
+    multiplier: 1.16
+  - target: salon_comunal_gigante
+    multiplier: 1.16
+  relations:
+    hermano:
+    - bern_zarzal
+  initial_bonds:
+    pell_fuegolento: 0.38
+- id: hurn_zarzal
+  label: Hurn Zarzal
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_viento: 1.0
+    ambicion: 0.96
+    calculo: -0.93
+    elfo: 1.0
+    mago: 0.87
+    pereza: -0.5
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.06
+  - target: posada_elfica
+    multiplier: 1.06
+  - target: arboleda_ancestral
+    multiplier: 1.06
+  - target: santuario_del_viento
+    multiplier: 1.06
+  relations:
+    hermano:
+    - brix_fuegolento_56
+- id: brix_fuegolento_53
+  label: Brix Fuegolento
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    arraigo: 0.58
+    asesino: 0.75
+    humano: 1.0
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.26
+  - target: posada_central
+    multiplier: 1.26
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  relations:
+    hermano:
+    - quen_rocaviva_50
+- id: gwen_yunquenegro
+  label: Gwen Yunquenegro
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    aprension: -0.52
+    guerrero: 0.76
+    humano: 1.0
+    impulsividad: -0.71
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.3
+  - target: posada_central
+    multiplier: 1.3
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+  relations:
+    hermano:
+    - rask_rocaviva
+    - jora_hojaclara
+- id: fror_vientolargo
+  label: Fror Vientolargo
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    asesino: 0.85
+    enano: 1.0
+    impulsividad: -0.89
+    tenacidad: -0.62
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.41
+  - target: posada_enana
+    multiplier: 1.41
+  - target: forjas
+    multiplier: 1.41
+  - target: posada_enana
+    multiplier: 1.41
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  initial_bonds:
+    kel_marfrio: 0.38
+- id: brix_fuegolento_56
+  label: Brix Fuegolento
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_agua: 0.46
+    afin_viento: 1.0
+    elfo: 1.0
+    gula: 0.78
+    montaraz: 0.89
+    sociabilidad: -0.73
+    tenacidad: -0.49
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.41
+  - target: posada_elfica
+    multiplier: 1.41
+  - target: arboleda_ancestral
+    multiplier: 1.41
+  - target: santuario_del_viento
+    multiplier: 1.41
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  relations:
+    hermano:
+    - hurn_zarzal
+- id: mor_nieblalta
+  label: Mor Nieblalta
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    enano: 1.0
+    mago: 0.75
+    prodigio: 0.98
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.16
+  - target: posada_enana
+    multiplier: 1.16
+  - target: forjas
+    multiplier: 1.16
+  - target: posada_enana
+    multiplier: 1.16
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+- id: rask_rocaviva
+  label: Rask Rocaviva
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    afin_viento: 0.49
+    arraigo: -0.57
+    humano: 1.0
+    mago: 0.88
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.2
+  - target: posada_central
+    multiplier: 1.2
+  relations:
+    hermano:
+    - gwen_yunquenegro
+    - jora_hojaclara
+- id: cyra_hierrogris_59
+  label: Cyra Hierrogris
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_viento: 1.0
+    audacia: 0.84
+    gigante: 1.0
+    mago: 0.73
+  tastes:
+  - target: plaza_gigante
+    multiplier: 1.09
+  - target: salon_comunal_gigante
+    multiplier: 1.09
+  - target: campo_gigante
+    multiplier: 1.09
+  - target: salon_comunal_gigante
+    multiplier: 1.09
+  goals:
+  - id: que_le_conozcan_en_la_ciudad
+    label: que le conozcan en la ciudad
+    need: vinculo
+    at_least: 0.94
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id005
+    on_failure: *id006
+- id: kel_marfrio
+  label: Kel Marfrio
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_agua: 1.0
+    asesino: 0.94
+    codicia: -0.67
+    demihumano: 1.0
+    nocturnidad: -0.82
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.19
+  - target: posada_de_la_manada
+    multiplier: 1.19
+  - target: campo_de_caza
+    multiplier: 1.19
+  - target: posada_de_la_manada
+    multiplier: 1.19
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+  relations:
+    hermano:
+    - fror_piedraparda_45
+    maestro:
+    - fror_vientolargo
+    - wyn_piedraparda
+  initial_bonds:
+    fror_vientolargo: 0.3
+    wyn_piedraparda: 0.3
+- id: yves_piedraparda
+  label: Yves Piedraparda
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_agua: 0.44
+    afin_viento: 1.0
+    asesino: 0.71
+    calculo: 0.84
+    elfo: 1.0
+    prodigio: 0.44
+    talento: 0.99
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.3
+  - target: posada_elfica
+    multiplier: 1.3
+  - target: arboleda_ancestral
+    multiplier: 1.3
+  - target: santuario_del_viento
+    multiplier: 1.3
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+  relations:
+    hermano:
+    - jarl_vadohondo
+    - nyx_fuegolento
+- id: hurn_zarzal_62
+  label: Hurn Zarzal
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    aprension: 0.55
+    asesino: 0.94
+    devocion: 0.93
+    enano: 1.0
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.25
+  - target: posada_enana
+    multiplier: 1.25
+  - target: forjas
+    multiplier: 1.25
+  - target: posada_enana
+    multiplier: 1.25
+  initial_bonds:
+    pell_cantorroto: 0.38
+- id: sela_hojaclara
+  label: Sela Hojaclara
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_tierra: 1.0
+    gigante: 1.0
+    guerrero: 0.94
+    pereza: -0.86
   tastes:
   - target: plaza_gigante
     multiplier: 1.03
@@ -3523,1318 +3224,3374 @@ agents:
     multiplier: 1.03
   - target: salon_comunal_gigante
     multiplier: 1.03
-- id: gith_cantorroto
-  label: Gith Cantorroto
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+  initial_bonds:
+    hale_vadohondo: 0.38
+- id: jarl_vadohondo
+  label: Jarl Vadohondo
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_viento: 1.0
+    codicia: -0.66
+    devocion: -0.46
+    elfo: 1.0
+    montaraz: 0.97
+    nocturnidad: -0.69
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.4
+  - target: posada_elfica
+    multiplier: 1.4
+  - target: arboleda_ancestral
+    multiplier: 1.4
+  - target: santuario_del_viento
+    multiplier: 1.4
+  relations:
+    hermano:
+    - yves_piedraparda
+    - nyx_fuegolento
+  initial_bonds:
+    varn_vadohondo: 0.38
+- id: nyx_fuegolento
+  label: Nyx Fuegolento
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_viento: 1.0
+    codicia: 0.55
+    elfo: 1.0
+    mago: 0.98
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.28
+  - target: posada_elfica
+    multiplier: 1.28
+  - target: arboleda_ancestral
+    multiplier: 1.28
+  - target: santuario_del_viento
+    multiplier: 1.28
+  relations:
+    hermano:
+    - yves_piedraparda
+    - jarl_vadohondo
+    maestro:
+    - bern_solraso
+  initial_bonds:
+    bern_solraso: 0.3
+- id: jora_hojaclara
+  label: Jora Hojaclara
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_agua: 1.0
+    afin_fuego: 0.32
+    ambicion: 0.72
+    guerrero: 0.74
+    humano: 1.0
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.14
+  - target: posada_marea
+    multiplier: 1.14
+  - target: muelle
+    multiplier: 1.14
+  - target: templo_mareas
+    multiplier: 1.14
+  goals:
+  - id: que_le_conozcan_en_la_ciudad
+    label: que le conozcan en la ciudad
+    need: vinculo
+    at_least: 0.94
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id005
+    on_failure: *id006
+  relations:
+    hermano:
+    - gwen_yunquenegro
+    - rask_rocaviva
+- id: isla_solraso
+  label: Isla Solraso
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_viento: 1.0
+    dureza: -0.56
+    enano: 1.0
+    mago: 0.92
+    prodigio: 0.86
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.23
+  - target: posada_enana
+    multiplier: 1.23
+  - target: forjas
+    multiplier: 1.23
+  - target: posada_enana
+    multiplier: 1.23
+  goals:
+  - id: dominar_su_reserva
+    label: dominar su reserva
+    need: mana
+    at_least: 0.96
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id007
+    on_failure: *id008
+  initial_bonds:
+    xan_piedraparda: 0.38
+- id: dain_nieblalta_68
+  label: Dain Nieblalta
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_viento: 1.0
+    asesino: 0.71
+    enano: 1.0
+    impulsividad: -0.65
+    sociabilidad: 0.75
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.24
+  - target: posada_enana
+    multiplier: 1.24
+  - target: forjas
+    multiplier: 1.24
+  - target: posada_enana
+    multiplier: 1.24
+- id: bern_fuegolento
+  label: Bern Fuegolento
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_viento: 1.0
+    humano: 1.0
+    mago: 0.7
+    templanza: 0.82
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.08
+  - target: posada_marea
+    multiplier: 1.08
+  - target: muelle
+    multiplier: 1.08
+  - target: templo_mareas
+    multiplier: 1.08
+  goals:
+  - id: que_le_conozcan_en_la_ciudad
+    label: que le conozcan en la ciudad
+    need: vinculo
+    at_least: 0.94
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id005
+    on_failure: *id006
+  relations:
+    hermano:
+    - kel_cantorroto
+    - rask_nieblalta_72
+- id: dorn_umbrio
+  label: Dorn Umbrio
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_agua: 1.0
+    elfo: 1.0
+    mago: 0.77
+    pereza: -0.52
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.34
+  - target: posada_elfica
+    multiplier: 1.34
+  - target: arboleda_ancestral
+    multiplier: 1.34
+  - target: santuario_del_viento
+    multiplier: 1.34
+  goals:
+  - id: dominar_su_reserva
+    label: dominar su reserva
+    need: mana
+    at_least: 0.96
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id007
+    on_failure: *id008
+- id: kel_cantorroto
+  label: Kel Cantorroto
   home: posada_central
   start_at: plaza_mayor
   traits:
-    afin_viento: 1.0
-    audacia: -0.94
+    afin_tierra: 1.0
+    arraigo: 0.84
     humano: 1.0
-    montaraz: 0.78
-    sociabilidad: 0.85
+    mago: 0.74
+    tenacidad: -0.52
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.29
+  - target: posada_central
+    multiplier: 1.29
+  goals:
+  - id: dominar_su_reserva
+    label: dominar su reserva
+    need: mana
+    at_least: 0.96
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id007
+    on_failure: *id008
+  relations:
+    hermano:
+    - bern_fuegolento
+    - rask_nieblalta_72
+- id: rask_nieblalta_72
+  label: Rask Nieblalta
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_agua: 0.36
+    afin_viento: 1.0
+    asesino: 0.83
+    audacia: 0.83
+    humano: 1.0
+    impulsividad: -0.43
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.03
+  - target: posada_central
+    multiplier: 1.03
+  relations:
+    hermano:
+    - bern_fuegolento
+    - kel_cantorroto
+- id: quen_piedraparda
+  label: Quen Piedraparda
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    enano: 1.0
+    guerrero: 0.89
+    sociabilidad: -0.65
+    tenacidad: -0.54
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.1
+  - target: posada_enana
+    multiplier: 1.1
+  - target: forjas
+    multiplier: 1.1
+  - target: posada_enana
+    multiplier: 1.1
+- id: gith_umbrio
+  label: Gith Umbrio
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_fuego: 0.43
+    afin_viento: 1.0
+    audacia: 0.44
+    devocion: 0.54
+    elfo: 1.0
+    montaraz: 0.95
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.38
+  - target: posada_elfica
+    multiplier: 1.38
+  - target: arboleda_ancestral
+    multiplier: 1.38
+  - target: santuario_del_viento
+    multiplier: 1.38
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+  initial_bonds:
+    cyra_fuegolento: 0.38
+- id: eris_zarzal
+  label: Eris Zarzal
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    calculo: 0.67
+    guerrero: 0.76
+    humano: 1.0
+    impulsividad: 0.42
   tastes:
   - target: plaza_mayor
     multiplier: 1.23
   - target: posada_central
     multiplier: 1.23
-- id: fror_hojaclara
-  label: Fror Hojaclara
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+  relations:
+    hermano:
+    - gwen_zarzal
+    - mor_vientolargo
+- id: xan_hierrogris
+  label: Xan Hierrogris
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_fuego: 1.0
+    gigante: 1.0
+    guerrero: 0.91
+    tenacidad: -0.81
+  tastes:
+  - target: plaza_gigante
+    multiplier: 1.43
+  - target: salon_comunal_gigante
+    multiplier: 1.43
+  - target: campo_gigante
+    multiplier: 1.43
+  - target: salon_comunal_gigante
+    multiplier: 1.43
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+- id: yves_marfrio
+  label: Yves Marfrio
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_tierra: 1.0
+    afin_viento: 0.34
+    gigante: 1.0
+    gula: -0.45
+    montaraz: 0.93
+    prodigio: -0.64
+  tastes:
+  - target: plaza_gigante
+    multiplier: 1.35
+  - target: salon_comunal_gigante
+    multiplier: 1.35
+  - target: campo_gigante
+    multiplier: 1.35
+  - target: salon_comunal_gigante
+    multiplier: 1.35
+- id: gwen_zarzal
+  label: Gwen Zarzal
   home: posada_marea
   start_at: plaza_portuaria
   traits:
-    afin_agua: 1.0
-    audacia: -0.52
+    afin_agua: 0.32
+    afin_viento: 1.0
+    asesino: 0.74
     humano: 1.0
-    mago: 0.78
-    sociabilidad: 0.76
+    templanza: 0.56
   tastes:
   - target: plaza_portuaria
-    multiplier: 1.11
+    multiplier: 1.06
   - target: posada_marea
-    multiplier: 1.11
+    multiplier: 1.06
   - target: muelle
-    multiplier: 1.11
+    multiplier: 1.06
   - target: templo_mareas
-    multiplier: 1.11
-- id: quen_hojaclara
-  label: Quen Hojaclara
+    multiplier: 1.06
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  relations:
+    hermano:
+    - eris_zarzal
+    - mor_vientolargo
+- id: zar_piedraparda
+  label: Zar Piedraparda
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_agua: 1.0
+    enano: 1.0
+    guerrero: 0.95
+    pereza: -0.63
+    prodigio: -0.54
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.23
+  - target: posada_enana
+    multiplier: 1.23
+  - target: forjas
+    multiplier: 1.23
+  - target: posada_enana
+    multiplier: 1.23
+  initial_bonds:
+    isla_hierrogris: 0.38
+- id: hurn_umbrio
+  label: Hurn Umbrio
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_agua: 1.0
+    arraigo: -0.72
+    asesino: 0.84
+    enano: 1.0
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.22
+  - target: posada_enana
+    multiplier: 1.22
+  - target: forjas
+    multiplier: 1.22
+  - target: posada_enana
+    multiplier: 1.22
+- id: adze_rocaviva
+  label: Adze Rocaviva
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_fuego: 1.0
+    afin_viento: 0.27
+    audacia: -0.65
+    enano: 1.0
+    guerrero: 0.97
+    gula: -0.52
+    prodigio: -0.91
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.37
+  - target: posada_enana
+    multiplier: 1.37
+  - target: forjas
+    multiplier: 1.37
+  - target: posada_enana
+    multiplier: 1.37
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+  relations:
+    maestro:
+    - gith_piedraparda_158
+  initial_bonds:
+    gith_piedraparda_158: 0.3
+- id: mor_vientolargo
+  label: Mor Vientolargo
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_viento: 1.0
+    codicia: 0.97
+    guerrero: 0.84
+    gula: 0.84
+    humano: 1.0
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.38
+  - target: posada_marea
+    multiplier: 1.38
+  - target: muelle
+    multiplier: 1.38
+  - target: templo_mareas
+    multiplier: 1.38
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  relations:
+    hermano:
+    - eris_zarzal
+    - gwen_zarzal
+- id: jora_cantorroto
+  label: Jora Cantorroto
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    guerrero: 0.75
+    humano: 1.0
+    talento: -0.69
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.13
+  - target: posada_central
+    multiplier: 1.13
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+- id: eris_yunquenegro
+  label: Eris Yunquenegro
   home: posada_de_la_manada
   start_at: plaza_demihumana
   traits:
-    afin_tierra: 1.0
+    afin_viento: 1.0
     demihumano: 1.0
-    montaraz: 0.74
-    sociabilidad: -0.53
+    guerrero: 0.96
+    gula: 0.73
   tastes:
   - target: plaza_demihumana
-    multiplier: 1.24
+    multiplier: 1.23
   - target: posada_de_la_manada
-    multiplier: 1.24
+    multiplier: 1.23
   - target: campo_de_caza
-    multiplier: 1.24
+    multiplier: 1.23
   - target: posada_de_la_manada
-    multiplier: 1.24
-- id: hurn_piedraparda_130
-  label: Hurn Piedraparda
-  home: posada_marea
-  start_at: plaza_portuaria
+    multiplier: 1.23
+  initial_bonds:
+    varn_rocaviva: 0.38
+- id: cyra_yunquenegro
+  label: Cyra Yunquenegro
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
   traits:
     afin_tierra: 1.0
-    asesino: 0.91
-    humano: 1.0
-    sociabilidad: -0.4
+    codicia: -0.96
+    dureza: 0.83
+    gigante: 1.0
+    guerrero: 0.74
   tastes:
-  - target: plaza_portuaria
-    multiplier: 1.19
-  - target: posada_marea
-    multiplier: 1.19
-  - target: muelle
-    multiplier: 1.19
-  - target: templo_mareas
-    multiplier: 1.19
-- id: eris_marfrio
-  label: Eris Marfrio
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_agua: 0.48
-    afin_tierra: 1.0
-    audacia: -0.56
-    humano: 1.0
-    mago: 0.85
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.23
-  - target: posada_marea
-    multiplier: 1.23
-  - target: muelle
-    multiplier: 1.23
-  - target: templo_mareas
-    multiplier: 1.23
-- id: gith_solraso
-  label: Gith Solraso
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_agua: 1.0
-    afin_viento: 0.43
-    ambicion: 0.4
-    audacia: -0.81
-    humano: 1.0
-    mago: 0.75
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.21
-  - target: posada_marea
-    multiplier: 1.21
-  - target: muelle
-    multiplier: 1.21
-  - target: templo_mareas
-    multiplier: 1.21
-- id: wyn_hierrogris
-  label: Wyn Hierrogris
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_tierra: 1.0
-    afin_viento: 0.43
-    ambicion: 0.42
-    asesino: 0.93
-    elfo: 1.0
-    sociabilidad: -0.98
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.43
-  - target: posada_elfica
-    multiplier: 1.43
-  - target: arboleda_ancestral
-    multiplier: 1.43
-  - target: santuario_del_viento
-    multiplier: 1.43
+  - target: plaza_gigante
+    multiplier: 0.97
+  - target: salon_comunal_gigante
+    multiplier: 0.97
+  - target: campo_gigante
+    multiplier: 0.97
+  - target: salon_comunal_gigante
+    multiplier: 0.97
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
 - id: nyx_cantorroto
   label: Nyx Cantorroto
-  home: posada_elfica
-  start_at: plaza_elfica
+  home: posada_central
+  start_at: plaza_mayor
   traits:
-    afin_agua: 0.4
-    afin_viento: 1.0
-    ambicion: 0.7
-    asesino: 0.76
-    elfo: 1.0
-    sociabilidad: 0.48
+    afin_agua: 1.0
+    humano: 1.0
+    montaraz: 0.75
+    talento: -0.73
+    templanza: 0.86
+    tenacidad: 0.76
   tastes:
-  - target: plaza_elfica
-    multiplier: 1.36
-  - target: posada_elfica
-    multiplier: 1.36
-  - target: arboleda_ancestral
-    multiplier: 1.36
-  - target: santuario_del_viento
-    multiplier: 1.36
+  - target: plaza_mayor
+    multiplier: 1.02
+  - target: posada_central
+    multiplier: 1.02
 - id: gith_hojaclara
   label: Gith Hojaclara
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_tierra: 1.0
+    elfo: 1.0
+    impulsividad: -0.91
+    mago: 0.91
+    prodigio: -0.46
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.13
+  - target: posada_elfica
+    multiplier: 1.13
+  - target: arboleda_ancestral
+    multiplier: 1.13
+  - target: santuario_del_viento
+    multiplier: 1.13
+  initial_bonds:
+    adze_umbrio: 0.38
+- id: nyx_marfrio
+  label: Nyx Marfrio
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    dureza: 0.89
+    humano: 1.0
+    montaraz: 0.74
+    talento: -0.71
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.08
+  - target: posada_central
+    multiplier: 1.08
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+- id: xan_yunquenegro
+  label: Xan Yunquenegro
   home: posada_de_la_manada
   start_at: plaza_demihumana
   traits:
     afin_viento: 1.0
-    audacia: -0.76
     demihumano: 1.0
-    montaraz: 0.82
+    montaraz: 0.97
+    pereza: 0.85
+    prodigio: -0.85
   tastes:
   - target: plaza_demihumana
-    multiplier: 1.09
+    multiplier: 1.4
   - target: posada_de_la_manada
-    multiplier: 1.09
+    multiplier: 1.4
   - target: campo_de_caza
-    multiplier: 1.09
+    multiplier: 1.4
   - target: posada_de_la_manada
-    multiplier: 1.09
-- id: xan_cenizal
-  label: Xan Cenizal
+    multiplier: 1.4
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+  initial_bonds:
+    gwen_nieblalta: 0.38
+- id: zar_rocaviva
+  label: Zar Rocaviva
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_fuego: 1.0
+    elfo: 1.0
+    montaraz: 0.92
+    sociabilidad: 0.98
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.41
+  - target: posada_elfica
+    multiplier: 1.41
+  - target: arboleda_ancestral
+    multiplier: 1.41
+  - target: santuario_del_viento
+    multiplier: 1.41
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+- id: ivar_yunquenegro
+  label: Ivar Yunquenegro
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    asesino: 0.7
+    devocion: 0.49
+    humano: 1.0
+    talento: 0.68
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.05
+  - target: posada_central
+    multiplier: 1.05
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+- id: rask_cantorroto
+  label: Rask Cantorroto
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_agua: 0.42
+    afin_viento: 1.0
+    calculo: -0.66
+    elfo: 1.0
+    gula: 0.75
+    mago: 0.93
+    sociabilidad: -0.72
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.32
+  - target: posada_elfica
+    multiplier: 1.32
+  - target: arboleda_ancestral
+    multiplier: 1.32
+  - target: santuario_del_viento
+    multiplier: 1.32
+  initial_bonds:
+    fror_cenizal: 0.38
+- id: adze_zarzal
+  label: Adze Zarzal
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    ambicion: 0.67
+    arraigo: 0.57
+    humano: 1.0
+    montaraz: 0.8
+    templanza: -0.62
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.13
+  - target: posada_central
+    multiplier: 1.13
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+- id: nyx_hojaclara
+  label: Nyx Hojaclara
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_tierra: 1.0
+    audacia: -0.48
+    demihumano: 1.0
+    montaraz: 0.75
+    pereza: -0.55
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.43
+  - target: posada_de_la_manada
+    multiplier: 1.43
+  - target: campo_de_caza
+    multiplier: 1.43
+  - target: posada_de_la_manada
+    multiplier: 1.43
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+- id: gith_vientolargo
+  label: Gith Vientolargo
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_agua: 1.0
+    afin_fuego: 0.44
+    guerrero: 0.92
+    humano: 1.0
+    talento: 0.74
+  tastes:
+  - target: plaza_mayor
+    multiplier: 0.97
+  - target: posada_central
+    multiplier: 0.97
+- id: fenn_fuegolento
+  label: Fenn Fuegolento
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    aprension: 0.71
+    guerrero: 0.73
+    humano: 1.0
+    nocturnidad: 0.9
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.34
+  - target: posada_central
+    multiplier: 1.34
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+- id: jarl_vadohondo_97
+  label: Jarl Vadohondo
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_fuego: 1.0
+    aprension: -0.65
+    enano: 1.0
+    guerrero: 0.8
+    nocturnidad: -0.55
+  tastes:
+  - target: plaza_enana
+    multiplier: 0.97
+  - target: posada_enana
+    multiplier: 0.97
+  - target: forjas
+    multiplier: 0.97
+  - target: posada_enana
+    multiplier: 0.97
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+- id: fror_cenizal
+  label: Fror Cenizal
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    codicia: -0.66
+    humano: 1.0
+    mago: 1.0
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.37
+  - target: posada_central
+    multiplier: 1.37
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  relations:
+    maestro:
+    - rask_cantorroto
+    - jarl_cantorroto
+  initial_bonds:
+    rask_cantorroto: 0.3
+    jarl_cantorroto: 0.3
+- id: sela_vadohondo
+  label: Sela Vadohondo
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    arraigo: -0.74
+    calculo: 0.82
+    enano: 1.0
+    montaraz: 0.81
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.06
+  - target: posada_enana
+    multiplier: 1.06
+  - target: forjas
+    multiplier: 1.06
+  - target: posada_enana
+    multiplier: 1.06
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+- id: pell_cantorroto
+  label: Pell Cantorroto
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_viento: 1.0
+    asesino: 0.99
+    enano: 1.0
+    prodigio: -0.65
+    templanza: -0.96
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.26
+  - target: posada_enana
+    multiplier: 1.26
+  - target: forjas
+    multiplier: 1.26
+  - target: posada_enana
+    multiplier: 1.26
+  relations:
+    maestro:
+    - hurn_zarzal_62
+    - adze_vientolargo_195
+  initial_bonds:
+    hurn_zarzal_62: 0.3
+    adze_vientolargo_195: 0.3
+- id: zar_marfrio
+  label: Zar Marfrio
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_agua: 1.0
+    asesino: 0.77
+    demihumano: 1.0
+    sociabilidad: 0.59
+    talento: -0.79
+    templanza: 0.85
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.06
+  - target: posada_de_la_manada
+    multiplier: 1.06
+  - target: campo_de_caza
+    multiplier: 1.06
+  - target: posada_de_la_manada
+    multiplier: 1.06
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+- id: wyn_vadohondo
+  label: Wyn Vadohondo
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_tierra: 0.33
+    afin_viento: 1.0
+    aprension: -0.78
+    asesino: 0.72
+    demihumano: 1.0
+    pereza: -0.51
+    sociabilidad: -0.82
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.08
+  - target: posada_de_la_manada
+    multiplier: 1.08
+  - target: campo_de_caza
+    multiplier: 1.08
+  - target: posada_de_la_manada
+    multiplier: 1.08
+- id: hurn_vientolargo
+  label: Hurn Vientolargo
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    arraigo: -0.59
+    enano: 1.0
+    mago: 0.97
+    pereza: -0.72
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.29
+  - target: posada_enana
+    multiplier: 1.29
+  - target: forjas
+    multiplier: 1.29
+  - target: posada_enana
+    multiplier: 1.29
+  relations:
+    maestro:
+    - gith_piedraparda
+  initial_bonds:
+    gith_piedraparda: 0.3
+- id: yves_yunquenegro
+  label: Yves Yunquenegro
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_fuego: 0.34
+    afin_viento: 1.0
+    elfo: 1.0
+    mago: 0.92
+    tenacidad: -0.45
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.17
+  - target: posada_elfica
+    multiplier: 1.17
+  - target: arboleda_ancestral
+    multiplier: 1.17
+  - target: santuario_del_viento
+    multiplier: 1.17
+  initial_bonds:
+    xan_piedraparda: 0.38
+- id: sela_vientolargo
+  label: Sela Vientolargo
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_agua: 1.0
+    asesino: 0.93
+    demihumano: 1.0
+    prodigio: -0.86
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.22
+  - target: posada_de_la_manada
+    multiplier: 1.22
+  - target: campo_de_caza
+    multiplier: 1.22
+  - target: posada_de_la_manada
+    multiplier: 1.22
+  initial_bonds:
+    varn_hojaclara: 0.38
+- id: hale_vientolargo
+  label: Hale Vientolargo
   home: posada_elfica
   start_at: plaza_elfica
   traits:
     afin_agua: 1.0
-    audacia: -0.68
     elfo: 1.0
-    invocador: 0.93
-    sociabilidad: 0.69
+    montaraz: 0.87
+    nocturnidad: -0.57
+    tenacidad: 0.76
   tastes:
   - target: plaza_elfica
-    multiplier: 0.97
+    multiplier: 1.44
   - target: posada_elfica
-    multiplier: 0.97
+    multiplier: 1.44
   - target: arboleda_ancestral
-    multiplier: 0.97
+    multiplier: 1.44
   - target: santuario_del_viento
-    multiplier: 0.97
-- id: zar_cenizal_137
-  label: Zar Cenizal
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_tierra: 1.0
-    asesino: 0.92
-    demihumano: 1.0
-    nocturnidad: -0.59
-    sociabilidad: -0.52
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.22
-  - target: posada_de_la_manada
-    multiplier: 1.22
-  - target: campo_de_caza
-    multiplier: 1.22
-  - target: posada_de_la_manada
-    multiplier: 1.22
-- id: cael_vientolargo
-  label: Cael Vientolargo
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_tierra: 1.0
-    ambicion: -0.61
-    audacia: -0.66
-    guerrero: 0.83
-    humano: 1.0
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.32
-  - target: posada_marea
-    multiplier: 1.32
-  - target: muelle
-    multiplier: 1.32
-  - target: templo_mareas
-    multiplier: 1.32
-- id: fenn_solraso
-  label: Fenn Solraso
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_viento: 1.0
-    ambicion: -0.73
-    demihumano: 1.0
-    montaraz: 0.84
-    nocturnidad: -0.7
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.13
-  - target: posada_de_la_manada
-    multiplier: 1.13
-  - target: campo_de_caza
-    multiplier: 1.13
-  - target: posada_de_la_manada
-    multiplier: 1.13
-- id: varn_hojaclara
-  label: Varn Hojaclara
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_agua: 1.0
-    audacia: 0.8
-    humano: 1.0
-    montaraz: 0.84
-  tastes:
-  - target: plaza_portuaria
     multiplier: 1.44
-  - target: posada_marea
-    multiplier: 1.44
-  - target: muelle
-    multiplier: 1.44
-  - target: templo_mareas
-    multiplier: 1.44
-- id: brix_rocaviva
-  label: Brix Rocaviva
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+- id: gith_marfrio
+  label: Gith Marfrio
   home: posada_central
   start_at: plaza_mayor
   traits:
     afin_fuego: 1.0
-    ambicion: -0.57
-    audacia: 0.83
+    calculo: 0.9
+    devocion: 0.56
     guerrero: 0.73
     humano: 1.0
   tastes:
   - target: plaza_mayor
-    multiplier: 0.96
+    multiplier: 1.31
   - target: posada_central
-    multiplier: 0.96
-- id: hale_zarzal
-  label: Hale Zarzal
-  home: posada_central
-  start_at: plaza_mayor
+    multiplier: 1.31
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+- id: eris_cantorroto
+  label: Eris Cantorroto
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
   traits:
-    afin_fuego: 1.0
-    guerrero: 0.84
-    humano: 1.0
-    sociabilidad: 0.99
+    afin_viento: 1.0
+    demihumano: 1.0
+    dureza: -0.73
+    impulsividad: 0.57
+    invocador: 0.91
+    talento: -0.68
   tastes:
-  - target: plaza_mayor
-    multiplier: 1.07
-  - target: posada_central
-    multiplier: 1.07
-- id: jarl_zarzal
-  label: Jarl Zarzal
+  - target: plaza_demihumana
+    multiplier: 1.36
+  - target: posada_de_la_manada
+    multiplier: 1.36
+  - target: campo_de_caza
+    multiplier: 1.36
+  - target: posada_de_la_manada
+    multiplier: 1.36
+  initial_bonds:
+    orin_vientolargo: 0.38
+- id: kel_marfrio_109
+  label: Kel Marfrio
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_tierra: 1.0
+    audacia: 0.71
+    humano: 1.0
+    impulsividad: -0.96
+    mago: 0.83
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.24
+  - target: posada_marea
+    multiplier: 1.24
+  - target: muelle
+    multiplier: 1.24
+  - target: templo_mareas
+    multiplier: 1.24
+  goals:
+  - id: que_le_conozcan_en_la_ciudad
+    label: que le conozcan en la ciudad
+    need: vinculo
+    at_least: 0.94
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id005
+    on_failure: *id006
+- id: sela_cenizal
+  label: Sela Cenizal
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    dureza: 0.46
+    enano: 1.0
+    guerrero: 0.86
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.05
+  - target: posada_enana
+    multiplier: 1.05
+  - target: forjas
+    multiplier: 1.05
+  - target: posada_enana
+    multiplier: 1.05
+- id: eyla_zarzal
+  label: Eyla Zarzal
   home: posada_elfica
   start_at: plaza_elfica
   traits:
-    afin_fuego: 0.32
+    afin_tierra: 0.39
     afin_viento: 1.0
-    audacia: -0.77
+    arraigo: -0.71
     elfo: 1.0
-    guerrero: 0.97
-    nocturnidad: -0.41
+    gula: 0.74
+    mago: 0.95
   tastes:
   - target: plaza_elfica
-    multiplier: 1.36
+    multiplier: 1.31
   - target: posada_elfica
-    multiplier: 1.36
+    multiplier: 1.31
   - target: arboleda_ancestral
-    multiplier: 1.36
+    multiplier: 1.31
   - target: santuario_del_viento
-    multiplier: 1.36
-- id: torv_cenizal
-  label: Torv Cenizal
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_fuego: 1.0
-    afin_tierra: 0.29
-    ambicion: -0.55
-    asesino: 0.76
-    humano: 1.0
-    sociabilidad: -0.8
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.23
-  - target: posada_marea
-    multiplier: 1.23
-  - target: muelle
-    multiplier: 1.23
-  - target: templo_mareas
-    multiplier: 1.23
-- id: jora_fuegolento
-  label: Jora Fuegolento
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_fuego: 1.0
-    afin_tierra: 0.26
-    asesino: 0.95
-    audacia: -0.79
-    humano: 1.0
-    nocturnidad: 0.73
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.08
-  - target: posada_marea
-    multiplier: 1.08
-  - target: muelle
-    multiplier: 1.08
-  - target: templo_mareas
-    multiplier: 1.08
-- id: torv_solraso
-  label: Torv Solraso
+    multiplier: 1.31
+  initial_bonds:
+    varn_fuegolento: 0.38
+- id: kel_vadohondo
+  label: Kel Vadohondo
   home: posada_de_la_manada
   start_at: plaza_demihumana
   traits:
-    afin_agua: 1.0
-    ambicion: 0.63
+    afin_viento: 1.0
+    arraigo: 0.61
     demihumano: 1.0
-    guerrero: 0.83
-    sociabilidad: -0.74
+    guerrero: 0.88
+    nocturnidad: -0.52
   tastes:
   - target: plaza_demihumana
-    multiplier: 1.42
+    multiplier: 1.22
   - target: posada_de_la_manada
-    multiplier: 1.42
+    multiplier: 1.22
   - target: campo_de_caza
-    multiplier: 1.42
+    multiplier: 1.22
   - target: posada_de_la_manada
-    multiplier: 1.42
-- id: isla_hojaclara
-  label: Isla Hojaclara
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_fuego: 1.0
-    asesino: 0.98
-    demihumano: 1.0
-    sociabilidad: -0.9
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.07
-  - target: posada_de_la_manada
-    multiplier: 1.07
-  - target: campo_de_caza
-    multiplier: 1.07
-  - target: posada_de_la_manada
-    multiplier: 1.07
-- id: yves_cantorroto
-  label: Yves Cantorroto
+    multiplier: 1.22
+- id: wyn_piedraparda
+  label: Wyn Piedraparda
   home: posada_marea
   start_at: plaza_portuaria
   traits:
-    afin_fuego: 1.0
-    ambicion: -0.54
-    asesino: 0.91
+    afin_viento: 1.0
+    asesino: 0.85
     humano: 1.0
+    templanza: -0.99
   tastes:
   - target: plaza_portuaria
-    multiplier: 1.32
+    multiplier: 1.18
   - target: posada_marea
-    multiplier: 1.32
+    multiplier: 1.18
   - target: muelle
-    multiplier: 1.32
+    multiplier: 1.18
   - target: templo_mareas
-    multiplier: 1.32
-- id: eris_piedraparda_149
-  label: Eris Piedraparda
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_fuego: 1.0
-    demihumano: 1.0
-    guerrero: 0.93
-    sociabilidad: 0.66
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.43
-  - target: posada_de_la_manada
-    multiplier: 1.43
-  - target: campo_de_caza
-    multiplier: 1.43
-  - target: posada_de_la_manada
-    multiplier: 1.43
-- id: hale_rocaviva
-  label: Hale Rocaviva
+    multiplier: 1.18
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+  initial_bonds:
+    kel_marfrio: 0.38
+- id: hale_cenizal
+  label: Hale Cenizal
   home: posada_central
   start_at: plaza_mayor
   traits:
     afin_agua: 1.0
-    asesino: 0.92
+    afin_fuego: 0.41
+    calculo: 0.49
     humano: 1.0
-    nocturnidad: 0.43
-    sociabilidad: -0.73
+    montaraz: 0.92
   tastes:
   - target: plaza_mayor
-    multiplier: 1.43
+    multiplier: 1.15
   - target: posada_central
-    multiplier: 1.43
-- id: ulla_fuegolento
-  label: Ulla Fuegolento
-  home: posada_central
-  start_at: plaza_mayor
+    multiplier: 1.15
+- id: adze_umbrio
+  label: Adze Umbrio
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_viento: 1.0
+    gula: 0.62
+    humano: 1.0
+    mago: 0.96
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.28
+  - target: posada_marea
+    multiplier: 1.28
+  - target: muelle
+    multiplier: 1.28
+  - target: templo_mareas
+    multiplier: 1.28
+  relations:
+    maestro:
+    - gith_hojaclara
+  initial_bonds:
+    gith_hojaclara: 0.3
+- id: torv_hierrogris
+  label: Torv Hierrogris
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_viento: 1.0
+    aprension: 0.9
+    asesino: 0.85
+    demihumano: 1.0
+    gula: 0.79
+    talento: -0.55
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.23
+  - target: posada_de_la_manada
+    multiplier: 1.23
+  - target: campo_de_caza
+    multiplier: 1.23
+  - target: posada_de_la_manada
+    multiplier: 1.23
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+- id: jarl_cenizal
+  label: Jarl Cenizal
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_agua: 1.0
+    arraigo: -0.77
+    humano: 1.0
+    montaraz: 0.77
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.15
+  - target: posada_marea
+    multiplier: 1.15
+  - target: muelle
+    multiplier: 1.15
+  - target: templo_mareas
+    multiplier: 1.15
+- id: aral_hierrogris
+  label: Aral Hierrogris
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_viento: 1.0
+    arraigo: -0.67
+    demihumano: 1.0
+    devocion: -0.88
+    montaraz: 0.83
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.3
+  - target: posada_de_la_manada
+    multiplier: 1.3
+  - target: campo_de_caza
+    multiplier: 1.3
+  - target: posada_de_la_manada
+    multiplier: 1.3
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+- id: gith_cantorroto
+  label: Gith Cantorroto
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
   traits:
     afin_tierra: 1.0
-    ambicion: 0.85
+    arraigo: -0.4
+    asesino: 0.78
+    demihumano: 1.0
+    prodigio: -0.47
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.06
+  - target: posada_de_la_manada
+    multiplier: 1.06
+  - target: campo_de_caza
+    multiplier: 1.06
+  - target: posada_de_la_manada
+    multiplier: 1.06
+- id: varn_nieblalta
+  label: Varn Nieblalta
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_tierra: 0.5
+    afin_viento: 1.0
+    elfo: 1.0
+    mago: 0.83
+    nocturnidad: -0.87
+    pereza: 0.45
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.32
+  - target: posada_elfica
+    multiplier: 1.32
+  - target: arboleda_ancestral
+    multiplier: 1.32
+  - target: santuario_del_viento
+    multiplier: 1.32
+  goals:
+  - id: dominar_su_reserva
+    label: dominar su reserva
+    need: mana
+    at_least: 0.96
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id007
+    on_failure: *id008
+- id: cyra_fuegolento
+  label: Cyra Fuegolento
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_viento: 1.0
     humano: 1.0
-    invocador: 1.0
-    sociabilidad: 0.43
+    montaraz: 0.98
+    talento: -0.85
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.21
+  - target: posada_marea
+    multiplier: 1.21
+  - target: muelle
+    multiplier: 1.21
+  - target: templo_mareas
+    multiplier: 1.21
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+  relations:
+    maestro:
+    - gith_umbrio
+    - bern_nieblalta_143
+  initial_bonds:
+    gith_umbrio: 0.3
+    bern_nieblalta_143: 0.3
+- id: lira_solraso
+  label: Lira Solraso
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    asesino: 0.73
+    gula: 0.78
+    humano: 1.0
+    prodigio: 0.94
   tastes:
   - target: plaza_mayor
-    multiplier: 1.03
+    multiplier: 1.36
   - target: posada_central
-    multiplier: 1.03
-- id: ivar_fuegolento
-  label: Ivar Fuegolento
+    multiplier: 1.36
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+- id: quen_cenizal
+  label: Quen Cenizal
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_agua: 1.0
+    afin_fuego: 0.3
+    dureza: -0.45
+    elfo: 1.0
+    invocador: 0.73
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.44
+  - target: posada_elfica
+    multiplier: 1.44
+  - target: arboleda_ancestral
+    multiplier: 1.44
+  - target: santuario_del_viento
+    multiplier: 1.44
+- id: xan_nieblalta
+  label: Xan Nieblalta
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_agua: 1.0
+    ambicion: 0.74
+    asesino: 0.71
+    demihumano: 1.0
+    impulsividad: -0.87
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.27
+  - target: posada_de_la_manada
+    multiplier: 1.27
+  - target: campo_de_caza
+    multiplier: 1.27
+  - target: posada_de_la_manada
+    multiplier: 1.27
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+- id: dorn_vadohondo
+  label: Dorn Vadohondo
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 1.0
+    ambicion: 0.73
+    asesino: 0.78
+    calculo: -0.68
+    humano: 1.0
+    tenacidad: -0.8
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.42
+  - target: posada_marea
+    multiplier: 1.42
+  - target: muelle
+    multiplier: 1.42
+  - target: templo_mareas
+    multiplier: 1.42
+- id: zar_cenizal
+  label: Zar Cenizal
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_viento: 1.0
+    audacia: 0.53
+    dureza: -0.82
+    gigante: 1.0
+    impulsividad: 0.63
+    mago: 0.74
+  tastes:
+  - target: plaza_gigante
+    multiplier: 1.32
+  - target: salon_comunal_gigante
+    multiplier: 1.32
+  - target: campo_gigante
+    multiplier: 1.32
+  - target: salon_comunal_gigante
+    multiplier: 1.32
+- id: orin_cantorroto
+  label: Orin Cantorroto
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_agua: 1.0
+    humano: 1.0
+    impulsividad: 0.54
+    mago: 0.72
+    prodigio: 0.98
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.42
+  - target: posada_central
+    multiplier: 1.42
+- id: varn_vientolargo
+  label: Varn Vientolargo
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_agua: 1.0
+    afin_tierra: 0.43
+    calculo: -0.96
+    devocion: 0.7
+    humano: 1.0
+    montaraz: 0.89
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.13
+  - target: posada_central
+    multiplier: 1.13
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+- id: bern_umbrio
+  label: Bern Umbrio
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_agua: 1.0
+    asesino: 0.82
+    codicia: -0.79
+    demihumano: 1.0
+    talento: 0.99
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.26
+  - target: posada_de_la_manada
+    multiplier: 1.26
+  - target: campo_de_caza
+    multiplier: 1.26
+  - target: posada_de_la_manada
+    multiplier: 1.26
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+- id: adze_umbrio_130
+  label: Adze Umbrio
   home: posada_marea
   start_at: plaza_portuaria
   traits:
     afin_tierra: 1.0
     guerrero: 0.89
     humano: 1.0
-    sociabilidad: -0.77
+    impulsividad: 0.45
+    talento: -0.43
   tastes:
   - target: plaza_portuaria
-    multiplier: 0.97
+    multiplier: 1.16
   - target: posada_marea
-    multiplier: 0.97
+    multiplier: 1.16
   - target: muelle
-    multiplier: 0.97
+    multiplier: 1.16
   - target: templo_mareas
-    multiplier: 0.97
-- id: lira_yunquenegro
-  label: Lira Yunquenegro
+    multiplier: 1.16
+- id: dain_vadohondo
+  label: Dain Vadohondo
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 1.0
+    afin_viento: 0.43
+    ambicion: 0.51
+    audacia: -0.95
+    humano: 1.0
+    mago: 0.82
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.2
+  - target: posada_marea
+    multiplier: 1.2
+  - target: muelle
+    multiplier: 1.2
+  - target: templo_mareas
+    multiplier: 1.2
+- id: eyla_piedraparda
+  label: Eyla Piedraparda
   home: posada_central
   start_at: plaza_mayor
   traits:
-    afin_fuego: 1.0
-    ambicion: 0.65
+    afin_tierra: 1.0
+    gula: -1.0
     humano: 1.0
-    mago: 0.72
+    invocador: 0.77
+    templanza: -0.95
   tastes:
   - target: plaza_mayor
-    multiplier: 1.41
+    multiplier: 1.23
   - target: posada_central
-    multiplier: 1.41
-- id: ulla_cenizal
-  label: Ulla Cenizal
+    multiplier: 1.23
+  goals:
+  - id: dominar_su_reserva
+    label: dominar su reserva
+    need: mana
+    at_least: 0.96
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id007
+    on_failure: *id008
+- id: fror_vientolargo_133
+  label: Fror Vientolargo
   home: posada_elfica
   start_at: plaza_elfica
   traits:
     afin_agua: 1.0
-    ambicion: -0.44
-    audacia: 0.48
+    afin_viento: 0.31
+    codicia: -0.71
     elfo: 1.0
-    montaraz: 0.94
+    invocador: 0.79
   tastes:
   - target: plaza_elfica
-    multiplier: 1.1
+    multiplier: 1.09
   - target: posada_elfica
-    multiplier: 1.1
+    multiplier: 1.09
   - target: arboleda_ancestral
-    multiplier: 1.1
+    multiplier: 1.09
   - target: santuario_del_viento
-    multiplier: 1.1
-- id: gwen_hierrogris
-  label: Gwen Hierrogris
+    multiplier: 1.09
+- id: orin_vadohondo
+  label: Orin Vadohondo
   home: posada_elfica
   start_at: plaza_elfica
   traits:
-    afin_agua: 0.44
     afin_viento: 1.0
     elfo: 1.0
-    invocador: 0.84
-    sociabilidad: -0.97
+    gula: 0.48
+    impulsividad: 0.61
+    montaraz: 0.71
   tastes:
   - target: plaza_elfica
-    multiplier: 1.08
+    multiplier: 1.27
   - target: posada_elfica
-    multiplier: 1.08
+    multiplier: 1.27
   - target: arboleda_ancestral
-    multiplier: 1.08
+    multiplier: 1.27
   - target: santuario_del_viento
-    multiplier: 1.08
-- id: varn_zarzal
-  label: Varn Zarzal
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_fuego: 0.42
-    afin_tierra: 1.0
-    ambicion: -0.7
-    elfo: 1.0
-    mago: 0.95
-    nocturnidad: 0.52
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.06
-  - target: posada_elfica
-    multiplier: 1.06
-  - target: arboleda_ancestral
-    multiplier: 1.06
-  - target: santuario_del_viento
-    multiplier: 1.06
-- id: yves_nieblalta_157
-  label: Yves Nieblalta
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_fuego: 1.0
-    afin_tierra: 0.3
-    audacia: 0.43
-    enano: 1.0
-    guerrero: 0.85
-    nocturnidad: 0.82
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.26
-  - target: posada_enana
-    multiplier: 1.26
-  - target: forjas
-    multiplier: 1.26
-  - target: posada_enana
-    multiplier: 1.26
-- id: quen_hierrogris
-  label: Quen Hierrogris
+    multiplier: 1.27
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+- id: jarl_vientolargo
+  label: Jarl Vientolargo
   home: posada_de_la_manada
   start_at: plaza_demihumana
   traits:
-    afin_tierra: 1.0
-    ambicion: -0.46
+    afin_viento: 1.0
+    asesino: 0.74
     demihumano: 1.0
-    guerrero: 0.78
-    nocturnidad: 0.53
+    nocturnidad: 0.63
+    talento: 0.75
   tastes:
   - target: plaza_demihumana
-    multiplier: 1.18
+    multiplier: 0.97
   - target: posada_de_la_manada
-    multiplier: 1.18
+    multiplier: 0.97
   - target: campo_de_caza
-    multiplier: 1.18
+    multiplier: 0.97
   - target: posada_de_la_manada
-    multiplier: 1.18
+    multiplier: 0.97
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+- id: varn_hierrogris
+  label: Varn Hierrogris
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_viento: 1.0
+    audacia: -0.57
+    elfo: 1.0
+    gula: 0.87
+    invocador: 0.87
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.14
+  - target: posada_elfica
+    multiplier: 1.14
+  - target: arboleda_ancestral
+    multiplier: 1.14
+  - target: santuario_del_viento
+    multiplier: 1.14
+- id: eris_zarzal_137
+  label: Eris Zarzal
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_viento: 1.0
+    asesino: 0.76
+    demihumano: 1.0
+    devocion: -0.74
+    pereza: -0.94
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.25
+  - target: posada_de_la_manada
+    multiplier: 1.25
+  - target: campo_de_caza
+    multiplier: 1.25
+  - target: posada_de_la_manada
+    multiplier: 1.25
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+- id: ulla_hierrogris
+  label: Ulla Hierrogris
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 0.41
+    afin_viento: 1.0
+    ambicion: 0.66
+    humano: 1.0
+    mago: 0.9
+    prodigio: 0.73
+    talento: 0.73
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.16
+  - target: posada_central
+    multiplier: 1.16
+  goals:
+  - id: dominar_su_reserva
+    label: dominar su reserva
+    need: mana
+    at_least: 0.96
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id007
+    on_failure: *id008
 - id: dain_hojaclara
   label: Dain Hojaclara
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_agua: 1.0
+    demihumano: 1.0
+    mago: 0.79
+    sociabilidad: 0.93
+    talento: -0.99
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 0.95
+  - target: posada_de_la_manada
+    multiplier: 0.95
+  - target: campo_de_caza
+    multiplier: 0.95
+  - target: posada_de_la_manada
+    multiplier: 0.95
+- id: hale_solraso
+  label: Hale Solraso
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_agua: 1.0
+    afin_fuego: 0.47
+    arraigo: 0.82
+    dureza: 0.69
+    humano: 1.0
+    mago: 0.72
+    talento: -0.65
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.3
+  - target: posada_marea
+    multiplier: 1.3
+  - target: muelle
+    multiplier: 1.3
+  - target: templo_mareas
+    multiplier: 1.3
+  goals:
+  - id: que_le_conozcan_en_la_ciudad
+    label: que le conozcan en la ciudad
+    need: vinculo
+    at_least: 0.94
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id005
+    on_failure: *id006
+- id: ulla_piedraparda
+  label: Ulla Piedraparda
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    aprension: 0.45
+    codicia: -0.94
+    humano: 1.0
+    montaraz: 0.82
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.16
+  - target: posada_central
+    multiplier: 1.16
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+- id: cael_umbrio
+  label: Cael Umbrio
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_agua: 1.0
+    devocion: -0.44
+    humano: 1.0
+    mago: 0.82
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.4
+  - target: posada_marea
+    multiplier: 1.4
+  - target: muelle
+    multiplier: 1.4
+  - target: templo_mareas
+    multiplier: 1.4
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+- id: bern_nieblalta_143
+  label: Bern Nieblalta
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_agua: 1.0
+    ambicion: -0.47
+    arraigo: -0.56
+    elfo: 1.0
+    montaraz: 0.95
+    templanza: -0.61
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.4
+  - target: posada_elfica
+    multiplier: 1.4
+  - target: arboleda_ancestral
+    multiplier: 1.4
+  - target: santuario_del_viento
+    multiplier: 1.4
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  initial_bonds:
+    cyra_fuegolento: 0.38
+- id: jarl_fuegolento
+  label: Jarl Fuegolento
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    calculo: -0.77
+    humano: 1.0
+    mago: 0.88
+    pereza: -0.66
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.01
+  - target: posada_central
+    multiplier: 1.01
+  goals:
+  - id: dominar_su_reserva
+    label: dominar su reserva
+    need: mana
+    at_least: 0.96
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id007
+    on_failure: *id008
+- id: brix_zarzal
+  label: Brix Zarzal
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 1.0
+    ambicion: -0.95
+    guerrero: 0.96
+    gula: 0.73
+    humano: 1.0
+    talento: -0.7
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.35
+  - target: posada_marea
+    multiplier: 1.35
+  - target: muelle
+    multiplier: 1.35
+  - target: templo_mareas
+    multiplier: 1.35
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  initial_bonds:
+    wyn_yunquenegro: 0.38
+- id: hurn_marfrio
+  label: Hurn Marfrio
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_viento: 1.0
+    audacia: 0.5
+    codicia: -0.7
+    demihumano: 1.0
+    montaraz: 0.8
+    tenacidad: 0.44
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.3
+  - target: posada_de_la_manada
+    multiplier: 1.3
+  - target: campo_de_caza
+    multiplier: 1.3
+  - target: posada_de_la_manada
+    multiplier: 1.3
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+- id: orin_vientolargo
+  label: Orin Vientolargo
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_viento: 1.0
+    demihumano: 1.0
+    devocion: -0.8
+    invocador: 1.0
+    pereza: -0.84
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.35
+  - target: posada_de_la_manada
+    multiplier: 1.35
+  - target: campo_de_caza
+    multiplier: 1.35
+  - target: posada_de_la_manada
+    multiplier: 1.35
+  goals:
+  - id: que_le_conozcan_en_la_ciudad
+    label: que le conozcan en la ciudad
+    need: vinculo
+    at_least: 0.94
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id005
+    on_failure: *id006
+  relations:
+    maestro:
+    - orin_umbrio
+    - eris_cantorroto
+  initial_bonds:
+    orin_umbrio: 0.3
+    eris_cantorroto: 0.3
+- id: xan_rocaviva
+  label: Xan Rocaviva
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    aprension: 0.76
+    humano: 1.0
+    mago: 0.9
+    tenacidad: -0.4
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.04
+  - target: posada_central
+    multiplier: 1.04
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+- id: lira_solraso_149
+  label: Lira Solraso
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_viento: 1.0
+    demihumano: 1.0
+    gula: 0.7
+    invocador: 0.87
+    prodigio: -0.4
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.0
+  - target: posada_de_la_manada
+    multiplier: 1.0
+  - target: campo_de_caza
+    multiplier: 1.0
+  - target: posada_de_la_manada
+    multiplier: 1.0
+- id: nyx_fuegolento_150
+  label: Nyx Fuegolento
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    ambicion: -0.89
+    guerrero: 0.84
+    humano: 1.0
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.2
+  - target: posada_central
+    multiplier: 1.2
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+- id: zar_cenizal_151
+  label: Zar Cenizal
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_viento: 1.0
+    asesino: 0.9
+    dureza: -0.95
+    humano: 1.0
+    sociabilidad: 0.61
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.4
+  - target: posada_central
+    multiplier: 1.4
+  initial_bonds:
+    varn_hojaclara: 0.38
+- id: mor_marfrio
+  label: Mor Marfrio
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_agua: 1.0
+    aprension: -0.62
+    devocion: -0.92
+    guerrero: 0.85
+    humano: 1.0
+    templanza: 0.53
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.18
+  - target: posada_central
+    multiplier: 1.18
+- id: xan_piedraparda
+  label: Xan Piedraparda
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 1.0
+    aprension: 0.84
+    humano: 1.0
+    mago: 1.0
+    sociabilidad: 0.44
+    tenacidad: 0.73
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.41
+  - target: posada_marea
+    multiplier: 1.41
+  - target: muelle
+    multiplier: 1.41
+  - target: templo_mareas
+    multiplier: 1.41
+  relations:
+    maestro:
+    - isla_solraso
+    - yves_yunquenegro
+  initial_bonds:
+    isla_solraso: 0.3
+    yves_yunquenegro: 0.3
+- id: adze_umbrio_154
+  label: Adze Umbrio
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_agua: 1.0
+    asesino: 0.76
+    elfo: 1.0
+    nocturnidad: 0.98
+    tenacidad: 0.52
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.21
+  - target: posada_elfica
+    multiplier: 1.21
+  - target: arboleda_ancestral
+    multiplier: 1.21
+  - target: santuario_del_viento
+    multiplier: 1.21
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+- id: brix_rocaviva
+  label: Brix Rocaviva
   home: posada_elfica
   start_at: plaza_elfica
   traits:
     afin_fuego: 1.0
     afin_tierra: 0.48
-    ambicion: -0.47
-    audacia: -0.87
+    asesino: 0.84
+    audacia: 0.53
     elfo: 1.0
-    invocador: 0.74
+    templanza: 0.91
   tastes:
   - target: plaza_elfica
-    multiplier: 1.26
-  - target: posada_elfica
-    multiplier: 1.26
-  - target: arboleda_ancestral
-    multiplier: 1.26
-  - target: santuario_del_viento
-    multiplier: 1.26
-- id: jora_piedraparda
-  label: Jora Piedraparda
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_viento: 1.0
-    ambicion: -0.41
-    guerrero: 0.78
-    humano: 1.0
-    nocturnidad: -0.9
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.43
-  - target: posada_central
-    multiplier: 1.43
-- id: xan_marfrio
-  label: Xan Marfrio
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_viento: 1.0
-    audacia: 0.59
-    humano: 1.0
-    mago: 0.92
-    sociabilidad: -0.43
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.19
-  - target: posada_central
-    multiplier: 1.19
-- id: eyla_fuegolento_162
-  label: Eyla Fuegolento
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_viento: 1.0
-    guerrero: 0.8
-    humano: 1.0
-    nocturnidad: 0.73
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.16
-  - target: posada_central
-    multiplier: 1.16
-- id: dain_yunquenegro_163
-  label: Dain Yunquenegro
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_tierra: 1.0
-    ambicion: -0.79
-    humano: 1.0
-    mago: 0.73
-    sociabilidad: -0.66
-  tastes:
-  - target: plaza_mayor
     multiplier: 0.96
-  - target: posada_central
+  - target: posada_elfica
     multiplier: 0.96
-- id: brix_vadohondo
-  label: Brix Vadohondo
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_fuego: 1.0
-    ambicion: -0.44
-    audacia: -0.55
-    enano: 1.0
-    guerrero: 0.73
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.39
-  - target: posada_enana
-    multiplier: 1.39
-  - target: forjas
-    multiplier: 1.39
-  - target: posada_enana
-    multiplier: 1.39
-- id: kel_rocaviva
-  label: Kel Rocaviva
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_viento: 1.0
-    ambicion: -0.94
-    audacia: 0.82
-    elfo: 1.0
-    invocador: 0.76
-  tastes:
-  - target: plaza_elfica
-    multiplier: 0.95
-  - target: posada_elfica
-    multiplier: 0.95
   - target: arboleda_ancestral
-    multiplier: 0.95
+    multiplier: 0.96
   - target: santuario_del_viento
-    multiplier: 0.95
-- id: gith_hojaclara_166
-  label: Gith Hojaclara
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_agua: 0.3
-    afin_tierra: 1.0
-    audacia: -1.0
-    enano: 1.0
-    guerrero: 0.97
-    nocturnidad: -0.92
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.38
-  - target: posada_enana
-    multiplier: 1.38
-  - target: forjas
-    multiplier: 1.38
-  - target: posada_enana
-    multiplier: 1.38
-- id: adze_vientolargo
-  label: Adze Vientolargo
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_tierra: 1.0
-    ambicion: 0.94
-    audacia: 0.69
-    guerrero: 0.73
-    humano: 1.0
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 0.97
-  - target: posada_marea
-    multiplier: 0.97
-  - target: muelle
-    multiplier: 0.97
-  - target: templo_mareas
-    multiplier: 0.97
-- id: isla_zarzal
-  label: Isla Zarzal
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_tierra: 1.0
-    ambicion: -0.61
-    enano: 1.0
-    montaraz: 0.81
-    sociabilidad: -0.47
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.27
-  - target: posada_enana
-    multiplier: 1.27
-  - target: forjas
-    multiplier: 1.27
-  - target: posada_enana
-    multiplier: 1.27
-- id: rask_umbrio_169
-  label: Rask Umbrio
-  home: salon_comunal_gigante
-  start_at: plaza_gigante
-  traits:
-    afin_viento: 1.0
-    gigante: 1.0
-    invocador: 0.81
-    nocturnidad: -0.62
-    sociabilidad: -0.49
-  tastes:
-  - target: plaza_gigante
-    multiplier: 1.19
-  - target: salon_comunal_gigante
-    multiplier: 1.19
-  - target: campo_gigante
-    multiplier: 1.19
-  - target: salon_comunal_gigante
-    multiplier: 1.19
-- id: mor_solraso
-  label: Mor Solraso
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_viento: 1.0
-    humano: 1.0
-    invocador: 1.0
-    sociabilidad: -0.91
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.36
-  - target: posada_central
-    multiplier: 1.36
-- id: orin_vadohondo
-  label: Orin Vadohondo
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_viento: 1.0
-    humano: 1.0
-    mago: 0.86
-    nocturnidad: -0.75
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.27
-  - target: posada_marea
-    multiplier: 1.27
-  - target: muelle
-    multiplier: 1.27
-  - target: templo_mareas
-    multiplier: 1.27
-- id: cael_vadohondo_172
-  label: Cael Vadohondo
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_tierra: 1.0
-    afin_viento: 0.38
-    ambicion: -0.53
-    humano: 1.0
-    invocador: 0.82
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.14
-  - target: posada_marea
-    multiplier: 1.14
-  - target: muelle
-    multiplier: 1.14
-  - target: templo_mareas
-    multiplier: 1.14
-- id: gith_rocaviva
-  label: Gith Rocaviva
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_agua: 0.35
-    afin_fuego: 1.0
-    ambicion: -0.68
-    humano: 1.0
-    invocador: 0.98
-    sociabilidad: -0.54
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.45
-  - target: posada_central
-    multiplier: 1.45
-- id: varn_rocaviva
-  label: Varn Rocaviva
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_fuego: 1.0
-    afin_tierra: 0.34
-    audacia: -0.94
-    enano: 1.0
-    guerrero: 0.97
-    nocturnidad: 0.94
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.43
-  - target: posada_enana
-    multiplier: 1.43
-  - target: forjas
-    multiplier: 1.43
-  - target: posada_enana
-    multiplier: 1.43
-- id: cael_piedraparda
-  label: Cael Piedraparda
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_fuego: 1.0
-    ambicion: 0.73
-    asesino: 0.95
-    audacia: -0.89
-    humano: 1.0
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.1
-  - target: posada_central
-    multiplier: 1.1
-- id: eris_solraso_176
-  label: Eris Solraso
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_fuego: 1.0
-    ambicion: -0.77
-    humano: 1.0
-    mago: 0.78
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.03
-  - target: posada_marea
-    multiplier: 1.03
-  - target: muelle
-    multiplier: 1.03
-  - target: templo_mareas
-    multiplier: 1.03
-- id: rask_hierrogris
-  label: Rask Hierrogris
-  home: posada_elfica
-  start_at: plaza_elfica
-  traits:
-    afin_tierra: 0.46
-    afin_viento: 1.0
-    ambicion: -0.4
-    elfo: 1.0
-    mago: 0.94
-    sociabilidad: -0.58
-  tastes:
-  - target: plaza_elfica
-    multiplier: 1.43
-  - target: posada_elfica
-    multiplier: 1.43
-  - target: arboleda_ancestral
-    multiplier: 1.43
-  - target: santuario_del_viento
-    multiplier: 1.43
-- id: adze_marfrio
-  label: Adze Marfrio
-  home: posada_enana
-  start_at: plaza_enana
-  traits:
-    afin_viento: 1.0
-    enano: 1.0
-    guerrero: 0.95
-    nocturnidad: -0.94
-    sociabilidad: -0.55
-  tastes:
-  - target: plaza_enana
-    multiplier: 1.41
-  - target: posada_enana
-    multiplier: 1.41
-  - target: forjas
-    multiplier: 1.41
-  - target: posada_enana
-    multiplier: 1.41
-- id: isla_rocaviva
-  label: Isla Rocaviva
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_agua: 1.0
-    afin_viento: 0.39
-    audacia: -0.67
-    humano: 1.0
-    montaraz: 0.72
-    sociabilidad: 0.54
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.11
-  - target: posada_marea
-    multiplier: 1.11
-  - target: muelle
-    multiplier: 1.11
-  - target: templo_mareas
-    multiplier: 1.11
-- id: dorn_rocaviva_180
-  label: Dorn Rocaviva
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_fuego: 1.0
-    ambicion: -0.53
-    audacia: 0.93
-    demihumano: 1.0
-    guerrero: 0.77
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.16
-  - target: posada_de_la_manada
-    multiplier: 1.16
-  - target: campo_de_caza
-    multiplier: 1.16
-  - target: posada_de_la_manada
-    multiplier: 1.16
-- id: cael_vientolargo_181
-  label: Cael Vientolargo
-  home: salon_comunal_gigante
-  start_at: plaza_gigante
-  traits:
-    afin_tierra: 1.0
-    ambicion: 0.64
-    gigante: 1.0
-    guerrero: 0.83
-  tastes:
-  - target: plaza_gigante
-    multiplier: 1.12
-  - target: salon_comunal_gigante
-    multiplier: 1.12
-  - target: campo_gigante
-    multiplier: 1.12
-  - target: salon_comunal_gigante
-    multiplier: 1.12
-- id: varn_marfrio
-  label: Varn Marfrio
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_tierra: 1.0
-    demihumano: 1.0
-    montaraz: 0.88
-    nocturnidad: 0.46
-    sociabilidad: 0.66
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.41
-  - target: posada_de_la_manada
-    multiplier: 1.41
-  - target: campo_de_caza
-    multiplier: 1.41
-  - target: posada_de_la_manada
-    multiplier: 1.41
-- id: torv_marfrio
-  label: Torv Marfrio
-  home: posada_central
-  start_at: plaza_mayor
-  traits:
-    afin_agua: 1.0
-    ambicion: 0.95
-    asesino: 0.78
-    humano: 1.0
-    sociabilidad: 0.42
-  tastes:
-  - target: plaza_mayor
-    multiplier: 0.98
-  - target: posada_central
-    multiplier: 0.98
+    multiplier: 0.96
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
 - id: lira_cantorroto
   label: Lira Cantorroto
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_viento: 1.0
+    dureza: 0.93
+    elfo: 1.0
+    mago: 0.84
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.4
+  - target: posada_elfica
+    multiplier: 1.4
+  - target: arboleda_ancestral
+    multiplier: 1.4
+  - target: santuario_del_viento
+    multiplier: 1.4
+  initial_bonds:
+    gith_piedraparda: 0.5
+- id: rask_nieblalta_157
+  label: Rask Nieblalta
   home: posada_enana
   start_at: plaza_enana
   traits:
-    afin_tierra: 1.0
-    ambicion: 0.93
+    afin_fuego: 1.0
+    calculo: 0.83
     enano: 1.0
-    guerrero: 0.91
-    sociabilidad: -0.99
+    montaraz: 0.83
   tastes:
   - target: plaza_enana
-    multiplier: 1.09
+    multiplier: 1.23
   - target: posada_enana
-    multiplier: 1.09
+    multiplier: 1.23
   - target: forjas
-    multiplier: 1.09
+    multiplier: 1.23
   - target: posada_enana
-    multiplier: 1.09
-- id: nyx_rocaviva
-  label: Nyx Rocaviva
-  home: posada_central
-  start_at: plaza_mayor
+    multiplier: 1.23
+- id: gith_piedraparda_158
+  label: Gith Piedraparda
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
   traits:
-    afin_viento: 1.0
-    ambicion: -0.74
-    asesino: 0.83
-    humano: 1.0
+    afin_agua: 1.0
+    aprension: -0.72
+    demihumano: 1.0
+    guerrero: 0.93
+    templanza: -0.89
   tastes:
-  - target: plaza_mayor
-    multiplier: 1.25
-  - target: posada_central
-    multiplier: 1.25
-- id: dorn_vientolargo
-  label: Dorn Vientolargo
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_fuego: 1.0
-    ambicion: 0.7
-    humano: 1.0
-    mago: 0.95
-    nocturnidad: 0.44
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.32
-  - target: posada_marea
-    multiplier: 1.32
-  - target: muelle
-    multiplier: 1.32
-  - target: templo_mareas
-    multiplier: 1.32
-- id: fror_cenizal
+  - target: plaza_demihumana
+    multiplier: 1.26
+  - target: posada_de_la_manada
+    multiplier: 1.26
+  - target: campo_de_caza
+    multiplier: 1.26
+  - target: posada_de_la_manada
+    multiplier: 1.26
+  goals:
+  - id: que_le_conozcan_en_la_ciudad
+    label: que le conozcan en la ciudad
+    need: vinculo
+    at_least: 0.94
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id005
+    on_failure: *id006
+  initial_bonds:
+    bern_piedraparda: 0.5
+    adze_rocaviva: 0.38
+- id: fror_cenizal_159
   label: Fror Cenizal
   home: posada_elfica
   start_at: plaza_elfica
   traits:
     afin_fuego: 1.0
     afin_viento: 0.35
-    audacia: -0.65
+    audacia: 0.88
     elfo: 1.0
-    mago: 0.76
-    nocturnidad: 0.62
+    guerrero: 0.85
+    nocturnidad: -0.74
   tastes:
   - target: plaza_elfica
-    multiplier: 1.23
+    multiplier: 1.14
   - target: posada_elfica
-    multiplier: 1.23
+    multiplier: 1.14
   - target: arboleda_ancestral
-    multiplier: 1.23
+    multiplier: 1.14
   - target: santuario_del_viento
-    multiplier: 1.23
-- id: isla_yunquenegro
-  label: Isla Yunquenegro
-  home: salon_comunal_gigante
-  start_at: plaza_gigante
+    multiplier: 1.14
+  goals:
+  - id: que_le_conozcan_en_la_ciudad
+    label: que le conozcan en la ciudad
+    need: vinculo
+    at_least: 0.94
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id005
+    on_failure: *id006
+  initial_bonds:
+    dorn_hojaclara: 0.5
+- id: zar_zarzal
+  label: Zar Zarzal
+  home: posada_central
+  start_at: plaza_mayor
   traits:
-    afin_agua: 1.0
-    audacia: 0.65
-    gigante: 1.0
-    montaraz: 1.0
-    sociabilidad: -0.53
+    afin_viento: 1.0
+    devocion: 0.65
+    humano: 1.0
+    mago: 0.86
+    prodigio: 0.78
   tastes:
-  - target: plaza_gigante
-    multiplier: 1.08
-  - target: salon_comunal_gigante
-    multiplier: 1.08
-  - target: campo_gigante
-    multiplier: 1.08
-  - target: salon_comunal_gigante
-    multiplier: 1.08
-- id: gith_fuegolento
-  label: Gith Fuegolento
+  - target: plaza_mayor
+    multiplier: 1.29
+  - target: posada_central
+    multiplier: 1.29
+- id: orin_umbrio
+  label: Orin Umbrio
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    arraigo: -0.68
+    humano: 1.0
+    invocador: 0.92
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.31
+  - target: posada_central
+    multiplier: 1.31
+  initial_bonds:
+    orin_vientolargo: 0.38
+- id: quen_hojaclara
+  label: Quen Hojaclara
   home: posada_marea
   start_at: plaza_portuaria
   traits:
     afin_tierra: 1.0
+    gula: -0.79
     humano: 1.0
-    montaraz: 0.73
-    sociabilidad: 0.51
+    mago: 0.83
+    templanza: 0.43
   tastes:
   - target: plaza_portuaria
-    multiplier: 1.31
+    multiplier: 1.24
   - target: posada_marea
-    multiplier: 1.31
+    multiplier: 1.24
   - target: muelle
-    multiplier: 1.31
+    multiplier: 1.24
   - target: templo_mareas
-    multiplier: 1.31
-- id: fenn_vadohondo
-  label: Fenn Vadohondo
-  home: salon_comunal_gigante
-  start_at: plaza_gigante
+    multiplier: 1.24
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+- id: zar_fuegolento
+  label: Zar Fuegolento
+  home: posada_marea
+  start_at: plaza_portuaria
   traits:
     afin_tierra: 1.0
-    audacia: -0.65
-    gigante: 1.0
-    montaraz: 0.74
-    nocturnidad: -0.72
+    codicia: -0.59
+    humano: 1.0
+    mago: 0.91
+    templanza: -0.64
   tastes:
-  - target: plaza_gigante
-    multiplier: 1.42
-  - target: salon_comunal_gigante
-    multiplier: 1.42
-  - target: campo_gigante
-    multiplier: 1.42
-  - target: salon_comunal_gigante
-    multiplier: 1.42
-- id: quen_hierrogris_191
+  - target: plaza_portuaria
+    multiplier: 1.41
+  - target: posada_marea
+    multiplier: 1.41
+  - target: muelle
+    multiplier: 1.41
+  - target: templo_mareas
+    multiplier: 1.41
+- id: bern_solraso
+  label: Bern Solraso
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_agua: 1.0
+    afin_tierra: 0.45
+    enano: 1.0
+    mago: 0.92
+    pereza: 0.72
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.05
+  - target: posada_enana
+    multiplier: 1.05
+  - target: forjas
+    multiplier: 1.05
+  - target: posada_enana
+    multiplier: 1.05
+  initial_bonds:
+    nyx_fuegolento: 0.38
+- id: jarl_cantorroto
+  label: Jarl Cantorroto
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_tierra: 1.0
+    arraigo: -0.61
+    devocion: -0.96
+    elfo: 1.0
+    mago: 0.93
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.0
+  - target: posada_elfica
+    multiplier: 1.0
+  - target: arboleda_ancestral
+    multiplier: 1.0
+  - target: santuario_del_viento
+    multiplier: 1.0
+  goals:
+  - id: que_le_conozcan_en_la_ciudad
+    label: que le conozcan en la ciudad
+    need: vinculo
+    at_least: 0.94
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id005
+    on_failure: *id006
+  initial_bonds:
+    yves_cenizal: 0.5
+    fror_cenizal: 0.38
+- id: varn_hojaclara
+  label: Varn Hojaclara
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_tierra: 1.0
+    aprension: 0.46
+    asesino: 0.98
+    enano: 1.0
+    pereza: -0.62
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.44
+  - target: posada_enana
+    multiplier: 1.44
+  - target: forjas
+    multiplier: 1.44
+  - target: posada_enana
+    multiplier: 1.44
+  relations:
+    maestro:
+    - sela_vientolargo
+    - zar_cenizal_151
+  initial_bonds:
+    sela_vientolargo: 0.3
+    zar_cenizal_151: 0.3
+- id: xan_vientolargo
+  label: Xan Vientolargo
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_agua: 1.0
+    codicia: -0.78
+    humano: 1.0
+    impulsividad: 0.62
+    mago: 0.72
+    pereza: 0.97
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.11
+  - target: posada_marea
+    multiplier: 1.11
+  - target: muelle
+    multiplier: 1.11
+  - target: templo_mareas
+    multiplier: 1.11
+  goals:
+  - id: dominar_su_reserva
+    label: dominar su reserva
+    need: mana
+    at_least: 0.96
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id007
+    on_failure: *id008
+- id: quen_hierrogris
   label: Quen Hierrogris
   home: posada_enana
   start_at: plaza_enana
   traits:
-    afin_tierra: 1.0
-    asesino: 0.77
+    afin_fuego: 1.0
+    devocion: 0.9
     enano: 1.0
-    sociabilidad: -0.86
+    mago: 0.81
   tastes:
   - target: plaza_enana
-    multiplier: 1.3
+    multiplier: 1.29
   - target: posada_enana
-    multiplier: 1.3
+    multiplier: 1.29
   - target: forjas
-    multiplier: 1.3
+    multiplier: 1.29
   - target: posada_enana
-    multiplier: 1.3
-- id: cyra_fuegolento_192
-  label: Cyra Fuegolento
+    multiplier: 1.29
+  initial_bonds:
+    gwen_rocaviva: 0.5
+- id: mor_fuegolento
+  label: Mor Fuegolento
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_tierra: 1.0
+    ambicion: -0.47
+    gigante: 1.0
+    guerrero: 0.94
+    prodigio: -0.52
+  tastes:
+  - target: plaza_gigante
+    multiplier: 1.18
+  - target: salon_comunal_gigante
+    multiplier: 1.18
+  - target: campo_gigante
+    multiplier: 1.18
+  - target: salon_comunal_gigante
+    multiplier: 1.18
+  initial_bonds:
+    orin_marfrio: 0.38
+- id: torv_rocaviva_170
+  label: Torv Rocaviva
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_viento: 1.0
+    aprension: 0.77
+    guerrero: 0.74
+    humano: 1.0
+    pereza: 0.86
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.18
+  - target: posada_marea
+    multiplier: 1.18
+  - target: muelle
+    multiplier: 1.18
+  - target: templo_mareas
+    multiplier: 1.18
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+- id: dorn_solraso
+  label: Dorn Solraso
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_tierra: 1.0
+    audacia: -0.91
+    calculo: 0.7
+    guerrero: 0.74
+    humano: 1.0
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 0.98
+  - target: posada_marea
+    multiplier: 0.98
+  - target: muelle
+    multiplier: 0.98
+  - target: templo_mareas
+    multiplier: 0.98
+- id: fror_vientolargo_172
+  label: Fror Vientolargo
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_viento: 1.0
+    codicia: -0.96
+    humano: 1.0
+    montaraz: 0.79
+    prodigio: -0.99
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 0.99
+  - target: posada_marea
+    multiplier: 0.99
+  - target: muelle
+    multiplier: 0.99
+  - target: templo_mareas
+    multiplier: 0.99
+  initial_bonds:
+    wyn_umbrio: 0.5
+- id: brix_marfrio
+  label: Brix Marfrio
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_viento: 1.0
+    arraigo: -0.92
+    dureza: 0.91
+    humano: 1.0
+    montaraz: 0.78
+    pereza: -0.61
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.33
+  - target: posada_marea
+    multiplier: 1.33
+  - target: muelle
+    multiplier: 1.33
+  - target: templo_mareas
+    multiplier: 1.33
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+  initial_bonds:
+    fror_piedraparda: 0.5
+- id: gith_marfrio_174
+  label: Gith Marfrio
   home: posada_enana
   start_at: plaza_enana
   traits:
-    afin_viento: 1.0
-    ambicion: -0.59
+    afin_fuego: 1.0
+    arraigo: -0.81
     enano: 1.0
-    montaraz: 0.75
-    sociabilidad: -0.64
+    guerrero: 0.7
   tastes:
   - target: plaza_enana
-    multiplier: 0.97
+    multiplier: 1.17
   - target: posada_enana
-    multiplier: 0.97
+    multiplier: 1.17
   - target: forjas
-    multiplier: 0.97
+    multiplier: 1.17
   - target: posada_enana
-    multiplier: 0.97
-- id: jora_fuegolento_193
-  label: Jora Fuegolento
+    multiplier: 1.17
+  initial_bonds:
+    orin_zarzal: 0.5
+- id: lira_yunquenegro
+  label: Lira Yunquenegro
   home: posada_central
   start_at: plaza_mayor
   traits:
-    afin_agua: 0.27
-    afin_fuego: 1.0
-    ambicion: 0.61
-    guerrero: 0.94
+    afin_tierra: 1.0
+    arraigo: -0.55
+    asesino: 0.79
+    codicia: 0.73
     humano: 1.0
   tastes:
   - target: plaza_mayor
     multiplier: 1.39
   - target: posada_central
     multiplier: 1.39
-- id: hale_solraso
-  label: Hale Solraso
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_tierra: 1.0
-    ambicion: -0.85
-    audacia: -0.86
-    guerrero: 0.97
-    humano: 1.0
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.0
-  - target: posada_marea
-    multiplier: 1.0
-  - target: muelle
-    multiplier: 1.0
-  - target: templo_mareas
-    multiplier: 1.0
-- id: varn_umbrio
-  label: Varn Umbrio
-  home: posada_marea
-  start_at: plaza_portuaria
-  traits:
-    afin_tierra: 1.0
-    audacia: 0.55
-    guerrero: 0.94
-    humano: 1.0
-    nocturnidad: -0.75
-  tastes:
-  - target: plaza_portuaria
-    multiplier: 1.44
-  - target: posada_marea
-    multiplier: 1.44
-  - target: muelle
-    multiplier: 1.44
-  - target: templo_mareas
-    multiplier: 1.44
-- id: aral_rocaviva
-  label: Aral Rocaviva
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
-  traits:
-    afin_agua: 1.0
-    audacia: -0.63
-    demihumano: 1.0
-    mago: 0.71
-    nocturnidad: 0.54
-  tastes:
-  - target: plaza_demihumana
-    multiplier: 1.12
-  - target: posada_de_la_manada
-    multiplier: 1.12
-  - target: campo_de_caza
-    multiplier: 1.12
-  - target: posada_de_la_manada
-    multiplier: 1.12
-- id: orin_vadohondo_197
-  label: Orin Vadohondo
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+- id: varn_rocaviva
+  label: Varn Rocaviva
   home: posada_central
   start_at: plaza_mayor
-  traits:
-    afin_fuego: 1.0
-    afin_viento: 0.31
-    guerrero: 0.84
-    humano: 1.0
-    nocturnidad: -0.4
-    sociabilidad: 0.9
-  tastes:
-  - target: plaza_mayor
-    multiplier: 1.31
-  - target: posada_central
-    multiplier: 1.31
-- id: mor_fuegolento
-  label: Mor Fuegolento
-  home: posada_de_la_manada
-  start_at: plaza_demihumana
   traits:
     afin_viento: 1.0
-    ambicion: -0.63
+    codicia: -0.99
+    guerrero: 0.99
+    gula: -0.62
+    humano: 1.0
+    prodigio: 0.85
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.42
+  - target: posada_central
+    multiplier: 1.42
+  initial_bonds:
+    fenn_cantorroto: 0.5
+    kel_hierrogris: 0.3
+    eris_yunquenegro: 0.3
+  relations:
+    maestro:
+    - kel_hierrogris
+    - eris_yunquenegro
+- id: rask_fuegolento
+  label: Rask Fuegolento
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_tierra: 0.39
+    afin_viento: 1.0
+    elfo: 1.0
+    invocador: 0.82
+    nocturnidad: 0.77
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.29
+  - target: posada_elfica
+    multiplier: 1.29
+  - target: arboleda_ancestral
+    multiplier: 1.29
+  - target: santuario_del_viento
+    multiplier: 1.29
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+  initial_bonds:
+    ivar_fuegolento: 0.5
+- id: ulla_vientolargo
+  label: Ulla Vientolargo
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_fuego: 1.0
+    afin_viento: 0.28
+    arraigo: -0.56
+    audacia: -0.78
+    enano: 1.0
+    guerrero: 0.8
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.24
+  - target: posada_enana
+    multiplier: 1.24
+  - target: forjas
+    multiplier: 1.24
+  - target: posada_enana
+    multiplier: 1.24
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+  initial_bonds:
+    cyra_hierrogris: 0.5
+- id: hurn_yunquenegro
+  label: Hurn Yunquenegro
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_agua: 0.44
+    afin_viento: 1.0
+    ambicion: -0.95
+    humano: 1.0
+    mago: 0.75
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.07
+  - target: posada_central
+    multiplier: 1.07
+  initial_bonds:
+    orin_marfrio: 0.5
+- id: wyn_hojaclara_180
+  label: Wyn Hojaclara
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_tierra: 1.0
     demihumano: 1.0
-    montaraz: 0.86
+    dureza: -0.83
+    guerrero: 0.89
+    pereza: -0.47
   tastes:
   - target: plaza_demihumana
-    multiplier: 1.11
+    multiplier: 1.32
   - target: posada_de_la_manada
-    multiplier: 1.11
+    multiplier: 1.32
   - target: campo_de_caza
-    multiplier: 1.11
+    multiplier: 1.32
   - target: posada_de_la_manada
-    multiplier: 1.11
-- id: yves_marfrio
-  label: Yves Marfrio
+    multiplier: 1.32
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+  initial_bonds:
+    torv_rocaviva: 0.5
+- id: cael_marfrio
+  label: Cael Marfrio
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_tierra: 1.0
+    aprension: -0.63
+    codicia: 0.72
+    gigante: 1.0
+    guerrero: 0.82
+  tastes:
+  - target: plaza_gigante
+    multiplier: 1.34
+  - target: salon_comunal_gigante
+    multiplier: 1.34
+  - target: campo_gigante
+    multiplier: 1.34
+  - target: salon_comunal_gigante
+    multiplier: 1.34
+  goals:
+  - id: que_le_conozcan_en_la_ciudad
+    label: que le conozcan en la ciudad
+    need: vinculo
+    at_least: 0.94
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id005
+    on_failure: *id006
+- id: fror_solraso
+  label: Fror Solraso
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_tierra: 1.0
+    ambicion: 0.41
+    demihumano: 1.0
+    dureza: -0.88
+    montaraz: 0.88
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.37
+  - target: posada_de_la_manada
+    multiplier: 1.37
+  - target: campo_de_caza
+    multiplier: 1.37
+  - target: posada_de_la_manada
+    multiplier: 1.37
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  initial_bonds:
+    quen_rocaviva: 0.5
+- id: adze_zarzal_183
+  label: Adze Zarzal
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 1.0
+    humano: 1.0
+    mago: 0.81
+    talento: -0.89
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.42
+  - target: posada_central
+    multiplier: 1.42
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  initial_bonds:
+    yves_umbrio: 0.5
+- id: aral_piedraparda
+  label: Aral Piedraparda
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_fuego: 0.32
+    afin_tierra: 1.0
+    calculo: -0.57
+    enano: 1.0
+    gula: -0.68
+    mago: 0.72
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.1
+  - target: posada_enana
+    multiplier: 1.1
+  - target: forjas
+    multiplier: 1.1
+  - target: posada_enana
+    multiplier: 1.1
+  initial_bonds:
+    adze_cantorroto: 0.5
+- id: xan_cantorroto
+  label: Xan Cantorroto
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_fuego: 0.47
+    afin_tierra: 1.0
+    calculo: 0.43
+    devocion: -0.6
+    humano: 1.0
+    mago: 0.96
+    talento: 0.93
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.14
+  - target: posada_central
+    multiplier: 1.14
+  initial_bonds:
+    isla_vadohondo: 0.5
+    varn_fuegolento: 0.38
+- id: sela_cantorroto
+  label: Sela Cantorroto
   home: posada_central
   start_at: plaza_mayor
   traits:
     afin_agua: 1.0
-    afin_viento: 0.4
+    audacia: 1.0
     humano: 1.0
-    mago: 0.81
-    nocturnidad: 0.56
+    mago: 0.9
+    tenacidad: -0.84
   tastes:
   - target: plaza_mayor
-    multiplier: 1.41
+    multiplier: 1.14
   - target: posada_central
+    multiplier: 1.14
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  initial_bonds:
+    fenn_cenizal: 0.5
+- id: gwen_nieblalta
+  label: Gwen Nieblalta
+  home: posada_elfica
+  start_at: plaza_elfica
+  traits:
+    afin_agua: 0.33
+    afin_viento: 1.0
+    aprension: 0.98
+    calculo: -0.71
+    elfo: 1.0
+    montaraz: 0.99
+  tastes:
+  - target: plaza_elfica
+    multiplier: 1.0
+  - target: posada_elfica
+    multiplier: 1.0
+  - target: arboleda_ancestral
+    multiplier: 1.0
+  - target: santuario_del_viento
+    multiplier: 1.0
+  goals:
+  - id: saldar_lo_que_debe
+    label: saldar lo que debe
+    need: dinero
+    at_least: 0.93
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id009
+    on_failure: *id010
+  initial_bonds:
+    adze_piedraparda: 0.5
+    xan_yunquenegro: 0.3
+  relations:
+    maestro:
+    - xan_yunquenegro
+- id: lira_hierrogris
+  label: Lira Hierrogris
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_agua: 1.0
+    gigante: 1.0
+    guerrero: 0.85
+    impulsividad: -0.48
+  tastes:
+  - target: plaza_gigante
+    multiplier: 1.3
+  - target: salon_comunal_gigante
+    multiplier: 1.3
+  - target: campo_gigante
+    multiplier: 1.3
+  - target: salon_comunal_gigante
+    multiplier: 1.3
+  goals:
+  - id: que_le_conozcan_en_la_ciudad
+    label: que le conozcan en la ciudad
+    need: vinculo
+    at_least: 0.94
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id005
+    on_failure: *id006
+  initial_bonds:
+    xan_fuegolento_24: 0.5
+- id: xan_yunquenegro_189
+  label: Xan Yunquenegro
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_fuego: 0.37
+    afin_tierra: 1.0
+    ambicion: 0.85
+    guerrero: 0.74
+    gula: 0.78
+    humano: 1.0
+  tastes:
+  - target: plaza_portuaria
     multiplier: 1.41
+  - target: posada_marea
+    multiplier: 1.41
+  - target: muelle
+    multiplier: 1.41
+  - target: templo_mareas
+    multiplier: 1.41
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  initial_bonds:
+    rask_zarzal: 0.5
+- id: wyn_yunquenegro
+  label: Wyn Yunquenegro
+  home: salon_comunal_gigante
+  start_at: plaza_gigante
+  traits:
+    afin_agua: 1.0
+    ambicion: -0.72
+    arraigo: 0.5
+    gigante: 1.0
+    guerrero: 0.98
+    pereza: -0.51
+  tastes:
+  - target: plaza_gigante
+    multiplier: 1.41
+  - target: salon_comunal_gigante
+    multiplier: 1.41
+  - target: campo_gigante
+    multiplier: 1.41
+  - target: salon_comunal_gigante
+    multiplier: 1.41
+  goals:
+  - id: juntar_una_fortuna
+    label: juntar una fortuna
+    need: dinero
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id001
+    on_failure: *id002
+  initial_bonds:
+    wyn_hojaclara: 0.5
+    brix_zarzal: 0.3
+  relations:
+    maestro:
+    - brix_zarzal
+- id: ivar_fuegolento_191
+  label: Ivar Fuegolento
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_fuego: 1.0
+    codicia: -0.77
+    enano: 1.0
+    mago: 0.85
+    tenacidad: 0.41
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.43
+  - target: posada_enana
+    multiplier: 1.43
+  - target: forjas
+    multiplier: 1.43
+  - target: posada_enana
+    multiplier: 1.43
+  goals:
+  - id: dominar_su_reserva
+    label: dominar su reserva
+    need: mana
+    at_least: 0.96
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id007
+    on_failure: *id008
+  initial_bonds:
+    isla_hierrogris: 0.5
+- id: orin_vadohondo_192
+  label: Orin Vadohondo
+  home: posada_enana
+  start_at: plaza_enana
+  traits:
+    afin_fuego: 0.39
+    afin_tierra: 1.0
+    aprension: -0.67
+    calculo: -0.45
+    enano: 1.0
+    mago: 0.73
+  tastes:
+  - target: plaza_enana
+    multiplier: 1.27
+  - target: posada_enana
+    multiplier: 1.27
+  - target: forjas
+    multiplier: 1.27
+  - target: posada_enana
+    multiplier: 1.27
+  initial_bonds:
+    cyra_nieblalta: 0.5
+- id: fror_marfrio
+  label: Fror Marfrio
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_agua: 0.36
+    afin_viento: 1.0
+    asesino: 0.74
+    dureza: 0.81
+    gula: 0.83
+    humano: 1.0
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.25
+  - target: posada_central
+    multiplier: 1.25
+  initial_bonds:
+    hale_vadohondo: 0.5
+- id: kel_umbrio
+  label: Kel Umbrio
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_tierra: 1.0
+    asesino: 0.9
+    gula: -0.94
+    humano: 1.0
+    talento: 0.76
+    templanza: 0.82
+  tastes:
+  - target: plaza_mayor
+    multiplier: 0.99
+  - target: posada_central
+    multiplier: 0.99
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  initial_bonds:
+    varn_fuegolento: 0.5
+    pell_fuegolento: 0.38
+- id: adze_vientolargo_195
+  label: Adze Vientolargo
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_tierra: 1.0
+    asesino: 0.94
+    gula: 0.79
+    humano: 1.0
+    templanza: -0.41
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.32
+  - target: posada_marea
+    multiplier: 1.32
+  - target: muelle
+    multiplier: 1.32
+  - target: templo_mareas
+    multiplier: 1.32
+  initial_bonds:
+    rask_nieblalta: 0.5
+    pell_cantorroto: 0.38
+- id: eyla_yunquenegro
+  label: Eyla Yunquenegro
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_agua: 1.0
+    codicia: 0.79
+    demihumano: 1.0
+    mago: 0.88
+    pereza: 0.41
+    talento: 0.54
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.13
+  - target: posada_de_la_manada
+    multiplier: 1.13
+  - target: campo_de_caza
+    multiplier: 1.13
+  - target: posada_de_la_manada
+    multiplier: 1.13
+  initial_bonds:
+    varn_vadohondo: 0.5
+- id: torv_nieblalta
+  label: Torv Nieblalta
+  home: posada_marea
+  start_at: plaza_portuaria
+  traits:
+    afin_tierra: 1.0
+    ambicion: 0.83
+    guerrero: 0.78
+    humano: 1.0
+    impulsividad: -0.77
+    pereza: 0.43
+  tastes:
+  - target: plaza_portuaria
+    multiplier: 1.16
+  - target: posada_marea
+    multiplier: 1.16
+  - target: muelle
+    multiplier: 1.16
+  - target: templo_mareas
+    multiplier: 1.16
+  initial_bonds:
+    dain_nieblalta: 0.5
+- id: rask_cantorroto_198
+  label: Rask Cantorroto
+  home: posada_de_la_manada
+  start_at: plaza_demihumana
+  traits:
+    afin_agua: 1.0
+    calculo: 0.78
+    demihumano: 1.0
+    guerrero: 0.79
+    prodigio: 0.48
+  tastes:
+  - target: plaza_demihumana
+    multiplier: 1.44
+  - target: posada_de_la_manada
+    multiplier: 1.44
+  - target: campo_de_caza
+    multiplier: 1.44
+  - target: posada_de_la_manada
+    multiplier: 1.44
+  initial_bonds:
+    lira_cenizal: 0.5
+- id: rask_rocaviva_199
+  label: Rask Rocaviva
+  home: posada_central
+  start_at: plaza_mayor
+  traits:
+    afin_agua: 1.0
+    dureza: 0.8
+    humano: 1.0
+    invocador: 0.74
+  tastes:
+  - target: plaza_mayor
+    multiplier: 1.1
+  - target: posada_central
+    multiplier: 1.1
+  goals:
+  - id: no_volver_a_estar_solo
+    label: no volver a estar solo
+    need: vinculo
+    at_least: 0.97
+    weight_multiplier: 2.2
+    deadline: 11520
+    on_success: *id003
+    on_failure: *id004
+  initial_bonds:
+    xan_fuegolento: 0.5
 situations:
 - id: herida
   label: herida

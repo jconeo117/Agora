@@ -77,6 +77,44 @@ needs = [
     N("salud", "salud", 0.0, 1.0, urgency_exponent=2.6, lethal_after=288),
 ]
 
+# --- RELACIONES --------------------------------------------------------------
+#
+# UN VINCULO ES LO QUE SIENTES; UNA RELACION ES LO QUE ERES DE ALGUIEN.
+#
+#   `Bond`     emergente, asimetrico, gradual, y se desdibuja si dejas de verte
+#   relacion   un HECHO. No crece con el trato ni se disuelve por dejar de verse
+#
+# Tu hermano sigue siendo tu hermano el anyo que no lo visitas, y lo sigue siendo
+# el dia que lo detestas. Meterlo dentro del vinculo habria hecho imposible
+# justamente eso: un aprecio con nombre se disolveria con el aprecio.
+#
+# Y `regard_floor` es lo que decide a quien le duele tu muerte. Se leia en crudo
+# durante meses -perder a tu pareja dolia lo que hubierais cenado juntos
+# ultimamente- hasta que se arreglo. Ver DECISIONES D-041.
+relations = [
+    # Exclusiva y con suelo alto: la que sostendra la descendencia el dia que
+    # exista. El suelo no es carinyo garantizado, es un MINIMO: el aprecio sigue
+    # subiendo y bajando con lo que se comparta, pero no cae por debajo.
+    {"id": "pareja", "label": "pareja", "symmetric": True, "exclusive": True,
+     "regard_floor": 0.45, "company_multiplier": 2.0},
+
+    # SIN SUELO A PROPOSITO, y es la mitad de la gracia de separar las dos cosas.
+    # Un hermano puede caerte fatal y el pack tiene que poder escribirlo; lo que
+    # no puede es dejar de ser tu hermano. Empiezan de cero y se ganan lo que
+    # sientan.
+    {"id": "hermano", "label": "hermano", "symmetric": True,
+     "company_multiplier": 1.5},
+
+    # Dirigida, y con suelos DISTINTOS en cada lado a proposito: el discipulo
+    # admira mas de lo que el maestro se encarinya. Un maestro tiene varios; un
+    # discipulo, uno.
+    {"id": "maestro", "label": "maestro de", "inverse": "discipulo",
+     "regard_floor": 0.20, "company_multiplier": 1.4},
+    {"id": "discipulo", "label": "discipulo de", "inverse": "maestro",
+     "regard_floor": 0.30, "company_multiplier": 1.6},
+]
+
+
 # --- RASGOS ------------------------------------------------------------------
 
 
@@ -191,24 +229,111 @@ clases = [
 # reciprocos. El `travel_discount` que llevaba `acomodado` sale de aqui: es un
 # eje distinto -el arraigo- y le toca su propio rasgo, no ir de polizon.
 # =============================================================================
-caracter = [
-    # +1 se lanza sin pensarlo y aguanta hasta el final; -1 calcula y se retira
-    # pronto. Toca las dos perillas que deciden cuando cunde el panico y cuanto
-    # pesa lo que se arriesga.
-    T("audacia", "audacia", temperament_multipliers={"critical_need_threshold": 0.6,
-                                                     "loss_aversion": 0.65}),
+# -----------------------------------------------------------------------------
+# COMO DECIDE — y aqui va una regla que se paga sola: UNA PERILLA, UN EJE DUENYO.
+#
+# Dos rasgos que toquen `loss_aversion` se multiplican sobre ella y ya no se
+# puede leer que hizo cual. Es el enredo de los pares contradictorios, mas
+# disimulado y mas dificil de ver. Asi que cada una de las cinco perillas del
+# motor tiene exactamente un rasgo responsable:
+#
+#     temperature              -> impulsividad
+#     loss_aversion            -> calculo
+#     critical_need_threshold  -> audacia
+#     travel_discount          -> arraigo
+#     companionship_weight     -> sociabilidad
+#
+# Cuando alguien decida raro, se sabe donde mirar.
+# -----------------------------------------------------------------------------
+decidir = [
+    # +1 aguanta hasta el final; -1 se retira pronto. Es CUANDO cunde el panico,
+    # no cuanto se arriesga: eso es `calculo`.
+    T("audacia", "audacia",
+      temperament_multipliers={"critical_need_threshold": 0.6}),
+    # +1 decide a bulto, -1 siempre la mejor opcion. El eje de lo erratico, y el
+    # unico que produce a alguien que hoy hace algo que ayer no habria hecho sin
+    # que le haya cambiado nada por dentro.
+    T("impulsividad", "impulsividad",
+      temperament_multipliers={"temperature": 2.8}),
+    # +1 mide cada moneda antes de gastarla; -1 vive el momento.
+    T("calculo", "calculo", temperament_multipliers={"loss_aversion": 1.9}),
+    # +1 no sale de su barrio; -1 andariego. OJO: `travel_discount` se recorta a
+    # 1.0 al componerse, asi que el arraigo se escribe entero pero el nomadismo
+    # SATURA — llega hasta "la distancia no cuesta nada" y ahi se para. No es un
+    # fallo: ese es el techo real.
+    T("arraigo", "arraigo", temperament_multipliers={"travel_discount": 0.85}),
     # +1 necesita gente y ademas le atrae el bullicio; -1 ni lo uno ni lo otro.
     # Son DOS canales porque son dos cosas: un ermitanyo puede echar de menos a
     # alguien concreto y aun asi no querer entrar en una taberna llena.
     T("sociabilidad", "sociabilidad", need_weight_multipliers={"vinculo": 2.1},
       temperament_multipliers={"companionship_weight": 2.4}),
-    # +1 quiere llegar mas alto y cobrar por ello; -1 esta a gusto donde esta.
+]
+
+# -----------------------------------------------------------------------------
+# QUE LE IMPORTA — un eje por necesidad del mundo, y todos con contrapeso.
+#
+# Un rasgo que solo SUBE cosas no es una personalidad: es un multiplicador
+# global. Lo que hace a alguien es a que renuncia.
+# -----------------------------------------------------------------------------
+querer = [
     T("ambicion", "ambicion", need_weight_multipliers={"dominio": 1.7,
                                                        "dinero": 1.3}),
+    T("codicia", "codicia", need_weight_multipliers={"dinero": 2.0,
+                                                     "vinculo": 0.75}),
+    T("gula", "gula", need_weight_multipliers={"sustento": 1.8,
+                                               "dinero": 0.85}),
+    T("pereza", "pereza", need_weight_multipliers={"descanso": 1.8,
+                                                   "dominio": 0.7}),
+    # El que vive por el arte y no por lo que da de comer.
+    T("devocion", "devocion", need_weight_multipliers={"mana": 1.9,
+                                                       "dinero": 0.75}),
+    # A -1.0 es el temerario que ignora una herida hasta que se cae. Hasta ahora
+    # `salud` no la ponderaba NI UN rasgo: nadie cuidaba su pellejo mas que la
+    # media, y nadie menos.
+    T("aprension", "aprension", need_weight_multipliers={"salud": 2.2}),
+]
+
+# -----------------------------------------------------------------------------
+# QUE SE LE DA BIEN Y QUE AGUANTA
+# -----------------------------------------------------------------------------
+poder = [
+    # Aprende deprisa. NO ES LO MISMO QUE `prodigio`, y la distincion es la
+    # buena: `talento` sube mas rapido DENTRO del rango, `prodigio` necesita
+    # menos PARA ROMPERLO.
+    T("talento", "talento", gain_multipliers={"dominio": 1.5, "mana": 1.2}),
+    # Encaja los golpes: todo lo que le quite salud le quita un 28 % menos. Es
+    # el canal por el que entrara D-111 el dia que el rango endurezca.
+    T("dureza", "dureza", cost_multipliers={"salud": 0.72, "descanso": 0.85}),
+    # Aguanta privaciones. El hambre y el sueno le muerden menos.
+    T("templanza", "templanza", cost_multipliers={"sustento": 0.72,
+                                                  "descanso": 0.75}),
+]
+
+# -----------------------------------------------------------------------------
+# LOS DOS CANALES QUE NINGUN MUNDO HABIA ESTRENADO
+# -----------------------------------------------------------------------------
+raro = [
+    # `memory_multipliers`: CERO rasgos en los tres mundos hasta hoy, y con el
+    # duelo encendido es el que mas separa a dos personas. Es literalmente quien
+    # supera una perdida en dos semanas y quien reordena su vida entera.
+    #
+    # Ojo con la direccion, que es la contraria a la intuicion: MAS GRANDE =
+    # RECUERDA MAS TIEMPO. No escala el desdibujado, escala la MEDIA VIDA.
+    T("tenacidad", "tenacidad", memory_multipliers=3.2),
+    # `cap_multipliers`: tambien cero. Y con rangos, `cap` no es el techo sino
+    # EL LISTON -cuanto hay que acumular para romper el rango en curso-, asi que
+    # un cap BAJO es un don. A 0.55 rompe cada rango con poco mas de la mitad; a
+    # -1.0 es el tardio, que necesita casi el doble que nadie.
+    #
+    # Solo tiene efecto sobre `dominio`: los demas ejes de este mundo tienen cap
+    # 1.0 y el motor recorta a 1.0 al componer.
+    T("prodigio", "prodigio", cap_multipliers={"dominio": 0.55}),
     # El cronotipo, que es un DESFASE y no una preferencia: para un ave nocturna
     # la noche no vale mas, la noche ES su manyana. A -0.82 salen los -18 ticks
     # que llevaba `madrugador`.
     T("nocturnidad", "nocturnidad", phase_shift=22),
 ]
+
+caracter = decidir + querer + poder + raro
 
 traits = razas + afinidades + clases + caracter

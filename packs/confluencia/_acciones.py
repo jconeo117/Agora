@@ -62,6 +62,71 @@ convivir = [
       satisfies={"vinculo": 1.0}, costs={"dinero": 0.7, "descanso": 0.2},
       effects={"vinculo": 0.14, "dinero": -0.09, "descanso": -0.03},
       effects_per_company={"vinculo": 0.70}, saturation_gain=0.22),
+
+    # LA PUERTA QUE HACE QUE UNA RELACION SE NOTE.
+    #
+    # Sin una accion que EXIJA a los tuyos, la capa relacional solo tinye
+    # numeros: el suelo de aprecio y el multiplicador de compania cambian cuentas
+    # que nadie ve. Con esto, tener pareja o hermanos ABRE algo que a los demas
+    # les esta cerrado, y de golpe la gente tiene una razon para coincidir con
+    # quien es suyo en vez de con quien tenga delante.
+    #
+    # TIENE QUE COSTAR, Y LA RAZON ES DEL MOTOR, NO DE LA AMBIENTACION.
+    #
+    # `requires_relation` se comprueba AL EJECUTAR, no al deliberar: uno decide
+    # ir viendo que su pareja estaba alli y al llegar ya no esta. Eso es el
+    # chasco de llegada y es correcto — pero ABORTAR NO ENSENYA NADA
+    # (`learning_rate` solo corrige al completar), asi que una accion gateada
+    # por una persona concreta se reintenta ETERNAMENTE.
+    #
+    # Medido con la primera version, que era gratis y prometia mucho:
+    #
+    #     cenar_con_los_tuyos   3060 abortadas /  124 completadas
+    #     dar_leccion           2354 abortadas /   24 completadas
+    #     abandonos del mundo entero: 2.3 % -> 98.6 %
+    #
+    # Lo unico que corta el bucle es el PRECIO: si fallar cuesta, deja de ser
+    # la primera opcion de todos a todas horas. Por eso la cena se paga y la
+    # leccion cansa, y por eso ninguna de las dos promete mas que sus rivales
+    # sueltas -`comer` y `charlar` juntas dan mas-. Lo que compran no es
+    # cantidad, es que ademas te acerca a quien es tuyo.
+    A(id="cenar_con_los_tuyos", label="cenar con los tuyos", duration_ticks=6,
+      requires_affordance="mesa", requires_relation="pareja",
+      requires={"dinero": 0.08},
+      satisfies={"vinculo": 0.55, "sustento": 0.45},
+      costs={"dinero": 0.35, "descanso": 0.08},
+      effects={"vinculo": 0.20, "sustento": 0.38, "dinero": -0.08},
+      effects_per_company={"vinculo": 0.16},
+      phase_multipliers={"noche": 1.8, "tarde": 1.1}, saturation_gain=0.10),
+
+    # NO HAY `dar_leccion`, Y LA RAZON MERECE QUEDARSE ESCRITA.
+    #
+    # Se escribio -maestro y discipulo, `requires_relation: discipulo`- y se
+    # retiro midiendo. Barrido de `satisfies` sobre cinco dias:
+    #
+    #     0.45     0 abortadas /  0 completadas   contenido muerto
+    #     0.55   109          /  3                36 fracasos por uso
+    #     0.65   492          /  4
+    #     0.80  1581          / 19                abandonos del mundo al 37 %
+    #
+    # No hay ventana. Y la causa no es el numero sino la ARITMETICA DE LA
+    # COINCIDENCIA: un maestro tiene uno o dos discipulos entre doscientos, asi
+    # que la probabilidad de tenerlo delante en un sitio con `quietud` es
+    # minuscula — mientras que la de QUERER hacerlo es alta en cuanto la accion
+    # compite. Cada intento es un viaje y un fracaso, y abortar no ensenya nada.
+    #
+    # `cenar_con_los_tuyos` SI funciona con la misma primitiva, y la diferencia
+    # es exactamente esa: una pareja comparte barrio y cama, asi que coincide.
+    #
+    # LA REGLA, para la proxima: una accion gateada por una persona concreta
+    # solo es viable si esa persona esta donde tu estas la mayor parte del
+    # tiempo. Es el mismo pelo de banda que hizo revertir `convidar` en la
+    # ciudad, ver DECISIONES D-093.
+    #
+    # La relacion maestro/discipulo se queda igualmente, y no es decorado: el
+    # suelo de aprecio hace que la muerte de un maestro le duela a los suyos, y
+    # `company_multiplier` hace que su presencia valga mas. Una relacion puede
+    # no hacer NADA mecanicamente y seguir siendo legitima.
 ]
 
 # --- EL MANA -----------------------------------------------------------------

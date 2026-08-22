@@ -47,6 +47,21 @@ factor = multiplicador ** intensidad
 el rasgo invertido, exacto. Y por eso el multiplicador tiene que ser
 estrictamente mayor que 0: con 0 o negativo, `0 ** -1` revienta.
 
+> ⚠️ **Escribir el opuesto al lado no es solo redundante: produce gente que es
+> las dos cosas.** El generador sortea de la lista entera, así que puede darte
+> `ambicioso` y `acomodado` a la vez — 9 de 200 en el pack anterior. Un eje, no
+> un par. Ver [ERRORES](../../docs/ERRORES.md) E-006.
+
+**Y el sorteo tiene que ir con signo**, o la mitad del catálogo no existe:
+
+```python
+signo = 1 if rng.random() < 0.5 else -1
+rasgos[eje] = round(signo * rng.uniform(0.4, 1.0), 2)
+```
+
+Descarta la franja `|i| < 0.4`: por debajo de ahí el rasgo no cambia ninguna
+decisión y solo ensucia la ficha con ruido que se lee como intención.
+
 > Con interpolación lineal, un multiplicador de 2.2 e intensidad -1 daría un
 > factor negativo, que no significa nada.
 
@@ -218,6 +233,24 @@ T("impulsividad", "impulsividad",
 El pack fija el valor del mundo y el agente lo modula. **Un mundo donde viajar
 es peligroso y una persona que odia salir de casa son dos cosas distintas que se
 componen, no que se sustituyen.**
+
+> **Una perilla, un eje dueño.** Dos rasgos que toquen `loss_aversion` se
+> multiplican sobre ella y ya no se puede leer qué hizo cuál. Reparte:
+>
+> ```
+> temperature              -> impulsividad
+> loss_aversion            -> cálculo
+> critical_need_threshold  -> audacia
+> travel_discount          -> arraigo
+> companionship_weight     -> sociabilidad
+> ```
+>
+> Cuando alguien decida raro, sabes exactamente qué rasgo mirar.
+
+**Y son solo cinco.** Pasado el catálogo por la lista OCEAN, faltan las que
+harían falta para **Apertura** (`novelty_weight`) y **Responsabilidad**
+(`switch_cost`) — son perillas del mundo, no de la persona — y las dos del
+apego (`bond_rate`, `bond_fade`). Extraversión sí se escribe entera.
 
 ---
 

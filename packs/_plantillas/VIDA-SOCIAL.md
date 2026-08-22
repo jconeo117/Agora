@@ -114,6 +114,40 @@ apreciar a alguien y que ese alguien sea de los tuyos.**
 `on_success` también **otorga rasgos-llave**: `graduado: 1.0` abre las acciones
 que lo piden. Es cómo se gana un título en el mundo.
 
+## Meta o arco: el criterio
+
+> **Una meta es lo que el motor puede comprobar de un vistazo.
+> Un arco es lo que hay que contar en orden.**
+
+*«Conseguir un buen trabajo»* es cualquiera de las dos, y lo decides al
+escribirla: si significa `dinero >= 0.9`, es **una meta**; si significa
+*graduarse → entrar en el gremio → ascender*, es **un arco de tres**.
+
+**Un arco no necesita primitiva** —es lo que emerge de metas encadenadas— pero
+hoy **no se puede escribir**, porque faltan dos cosas:
+
+| falta | para qué |
+|---|---|
+| que una meta mida **el rango**, un **rasgo** o **cuántas relaciones** tiene | hoy solo mide el valor de una necesidad |
+| `requires_goal` | el orden. **Sin prerequisito son metas sueltas que se cumplen a la vez y no cuentan una historia** |
+
+Y un arco debe ser **una etiqueta, no una estructura**: *«llegar a rango 10»* es
+el primer paso del guerrero y del líder, y si el arco fuera un objeto que
+contiene metas habría que duplicarla.
+
+## ⚠️ Una meta sobre un eje saciable es un MOMENTO, no un arco
+
+`at_least` lee el **valor actual**, y una necesidad está diseñada para llenarse.
+Sobre 2880 ticks, todo el que trabaje su eje toca 0.88 alguna vez.
+
+```
+medido en confluencia: 133 de 133 metas cumplidas antes del día 30
+```
+
+Los ejes que sirven para un arco largo son los de **progresión** (`progression:
+True`) que no se reinician. Ojo: **un eje con rangos NO sirve** — vuelve a cero
+cada vez que rompe uno, así que la meta se cumple con el primero.
+
 ## Los plazos, en ticks
 
 ```
