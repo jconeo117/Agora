@@ -194,7 +194,11 @@ APELLIDOS = [
 # ambicion arquetipica de un mundo con rangos y es la unica que hoy no se puede
 # escribir, porque `dominio` vuelve a cero cada vez que se rompe uno.
 #
-# (eje, umbral, on_success, on_failure, clases a las que pega)
+# (eje, umbral_de_valor, rango, on_success, on_failure, clases a las que pega)
+#
+# Exactamente UNO de `umbral_de_valor` y `rango`, nunca los dos: el motor lo
+# valida al cargar. Con los dos habria que decidir si se cumple con uno o con
+# ambos, y cualquier respuesta seria una convencion que nadie recuerda.
 # =============================================================================
 
 # El plazo va a CIENTO VEINTE DIAS y no a anyos, y la razon es el instrumento:
@@ -204,31 +208,53 @@ APELLIDOS = [
 # plazo que se puede calibrar.
 PLAZO = 96 * 120
 
-METAS: dict[str, tuple[str, float, dict[str, float], dict[str, float], set[str]]] = {
+METAS: dict[
+    str,
+    tuple[str, float | None, int | None, dict[str, float], dict[str, float], set[str]],
+] = {
     # Lo consigue y le sabe a poco -quiere mas-; lo falla y se resigna, pero se
     # refugia en la gente, que es lo que le queda.
     "juntar una fortuna": (
-        "dinero", 0.97, {"ambicion": 0.35}, {"ambicion": -0.40, "sociabilidad": 0.30},
+        "dinero", 0.97, None, {"ambicion": 0.35}, {"ambicion": -0.40, "sociabilidad": 0.30},
         {"asesino", "montaraz", "guerrero"}),
     # El que quiere dejar de deberle nada a nadie. Fallar le vuelve arisco.
     "saldar lo que debe": (
-        "dinero", 0.93, {"audacia": 0.25, "sociabilidad": 0.25},
+        "dinero", 0.93, None, {"audacia": 0.25, "sociabilidad": 0.25},
         {"sociabilidad": -0.45, "audacia": -0.20},
         {"guerrero", "montaraz", "invocador", "asesino"}),
     # Llenar la reserva hasta el borde. Es la meta del que vive por el arte.
     "dominar su reserva": (
-        "mana", 0.96, {"ambicion": 0.30, "audacia": 0.25},
+        "mana", 0.96, None, {"ambicion": 0.30, "audacia": 0.25},
         {"ambicion": -0.35, "audacia": -0.30},
         {"mago", "invocador"}),
     # No volver a estar solo. La mas humana, y la que peor sienta fallar.
     "no volver a estar solo": (
-        "vinculo", 0.97, {"sociabilidad": 0.35},
+        "vinculo", 0.97, None, {"sociabilidad": 0.35},
         {"sociabilidad": -0.55, "ambicion": 0.25},
         {"humano", "guerrero", "mago", "montaraz", "asesino", "invocador"}),
+    # --- LAS DE RANGO, que son las unicas que pueden FALLAR -----------------
+    #
+    # `at_rank` mide cuantos rangos ha roto, y ese numero SOLO SUBE: es el unico
+    # de este motor que puede sostener un arco. Y trae su dificultad graduada
+    # sin declararla — con la cuesta cuadratica, llegar al rango N pide
+    # 1+2+...+N listones, asi que el 2 y el 4 son carreras de longitudes muy
+    # distintas sin tocar ni un plazo.
+    #
+    # Medido: el rango medio a los 180 dias es 3.2, asi que con plazo de 120
+    # dias el 2 lo alcanza bastante gente y el 4 casi nadie. Por primera vez hay
+    # metas que se pierden, y `on_failure` deja de ser codigo muerto.
+    "hacerse un nombre con las armas": (
+        "dominio", None, 2, {"ambicion": 0.30, "audacia": 0.25},
+        {"ambicion": -0.35, "pereza": 0.30},
+        {"guerrero", "asesino", "montaraz"}),
+    "que su nombre pese en la torre": (
+        "dominio", None, 4, {"ambicion": 0.40, "devocion": 0.30},
+        {"devocion": -0.40, "ambicion": -0.30, "aprension": 0.25},
+        {"mago", "invocador"}),
     # El que quiere que le conozcan. Distinta de la anterior: esta se conforma
     # con menos y falla menos, pero mueve la misma perilla.
     "que le conozcan en la ciudad": (
-        "vinculo", 0.94, {"sociabilidad": 0.30, "ambicion": 0.25},
+        "vinculo", 0.94, None, {"sociabilidad": 0.30, "ambicion": 0.25},
         {"sociabilidad": -0.30, "audacia": -0.25},
         {"mago", "invocador", "guerrero"}),
 }
@@ -332,16 +358,21 @@ def poblar() -> list[dict]:
         # su raza. El que no tiene ninguna no es un personaje incompleto: es la
         # mayoria silenciosa que hace que los que SI persiguen algo destaquen.
         suyos = {clase, raza}
-        posibles = sorted(k for k, v in METAS.items() if suyos & v[4])
+        posibles = sorted(k for k, v in METAS.items() if suyos & v[5])
         if posibles and rng.random() < 0.66:
             elegida = rng.choice(posibles)
-            eje, umbral, ok, ko, _ = METAS[elegida]
-            ficha["goals"] = [{
-                "id": _id(elegida), "label": elegida,
-                "need": eje, "at_least": umbral,
+            eje, umbral, rango_pedido, ok, ko, _ = METAS[elegida]
+            meta = {
+                "id": _id(elegida), "label": elegida, "need": eje,
                 "weight_multiplier": 2.2, "deadline": PLAZO,
                 "on_success": ok, "on_failure": ko,
-            }]
+            }
+            # Exactamente una de las dos, nunca las dos. El motor lo valida.
+            if rango_pedido is not None:
+                meta["at_rank"] = rango_pedido
+            else:
+                meta["at_least"] = umbral
+            ficha["goals"] = [meta]
 
         fichas.append(ficha)
     return fichas

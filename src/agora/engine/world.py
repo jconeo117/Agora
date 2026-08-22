@@ -754,7 +754,16 @@ class Simulation:
             if agent.goals.get(goal.id) is not GoalStatus.ACTIVE:
                 continue
 
-            if agent.needs[goal.need] >= goal.at_least:
+            # Dos formas de medirlo, y el pack declara exactamente una. El rango
+            # es el único número de este motor que solo sube: el valor del eje
+            # vuelve a cero cada vez que se rompe uno, así que un umbral sobre él
+            # se cumpliría con el primero.
+            logrado = (
+                agent.rango.get(goal.need, 0) >= goal.at_rank
+                if goal.at_rank is not None
+                else agent.needs[goal.need] >= (goal.at_least or 0.0)
+            )
+            if logrado:
                 resultado, derivas = GoalStatus.ACHIEVED, goal.on_success
             elif goal.deadline is not None and self.state.tick >= goal.deadline:
                 resultado, derivas = GoalStatus.FAILED, goal.on_failure
@@ -779,11 +788,26 @@ class Simulation:
             # meta que pedía llenar el eje al 90 % pesa mucho; una que se
             # conformaba con el 20 %, poco. La curva es la misma del pack, así
             # que un mundo de necesidades tiránicas también tiene metas tiránicas.
+            # Y para una meta de rango, lo que la meta exigía sale de la curva de
+            # saturación de siempre sobre el rango pedido: `n/(n+1)`, que marca
+            # 0.50 en el rango 1, 0.91 en el 10 y 0.97 en el 30 — crece y nunca
+            # se sale de escala, que es lo que hace falta en un eje sin techo. Es
+            # la misma curva que el resto del motor, no una nueva.
+            #
+            # OJO al signo: `urgency` recibe **lo lleno que está el eje**, no el
+            # déficit, y por eso la rama de `at_least` pasa `1 - umbral`. Aquí
+            # hace falta el mismo giro, o una meta más ambiciosa se grabaría como
+            # menos importante — que es exactamente lo que pasó al escribirlo.
+            exigia = (
+                1.0 - signed_saturation(float(goal.at_rank), 1.0)
+                if goal.at_rank is not None
+                else 1.0 - (goal.at_least or 0.0)
+            )
             self._grabar(
                 agent,
                 event,
                 urgencia=urgency(
-                    1.0 - goal.at_least, self.pack.need_by_id[goal.need].urgency_exponent
+                    exigia, self.pack.need_by_id[goal.need].urgency_exponent
                 ),
                 # La única valencia sin ambigüedad del motor. Una meta que vence
                 # sin cumplirse no necesita interpretarse: salió mal, y punto.

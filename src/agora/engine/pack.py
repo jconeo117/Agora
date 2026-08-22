@@ -319,13 +319,27 @@ class ContentPack(Spec):
             for need, delta in action.effects.items()
             if delta > 0.0
         }
-        return [
+        by_id = {need.id: need for need in self.needs}
+        problems = [
             f"agente {agent.id!r}, meta {goal.id!r}: ninguna acción sube "
             f"{goal.need!r}, así que nunca podrá cumplirse"
             for agent in self.agents
             for goal in agent.goals
             if goal.need not in movidas
         ]
+        # Y una meta de RANGO sobre un eje sin rangos es el mismo error con otra
+        # cara: el número nunca sube de cero, así que el agente se queda escorado
+        # de por vida hacia algo que no puede pasar.
+        problems += [
+            f"agente {agent.id!r}, meta {goal.id!r}: pide rango {goal.at_rank} "
+            f"pero {goal.need!r} no tiene `rank_slowdown`, así que no hay rangos "
+            f"que romper"
+            for agent in self.agents
+            for goal in agent.goals
+            if goal.at_rank is not None
+            and (goal.need not in by_id or by_id[goal.need].rank_slowdown <= 0.0)
+        ]
+        return problems
 
     def _check_elastic_is_coherent(self) -> list[str]:
         """Lo elástico repone su eje por ritmo, no por `effects`.

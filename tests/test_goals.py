@@ -395,3 +395,101 @@ def test_an_absurd_drift_is_caught() -> None:
             id=IRSE, label="irse", need=ORO, at_least=0.5,
             on_success={TraitId("arraigo"): -9.0},
         )
+
+
+# --- una meta sobre el RANGO -------------------------------------------------
+#
+# **La ambicion arquetipica de un mundo con rangos, y era la unica que no se
+# podia escribir.** Con `rank_slowdown`, el valor del eje vuelve a cero cada vez
+# que se rompe un rango, asi que un `at_least` sobre el se cumple con el primero
+# y no significa nada. Salio de medir: en confluencia, con el umbral al filo del
+# maximo alcanzable y plazo de ciento veinte dias, **119 metas cumplidas de 119
+# y cero falladas**. No era el numero: era el eje.
+
+
+def rango_pack(**overrides: Any) -> ContentPack:
+    """Un mundo con un eje de rangos y alguien que quiere llegar lejos."""
+    data: dict[str, Any] = {
+        "id": "test",
+        "label": "test",
+        "needs": [
+            {"id": "pan", "label": "pan", "decay_per_tick": 0.02, "initial": 0.9},
+            {"id": "arte", "label": "arte", "decay_per_tick": 0.0, "initial": 0.0,
+             "progression": True, "rank_slowdown": 1.0, "cap": 0.20},
+        ],
+        "actions": [
+            {"id": "ensayar", "label": "ensayar", "duration_ticks": 2,
+             "satisfies": {"arte": 1.0}, "effects": {"arte": 0.05}},
+            {"id": "comer", "label": "comer", "duration_ticks": 2,
+             "satisfies": {"pan": 0.9}, "effects": {"pan": 0.9}},
+        ],
+        "places": [{"id": "p1", "label": "p1", "neighbors": {}}],
+        "agents": [{
+            "id": "ag1", "label": "ag1", "home": "p1", "start_at": "p1",
+            "goals": [{"id": "maestria", "label": "llegar a maestro",
+                       "need": "arte", "at_rank": 6,
+                       "on_success": {}, "on_failure": {}}],
+        }],
+        "tuning": {"critical_need_threshold": 0.15, "memory_capacity": 400,
+                   "memory_scale": 1.0},
+    }
+    data.update(copy.deepcopy(overrides))
+    return ContentPack.model_validate(data)
+
+
+def test_a_rank_goal_needs_the_ranks_and_not_the_value() -> None:
+    """Romper un rango no la cierra: hacen falta los tres. Con `at_least` sobre
+    el mismo eje se habria cerrado con el primero, que es justo el fallo."""
+    sim = Simulation(rango_pack(), seed=1)
+    sim.run(60)
+    assert sim.state.agents[AG1].rango.get(NeedId("arte"), 0) >= 1, "ya rompió alguno"
+    assert sim.state.agents[AG1].goals[GoalId("maestria")] is GoalStatus.ACTIVE
+
+
+def test_and_it_closes_when_the_ranks_are_there() -> None:
+    sim = Simulation(rango_pack(), seed=1)
+    sim.run(4000)
+    assert sim.state.agents[AG1].rango[NeedId("arte")] >= 6
+    assert sim.state.agents[AG1].goals[GoalId("maestria")] is GoalStatus.ACHIEVED
+
+
+def test_the_higher_the_rank_the_deeper_the_mark() -> None:
+    """Lo que se graba sale de lo que la meta EXIGIA, no de cómo anda el eje al
+    cerrarla. Con rangos el déficit no existe —el eje vuelve a cero— así que se
+    usa la curva de saturación de siempre sobre el rango pedido: `n/(n+1)`."""
+    def marca(rango: int) -> float:
+        pack = rango_pack(agents=[{
+            "id": "ag1", "label": "ag1", "home": "p1", "start_at": "p1",
+            "goals": [{"id": "maestria", "label": "llegar a maestro",
+                       "need": "arte", "at_rank": rango}],
+        }])
+        # Se lee EN CUANTO cierra: con capacidad 40, dejarlo correr mil ticks
+        # más desaloja el logro por rutina, que es el olvido funcionando.
+        sim = Simulation(pack, seed=1)
+        while sim.state.agents[AG1].goals[GoalId("maestria")] is GoalStatus.ACTIVE:
+            assert sim.state.tick < 12000, "no llegó nunca"
+            sim.tick()
+        logros = [r for r in sim.state.memoria.de(AG1) if r.valencia >= 1.0]
+        assert logros, "no se grabó el logro"
+        return max(r.importancia for r in logros)
+
+    assert marca(4) > marca(1)
+
+
+def test_exactly_one_way_to_measure_it() -> None:
+    """Ni las dos ni ninguna. Con las dos habria que decidir si se cumple con
+    una o con ambas, y cualquier respuesta seria una convencion que nadie
+    recuerda al leer el pack."""
+    for mal in ({}, {"at_least": 0.5, "at_rank": 3}):
+        with pytest.raises(ValidationError, match="EXACTAMENTE una"):
+            GoalSpec.model_validate({"id": "x", "label": "x", "need": "arte", **mal})
+
+
+def test_a_rank_goal_on_an_axis_without_ranks_does_not_load() -> None:
+    """El mismo error que pedir un eje que ninguna acción sube, con otra cara:
+    el número nunca sube de cero y el agente se queda escorado de por vida."""
+    with pytest.raises(ValueError, match="no tiene `rank_slowdown`"):
+        rango_pack(agents=[{
+            "id": "ag1", "label": "ag1", "home": "p1", "start_at": "p1",
+            "goals": [{"id": "x", "label": "x", "need": "pan", "at_rank": 2}],
+        }])

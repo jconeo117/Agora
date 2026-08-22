@@ -1095,8 +1095,58 @@ class GoalSpec(Spec):
     llama `need` y no `target` para que ese día se vea qué había antes.
     """
 
-    at_least: float = Field(gt=0.0, le=1.0)
-    """Umbral que cuenta como logrado. **Es el obstáculo, en números.**"""
+    at_least: float | None = Field(default=None, gt=0.0, le=1.0)
+    """Umbral **sobre el valor del eje** que cuenta como logrado.
+
+    **Es un MOMENTO, no un arco, y hay que escribirlo sabiéndolo.** Lee el valor
+    de ahora mismo, y una necesidad está hecha para llenarse: sobre suficientes
+    ticks, todo el que trabaje su eje lo toca alguna vez. Medido en confluencia
+    con el umbral al filo del máximo alcanzable y plazo de ciento veinte días:
+    **119 metas cumplidas de 119, cero falladas**. No se arregla subiendo el
+    número — por encima del máximo pasa a ser una lotería en vez de un arco.
+
+    Para una ambición larga, `at_rank`.
+    """
+
+    at_rank: int | None = Field(default=None, ge=1)
+    """Cuántos rangos hay que haber roto. Alternativa a `at_least`.
+
+    **La ambición arquetípica de un mundo con rangos, y era la única que no se
+    podía escribir.** Con `rank_slowdown`, el valor del eje vuelve a cero cada
+    vez que se rompe un rango, así que un `at_least` sobre él se cumple con el
+    primero y no significa nada. El rango, en cambio, **solo sube y no se
+    reinicia**: es el único número de este motor que puede sostener un arco.
+
+    Y trae su propia dificultad graduada sin declararla. Con la cuesta
+    cuadrática de `rank_slowdown: 1.0`, el tiempo hasta el rango N crece con N²:
+
+        rango  5   ~8 días        rango 20   ~110 días       rango 50   ~2 años
+
+    Así que `at_rank` es a la vez el qué y el cuánto cuesta. Un arco de tres
+    metas —rango 5, rango 12, rango 30— es una carrera entera sin que el pack
+    tenga que calibrar tres plazos distintos.
+
+    Exige que el eje tenga `rank_slowdown` > 0. Sin rangos, el número nunca sube
+    y la meta sería inalcanzable; lo comprueba el validador en vez de dejar a
+    alguien escorado de por vida hacia algo imposible.
+    """
+
+    @model_validator(mode="after")
+    def _one_way_to_measure_it(self) -> GoalSpec:
+        """Exactamente una condición. Ni cero ni dos.
+
+        Con las dos, habría que decidir si se cumple con una o con ambas, y
+        cualquiera de las dos respuestas sería una convención que nadie recuerda
+        al leer el pack. Con ninguna, la meta no se puede cerrar jamás.
+        """
+        cuantas = (self.at_least is not None) + (self.at_rank is not None)
+        if cuantas != 1:
+            raise ValueError(
+                f"meta {self.id!r}: hace falta EXACTAMENTE una de `at_least` "
+                f"(el valor del eje) o `at_rank` (cuántos rangos ha roto), "
+                f"y hay {cuantas}"
+            )
+        return self
 
     weight_multiplier: PositiveFactor = 2.0
     """Cuánto empuja mientras dura, sobre el peso que ya tuviera ese eje.
