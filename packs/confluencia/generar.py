@@ -212,10 +212,23 @@ def poblar() -> list[dict]:
         rasgos[_elegir(rng, CLASES[raza])] = round(rng.uniform(0.7, 1.0), 2)
 
         # Y el caracter, que es lo que impide que dos enanos guerreros de fuego
-        # sean la misma persona. Uno o dos rasgos, a intensidad sorteada.
+        # sean la misma persona.
+        #
+        # LA INTENSIDAD VA CON SIGNO, y hasta aqui no lo iba: el sorteo era
+        # `uniform(0.4, 1.0)`, siempre positivo, asi que en los doscientos
+        # agentes del pack anterior habia CERO intensidades negativas.
+        #
+        # Y la mitad negativa de un rasgo es su opuesto exacto, ya construido:
+        # la intensidad se aplica como exponente, asi que `audacia` a -0.7 es
+        # prudencia con los reciprocos justos. Media biblioteca estaba sin usar.
+        #
+        # Se descarta la franja |i| < 0.4 a proposito: por debajo de ahi el
+        # rasgo no cambia ninguna decision y solo ensucia la ficha con ruido que
+        # se lee como intencion.
         for rasgo in rng.sample(sorted(t["id"] for t in caracter),
-                                k=rng.choice([1, 1, 2])):
-            rasgos[rasgo] = round(rng.uniform(0.4, 1.0), 2)
+                                k=rng.choice([1, 2, 2])):
+            signo = 1 if rng.random() < 0.5 else -1
+            rasgos[rasgo] = round(signo * rng.uniform(0.4, 1.0), 2)
 
         cama, plaza = (
             BARRIO_PORTUARIO if raza == "humano" and rng.random() < 0.45

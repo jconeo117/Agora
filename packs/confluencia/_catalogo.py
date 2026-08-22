@@ -160,23 +160,55 @@ clases = [
       need_weight_multipliers={"mana": 1.5}),
 ]
 
-# TEMPERAMENTO. Los de siempre, para que dos personas de la misma raza y clase
-# sigan sin ser la misma persona.
+# CARACTER. Para que dos personas de la misma raza y clase sigan sin ser la
+# misma persona.
+#
+# =============================================================================
+# CUATRO EJES, NO OCHO RASGOS. Y la razon es aritmetica, no de estilo.
+#
+# La intensidad se aplica como EXPONENTE, asi que -1.0 invierte el rasgo EXACTO:
+# `audacia` a -1.0 ES la prudencia, con los reciprocos justos. Escribir el
+# opuesto al lado es escribir el mismo rasgo dos veces.
+#
+# Y no era solo redundante: el generador sorteaba sin mirar, asi que podia dar
+# los dos a la vez. Medido sobre el pack anterior:
+#
+#     ambicioso + acomodado a la vez     6 agentes
+#     madrugador + nocturno              2
+#     audaz + prudente                   1
+#
+# Nueve personas cuyo `dominio` se multiplicaba por 1.7 y por 0.5 a la vez. No
+# reventaba nada -los factores se componen y algo sale- pero lo que salia no lo
+# habia decidido nadie.
+#
+# Al fusionar, la mitad negativa deja de ser un rasgo aparte y pasa a ser
+# inalcanzable por accidente: nadie puede ser lo uno y lo otro porque son EL
+# MISMO NUMERO con el signo cambiado.
+#
+# NOTA sobre los valores: los pares no estaban centrados -`sociable` daba
+# vinculo 1.9 y `solitario` 0.35, que no es 1/1.9- porque cada uno se escribio
+# por su lado. Al fusionar hay que elegir UNO, y se toma un punto entre los dos
+# reciprocos. El `travel_discount` que llevaba `acomodado` sale de aqui: es un
+# eje distinto -el arraigo- y le toca su propio rasgo, no ir de polizon.
+# =============================================================================
 caracter = [
-    T("audaz", "audaz", temperament_multipliers={"critical_need_threshold": 0.6,
-                                     "loss_aversion": 0.65}),
-    T("prudente", "prudente", temperament_multipliers={"critical_need_threshold": 1.5,
-                                           "loss_aversion": 1.6}),
-    T("sociable", "sociable", need_weight_multipliers={"vinculo": 1.9},
-      temperament_multipliers={"companionship_weight": 1.8}),
-    T("solitario", "solitario", need_weight_multipliers={"vinculo": 0.35},
-      temperament_multipliers={"companionship_weight": 0.25}),
-    T("ambicioso", "ambicioso", need_weight_multipliers={"dominio": 1.7,
-                                                         "dinero": 1.3}),
-    T("acomodado", "acomodado", need_weight_multipliers={"dominio": 0.5},
-      temperament_multipliers={"travel_discount": 0.88}),
-    T("madrugador", "madrugador", phase_shift=-18),
-    T("nocturno", "nocturno", phase_shift=22),
+    # +1 se lanza sin pensarlo y aguanta hasta el final; -1 calcula y se retira
+    # pronto. Toca las dos perillas que deciden cuando cunde el panico y cuanto
+    # pesa lo que se arriesga.
+    T("audacia", "audacia", temperament_multipliers={"critical_need_threshold": 0.6,
+                                                     "loss_aversion": 0.65}),
+    # +1 necesita gente y ademas le atrae el bullicio; -1 ni lo uno ni lo otro.
+    # Son DOS canales porque son dos cosas: un ermitanyo puede echar de menos a
+    # alguien concreto y aun asi no querer entrar en una taberna llena.
+    T("sociabilidad", "sociabilidad", need_weight_multipliers={"vinculo": 2.1},
+      temperament_multipliers={"companionship_weight": 2.4}),
+    # +1 quiere llegar mas alto y cobrar por ello; -1 esta a gusto donde esta.
+    T("ambicion", "ambicion", need_weight_multipliers={"dominio": 1.7,
+                                                       "dinero": 1.3}),
+    # El cronotipo, que es un DESFASE y no una preferencia: para un ave nocturna
+    # la noche no vale mas, la noche ES su manyana. A -0.82 salen los -18 ticks
+    # que llevaba `madrugador`.
+    T("nocturnidad", "nocturnidad", phase_shift=22),
 ]
 
 traits = razas + afinidades + clases + caracter
