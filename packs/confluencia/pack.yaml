@@ -53,13 +53,17 @@ tuning:
     temperature: 2.2
     travel_discount: 0.85
     critical_need_threshold: 1.5
-  memory_capacity: 40
+  memory_capacity: 200
   memory_scale: 1.0
   memory_fade: 0.9995
-  regret_weight: 0.0
+  regard_scale: 0.5
+  regret_weight: 0.35
   regret_scale: 0.5
-  fear_weight: 0.0
+  fear_weight: 0.3
   fear_scale: 0.5
+  grief_scale: 0.5
+  rumor_rate: 0.1
+  rumor_decay: 0.5
 needs:
 - id: mana
   label: mana

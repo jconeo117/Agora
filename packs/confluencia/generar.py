@@ -301,11 +301,55 @@ pack = {
         "bond_fade": 0.9997, "bond_horizon": 2880,
         "strain_multipliers": {"temperature": 2.2, "travel_discount": 0.85,
                                "critical_need_threshold": 1.5},
-        # Memoria encendida. Arrepentimiento y miedo APAGADOS de salida, como en
-        # la ciudad: se encienden midiendo, no de entrada.
-        "memory_capacity": 40, "memory_scale": 1.0, "memory_fade": 0.9995,
-        "regret_weight": 0.0, "regret_scale": 0.5,
-        "fear_weight": 0.0, "fear_scale": 0.5,
+        # =====================================================================
+        # LA MEMORIA, ENCENDIDA ENTERA. El tercer paso de la disciplina.
+        #
+        # Todo esto llevaba desde que se escribio a 0.0, y era correcto: nada se
+        # estrena movido. Pero lo apagado deja de ser prudencia y pasa a ser
+        # deuda en cuanto esta medido, y a estas alturas los cinco mecanismos
+        # graban desde hace meses sin que NADIE pague por ellos al decidir.
+        #
+        # Se enciende TODO a la vez y se mide de una vez, que es lo que pide
+        # D-000: cinco perillas encendidas de una en una son cinco mediciones
+        # que no dicen nada sobre el conjunto.
+        # =====================================================================
+        #
+        # CAPACIDAD. De 40 a 200, y no es generosidad: con 40 la edad mediana de
+        # un recuerdo son TRES DIAS, y nada acumulativo -biografia, duelo,
+        # reputacion, rumores- puede significar nada en tres dias. Con 200 son
+        # doce, medido.
+        "memory_capacity": 200, "memory_scale": 1.0, "memory_fade": 0.9995,
+        #
+        # LA ESCALA DEL APRECIO. El aprecio de este mundo llega a 0.4564 como
+        # mucho, y la saliencia de un recuerdo corriente ronda 0.41 de mediana:
+        # por el divisor general, la peor perdida posible entraba por debajo de
+        # lo mas barato que hubiera guardado. A 0.5 un duelo dura semanas en vez
+        # de un dia, y cuesta ~560 rumores de los 3953 que caben. A 0.1 duraba
+        # ochenta dias y costaba el doble; se elige el punto medio.
+        "regard_scale": 0.5,
+        #
+        # EL ESCARMIENTO, por accion. ACOTA, nunca veta: el beneficio crece con
+        # la urgencia y esto no, asi que el hambre siempre acaba ganando a la
+        # mala experiencia -y quien no reintenta nunca descubre que la cosa
+        # mejoro-.
+        "regret_weight": 0.35, "regret_scale": 0.5,
+        #
+        # EL MIEDO, por lugar. Viaja con el peaje, que es donde tiene que estar:
+        # los dos son el precio de IR. Un poco por debajo del escarmiento porque
+        # encarece un lugar entero y no una accion.
+        "fear_weight": 0.30, "fear_scale": 0.5,
+        #
+        # EL DUELO, por persona. No lleva `_weight` al lado y es deliberado: de
+        # una accion y de un lugar uno puede apartarse, de un ausente no. Lo que
+        # diferencia dos duelos es de que viene acompanyado el recuerdo -si trae
+        # lugar, `miedo` le cambia la rutina- y cuanto le dura, que es suyo.
+        "grief_scale": 0.5,
+        #
+        # LOS RUMORES. 0.10 es una de cada diez veces que alguien termina algo
+        # compartido, no una de cada diez conversaciones: con la ocupacion de
+        # este mundo eso ya son miles al mes. Y de oidas pesa la mitad, asi que
+        # una cadena de tres bocas llega practicamente desdibujada.
+        "rumor_rate": 0.10, "rumor_decay": 0.5,
     },
     "needs": needs, "traits": traits, "actions": actions,
     "places": places, "agents": agents,
