@@ -470,8 +470,24 @@ class AgentState:
     está mal. Se guarda además de usarse porque en F2 va a ser una de las
     primeras cosas que el narrador necesite saber."""
 
+    # Los mismos valores que trae `TuningSpec` por defecto, y no es casualidad:
+    # este temperamento provisional dura hasta el primer `recompose`, y si no
+    # coincidiera con el mundo neutro habría un tick en que todos deciden como
+    # nadie. Nombrados y no posicionales: son diez, y la próxima vez que crezcan
+    # la lista tiene que fallar por nombre, no colarse por orden.
     temperament: Temperament = field(
-        default_factory=lambda: Temperament(0.15, 1.0, 0.15, 0.95, 0.0)
+        default_factory=lambda: Temperament(
+            temperature=0.15,
+            loss_aversion=1.0,
+            critical_need_threshold=0.15,
+            travel_discount=0.95,
+            companionship_weight=0.0,
+            novelty_weight=0.6,
+            switch_cost=0.0,
+            learning_rate=0.0,
+            bond_rate=0.0,
+            bond_fade=1.0,
+        )
     )
     """DERIVADO de `traits`, del `tuning` del pack y del `strain` actual. Cómo
     decide esta persona hoy: su impulsividad, su aversión al precio, su aguante

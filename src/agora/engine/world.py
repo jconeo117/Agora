@@ -449,7 +449,7 @@ class Simulation:
                 continue
             deudo = self.state.agents[otro_id]
             aprecio = deudo.regard_for(
-                quien, tick, tuning.bond_fade,
+                quien, tick, deudo.temperament.bond_fade,
                 deudo.relation_floor(self.pack, quien),
             )
             if aprecio <= 0.0:
@@ -614,7 +614,8 @@ class Simulation:
             agent.decay(
                 specs,
                 company=agent.effective_company(
-                    others, tick, tuning.bond_weight, tuning.bond_fade, self.pack
+                    others, tick, tuning.bond_weight, agent.temperament.bond_fade,
+                    self.pack
                 ),
                 company_scale=tuning.company_scale,
             )
@@ -963,7 +964,7 @@ class Simulation:
 
         others = [other.spec_id for other in self.state.others_at(agent)]
         company = agent.effective_company(
-            others, tick, tuning.bond_weight, tuning.bond_fade, self.pack
+            others, tick, tuning.bond_weight, agent.temperament.bond_fade, self.pack
         )
         received = contextual_effects(spec, company, tuning.company_scale)
 
@@ -993,7 +994,7 @@ class Simulation:
             spec,
             received,
             before,
-            tuning.learning_rate,
+            agent.temperament.learning_rate,
         )
         # Y de paso, qué concluye sobre la gente que estaba delante. Se aprende
         # de lo mismo que se acaba de vivir y con el estado de ANTES, igual que
@@ -1019,7 +1020,7 @@ class Simulation:
                     tuning.bond_scale,
                     tuning.company_scale,
                 ),
-                tuning.bond_rate,
+                agent.temperament.bond_rate,
                 tick,
             )
             self._contar(agent, others, tick)
@@ -1490,7 +1491,7 @@ class Simulation:
                 # desdibujado. Enterarte de algo de tu pareja no puede pesar lo
                 # que pesaría de un conocido cualquiera de igual trato.
                 aprecio = oyente.regard_for(
-                    historia.about, tick, tuning.bond_fade,
+                    historia.about, tick, oyente.temperament.bond_fade,
                     oyente.relation_floor(self.pack, historia.about),
                 )
                 if aprecio <= 0.0:

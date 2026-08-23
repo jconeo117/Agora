@@ -271,3 +271,93 @@ def test_two_tastes_on_the_same_target_multiply() -> None:
 
 def test_no_tastes_gives_an_empty_map() -> None:
     assert compose_tastes([]) == {}
+
+
+# --- las cinco que eran del mundo y tenian que ser de la persona -------------
+#
+# Salieron de pasar el catalogo por la lista OCEAN. Como modelo de personalidad
+# no sirve aqui -es descriptivo, no generativo- pero como lista de comprobacion
+# es excelente, y dejo dos factores enteros SIN PODER ESCRIBIRSE por la misma
+# causa: perillas que deberian ser del individuo se habian quedado del mundo.
+
+
+def apego_pack(**tuning: float) -> ContentPack:
+    """Un mundo con las cinco encendidas y rasgos que las tocan."""
+    base: dict[str, Any] = {
+        "novelty_weight": 0.5, "switch_cost": 0.5, "learning_rate": 0.2,
+        "bond_rate": 0.2, "bond_fade": 0.9,
+    }
+    base.update(tuning)
+    return pack_with(
+        tuning=base,
+        traits=[
+            {"id": "curioso", "label": "curioso",
+             "temperament_multipliers": {"novelty_weight": 1.6}},
+            {"id": "constante", "label": "constante",
+             "temperament_multipliers": {"switch_cost": 1.5}},
+            {"id": "dogmatico", "label": "dogmatico",
+             "temperament_multipliers": {"learning_rate": 0.3}},
+            {"id": "ansioso", "label": "ansioso",
+             "temperament_multipliers": {"bond_rate": 2.0, "bond_fade": 1.06}},
+            {"id": "evitativo", "label": "evitativo",
+             "temperament_multipliers": {"bond_rate": 0.3, "bond_fade": 0.8}},
+        ],
+    )
+
+
+def test_the_five_reach_the_agent() -> None:
+    pack = apego_pack()
+    for rasgo, campo, mas in (
+        ("curioso", "novelty_weight", True),
+        ("constante", "switch_cost", True),
+        ("dogmatico", "learning_rate", False),
+    ):
+        neutro = getattr(compose_temperament(pack, {}), campo)
+        propio = getattr(compose_temperament(pack, {TraitId(rasgo): 1.0}), campo)
+        assert (propio > neutro) is mas, f"{rasgo} no movió {campo}"
+
+
+def test_attachment_styles_fall_out_of_two_knobs() -> None:
+    """**Lo que estas dos compran, y sin una sola regla de apego.** El ansioso
+    se engancha rapido y no suelta; el evitativo tarda en querer y olvida
+    pronto. Son el mismo par de numeros en direcciones opuestas."""
+    pack = apego_pack()
+    ansioso = compose_temperament(pack, {TraitId("ansioso"): 1.0})
+    evitativo = compose_temperament(pack, {TraitId("evitativo"): 1.0})
+
+    assert ansioso.bond_rate > evitativo.bond_rate, "quién se engancha antes"
+    assert ansioso.bond_fade > evitativo.bond_fade, "quién tarda más en soltar"
+
+
+def test_all_five_are_fractions_and_carry_a_ceiling() -> None:
+    """La diferencia con `loss_aversion` y `companionship_weight`, que son PESOS
+    y pueden dispararse describiendo a alguien valido: estas cinco viven en
+    [0, 1] por lo que SIGNIFICAN. Un `bond_fade` por encima de 1 haria que el
+    aprecio CRECIERA por no verse."""
+    pack = apego_pack(novelty_weight=0.9, switch_cost=0.9, learning_rate=0.9,
+                      bond_rate=0.9, bond_fade=0.98)
+    t = compose_temperament(pack, {TraitId("curioso"): 1.0,
+                                   TraitId("constante"): 1.0,
+                                   TraitId("dogmatico"): -1.0,
+                                   TraitId("ansioso"): 1.0})
+    for campo in ("novelty_weight", "switch_cost", "learning_rate",
+                  "bond_rate", "bond_fade"):
+        assert getattr(t, campo) <= 1.0, campo
+
+
+def test_a_world_that_turned_one_off_stays_off() -> None:
+    """Multiplicar por cero da cero, y eso es lo correcto: un mundo sin
+    aprendizaje no produce a alguien que aprenda porque sea despierto."""
+    pack = apego_pack(learning_rate=0.0, bond_rate=0.0)
+    t = compose_temperament(pack, {TraitId("ansioso"): 1.0})
+    assert t.learning_rate == 0.0
+    assert t.bond_rate == 0.0
+
+
+def test_without_traits_the_five_are_exactly_the_worlds() -> None:
+    """La condicion del cambio: un pack que no las toca se comporta igual que
+    antes de que fueran del individuo."""
+    pack = apego_pack()
+    t = compose_temperament(pack, {})
+    assert (t.novelty_weight, t.switch_cost, t.learning_rate,
+            t.bond_rate, t.bond_fade) == (0.5, 0.5, 0.2, 0.2, 0.9)

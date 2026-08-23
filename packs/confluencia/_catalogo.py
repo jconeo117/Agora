@@ -267,6 +267,43 @@ decidir = [
     # alguien concreto y aun asi no querer entrar en una taberna llena.
     T("sociabilidad", "sociabilidad", need_weight_multipliers={"vinculo": 2.1},
       temperament_multipliers={"companionship_weight": 2.4}),
+
+    # --- las cinco perillas que hasta ahora eran del MUNDO ------------------
+    #
+    # Un mundo entero decidia con la misma apertura, la misma constancia, el
+    # mismo ritmo de aprender y el mismo apego. Salio de pasar el catalogo por
+    # la lista OCEAN: Apertura y Amabilidad no se PODIAN escribir, y las dos
+    # fallaban por lo mismo.
+
+    # +1 necesita variedad y se cansa de lo repetido; -1 hace lo mismo cada dia
+    # sin aburrirse — que no es un defecto, es media poblacion real. ES LA
+    # APERTURA.
+    T("curiosidad", "curiosidad", temperament_multipliers={"novelty_weight": 1.7}),
+
+    # +1 termina lo que empieza; -1 lo suelta en cuanto aparece algo mejor. ES
+    # LA RESPONSABILIDAD, y en un mundo con viajes largos separa mucho.
+    T("constancia", "constancia", temperament_multipliers={"switch_cost": 1.6}),
+
+    # +1 se fia de lo ultimo que le paso; -1 tarda en aceptar que algo cambio.
+    # No es listura: es cuanto pesa la evidencia nueva frente a lo que ya creia.
+    T("docilidad", "docilidad", temperament_multipliers={"learning_rate": 1.8}),
+
+    # EL APEGO, en un solo eje con las dos perillas a la vez.
+    #
+    #   +1  se engancha rapido Y no suelta        el ansioso
+    #   -1  tarda en querer Y olvida pronto       el evitativo
+    #    0  los dos al centro                     el seguro
+    #
+    # Van juntas a proposito y no en dos rasgos: separadas saldria gente que se
+    # engancha rapido y olvida rapido, que existe pero es el caso raro. Y con un
+    # solo eje, la mayoria -intensidad baja- sale segura, que es lo que se
+    # observa en cualquier poblacion.
+    #
+    # `bond_fade` sube poco -1.05- porque es una fraccion por TICK: a 0.9997 de
+    # base, un 5 % mas ya es el doble de media vida. Ojo con la direccion, que
+    # es la contraria a la intuicion: mas alto = OLVIDA MAS DESPACIO.
+    T("apego", "apego", temperament_multipliers={"bond_rate": 2.2,
+                                                 "bond_fade": 1.05}),
 ]
 
 # -----------------------------------------------------------------------------

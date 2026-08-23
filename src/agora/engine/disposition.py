@@ -254,6 +254,11 @@ class Temperament:
     critical_need_threshold: float
     travel_discount: float
     companionship_weight: float
+    novelty_weight: float
+    switch_cost: float
+    learning_rate: float
+    bond_rate: float
+    bond_fade: float
 
 
 def compute_strain(pack: ContentPack, needs: Mapping[NeedId, float]) -> float:
@@ -346,6 +351,26 @@ def compose_temperament(
         # gente no atrae no se vuelve gregario porque alguien sea sociable.
         companionship_weight=tuning.companionship_weight
         * factors[TemperamentKnob.COMPANIONSHIP],
+        # Las cinco de abajo viven todas en [0, 1] por lo que significan —son
+        # fracciones, no factores— así que las cinco llevan techo. Es la
+        # diferencia con `loss_aversion` y `companionship_weight`, que son pesos
+        # y pueden dispararse describiendo a alguien válido.
+        #
+        # Y todas conservan la propiedad de que un mundo que puso una a 0 no la
+        # resucita ningún rasgo: multiplicar por cero da cero. Un mundo sin
+        # aprendizaje no produce a alguien que aprenda porque sea despierto.
+        novelty_weight=min(
+            1.0, tuning.novelty_weight * factors[TemperamentKnob.NOVELTY]
+        ),
+        switch_cost=min(
+            1.0, tuning.switch_cost * factors[TemperamentKnob.SWITCH_COST]
+        ),
+        learning_rate=min(
+            1.0, tuning.learning_rate * factors[TemperamentKnob.LEARNING_RATE]
+        ),
+        bond_rate=min(1.0, tuning.bond_rate * factors[TemperamentKnob.BOND_RATE]),
+        # Un fade por encima de 1 haría que el aprecio CRECIERA por no verse.
+        bond_fade=min(1.0, tuning.bond_fade * factors[TemperamentKnob.BOND_FADE]),
     )
 
 

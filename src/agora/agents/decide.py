@@ -513,7 +513,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             0.0
             if crowd is None
             else agent.effective_company(
-                crowd, world.tick, tuning.bond_weight, tuning.bond_fade, pack
+                crowd, world.tick, tuning.bond_weight, temperament.bond_fade, pack
             )
         )
         # Quién de los tuyos cree que estará. `None` cuando no tiene noticia del
@@ -551,7 +551,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
                 # así que ocurre cuando no hay nada mejor que hacer.
                 reward *= agent.disposicion(destinatario.spec_id, action.target)
             reward *= tastes.get(str(action.id), 1.0)
-            reward *= novelty(agent, action.id, tuning.novelty_weight)
+            reward *= novelty(agent, action.id, temperament.novelty_weight)
             reward *= companionship(
                 action, expected, temperament.companionship_weight, tuning.company_scale
             )
@@ -707,7 +707,7 @@ def critical_needs(world: WorldState, agent: AgentState) -> list[NeedId]:
     cuando dos valores coinciden.
     """
     threshold = agent.temperament.critical_need_threshold * (
-        1.0 - commitment(world, agent) * world.pack.tuning.switch_cost
+        1.0 - commitment(world, agent) * agent.temperament.switch_cost
     )
     # Lo que el pack diga que no es una emergencia queda fuera: la progresión
     # nunca lo es —ser novato no es una crisis— y un inventario tampoco: la bolsa

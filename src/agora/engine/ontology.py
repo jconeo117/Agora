@@ -344,6 +344,59 @@ class TemperamentKnob(StrEnum):
     el bullicio es la receta del rebaño.
     """
 
+    # -- las cinco que eran del mundo y tenían que ser de la persona ----------
+    #
+    # Salieron de pasar el catálogo por la lista OCEAN, que como modelo de
+    # personalidad no sirve aquí —es descriptivo, no generativo— pero como lista
+    # de comprobación es excelente. El resultado:
+    #
+    #     E  Extraversión      entera             `companionship_weight`
+    #     N  Neuroticismo      a medias           falta cuánto te marca lo malo
+    #     C  Responsabilidad   a medias           faltaba `switch_cost`
+    #     O  Apertura          NO SE PODÍA        faltaba `novelty_weight`
+    #     A  Amabilidad        NO SE PODÍA        sigue faltando
+    #
+    # Dos de los cinco factores fallaban por la misma causa: perillas que
+    # deberían ser del individuo se habían quedado siendo del mundo.
+
+    NOVELTY = "novelty_weight"
+    """Cuánto castiga el hastío. **Es la Apertura.**
+
+    Alto: necesita variedad y se cansa de lo repetido. Bajo: hace lo mismo cada
+    día sin aburrirse — y eso no es un defecto, es media población real.
+    """
+
+    SWITCH_COST = "switch_cost"
+    """Cuánto protege lo ya invertido. **Es la Responsabilidad.**
+
+    Alto: termina lo que empieza. Bajo: lo suelta en cuanto aparece algo mejor.
+    """
+
+    LEARNING_RATE = "learning_rate"
+    """Cuánto corrige sus expectativas tras cada experiencia.
+
+    Alto: se fía de lo último que le pasó. Bajo: **dogmático** — tarda mucho en
+    aceptar que algo cambió. No es listura: es cuánto pesa la evidencia nueva
+    frente a lo que ya creía.
+    """
+
+    BOND_RATE = "bond_rate"
+    """Cuánto le mueve el aprecio un rato compartido. **Media del apego.**"""
+
+    BOND_FADE = "bond_fade"
+    """Cuánto conserva el aprecio sin ver a alguien. **La otra media.**
+
+    Con `BOND_RATE` salen los estilos de apego casi literales, y sin escribir una
+    sola regla de apego:
+
+        ansioso     rate ↑↑  fade ↑     se engancha rápido y no suelta
+        evitativo   rate ↓   fade ↓     tarda en querer y olvida pronto
+        seguro      los dos al centro
+
+    Ojo con la dirección: **más alto = olvida más despacio**, como
+    `memory_multipliers`. Es la fracción que sobrevive por tick.
+    """
+
 
 # ---------------------------------------------------------------------------
 # Rasgos: multiplicadores estables de personalidad
