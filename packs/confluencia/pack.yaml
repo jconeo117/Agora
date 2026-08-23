@@ -6663,6 +6663,21 @@ situations:
   effects:
     salud: -0.0009
     descanso: -0.0012
+  gain_multipliers:
+    dominio: 0.7
+    vinculo: 0.85
+  temperament_multipliers:
+    critical_need_threshold: 1.3
+    travel_discount: 0.9
+- id: euforia
+  label: eufórico
+  personal: true
+  gain_multipliers:
+    vinculo: 1.25
+  temperament_multipliers:
+    temperature: 1.8
+    loss_aversion: 0.6
+    critical_need_threshold: 0.75
 - id: festival_cosecha
   label: Festival de la Cosecha
   places:
@@ -6674,6 +6689,10 @@ situations:
   gain_multipliers:
     vinculo: 2.0
     sustento: 1.8
+  inflicts:
+    situation: euforia
+    chance: 0.002
+    lasts: 144
 - id: noche_mareas
   label: Noche de las Mareas
   places:

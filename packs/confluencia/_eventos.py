@@ -127,8 +127,48 @@ condiciones = [
       effects={"salud": -0.0022}),
     # Mas lenta que una herida y NO se para sola. Da miedo por eso, no por el
     # numero: hay que ir a que te la quiten.
+    #
+    # Y ademas te deja hecho polvo mientras dura: todo cunde menos y uno se
+    # alarma antes. Eso ya no es dano, es ANIMO — y es la diferencia entre una
+    # fiebre que solo resta numeros y una que se nota en lo que haces.
     E(id="fiebre", label="fiebre", personal=True,
-      effects={"salud": -0.0009, "descanso": -0.0012}),
+      effects={"salud": -0.0009, "descanso": -0.0012},
+      gain_multipliers={"dominio": 0.7, "vinculo": 0.85},
+      temperament_multipliers={"critical_need_threshold": 1.3,
+                               "travel_discount": 0.9}),
+
+    # =========================================================================
+    # LOS ANIMOS — condiciones que NO hacen danyo, solo cambian como decides.
+    #
+    # Es la mitad del ser humano que faltaba. Hasta ahora una persona decidia
+    # igual el dia que enterro a alguien que la semana siguiente: el desgaste es
+    # UN numero que sale de lo que te falta, asi que agotado y hambriento daban
+    # el mismo, y enfadado no existia.
+    #
+    # No llevan `effects`. Un animo no te quita salud — te cambia lo que te
+    # apetece, cuanto te cunde estar con gente, y cuanto aguantas antes de
+    # soltarlo todo. El rasgo es quien eres; el animo es como estas hoy.
+    #
+    # OJO: LA DURACION LA PONE QUIEN LO INFLIGE, no la condicion. Un `lasts` en
+    # una situacion personal NO CARGA -el validador lo rechaza- porque para una
+    # eventual el plazo se decide al encenderla. Va en el `inflicts` de quien la
+    # reparte, en `AflictionSpec.lasts`.
+    # =========================================================================
+
+    # Dia y medio de "hoy me da igual": sube el azar de la decision y baja lo que
+    # pesa el precio. Lo reparte el Festival de la Cosecha, que es el unico sitio
+    # de este mundo donde hoy puede nacer un animo.
+    E(id="euforia", label="eufórico", personal=True,
+      gain_multipliers={"vinculo": 1.25},
+      temperament_multipliers={"temperature": 1.8, "loss_aversion": 0.6,
+                               "critical_need_threshold": 0.75}),
+
+    # NO HAY `luto`, y es el que mas falta hace. Lo tendria que plantar una
+    # MUERTE, y hoy nada siembra una condicion desde `morir`: `inflicts` cuelga
+    # de una accion o de una situacion de lugar, no de perder a alguien.
+    #
+    # Escribirlo ahora seria contenido muerto — un animo que nada puede causar.
+    # Queda anotado como lo primero que pedir cuando exista la siembra.
 ]
 
 
@@ -140,10 +180,15 @@ condiciones = [
 # =============================================================================
 
 festividades = [
+    # Y de aqui sale gente eufórica: `chance` bajo porque es POR TICK y la
+    # fiesta dura tres dias, asi que 0.002 son unas dos personas de cada tres
+    # que pasen por alli. `lasts` en el inflicts, que es donde vive el plazo de
+    # un animo.
     E(id="festival_cosecha", label="Festival de la Cosecha",
       places=["granja", "plaza_demihumana"],
       every=34560, lasts=288, starts_at=2400,
-      gain_multipliers={"vinculo": 2.0, "sustento": 1.8}),
+      gain_multipliers={"vinculo": 2.0, "sustento": 1.8},
+      inflicts={"situation": "euforia", "chance": 0.002, "lasts": 144}),
 
     E(id="noche_mareas", label="Noche de las Mareas",
       places=["templo_mareas", "plaza_portuaria"],

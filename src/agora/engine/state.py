@@ -371,8 +371,20 @@ class AgentState:
     vez cada muchos días y se consulta en cada deliberación. 0 si el pack no
     declara franjas, y entonces todo lo horario queda inerte."""
 
+    aptitud_base: dict[NeedId, float] = field(default_factory=dict)
+    """La aptitud que sale SOLO de los rasgos, antes de los ánimos.
+
+    Existe para no recomponerla cada tick. `gains` cambia con lo que uno lleva
+    encima —una fiebre hace que todo cunda menos— y eso va y viene con el
+    reloj, pero los rasgos no: guardando la parte estable, el tick solo tiene
+    que multiplicar por los ánimos de quien tenga alguno, que son treinta de
+    doscientos.
+
+    DERIVADO como todo lo demás: no se guarda, se recompone al cargar.
+    """
+
     gains: dict[NeedId, float] = field(default_factory=dict)
-    """DERIVADO de `traits`: la APTITUD de esta persona en cada eje.
+    """DERIVADO de `traits` **y de lo que lleva encima**: la APTITUD hoy.
 
     Distinto del peso, y conviene no confundirlos: `need_weights` dice cuánto le
     IMPORTA algo, esto dice cuánto le CUNDE. Quien le da mucha importancia al
@@ -614,7 +626,13 @@ class AgentState:
             },
             need_weights=compose_need_weights(pack, spec.traits, spec.goals),
             phase_shift=compose_phase_shift(pack, spec.traits),
-            gains=compose_gains(pack, spec.traits),
+            # Las dos, y de la misma fuente. `aptitud_base` es la parte que no
+            # cambia con el tick y `gains` la de hoy; una ficha recién nacida no
+            # lleva nada encima, así que arrancan iguales. Dejar la base vacía
+            # aquí hacía que el primer `refresh_state` borrara la aptitud entera
+            # — y eso es la aptitud dejando de existir en el mundo.
+            aptitud_base=(aptitud := compose_gains(pack, spec.traits)),
+            gains=dict(aptitud),
             costs=compose_costs(pack, spec.traits),
             caps=compose_caps(pack, spec.traits),
             strain=strain,
@@ -961,15 +979,50 @@ class AgentState:
         ]:
             del self.bonds[other]
 
+    def animos(self) -> dict[SituationId, float]:
+        """Lo que lleva encima, por gravedad acumulada. Puerta única.
+
+        Dos condiciones de la misma situación en marcas distintas —una herida en
+        el brazo y otra en la pierna— **suman**: estar herido dos veces afecta
+        más a cómo decides que estarlo una. Es la misma regla que ya siguen sus
+        `effects`, y separarlas haría que el daño y el ánimo contaran distinto lo
+        mismo.
+        """
+        total: dict[SituationId, float] = {}
+        for cond in self.condiciones:
+            total[cond.situacion] = total.get(cond.situacion, 0.0) + cond.gravedad
+        return total
+
     def refresh_state(self, pack: ContentPack) -> None:
         """Recalcula el desgaste y con él el temperamento.
 
         Se llama una vez por tick, después del decaimiento. Todo lo derivado del
         estado se recompone en un solo sitio, así que no puede quedar desfasado
         respecto a las necesidades que lo generan.
+
+        Los ÁNIMOS entran aquí y no en `recompose` a propósito: una condición va
+        y viene con el tick, igual que el desgaste, mientras que `recompose` es
+        para lo que cambia cuando cambia la persona. Ponerlos allí dejaría a
+        alguien decidiendo con el ánimo de ayer hasta que le tocara un rasgo.
         """
+        animos = self.animos()
         self.strain = compute_strain(pack, self.needs)
-        self.temperament = compose_temperament(pack, self.traits, self.strain)
+        self.temperament = compose_temperament(pack, self.traits, self.strain, animos)
+
+        # Y LA APTITUD, que un ánimo también toca: una fiebre no solo drena, hace
+        # que todo cunda menos mientras dura. Se parte de la base estable —los
+        # rasgos, que no cambian con el tick— y solo se multiplica para quien
+        # lleve algo encima, que son treinta de doscientos.
+        if not animos:
+            self.gains = self.aptitud_base
+            return
+        gains = dict(self.aptitud_base)
+        by_situation = pack.situation_by_id
+        for situacion in sorted(animos):
+            gravedad = animos[situacion]
+            for need_id, m in by_situation[situacion].gain_multipliers.items():
+                gains[need_id] = gains.get(need_id, 1.0) * m**gravedad
+        self.gains = gains
 
     def drift_trait(self, pack: ContentPack, trait: TraitId, delta: float) -> None:
         """Mueve un rasgo y recompone lo que depende de él.
@@ -1034,7 +1087,8 @@ class AgentState:
         """
         self.need_weights = compose_need_weights(pack, self.traits, self.pursuing(pack))
         self.phase_shift = compose_phase_shift(pack, self.traits)
-        self.gains = compose_gains(pack, self.traits)
+        self.aptitud_base = compose_gains(pack, self.traits)
+        self.gains = dict(self.aptitud_base)
         self.costs = compose_costs(pack, self.traits)
         self.caps = compose_caps(pack, self.traits)
         self.temperament = compose_temperament(pack, self.traits, self.strain)

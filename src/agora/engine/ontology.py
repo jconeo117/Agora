@@ -1854,6 +1854,39 @@ class SituationSpec(Spec):
     más pequeños que los de una acción, que ocurre una vez.
     """
 
+    temperament_multipliers: dict[TemperamentKnob, PositiveFactor] = Field(
+        default_factory=dict
+    )
+    """Cómo decide quien la lleva encima. **Solo tiene sentido en las personales,
+    y es lo que convierte una condición en un ESTADO DE ÁNIMO.**
+
+    Hasta aquí, una condición solo sabía **drenar**. Podía quitarte salud día
+    tras día, pero no podía cambiar en nada cómo decidías — así que enfadado,
+    abatido y agotado eran indistinguibles: el mismo valor bajo en un eje.
+
+    Y resulta que la forma ya estaba hecha. Una `Condicion` tiene **duración,
+    gravedad y origen**; le faltaba hacer lo que un ánimo hace:
+
+        E(id="abatido", personal=True, lasts=480,
+          gain_multipliers={"vinculo": 0.6},
+          temperament_multipliers={"companionship_weight": 0.5,
+                                   "critical_need_threshold": 1.4})
+
+    Te lo pega una muerte, dura cinco días, y mientras tanto rindes menos con la
+    gente y te alarmas antes. **Sin primitiva nueva**: llega por `inflicts` desde
+    cualquier evento o acción, se va por `lasts` o porque alguien lo cure, y la
+    gravedad dice cuánto.
+
+    De aquí sale la distinción que faltaba: **el rasgo es quién eres, el ánimo es
+    cómo estás hoy.** Uno es fijo y el otro va y viene.
+
+    **Se compone con la gravedad como exponente** —`multiplicador ** gravedad`—
+    igual que la intensidad de un rasgo (D-030), y no como producto: con 0 el
+    ánimo no hace nada y con el doble de gravedad invierte al cuadrado en vez de
+    salirse de rango. Los `effects` sí van lineales, y es correcto que difieran:
+    un daño se suma, un multiplicador se compone.
+    """
+
     inflicts: AflictionSpec | None = None
     """Lo que le pega a quien alcanza. La ventisca te deja congelado.
 

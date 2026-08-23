@@ -13,8 +13,16 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 
-from agora.engine.ontology import GoalSpec, NeedId, TasteSpec, TemperamentKnob, TraitId
+from agora.engine.ontology import (
+    GoalSpec,
+    NeedId,
+    SituationId,
+    TasteSpec,
+    TemperamentKnob,
+    TraitId,
+)
 from agora.engine.pack import ContentPack
 
 _MIN_TEMPERATURE = 1e-6
@@ -290,21 +298,30 @@ def compute_strain(pack: ContentPack, needs: Mapping[NeedId, float]) -> float:
 
 
 def compose_temperament(
-    pack: ContentPack, traits: Mapping[TraitId, float], strain: float = 0.0
+    pack: ContentPack,
+    traits: Mapping[TraitId, float],
+    strain: float = 0.0,
+    animos: Mapping[SituationId, float] = MappingProxyType({}),
 ) -> Temperament:
     """Combina el temperamento del mundo, el del agente y su estado actual.
 
-    Tres capas multiplicativas sobre las mismas perillas:
+    CUATRO capas multiplicativas sobre las mismas perillas:
 
-        mundo (tuning)  *  rasgos ^ intensidad  *  desgaste ^ strain
+        mundo (tuning) * rasgos ^ intensidad * desgaste ^ strain * ánimos ^ gravedad
 
-    El pack dice cómo es el mundo, el rasgo cuánto se desvía esta persona, y el
-    desgaste cómo está hoy. Un mundo donde viajar es caro, alguien que además
-    odia salir, y encima agotado: tres cosas distintas que se acumulan.
+    El pack dice cómo es el mundo, el rasgo cuánto se desvía esta persona, el
+    desgaste cómo está de agotada, y el ánimo qué le pasó. Un mundo donde viajar
+    es caro, alguien que además odia salir, encima agotado, y de luto: cuatro
+    cosas distintas que se acumulan.
 
-    La capa de estado es la que produce los "días malos" sin tocar la
+    Las dos capas de estado son la que produce los "días malos" sin tocar la
     personalidad. El mismo NPC decide distinto según cómo esté, y sigue siendo
     él — que es justo lo contrario de cambiarle los rasgos.
+
+    **Y las dos son distintas.** El desgaste es un solo número que sale de lo que
+    le falta: agotado y hambriento dan el mismo. Un ánimo tiene NOMBRE, duración,
+    gravedad y una causa que se puede señalar — por eso enfadado y abatido dejan
+    de ser el mismo valor bajo.
 
     **Cada perilla tiene su propio rango válido**, y ahí está el trabajo real de
     esta función. Multiplicar sin acotar produce valores que no significan nada:
@@ -331,6 +348,20 @@ def compose_temperament(
 
     for knob, multiplier in pack.tuning.strain_multipliers.items():
         factors[knob] *= multiplier**strain
+
+    # Los ánimos, con la GRAVEDAD como exponente — igual que la intensidad de un
+    # rasgo (D-030) y no como producto: con 0 no hace nada y con el doble de
+    # gravedad invierte al cuadrado en vez de salirse de rango. Los `effects` de
+    # una condición sí van lineales, y es correcto que difieran: un daño se
+    # suma, un multiplicador se compone.
+    #
+    # Orden fijo por id, como los rasgos: la multiplicación en coma flotante no
+    # es asociativa.
+    by_situation = pack.situation_by_id
+    for situacion in sorted(animos):
+        gravedad = animos[situacion]
+        for knob, multiplier in by_situation[situacion].temperament_multipliers.items():
+            factors[knob] *= multiplier**gravedad
 
     tuning = pack.tuning
     return Temperament(
