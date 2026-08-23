@@ -711,6 +711,38 @@ class TargetSpec(Spec):
     la ficha interna de nadie.
     """
 
+    por_agravio: bool = False
+    """Esta acción se dirige **a quien te hizo algo**, no a quien aprecias.
+
+    Cambia las dos mitades de la elección de destinatario a la vez, y por eso es
+    un modo y no dos perillas sueltas: la puerta pasa a mirar `min_agravio` en
+    vez de `min_regard`, y el desempate pasa a ser *al que más le debes* en vez
+    de *al que más quieres*. Con dos perillas independientes se podría escribir
+    «solo a quien odio, y de esos al que más quiero», que no significa nada.
+
+    **Es lo que convierte la violencia en algo que ocurre.** Agredir ya se podía
+    escribir —un `gives` negativo, D-066— pero no había forma de apuntar a quien
+    te lo merecía: `elegir_destinatario` iba siempre al que más aprecias, así que
+    una paliza salía dirigida a tu mejor amigo.
+    """
+
+    min_agravio: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Cuánto te tiene que deber para que vayas a por él. Solo con `por_agravio`.
+
+    Puerta dura, como `min_regard` y con el mismo aviso: úsala para lo que de
+    verdad exige una cuenta pendiente. La versión blanda —*más probable cuanto
+    más te deba*— es `agravio_weight`.
+    """
+
+    agravio_weight: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Cuánto depende de CUÁNTO te deba. Espejo exacto de `regard_weight`.
+
+        factor = (1 - agravio_weight) + agravio_weight * agravio
+
+    Encoge, no veta. A 0.6, pegarle a un desconocido sigue valiendo el 40 %: la
+    gente se pelea con desconocidos, solo que menos.
+    """
+
     min_regard: float = Field(default=0.0, ge=-1.0, le=1.0)
     """Aprecio mínimo para molestarse. 0.0 = con cualquiera.
 

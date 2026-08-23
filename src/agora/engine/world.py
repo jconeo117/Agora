@@ -1436,6 +1436,16 @@ class Simulation:
             # tú. El signo lo pone qué te hicieron.
             sorpresa=1.0,
             valencia=1.0 if recibe and not sufre else -1.0,
+            # Y CON NOMBRE PROPIO. Es la línea que le faltaba al motor para poder
+            # culpar a alguien: hasta aquí el recuerdo sabía que le habían hecho
+            # algo y de quién iba, pero `culpable` solo admitía situaciones, así
+            # que no había forma de que un daño tuviera autor.
+            #
+            # Se pone SIEMPRE, salga bien o salga mal. Quien decide que fue un
+            # agravio es `agravio()`, que solo mira lo de valencia negativa — y
+            # dejar el campo puesto en lo bueno es lo que permitirá escribir la
+            # gratitud sin tocar esto.
+            por_quien=agent.spec_id,
         )
         _ = event
 
@@ -1514,6 +1524,7 @@ class Simulation:
         testigos: int | None = None,
         valencia: float = 0.0,
         culpable: SituationId | None = None,
+        por_quien: AgentId | None = None,
     ) -> None:
         """Pasa un hecho por la regla de importancia y, si marca, lo graba.
 
@@ -1545,4 +1556,5 @@ class Simulation:
             ),
             valencia,
             culpable,
+            por_quien,
         )

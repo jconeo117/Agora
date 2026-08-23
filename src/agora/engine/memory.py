@@ -127,6 +127,30 @@ class Recuerdo:
     `None` es lo normal: la mayoría de lo que se recuerda no lo provocó el mundo.
     """
 
+    por_quien: AgentId | None = None
+    """QUIÉN te lo hizo, si te lo hizo alguien. **Es lo que separa un daño de un
+    agravio.**
+
+    Hermano de `culpable` sobre el otro eje, y hacían falta los dos: aquel dice
+    *qué le pasaba al mundo*, este *quién estaba detrás*. Y son campos distintos
+    en vez de uno con dos tipos porque los índices los parten distinto y una
+    unión obligaría a comprobar el tipo en cada uso — ver D-005.
+
+    Hasta que existió, **el motor no sabía culpar a nadie**. El docstring de
+    `culpable` lo decía sin rodeos: *«apunta a una `SituationId`, nunca a una
+    persona — por eso no hay rencor hacia alguien»*. Sin esto no hay venganza, no
+    hay perdón, y una facción no puede tener enemigos.
+
+    Es NEUTRO a propósito: lo pone cualquier acción con destinatario, salga bien
+    o salga mal. Quien lo lee y decide que fue un agravio es `agravio()`, que
+    solo mira lo de valencia negativa. Ponerlo solo en lo malo habría dejado la
+    gratitud sin poder escribirse jamás, y es el espejo obvio de esto.
+
+    Y va aparte de `about`: aquel es *de quién va el recuerdo* —lo usan los
+    rumores— y este *quién lo causó*. Suelen coincidir y no siempre: enterarte de
+    que murió alguien va SOBRE él y no lo causó nadie.
+    """
+
     valencia: float = 0.0
     """Si salió mejor o peor de lo esperado, en [-1, 1]. **Es lo que separa un
     recuerdo de un arrepentimiento.**
@@ -293,6 +317,7 @@ class MemoriaEpisodica:
         importancia: float,
         valencia: float = 0.0,
         culpable: SituationId | None = None,
+        por_quien: AgentId | None = None,
     ) -> Recuerdo | None:
         """Graba un hecho. Devuelve el recuerdo, o `None` si no se guardó.
 
@@ -317,6 +342,7 @@ class MemoriaEpisodica:
             importancia=importancia,
             valencia=max(-1.0, min(1.0, valencia)),
             culpable=culpable,
+            por_quien=por_quien,
         )
         guardados = self._por_duenyo.setdefault(owner, [])
         guardados.append(recuerdo)
@@ -530,6 +556,47 @@ class MemoriaEpisodica:
         resucitado, una biografía que se reabre.
         """
         self._por_duenyo.pop(owner, None)
+
+    def agravio(self, owner: AgentId, tick: int, escala: float) -> dict[AgentId, float]:
+        """Cuánto le debe cada cual. Valores [0, 1).
+
+            agravio[persona] = saturación( Σ |valencia negativa| · valor(hoy), escala )
+
+        **Cuarto índice, y el que le faltaba al motor para poder culpar a
+        alguien.** Los otros tres parten la memoria por lo que hiciste
+        (`rencor`), por dónde estabas (`miedo`) y por a quién perdiste (`duelo`).
+        Ninguno sabía decir *quién me lo hizo*.
+
+        Y no es `duelo` con otro filtro, aunque los dos vayan por persona. El
+        duelo mira `about` —de quién va el recuerdo— y este mira `por_quien` —
+        quién lo causó—. Perder a alguien y que alguien te haga algo son dos
+        cosas distintas, y la prueba es que se pueden dar sobre la MISMA persona
+        al mismo tiempo: tu hermano te partió la cara y luego se murió.
+
+        **Solo lo negativo**, como `rencor` y `miedo`. Lo bueno que te hicieron
+        ya sube el aprecio por `remember_company`, y contarlo aquí otra vez sería
+        el mismo suceso pesando dos veces. La gratitud —el espejo de esto sobre
+        la valencia positiva— es un índice más y no se escribe hasta que algo la
+        pida.
+
+        Exige `action is None`... **NO**, y esta es la diferencia con sus dos
+        hermanos: lo que otro te hace TE LLEGA POR UNA ACCIÓN SUYA, así que
+        filtrar por acción vacía el índice. Lo que se exige es `por_quien`, que
+        es el campo que solo pone quien recibe algo de alguien.
+        """
+        guardados = self._por_duenyo.get(owner)
+        if not guardados or escala <= 0.0:
+            return {}
+        fade = self.fade_of(owner)
+
+        bruto: dict[AgentId, float] = {}
+        for recuerdo in guardados:
+            if recuerdo.por_quien is None or recuerdo.valencia >= 0.0:
+                continue
+            peso = -recuerdo.valencia * recuerdo.valor(tick, fade)
+            if peso > 0.0:
+                bruto[recuerdo.por_quien] = bruto.get(recuerdo.por_quien, 0.0) + peso
+        return {quien: signed_saturation(v, escala) for quien, v in bruto.items()}
 
     def duelo(self, owner: AgentId, tick: int, escala: float) -> dict[AgentId, float]:
         """Cuánto le duele hoy la ausencia de cada cual. Valores [0, 1).

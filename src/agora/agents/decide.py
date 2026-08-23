@@ -480,6 +480,15 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
         else {}
     )
 
+    # Y las cuentas pendientes, una vez y por el mismo motivo. A diferencia de
+    # las dos de arriba, esta no se apaga con un peso del mundo: la piden las
+    # acciones que se dirigen por agravio, y si ninguna lo hace no se calcula.
+    agravio = (
+        world.memoria.agravio(agent.spec_id, world.tick, tuning.grief_scale)
+        if any(a.target is not None and a.target.por_agravio for a in pack.actions)
+        else {}
+    )
+
     found: list[Decision] = []
     for place in pack.places:
         travel = world.travel.distance(agent.at, place.id)
@@ -542,14 +551,16 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             if action.target is not None:
                 if place.id != agent.at:
                     continue
-                destinatario = agent.elegir_destinatario(here, action.target)
+                destinatario = agent.elegir_destinatario(here, action.target, agravio)
                 if destinatario is None:
                     continue
             reward = benefit(pack, agent, action, weights) * discount * place_taste
             if destinatario is not None and action.target is not None:
                 # Encoge, no veta: ayudar a un desconocido sigue valiendo algo,
                 # así que ocurre cuando no hay nada mejor que hacer.
-                reward *= agent.disposicion(destinatario.spec_id, action.target)
+                reward *= agent.disposicion(
+                    destinatario.spec_id, action.target, agravio
+                )
             reward *= tastes.get(str(action.id), 1.0)
             reward *= novelty(agent, action.id, temperament.novelty_weight)
             reward *= companionship(
