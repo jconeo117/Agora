@@ -39,6 +39,7 @@ from agora.engine.ontology import (
     GoalStatus,
     NeedId,
     PlaceId,
+    PropertyKind,
     RelationId,
     SituationId,
 )
@@ -138,6 +139,10 @@ class Simulation:
            todos los agentes decidan sobre el mismo instante. Si el decaimiento
            se intercalara con las acciones, el primer agente de la lista
            decidiría con información medio tick más vieja que el último.
+        2b. **La propiedad paga su renta.** Después del decaimiento, para que
+            un ingreso pasivo pueda compensarlo en el mismo tick, y antes de
+            cobrar las muertes, para que una renta pueda salvar a quien la
+            recibe.
         3. **Se cierran las metas cumplidas o vencidas**, para todos antes de que
            nadie actúe: los pesos recompuestos valen ya en la decisión de este
            tick, y quien logró algo no pasa un tick más empujando hacia ello.
@@ -150,6 +155,7 @@ class Simulation:
         self._expire_situations()
         self._fire_triggers()
         self._decay_everyone()
+        self._aplicar_rentas()
         self._cobrar_muertes()
         for agent in self.state.agents_in_order():
             self._settle_goals(agent)
@@ -441,6 +447,15 @@ class Simulation:
         escala = tuning.escala_del_aprecio
         tick = self.state.tick
 
+        # Herencia (D-055/D-056): la propiedad entera va a quien tenga MÁS
+        # aprecio hacia el difunto, entre quienes tengan una relación marcada
+        # `hereda` -- el mismo desempate (objetivo quién califica, subjetivo
+        # quién gana) que ya usa `elegir_destinatario`. Sin candidato, la
+        # propiedad se queda sin dueño (D-057); es un estado tan legítimo
+        # como cualquier otro.
+        heredero: AgentId | None = None
+        mejor_aprecio = 0.0
+
         # Orden fijo por id: se graban recuerdos y el olvido por capacidad
         # desempata por `seq`, así que un orden que dependiera del hash haría
         # divergir dos procesos con la misma semilla.
@@ -452,6 +467,18 @@ class Simulation:
                 quien, tick, deudo.temperament.bond_fade,
                 deudo.relation_floor(self.pack, quien),
             )
+            # Se mira ANTES del `continue` de más abajo, a propósito: el
+            # duelo exige aprecio positivo para grabarse, pero un heredero
+            # sigue siendo heredero aunque odiara a quien acaba de morir.
+            puede_heredar = any(
+                quien in deudo.relations.get(rel, ())
+                and self.pack.relation_by_id[rel].hereda
+                for rel in deudo.relations
+            )
+            if puede_heredar and (
+                heredero is None or (aprecio, otro_id) > (mejor_aprecio, heredero)
+            ):
+                heredero, mejor_aprecio = otro_id, aprecio
             if aprecio <= 0.0:
                 continue
             testigo = deudo.at == donde
@@ -474,6 +501,10 @@ class Simulation:
                 importancia=signed_saturation(aprecio, escala),
                 valencia=-1.0,
             )
+
+        for propiedad in self.state.propiedades.values():
+            if propiedad.dueño == quien:
+                propiedad.dueño = heredero
 
         del self.state.agents[quien]
         # Lo que sabía y no compartió, se va con él.
@@ -740,6 +771,30 @@ class Simulation:
                         culpable=culpable,
                     )
 
+    def _aplicar_rentas(self) -> None:
+        """La propiedad paga. Un ingreso pasivo por tick a quien tenga un
+        lugar, un objeto, un título o una deuda -- ajeno a lo que nadie haga.
+
+        El tributo de una PERSONA NO vive aquí: depende de lo que esa persona
+        gane con sus propias acciones, y aquí todavía no se ha resuelto
+        ninguna. Se cobra en `_finish_action`, en el único sitio donde
+        `received` ya existe.
+
+        Recorrido ordenado por id, no porque `dict.values()` vaya a
+        desordenarse -- se construye desde `pack.properties`, que es una
+        tupla -- sino por la misma disciplina que el resto del motor: el
+        orden de iteración nunca es un accidente que alguien tenga que
+        redescubrir.
+        """
+        if not self.state.propiedades:
+            return
+        for propiedad in sorted(self.state.propiedades.values(), key=lambda p: p.id):
+            if propiedad.dueño is None or not propiedad.renta:
+                continue
+            dueño = self.state.agents.get(propiedad.dueño)
+            if dueño is not None:
+                dueño.apply(propiedad.renta, self.pack.need_by_id)
+
     def _meta_cumplida(self, agent: AgentState, goal: GoalSpec) -> bool:
         """Si esta meta ya está. Cuatro varas, y el pack declara exactamente una.
 
@@ -967,6 +1022,40 @@ class Simulation:
             others, tick, tuning.bond_weight, agent.temperament.bond_fade, self.pack
         )
         received = contextual_effects(spec, company, tuning.company_scale)
+
+        # El tributo (propiedad de personas): una fracción de lo GANADO se
+        # redirige a quien posee a este agente, y no como copia -- como
+        # transferencia. Reducir `received` aquí, antes de `apply` y de
+        # `learn`, es lo que hace que las dos cosas vean la misma realidad:
+        # quien tiene dueño APLICA menos de lo que ganó y APRENDE que esta
+        # acción rinde menos, sin que haga falta ni una línea nueva en
+        # ninguna de las dos. Nunca sobre lo negativo: el tributo es sobre
+        # lo que se gana, no sobre lo que cuesta.
+        #
+        # A lo sumo una propiedad de tipo PERSONA por `objeto` -- lo valida
+        # el pack -- así que basta con la primera que aparezca.
+        posesion = next(
+            (
+                p for p in self.state.propiedades.values()
+                if p.tipo is PropertyKind.PERSONA
+                and p.objeto == str(agent.spec_id)
+                and p.dueño is not None
+                and p.tributo
+            ),
+            None,
+        )
+        if posesion is not None and posesion.dueño is not None:
+            dueño = self.state.agents.get(posesion.dueño)
+            tributo_al_dueño: dict[NeedId, float] = {}
+            for need, fraccion in posesion.tributo.items():
+                ganado = received.get(need, 0.0)
+                if ganado <= 0.0:
+                    continue
+                cedido = ganado * fraccion
+                tributo_al_dueño[need] = cedido
+                received[need] = ganado - cedido
+            if dueño is not None and tributo_al_dueño:
+                dueño.apply(tributo_al_dueño, self.pack.need_by_id)
 
         before = dict(agent.needs)
         # Lo que el sitio y lo que le pase al mundo hacen rendir. Se resuelve una

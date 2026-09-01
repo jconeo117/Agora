@@ -41,6 +41,8 @@ from agora.engine.ontology import (
     NeedSpec,
     PlaceId,
     PlaceSpec,
+    PropertyId,
+    PropertyKind,
     RelationId,
     SituationId,
     TargetSpec,
@@ -215,6 +217,25 @@ class Condicion:
     `None` para lo que no tiene sitio: una maldición heredada, una enfermedad
     congénita, algo que se puso por API sin escena.
     """
+
+
+@dataclass(slots=True)
+class Propiedad:
+    """Quién tiene qué, ahora mismo. Estado del mundo, no de un agente — un
+    dueño puede no existir, y `objeto` puede ser una persona, un lugar, o
+    algo que no vive en ninguna otra parte del motor.
+
+    Lo único que cambia respecto a `PropertySpec`, de la que nace, es
+    `dueño`: el resto (`tipo`, `objeto`, `renta`, `tributo`) es lo que el
+    pack declaró y no se toca en marcha.
+    """
+
+    id: PropertyId
+    tipo: PropertyKind
+    objeto: str
+    renta: dict[NeedId, float]
+    tributo: dict[NeedId, float]
+    dueño: AgentId | None = None
 
 
 @dataclass(slots=True)
@@ -1520,6 +1541,16 @@ class WorldState:
     manda el pack de hoy. Por eso no ocupa sitio en el guardado.
     """
 
+    propiedades: dict[PropertyId, Propiedad] = field(default_factory=dict)
+    """Quién tiene qué, ahora mismo. Vacío = un mundo sin propiedad, donde
+    `home` sigue siendo solo una referencia sin efecto mecánico.
+
+    Sale del pack de HOY al reanudar, igual que `censo` y que la memoria: lo
+    único que viaja en el guardado es el dueño de cada una (ver
+    `persistence.py`), nunca la lista entera. Un pack que añade o quita una
+    propiedad entre partidas se reconcilia igual que un eje nuevo o borrado.
+    """
+
     situations: dict[SituationId, int | None] = field(default_factory=dict)
     """Las situaciones EVENTUALES encendidas -> hasta qué tick, o `None` si es
     hasta que alguien la apague.
@@ -1587,6 +1618,17 @@ class WorldState:
             # lo demás derivado: al reanudar sobre un pack retocado manda el
             # nuevo, no el que se guardó.
             memoria=_build_memoria(pack),
+            propiedades={
+                spec.id: Propiedad(
+                    id=spec.id,
+                    tipo=spec.tipo,
+                    objeto=spec.objeto,
+                    renta=dict(spec.renta),
+                    tributo=dict(spec.tributo),
+                    dueño=spec.dueño_inicial,
+                )
+                for spec in pack.properties
+            },
         )
 
     # -- situaciones ----------------------------------------------------------

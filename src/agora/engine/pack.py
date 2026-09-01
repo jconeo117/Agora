@@ -37,6 +37,9 @@ from agora.engine.ontology import (
     NeedSpec,
     PlaceId,
     PlaceSpec,
+    PropertyId,
+    PropertyKind,
+    PropertySpec,
     RelationId,
     RelationSpec,
     SituationId,
@@ -71,6 +74,10 @@ class ContentPack(Spec):
     relations: tuple[RelationSpec, ...] = ()
     """Qué puede ser una persona de otra. Vacío = un mundo de desconocidos, que
     es donde estaba el motor hasta ahora."""
+
+    properties: tuple[PropertySpec, ...] = ()
+    """Quién tiene qué. Vacío = un mundo sin propiedad, donde `home` sigue
+    siendo solo una referencia sin efecto mecánico."""
 
     situations: tuple[SituationSpec, ...] = ()
     """Cómo puede estar el mundo. Vacío = el mundo no tiene estados, y entonces
@@ -126,6 +133,10 @@ class ContentPack(Spec):
         return {relation.id: relation for relation in self.relations}
 
     @cached_property
+    def property_by_id(self) -> dict[PropertyId, PropertySpec]:
+        return {prop.id: prop for prop in self.properties}
+
+    @cached_property
     def situation_by_id(self) -> dict[SituationId, SituationSpec]:
         return {situation.id: situation for situation in self.situations}
 
@@ -176,6 +187,7 @@ class ContentPack(Spec):
             *self._duplicates("agentes", (a.id for a in self.agents)),
             *self._duplicates("situaciones", (s.id for s in self.situations)),
             *self._duplicates("relaciones", (r.id for r in self.relations)),
+            *self._duplicates("propiedades", (p.id for p in self.properties)),
         ]
 
     def _check_global_id_collisions(self) -> list[str]:
@@ -574,6 +586,79 @@ class ContentPack(Spec):
             if len(otros) > 1
         ]
 
+    def _check_property_refs(self) -> list[str]:
+        """`objeto` señala a quien toca según `tipo`, `dueño_inicial` existe, y
+        `renta`/`tributo` se declaran en el eje que les corresponde.
+
+        `objeto` solo se valida como agente o lugar en PERSONA/LUGAR: para las
+        otras tres clases es libre a propósito (ver el docstring de
+        `PropertySpec.objeto`), así que exigirle una forma sería inventar una
+        primitiva para lo que el motor no tiene dónde guardar.
+        """
+        conocidos_agente = frozenset(str(a.id) for a in self.agents)
+        conocidos_lugar = frozenset(str(p.id) for p in self.places)
+        conocidas_necesidades = frozenset(str(n.id) for n in self.needs)
+        problems: list[str] = []
+
+        for prop in self.properties:
+            if prop.dueño_inicial is not None and str(prop.dueño_inicial) not in conocidos_agente:
+                problems.append(
+                    f"propiedad {prop.id!r}.dueño_inicial: agente desconocido "
+                    f"{prop.dueño_inicial!r}"
+                )
+            if prop.tipo is PropertyKind.PERSONA and str(prop.objeto) not in conocidos_agente:
+                problems.append(
+                    f"propiedad {prop.id!r}.objeto: agente desconocido {prop.objeto!r}"
+                )
+            if prop.tipo is PropertyKind.LUGAR and str(prop.objeto) not in conocidos_lugar:
+                problems.append(
+                    f"propiedad {prop.id!r}.objeto: lugar desconocido {prop.objeto!r}"
+                )
+            problems += self._unknown_keys(
+                f"propiedad {prop.id!r}.renta", "necesidad", prop.renta, conocidas_necesidades
+            )
+            problems += self._unknown_keys(
+                f"propiedad {prop.id!r}.tributo", "necesidad", prop.tributo,
+                conocidas_necesidades,
+            )
+            # Dos mecanismos distintos (D-053): mezclarlos en la misma
+            # propiedad significaría "rinde lo mismo pase lo que pase Y ADEMÁS
+            # una fracción de lo que gane", que no es ninguno de los dos.
+            if prop.renta and prop.tipo is PropertyKind.PERSONA:
+                problems.append(
+                    f"propiedad {prop.id!r} es PERSONA y declara `renta`: una "
+                    f"persona no rinde lo mismo haga lo que haga, usa `tributo`"
+                )
+            if prop.tributo and prop.tipo is not PropertyKind.PERSONA:
+                problems.append(
+                    f"propiedad {prop.id!r} no es PERSONA y declara `tributo`: "
+                    f"solo alguien que decide por sí mismo tiene algo que "
+                    f"redirigir, usa `renta`"
+                )
+            problems += [
+                f"propiedad {prop.id!r}.tributo[{need!r}]: {valor!r} fuera de "
+                f"[0, 1] -- es una fracción de lo ganado, no un monto"
+                for need, valor in sorted(prop.tributo.items())
+                if not 0.0 <= valor <= 1.0
+            ]
+
+        # A lo sumo un dueño de tributo por persona: el motor cobra el
+        # tributo sobre `received` una sola vez por acción completada, y con
+        # dos registros no habría forma de saber a cuál de los dos dueños
+        # pagarle -- ni de repartir sin inventar un tercer mecanismo.
+        personas: dict[str, list[PropertyId]] = {}
+        for prop in self.properties:
+            if prop.tipo is PropertyKind.PERSONA:
+                personas.setdefault(prop.objeto, []).append(prop.id)
+        problems += [
+            f"agente {objeto!r} es el `objeto` de {len(ids)} propiedades de tipo "
+            f"PERSONA a la vez ({', '.join(sorted(str(i) for i in ids))}): a lo "
+            f"sumo una"
+            for objeto, ids in sorted(personas.items())
+            if len(ids) > 1
+        ]
+        return problems
+
     def _check_situation_refs(self) -> list[str]:
         """Toda situación mencionada existe, y alcanza a algún sitio real.
 
@@ -938,6 +1023,7 @@ class ContentPack(Spec):
             *self._check_phase_refs(),
             *self._check_relation_refs(),
             *self._check_exclusive_relations(),
+            *self._check_property_refs(),
             *self._check_situation_refs(),
             *self._check_situations_do_something(),
             *self._check_places_are_open_sometime_despite_situations(),

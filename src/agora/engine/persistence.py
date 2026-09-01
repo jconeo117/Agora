@@ -37,6 +37,7 @@ from agora.engine.ontology import (
     GoalStatus,
     NeedId,
     PlaceId,
+    PropertyId,
     RelationId,
     SituationId,
     TraitId,
@@ -209,6 +210,13 @@ def save(world: WorldState, together: set[tuple[AgentId, AgentId]], path: Path) 
         # No es lo mismo que el censo, que se reconstruye del pack de hoy. Esto
         # es lo único del reparto que no se puede derivar: la ausencia con causa.
         "muertos": sorted(str(a) for a in set(world.censo) - set(world.agents)),
+        # Solo el dueño: tipo, objeto, renta y tributo los fija el pack de HOY,
+        # igual que el fade de la memoria. Guardarlos otra vez los dejaría
+        # desincronizados en cuanto se retoque el pack entre corrida y corrida.
+        "propiedades": sorted(
+            [str(p.id), None if p.dueño is None else str(p.dueño)]
+            for p in world.propiedades.values()
+        ),
     }
     path.write_text(json.dumps(datos, indent=1, ensure_ascii=False), encoding="utf-8")
 
@@ -435,6 +443,16 @@ def load(path: Path, pack: ContentPack) -> tuple[WorldState, set[tuple[AgentId, 
         for s, tick in datos.get("last_trigger", [])
         if s in conocidas
     }
+    # `.get` como el resto de lo añadido después: un guardado anterior a la
+    # propiedad se lee como un mundo donde nadie había reasignado ninguna
+    # todavía, y cada una se queda con el `dueño_inicial` que `WorldState.new`
+    # ya le puso. Una propiedad borrada del pack no vuelve, igual que un
+    # agente o una situación; una nueva entra con lo que el pack diga, porque
+    # el guardado no puede tener opinión sobre algo que no existía.
+    for id_prop, dueño in datos.get("propiedades", []):
+        propiedad = world.propiedades.get(PropertyId(id_prop))
+        if propiedad is not None:
+            propiedad.dueño = None if dueño is None else AgentId(dueño)
     # Los que el pack tiene y el guardado no —fichas nuevas— entran frescos, tal
     # y como los dejo `WorldState.new`. Asi se puede ampliar el elenco sin
     # perder la partida.

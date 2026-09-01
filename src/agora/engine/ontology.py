@@ -36,6 +36,7 @@ RelationId = NewType("RelationId", str)
 ActionId = NewType("ActionId", str)
 PlaceId = NewType("PlaceId", str)
 AgentId = NewType("AgentId", str)
+PropertyId = NewType("PropertyId", str)
 Affordance = NewType("Affordance", str)
 Tag = NewType("Tag", str)
 
@@ -1713,6 +1714,24 @@ class RelationSpec(Spec):
     la diferencia entre apreciar a alguien y que ese alguien sea de los tuyos.
     """
 
+    hereda: bool = False
+    """Quien tenga esta relación con un difunto puede heredar sus propiedades
+    (D-055, propiedad).
+
+    No hace falta esperar a que exista el nacimiento para tener herencia: la
+    relación ya es un hecho declarado en el pack, y "quién puede heredar" es
+    exactamente la misma pregunta que "quién es tu familia", que las
+    relaciones ya contestan. Un pack sin ninguna relación con `hereda: true`
+    no pierde nada — sus propiedades simplemente se quedan sin dueño al morir
+    quien las tenía, que es un estado tan legítimo como cualquier otro.
+
+    Con varios candidatos, se lleva la propiedad ENTERA quien tenga mayor
+    aprecio hacia el difunto (`regard_for`, la misma función que ya decide
+    cuánto duele una muerte) — no se reparte fraccionada, porque una
+    propiedad indivisible partida en trozos deja de significar lo que
+    significaba.
+    """
+
     @model_validator(mode="after")
     def _one_way_of_being_two_sided(self) -> RelationSpec:
         if self.symmetric and self.inverse is not None:
@@ -1726,6 +1745,76 @@ class RelationSpec(Spec):
                 f"relación {self.id!r}: su propia inversa. Eso es `symmetric: true`"
             )
         return self
+
+
+# ---------------------------------------------------------------------------
+# Propiedad: quién tiene qué
+# ---------------------------------------------------------------------------
+class PropertyKind(StrEnum):
+    """Qué clase de cosa es una propiedad. Cerrado y del motor, como
+    `TemperamentKnob`: el motor necesita distinguir una PERSONA de las otras
+    cuatro para saber CÓMO rinde (renta pasiva o tributo sobre lo que gana),
+    pero no necesita saber qué es una granja, un objeto o un título.
+    """
+
+    LUGAR = "lugar"
+    PERSONA = "persona"
+    OBJETO = "objeto"
+    TITULO = "titulo"
+    DEUDA = "deuda"
+
+
+class PropertySpec(Spec):
+    """Algo que alguien puede poseer, y lo que le rinde a quien lo tenga.
+
+    Una sola forma para las cinco clases — no cinco primitivas — porque solo
+    hay DOS formas de rendir, y las cinco se reparten entre ellas:
+
+    - `renta`: ingreso pasivo por tick, ajeno a lo que haga nadie. Es lo que
+      significa poseer un LUGAR, un OBJETO, un TÍTULO o una DEUDA — una
+      tierra da lo mismo la trabaje quien la trabaje, y una deuda cobra
+      aunque el deudor no haga nada ese tick.
+    - `tributo`: una fracción — no un monto fijo — de lo que GANA el objeto
+      poseído con sus propias acciones. Solo tiene sentido sobre una
+      PERSONA: a diferencia de una tierra, decide por sí misma y gana algo
+      distinto cada vez, así que no hay "lo mismo" que rendir de antemano.
+
+    Deliberadamente NO restringe qué puede poseerse. En un mundo con
+    esclavitud una persona es tan propiedad como una granja, y el motor no
+    necesita saber la diferencia moral entre las dos — solo la mecánica, que
+    es esta. Que sea injusto, o legal, o motivo de venganza, es contenido y
+    cultura (un código moral por facción), no motor: el mismo principio que
+    ya sostiene `gives` negativo, aplicado un nivel más arriba.
+
+    Hoy es puramente económica y a propósito (primera pasada): posee a
+    alguien y no le tocas la voluntad, solo una parte de lo que gana. No
+    restringe qué puede hacer ni dónde puede ir — eso, si llega, es la capa
+    de coerción que pertenece al futuro frente de ética, no a esta.
+    """
+
+    id: PropertyId
+    label: str
+    tipo: PropertyKind
+
+    objeto: str
+    """A quién o qué se refiere. Un `AgentId` si `tipo` es PERSONA, un
+    `PlaceId` si es LUGAR — y se validan como tales. Para OBJETO, TITULO y
+    DEUDA es libre: el motor no tiene una primitiva para lo que no vive en el
+    mapa ni en el censo, y forzarle una sería inventar precisión que nadie
+    puede escribir.
+    """
+
+    dueño_inicial: AgentId | None = None
+    """Quién la tiene al empezar la partida. `None` = nace sin dueño."""
+
+    renta: dict[NeedId, float] = Field(default_factory=dict)
+    """Cuánto rinde por tick a quien la tenga, ajeno a lo que haga. Vacío en
+    una PERSONA: ver `tributo`."""
+
+    tributo: dict[NeedId, float] = Field(default_factory=dict)
+    """Qué fracción [0, 1] de cada eje que GANE el `objeto` (si es una
+    PERSONA) se redirige también a quien la posee. Vacío en las otras cuatro
+    clases: ver `renta`."""
 
 
 # ---------------------------------------------------------------------------
