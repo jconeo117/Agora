@@ -607,12 +607,12 @@ actions:
   duration_ticks: 6
   requires_company: 1
   satisfies:
-    dominio: 0.8
+    dominio: 0.95
     vinculo: 1.0
   costs:
     descanso: 0.3
   effects:
-    dominio: 0.025
+    dominio: 0.03
     vinculo: 0.05
     descanso: -0.08
   target:
@@ -631,7 +631,7 @@ actions:
     # desempata por id (arbitrario, no por aprecio); en cuanto existe una
     # deuda real, `agravio_weight` ya hace que pese mucho más que el azar.
     min_agravio: 0.0
-    agravio_weight: 0.6
+    agravio_weight: 0.8
 - id: investigar
   label: investigar
   duration_ticks: 20
