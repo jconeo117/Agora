@@ -597,6 +597,41 @@ actions:
     dominio: 0.014
     descanso: -0.2
   saturation_gain: 0.09
+- id: desafiar
+  label: desafiar a duelo
+  # Primera acción de agresión real entre agentes (D-052). Plantilla para
+  # futuras `gives` negativos: apunta a quien te debe algo, no a quien más
+  # aprecias -- `por_agravio: true` es lo que lo hace posible, y sin él
+  # `elegir_destinatario` golpearía por defecto al mejor amigo. Abierta a
+  # cualquiera, no solo a `guerrero`: un ajuste de cuentas no pide clase.
+  duration_ticks: 6
+  requires_company: 1
+  satisfies:
+    dominio: 0.8
+    vinculo: 1.0
+  costs:
+    descanso: 0.3
+  effects:
+    dominio: 0.025
+    vinculo: 0.05
+    descanso: -0.08
+  target:
+    gives:
+      salud: -0.08
+    inflicts:
+      situation: herida
+      marca: duelo
+      gravedad_min: 0.3
+      gravedad_max: 1.2
+    por_agravio: true
+    # 0.0 y no un umbral real: `desafiar` es hoy la ÚNICA fuente de agravio del
+    # pack (nada más deja un `por_quien` de valencia negativa), así que
+    # exigir una deuda previa sería un candado sin llave -- nadie podría
+    # empezar nunca. Con la puerta abierta, el primer desafío de cada cual
+    # desempata por id (arbitrario, no por aprecio); en cuanto existe una
+    # deuda real, `agravio_weight` ya hace que pese mucho más que el azar.
+    min_agravio: 0.0
+    agravio_weight: 0.6
 - id: investigar
   label: investigar
   duration_ticks: 20
