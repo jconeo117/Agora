@@ -696,6 +696,16 @@ class ContentPack(Spec):
                     f"acción {action.id!r} apunta a alguien y no exige compañía: "
                     f"declara `requires_company: 1`"
                 )
+            if destino.por_agravio and destino.por_desconocido:
+                # No hay forma de leer "a quien menos conoces, y de esos a quien
+                # más te debe" sin inventar un tercer criterio de desempate que
+                # nadie pidió (D-101 / D-052): los dos modos cambian la MISMA
+                # mitad de la elección y no se pueden componer.
+                problems.append(
+                    f"acción {action.id!r}.target declara `por_agravio` y "
+                    f"`por_desconocido` a la vez: son dos desempates distintos "
+                    f"para la misma elección"
+                )
         return problems
 
     def _check_situations_do_something(self) -> list[str]:

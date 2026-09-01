@@ -803,6 +803,33 @@ class TargetSpec(Spec):
     vendérselo a tu hermano. A 1, como un favor.
     """
 
+    por_desconocido: bool = False
+    """Esta acción se dirige **a quien menos conoces**, no a quien más aprecias
+    ni a quien más te debe. Tercer modo (D-101), y hacía falta uno: ni
+    `por_agravio` ni el modo por defecto sirven para la violencia por CODICIA
+    (bandidaje, robo) — la primera no puede empezar sin una deuda previa, y el
+    defecto golpearía al mejor amigo por diseño.
+
+    Cambia el desempate igual que `por_agravio`: en vez de maximizar el
+    aprecio, lo minimiza. La puerta es `max_regard`, no `min_regard` — un
+    bandido no descarta por poco aprecio, descarta por DEMASIADO.
+
+    Mutuamente excluyente con `por_agravio`; el pack no carga si declara los
+    dos a la vez, porque no hay forma de leer "a quien menos conoces, y de
+    esos a quien más te debe" sin inventar un tercer criterio de desempate
+    que nadie pidió.
+
+    No lleva un `_weight` propio: a diferencia de aprecio y agravio, la
+    codicia no se mide por CUÁNTO de desconocido es alguien, solo por serlo o
+    no. `disposicion` devuelve 1.0 sin encoger nada.
+    """
+
+    max_regard: float = Field(default=1.0, ge=-1.0, le=1.0)
+    """Aprecio máximo para que valga como desconocido. Solo con
+    `por_desconocido`. 1.0 = cualquiera vale, que es el defecto -- igual que
+    `min_regard` en 0.0 deja la puerta abierta por defecto para el modo
+    normal."""
+
 
 class ActionSpec(Spec):
     """Algo que un agente puede hacer durante N ticks.

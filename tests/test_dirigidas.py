@@ -530,6 +530,98 @@ def test_the_crash_this_guards_against() -> None:
     )
 
 
+# --- por_desconocido (D-101): el tercer modo, para violencia por codicia ----
+#
+# Ni el modo por defecto (golpearía al mejor amigo) ni `por_agravio` (no puede
+# empezar sin una deuda previa) sirven para el bandido que ataca porque
+# conviene, no porque le deban algo. `por_desconocido` es el espejo del modo
+# por defecto: la puerta es `max_regard` (descarta por DEMASIADO aprecio, no
+# por poco) y el desempate MINIMIZA el aprecio en vez de maximizarlo.
+
+
+def test_por_desconocido_targets_the_stranger_not_the_friend() -> None:
+    """El espejo exacto de `test_you_help_the_one_you_care_most_about`: aquí
+    gana quien MENOS se conoce."""
+    pack = dirigido_pack(**{
+        "actions": [
+            {"id": "asaltar", "label": "asaltar", "duration_ticks": 1,
+             "requires_affordance": "sitio", "requires_company": 1,
+             "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+             "target": {"gives": {"sangre": -0.05}, "por_desconocido": True}},
+            {"id": "nada", "label": "nada", "duration_ticks": 1}],
+        "agents": [
+            {"id": "sanador", "label": "Sanador", "home": "p1", "start_at": "p1"},
+            {"id": "herido", "label": "Herido", "home": "p1", "start_at": "p1"},
+            {"id": "otro", "label": "Otro", "home": "p1", "start_at": "p1"},
+        ]})
+    destino = pack.action_by_id[ActionId("asaltar")].target
+    assert destino is not None
+
+    sim = Simulation(pack, seed=1)
+    bandido = sim.state.agents[SANADOR]
+    for t in range(40):
+        bandido.meet(HERIDO, tick=t)
+        bandido.remember_company([HERIDO], premium=0.6, rate=0.4, tick=t)
+
+    elegido = bandido.elegir_destinatario(
+        [sim.state.agents[HERIDO], sim.state.agents[OTRO]], destino,
+    )
+    assert elegido is not None and elegido.spec_id == OTRO, (
+        "a quien no conoce, no al que acaba de hacerse su amigo"
+    )
+
+
+def test_por_desconocido_gate_excludes_those_you_know_too_well() -> None:
+    """`max_regard` es puerta dura, como `min_regard` con el signo cambiado:
+    por encima del umbral, ni el único presente es candidato."""
+    pack = dirigido_pack(**{"actions": [
+        {"id": "asaltar", "label": "asaltar", "duration_ticks": 1,
+         "requires_affordance": "sitio", "requires_company": 1,
+         "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+         "target": {"gives": {"sangre": -0.05}, "por_desconocido": True,
+                    "max_regard": 0.1}},
+        {"id": "nada", "label": "nada", "duration_ticks": 1}]})
+    destino = pack.action_by_id[ActionId("asaltar")].target
+    assert destino is not None
+
+    sim = Simulation(pack, seed=1)
+    bandido = sim.state.agents[SANADOR]
+    for t in range(40):
+        bandido.meet(HERIDO, tick=t)
+        bandido.remember_company([HERIDO], premium=0.6, rate=0.4, tick=t)
+
+    elegido = bandido.elegir_destinatario([sim.state.agents[HERIDO]], destino)
+    assert elegido is None, "lo conoce demasiado bien para asaltarlo"
+
+
+def test_disposicion_does_not_shrink_for_opportunism() -> None:
+    """A diferencia de aprecio y agravio, la codicia no se mide por CUÁNTO de
+    desconocido es alguien -- solo por serlo o no."""
+    pack = dirigido_pack(**{"actions": [
+        {"id": "asaltar", "label": "asaltar", "duration_ticks": 1,
+         "requires_affordance": "sitio", "requires_company": 1,
+         "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+         "target": {"gives": {"sangre": -0.05}, "por_desconocido": True}},
+        {"id": "nada", "label": "nada", "duration_ticks": 1}]})
+    destino = pack.action_by_id[ActionId("asaltar")].target
+    assert destino is not None
+    sim = Simulation(pack, seed=1)
+    assert sim.state.agents[SANADOR].disposicion(HERIDO, destino) == 1.0
+
+
+def test_a_pack_cannot_mix_the_two_targeting_modes() -> None:
+    """`por_agravio` y `por_desconocido` cambian la misma mitad de la
+    elección; declarar los dos a la vez no significa nada."""
+    with pytest.raises(ValueError, match=r"por_agravio.*por_desconocido"):
+        dirigido_pack(**{"actions": [
+            {"id": "confuso", "label": "confuso", "duration_ticks": 1,
+             "requires_affordance": "sitio", "requires_company": 1,
+             "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+             "target": {"gives": {"sangre": -0.05}, "por_agravio": True,
+                        "por_desconocido": True}},
+            {"id": "nada", "label": "nada", "duration_ticks": 1}]})
+
+
 # --- lo que desbloquea --------------------------------------------------------
 
 

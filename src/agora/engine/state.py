@@ -848,6 +848,13 @@ class AgentState:
         debes en vez de al que más quieres. `agravio` llega ya resuelto por
         deliberación (una consulta, no una por candidato).
 
+        Con `spec.por_desconocido` (D-101), el tercer modo: la puerta mira
+        `max_regard` —descarta por DEMASIADO aprecio, no por poco— y el
+        desempate MINIMIZA el aprecio en vez de maximizarlo. Es el que hace
+        falta para violencia por codicia, que no puede esperar a que exista
+        una deuda (`por_agravio` no puede empezar solo) ni debe golpear al
+        mejor amigo (el modo por defecto).
+
         Desempate por id, como en todas partes: sin él, dos procesos con la misma
         semilla curarían a personas distintas.
         """
@@ -865,6 +872,11 @@ class AgentState:
                 valor = deudas.get(otro.spec_id, 0.0)
                 if valor < spec.min_agravio:
                     continue
+            elif spec.por_desconocido:
+                aprecio = self.bonds[otro.spec_id].regard if otro.spec_id in self.bonds else 0.0
+                if aprecio > spec.max_regard:
+                    continue
+                valor = -aprecio
             else:
                 valor = self.bonds[otro.spec_id].regard if otro.spec_id in self.bonds else 0.0
                 if valor < spec.min_regard:
@@ -882,12 +894,16 @@ class AgentState:
         improbable* — ayudar a un desconocido sigue valiendo algo, así que ocurre
         cuando no hay nada mejor que hacer. Con `spec.por_agravio`, el espejo
         exacto sobre lo que te debe en vez de lo que aprecias (`agravio_weight`).
+        Con `spec.por_desconocido` no encoge nada (D-101): la codicia no se mide
+        por CUÁNTO de desconocido es alguien, solo por serlo o no.
         """
         if spec.por_agravio:
             if spec.agravio_weight <= 0.0:
                 return 1.0
             valor = (agravio or {}).get(hacia, 0.0)
             return (1.0 - spec.agravio_weight) + spec.agravio_weight * valor
+        if spec.por_desconocido:
+            return 1.0
         if spec.regard_weight <= 0.0:
             return 1.0
         aprecio = max(0.0, self.bonds[hacia].regard if hacia in self.bonds else 0.0)
