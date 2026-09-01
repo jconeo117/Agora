@@ -147,6 +147,109 @@ def test_two_people_grieve_the_same_loss_for_different_lengths() -> None:
     assert corriente < 0.02, "al otro se le pasó"
 
 
+# --- D-045: cuatro lentes, cada índice con su propio ritmo -------------------
+
+
+def test_a_lens_composes_on_top_of_the_general_channel() -> None:
+    """`grief_multiplier` no sustituye a `memory_multipliers`: los dos
+    multiplican antes de convertirse en exponente. Con el general en 4 y el
+    lente en 2, la media vida se multiplica por 8, no por 2."""
+    pack = perdida_pack(
+        **{"traits": [{"id": "tenaz", "label": "tenaz",
+                       "memory_multipliers": 4.0, "grief_multiplier": 2.0}]}
+    )
+    general = compose_memory_fade(pack, {TENAZ: 1.0}, 0.99)
+    del_duelo = compose_memory_fade(pack, {TENAZ: 1.0}, 0.99, lente="grief_multiplier")
+
+    assert general == pytest.approx(0.99 ** (1 / 4))
+    assert del_duelo == pytest.approx(0.99 ** (1 / 8))
+    assert del_duelo > general, "el duelo de esta persona dura más que el resto de su memoria"
+
+
+def test_a_lens_left_at_default_changes_nothing() -> None:
+    """Declarar el rasgo sin tocar los cuatro campos nuevos no puede mover
+    ningún contrato ya medido — es la garantía de compatibilidad de D-045."""
+    pack = perdida_pack()
+    sin_lente = compose_memory_fade(pack, {TENAZ: 1.0}, 0.99)
+    con_lente_neutro = compose_memory_fade(
+        pack, {TENAZ: 1.0}, 0.99, lente="grief_multiplier"
+    )
+    assert sin_lente == con_lente_neutro
+
+
+def test_grief_and_regret_fade_independently_for_the_same_person() -> None:
+    """El corazón de D-045: la misma persona puede tener un duelo que le dura
+    y un rencor que se le pasa — o al revés — sin que un canal se entere del
+    otro."""
+    memoria = MemoriaEpisodica(
+        capacidad=40,
+        fade=0.99,
+        fade_de_duelo={AG1: 0.99 ** (1 / 40)},   # el duelo, muy lento
+        # fade_de_rencor no se toca: usa el general de siempre para AG1
+    )
+    memoria.remember(AG1, evento(1, 0, AG1, IDOLO), importancia=0.8, valencia=-1.0)
+    rencor_evento = Event(seq=2, tick=0, kind=EventKind.ACTION_COMPLETED,
+                          actor=AG1, action=ActionId("nada"))
+    memoria.remember(AG1, rencor_evento, importancia=0.8, valencia=-1.0)
+
+    tarde = 96 * 90
+    duelo = memoria.duelo(AG1, tarde, escala=1.0)[IDOLO]
+    rencor = memoria.rencor(AG1, tarde, escala=1.0).get(ActionId("nada"), 0.0)
+
+    assert duelo > 0.05, "el duelo, con su propio fade lentísimo, sigue vivo"
+    assert rencor < 1e-6, "el rencor, sin lente propio, se olvida al ritmo general"
+    assert duelo > rencor * 1000, "mismo día, mismo dueño, ritmos completamente distintos"
+
+
+def test_a_grief_worthy_memory_survives_eviction_it_would_otherwise_lose() -> None:
+    """D-046. Con el fade GENERAL a secas (0.5, media vida de un tick), el
+    duelo valdría `0.5 * 0.5**50 ≈ 4.4e-16` al cabo de cincuenta ticks — muy
+    por debajo de cualquier trivialidad, y se descartaría antes de que
+    `duelo()` llegara a leerlo. Con su propio lente (0.999999) sigue casi
+    intacto, y es la trivialidad la que pierde la plaza."""
+    memoria = MemoriaEpisodica(
+        capacidad=1,
+        fade=0.5,
+        fade_de_duelo={AG1: 0.999999},
+    )
+    memoria.remember(AG1, evento(1, 0, AG1, IDOLO), importancia=0.5, valencia=-1.0)
+
+    trivial = Event(seq=2, tick=50, kind=EventKind.ACTION_COMPLETED,
+                    actor=AG1, action=ActionId("nada"))
+    memoria.remember(AG1, trivial, importancia=0.01, valencia=0.0)
+
+    restante = memoria.de(AG1)
+    assert len(restante) == 1
+    assert restante[0].about == IDOLO, (
+        "el duelo sobrevivió al desalojo por su propio lente; "
+        "la trivialidad, sin lente que la proteja, fue la que se descartó"
+    )
+    assert IDOLO in memoria.duelo(AG1, 50, escala=1.0)
+
+
+def test_the_wiring_reaches_a_real_world() -> None:
+    """Integración: un pack real con `grief_multiplier` en un rasgo llega hasta
+    `WorldState.memoria.fade_de_duelo` a través de `WorldState.new` (D-045)."""
+    pack = perdida_pack(
+        **{
+            "traits": [{"id": "doliente", "label": "doliente",
+                       "grief_multiplier": 50.0}],
+            "agents": [
+                {"id": "ag1", "label": "Uno", "home": "p1", "start_at": "p1",
+                 "traits": {"doliente": 1.0}},
+                {"id": "ag2", "label": "Dos", "home": "p1", "start_at": "p1"},
+            ],
+        }
+    )
+    sim = Simulation(pack, seed=1)
+
+    assert AG1 in sim.state.memoria.fade_de_duelo
+    assert AG2 not in sim.state.memoria.fade_de_duelo
+    assert AG1 not in sim.state.memoria.fade_de_rencor, (
+        "el rasgo solo declaró grief_multiplier: no debe aparecer en otro lente"
+    )
+
+
 # --- el índice del duelo -----------------------------------------------------
 
 

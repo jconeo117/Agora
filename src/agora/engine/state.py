@@ -825,7 +825,10 @@ class AgentState:
         return any(c.situacion == situacion for c in self.condiciones)
 
     def elegir_destinatario(
-        self, presentes: Sequence[AgentState], spec: TargetSpec
+        self,
+        presentes: Sequence[AgentState],
+        spec: TargetSpec,
+        agravio: Mapping[AgentId, float] | None = None,
     ) -> AgentState | None:
         """A quién de los que están aquí. `None` si a ninguno.
 
@@ -839,11 +842,18 @@ class AgentState:
         Una condición **se ve** cuando estás delante: alguien sangrando se nota.
         El valor exacto de sus necesidades, no.
 
+        Con `spec.por_agravio`, las dos mitades de la elección cambian a la vez
+        (ver el docstring de `TargetSpec.por_agravio`): la puerta mira
+        `min_agravio` en vez de `min_regard`, y el desempate es al que más le
+        debes en vez de al que más quieres. `agravio` llega ya resuelto por
+        deliberación (una consulta, no una por candidato).
+
         Desempate por id, como en todas partes: sin él, dos procesos con la misma
         semilla curarían a personas distintas.
         """
         mejor: AgentState | None = None
-        mejor_aprecio = 0.0
+        mejor_valor = 0.0
+        deudas = agravio or {}
         for otro in presentes:
             if otro.spec_id == self.spec_id:
                 continue
@@ -851,20 +861,33 @@ class AgentState:
                 spec.requires_condition
             ):
                 continue
-            aprecio = self.bonds[otro.spec_id].regard if otro.spec_id in self.bonds else 0.0
-            if aprecio < spec.min_regard:
-                continue
-            if mejor is None or (aprecio, otro.spec_id) > (mejor_aprecio, mejor.spec_id):
-                mejor, mejor_aprecio = otro, aprecio
+            if spec.por_agravio:
+                valor = deudas.get(otro.spec_id, 0.0)
+                if valor < spec.min_agravio:
+                    continue
+            else:
+                valor = self.bonds[otro.spec_id].regard if otro.spec_id in self.bonds else 0.0
+                if valor < spec.min_regard:
+                    continue
+            if mejor is None or (valor, otro.spec_id) > (mejor_valor, mejor.spec_id):
+                mejor, mejor_valor = otro, valor
         return mejor
 
-    def disposicion(self, hacia: AgentId, spec: TargetSpec) -> float:
+    def disposicion(
+        self, hacia: AgentId, spec: TargetSpec, agravio: Mapping[AgentId, float] | None = None
+    ) -> float:
         """Cuánto le compensa hacérselo **a este**. Multiplica la recompensa.
 
         No veta: encoge. Es la respuesta a *poco probable, no completamente
         improbable* — ayudar a un desconocido sigue valiendo algo, así que ocurre
-        cuando no hay nada mejor que hacer.
+        cuando no hay nada mejor que hacer. Con `spec.por_agravio`, el espejo
+        exacto sobre lo que te debe en vez de lo que aprecias (`agravio_weight`).
         """
+        if spec.por_agravio:
+            if spec.agravio_weight <= 0.0:
+                return 1.0
+            valor = (agravio or {}).get(hacia, 0.0)
+            return (1.0 - spec.agravio_weight) + spec.agravio_weight * valor
         if spec.regard_weight <= 0.0:
             return 1.0
         aprecio = max(0.0, self.bonds[hacia].regard if hacia in self.bonds else 0.0)
@@ -1372,6 +1395,46 @@ class AgentState:
         return self.busy is None or self.busy.ticks_remaining == 0
 
 
+def _build_memoria(pack: ContentPack) -> MemoriaEpisodica:
+    """El estado inicial de la memoria del mundo: capacidad, fade general, y
+    los cinco diccionarios dispersos (el general más los cuatro lentes, D-045).
+
+    Todos dispersos por el mismo motivo: solo quien se desvíe del ritmo que ya
+    tendría lleva entrada, así que un pack sin el séptimo canal —o sin los
+    cuatro lentes— deja esto vacío y se comporta exactamente como antes.
+    """
+    fade_general = {
+        spec.id: propio
+        for spec in pack.agents
+        if (propio := compose_memory_fade(pack, spec.traits, pack.tuning.memory_fade))
+        != pack.tuning.memory_fade
+    }
+
+    def lente(canal: str) -> dict[AgentId, float]:
+        return {
+            spec.id: propio
+            for spec in pack.agents
+            if (
+                propio := compose_memory_fade(
+                    pack, spec.traits, pack.tuning.memory_fade, lente=canal
+                )
+            )
+            # Comparado contra el fade PROPIO de esa persona, no el del mundo:
+            # un lente en 1.0 no debe entrar solo porque el general ya se desvió.
+            != fade_general.get(spec.id, pack.tuning.memory_fade)
+        }
+
+    return MemoriaEpisodica(
+        capacidad=pack.tuning.memory_capacity,
+        fade=pack.tuning.memory_fade,
+        fade_de=fade_general,
+        fade_de_rencor=lente("regret_multiplier"),
+        fade_de_miedo=lente("fear_multiplier"),
+        fade_de_duelo=lente("grief_multiplier"),
+        fade_de_agravio=lente("grudge_multiplier"),
+    )
+
+
 def _close_relations(pack: ContentPack, agents: dict[AgentId, AgentState]) -> None:
     """Pone la otra mitad de cada relación declarada.
 
@@ -1507,19 +1570,7 @@ class WorldState:
             # La capacidad y el desdibujado salen del pack de HOY, igual que todo
             # lo demás derivado: al reanudar sobre un pack retocado manda el
             # nuevo, no el que se guardó.
-            memoria=MemoriaEpisodica(
-                capacidad=pack.tuning.memory_capacity,
-                fade=pack.tuning.memory_fade,
-                # Disperso: solo quien se desvíe del ritmo del mundo. Un pack sin
-                # el séptimo canal deja esto vacío y se comporta como siempre.
-                fade_de={
-                    spec.id: propio
-                    for spec in pack.agents
-                    if (propio := compose_memory_fade(
-                        pack, spec.traits, pack.tuning.memory_fade
-                    )) != pack.tuning.memory_fade
-                },
-            ),
+            memoria=_build_memoria(pack),
         )
 
     # -- situaciones ----------------------------------------------------------

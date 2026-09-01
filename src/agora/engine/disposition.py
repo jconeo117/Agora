@@ -156,8 +156,27 @@ def compose_caps(
     return {need_id: min(1.0, tope) for need_id, tope in caps.items()}
 
 
+def _forgetting_factor(
+    pack: ContentPack, traits: Mapping[TraitId, float], canal: str
+) -> float:
+    """El producto de `multiplicador ** intensidad` de un canal de olvido,
+    sobre todos los rasgos del agente. Compartido por el general
+    (`memory_multipliers`) y por los cuatro lentes (D-045): es la misma
+    aritmética, solo cambia de qué atributo de `TraitSpec` se lee.
+    """
+    factor = 1.0
+    for trait_id in sorted(traits):
+        multiplier = getattr(pack.trait_by_id[trait_id], canal)
+        if multiplier != 1.0:
+            factor *= multiplier ** traits[trait_id]
+    return factor
+
+
 def compose_memory_fade(
-    pack: ContentPack, traits: Mapping[TraitId, float], base: float
+    pack: ContentPack,
+    traits: Mapping[TraitId, float],
+    base: float,
+    lente: str | None = None,
 ) -> float:
     """Cuánto le **dura** a este agente lo que recuerda. Séptimo canal.
 
@@ -180,17 +199,25 @@ def compose_memory_fade(
     la intensidad de un rasgo tuvo que poder neutralizar e invertir un canal:
     cuando el efecto vive en un exponente, la composición también.
 
+    **`lente`** (D-045) pide además el nombre del canal de un índice psicológico
+    —`"regret_multiplier"`, `"fear_multiplier"`, `"grief_multiplier"` o
+    `"grudge_multiplier"`— y compone su factor MULTIPLICANDO con el del canal
+    general antes de aplicar el exponente:
+
+        fade_del_lente = base ** (1 / (factor_general · factor_del_lente))
+
+    Con `lente=None` (el uso de siempre, para el fade general de la persona) el
+    segundo factor es 1.0 y el resultado es idéntico a antes de D-045.
+
     Se recorta a `(0, 1]`: nadie recuerda mejor que perfectamente.
     """
     if base >= 1.0:
         # Un mundo sin desdibujado no lo estrena por tener rasgos: `1.0 ** x` es
         # 1.0 para cualquier x, pero decirlo aquí ahorra la duda al leerlo.
         return 1.0
-    factor = 1.0
-    for trait_id in sorted(traits):
-        multiplier = pack.trait_by_id[trait_id].memory_multipliers
-        if multiplier != 1.0:
-            factor *= multiplier ** traits[trait_id]
+    factor = _forgetting_factor(pack, traits, "memory_multipliers")
+    if lente is not None:
+        factor *= _forgetting_factor(pack, traits, lente)
     if factor <= 0.0:
         return base
     return min(1.0, float(base ** (1.0 / factor)))

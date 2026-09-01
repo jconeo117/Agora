@@ -340,6 +340,196 @@ def test_the_loved_one_is_helped_sooner_and_oftener_than_the_beggar() -> None:
     assert len(al_querido) > len(al_mendigo), "y más veces"
 
 
+# --- agravio: apuntar a quien te lo hizo, no a quien quieres -----------------
+#
+# `TargetSpec.por_agravio` cambia las dos mitades de la elección de
+# destinatario a la vez: la puerta pasa a mirar `min_agravio` en vez de
+# `min_regard`, y el desempate pasa a ser *a quien más le debes* en vez de *a
+# quien más quieres*. La firma de `elegir_destinatario`/`disposicion` no
+# aceptaba el `agravio` que `decide.py` ya les pasaba —crasheaba toda
+# deliberación en cualquier pack con una acción dirigida— y estas pruebas
+# cubren tanto el mecanismo como la regresión exacta que lo destapó.
+
+
+def test_por_agravio_targets_who_wronged_you_not_who_you_love() -> None:
+    """Sin esto, una paliza saldría dirigida al mejor amigo: la puerta objetiva
+    deja de ser el aprecio y pasa a ser la deuda."""
+    pack = dirigido_pack(**{
+        "actions": [
+            {"id": "vengarse", "label": "vengarse", "duration_ticks": 1,
+             "requires_affordance": "sitio", "requires_company": 1,
+             "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+             "target": {"gives": {"sangre": -0.05}, "por_agravio": True}},
+            {"id": "nada", "label": "nada", "duration_ticks": 1}],
+        "agents": [
+            {"id": "sanador", "label": "Sanador", "home": "p1", "start_at": "p1"},
+            {"id": "herido", "label": "Herido", "home": "p1", "start_at": "p1"},
+            {"id": "otro", "label": "Otro", "home": "p1", "start_at": "p1"},
+        ]})
+    destino = pack.action_by_id[ActionId("vengarse")].target
+    assert destino is not None
+
+    sim = Simulation(pack, seed=1)
+    quien_venga = sim.state.agents[SANADOR]
+    for t in range(40):
+        quien_venga.meet(HERIDO, tick=t)
+        quien_venga.remember_company([HERIDO], premium=0.6, rate=0.4, tick=t)
+
+    elegido = quien_venga.elegir_destinatario(
+        [sim.state.agents[HERIDO], sim.state.agents[OTRO]],
+        destino,
+        agravio={OTRO: 0.6},
+    )
+    assert elegido is not None and elegido.spec_id == OTRO, (
+        "a quien le debe algo, no al querido, aunque HERIDO tenga todo el aprecio"
+    )
+
+
+def test_por_agravio_gate_blocks_debts_below_the_threshold() -> None:
+    """`min_agravio` es puerta dura, como `min_regard`: por debajo del umbral,
+    nadie es candidato — ni siquiera el único presente."""
+    destino_dict = {"gives": {"sangre": -0.05}, "por_agravio": True,
+                    "min_agravio": 0.5}
+    pack = dirigido_pack(**{
+        "actions": [
+            {"id": "vengarse", "label": "vengarse", "duration_ticks": 1,
+             "requires_affordance": "sitio", "requires_company": 1,
+             "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+             "target": destino_dict},
+            {"id": "nada", "label": "nada", "duration_ticks": 1}],
+        "agents": [
+            {"id": "sanador", "label": "Sanador", "home": "p1", "start_at": "p1"},
+            {"id": "herido", "label": "Herido", "home": "p1", "start_at": "p1"},
+            {"id": "otro", "label": "Otro", "home": "p1", "start_at": "p1"},
+        ]})
+    destino = pack.action_by_id[ActionId("vengarse")].target
+    assert destino is not None
+
+    sim = Simulation(pack, seed=1)
+    elegido = sim.state.agents[SANADOR].elegir_destinatario(
+        [sim.state.agents[HERIDO], sim.state.agents[OTRO]],
+        destino,
+        agravio={HERIDO: 0.3, OTRO: 0.2},
+    )
+    assert elegido is None, "ninguna deuda llega al umbral que pide la acción"
+
+
+def test_por_agravio_tiebreak_goes_to_whoever_owes_you_most() -> None:
+    """El desempate, con la puerta ya abierta para los dos: gana quien más
+    debe, no quien apareció antes en la lista."""
+    pack = dirigido_pack(**{
+        "actions": [
+            {"id": "vengarse", "label": "vengarse", "duration_ticks": 1,
+             "requires_affordance": "sitio", "requires_company": 1,
+             "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+             "target": {"gives": {"sangre": -0.05}, "por_agravio": True,
+                        "min_agravio": 0.1}},
+            {"id": "nada", "label": "nada", "duration_ticks": 1}],
+        "agents": [
+            {"id": "sanador", "label": "Sanador", "home": "p1", "start_at": "p1"},
+            {"id": "herido", "label": "Herido", "home": "p1", "start_at": "p1"},
+            {"id": "otro", "label": "Otro", "home": "p1", "start_at": "p1"},
+        ]})
+    destino = pack.action_by_id[ActionId("vengarse")].target
+    assert destino is not None
+
+    sim = Simulation(pack, seed=1)
+    elegido = sim.state.agents[SANADOR].elegir_destinatario(
+        [sim.state.agents[HERIDO], sim.state.agents[OTRO]],
+        destino,
+        agravio={HERIDO: 0.2, OTRO: 0.9},
+    )
+    assert elegido is not None and elegido.spec_id == OTRO
+
+
+def test_disposicion_scales_by_the_debt_not_the_affection() -> None:
+    """Espejo exacto de `test_a_stranger_is_helped_less_eagerly_but_not_never`,
+    sobre el otro eje: con `por_agravio`, el aprecio deja de tener voz."""
+    pack = dirigido_pack(**{"actions": [
+        {"id": "vengarse", "label": "vengarse", "duration_ticks": 1,
+         "requires_affordance": "sitio", "requires_company": 1,
+         "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+         "target": {"gives": {"sangre": -0.05}, "por_agravio": True,
+                    "agravio_weight": 1.0}},
+        {"id": "nada", "label": "nada", "duration_ticks": 1}]})
+    destino = pack.action_by_id[ActionId("vengarse")].target
+    assert destino is not None
+
+    sim = Simulation(pack, seed=1)
+    quien_venga = sim.state.agents[SANADOR]
+    for t in range(40):
+        quien_venga.meet(HERIDO, tick=t)
+        quien_venga.remember_company([HERIDO], premium=0.6, rate=0.4, tick=t)
+
+    sin_deuda = quien_venga.disposicion(HERIDO, destino, agravio={})
+    con_deuda = quien_venga.disposicion(HERIDO, destino, agravio={HERIDO: 0.8})
+
+    assert sin_deuda == 0.0, "con peso 1.0, nada que deba no compensa nada"
+    assert con_deuda > 0.0, "y una deuda real sí, pese a ser a quien más se aprecia"
+
+
+def test_the_crash_this_guards_against() -> None:
+    """**Regresión.** El último commit de motor llamaba a
+    `elegir_destinatario`/`disposicion` con un tercer argumento (`agravio`) que
+    la firma anterior no aceptaba: `TypeError` en la primera deliberación de
+    CUALQUIER pack con una sola acción dirigida. Cero packs con `target` en el
+    repositorio salvo `confluencia` lo ejercitaban, y cero tests lo cazaron —
+    así que el motor completo estuvo roto para ese mundo sin que la batería se
+    enterara. Esta prueba corre `candidates()` de punta a punta, que es
+    exactamente la ruta que crasheaba.
+    """
+    pack = dirigido_pack(**{
+        "traits": [{"id": "agresivo", "label": "agresivo"}],
+        "actions": [
+            {"id": "golpear", "label": "golpear", "duration_ticks": 1,
+             "requires_affordance": "sitio", "requires_company": 1,
+             "requires_traits": {"agresivo": 0.5},
+             "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+             "target": {"gives": {"sangre": -0.30}}},
+            {"id": "vengarse", "label": "vengarse", "duration_ticks": 1,
+             "requires_affordance": "sitio", "requires_company": 1,
+             "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+             "target": {"gives": {"sangre": -0.05}, "por_agravio": True,
+                        "min_agravio": 0.05}},
+            {"id": "nada", "label": "nada", "duration_ticks": 1},
+        ],
+        "agents": [
+            {"id": "sanador", "label": "Agresor", "home": "p1", "start_at": "p1",
+             "traits": {"agresivo": 1.0}},
+            {"id": "herido", "label": "Victima", "home": "p1", "start_at": "p1"},
+            # Lejos durante la agresión: si estuviera en p1, el desempate de
+            # `golpear` (sin por_agravio) podría tocarle a él en vez de a la
+            # víctima, por el simple orden alfabético de los ids.
+            {"id": "otro", "label": "Benigno", "home": "p2", "start_at": "p2"},
+        ],
+        "tuning": {"memory_capacity": 20, "memory_scale": 1.0,
+                   "bond_rate": 0.3, "bond_scale": 1.0, "grief_scale": 1.0}})
+    sim = Simulation(pack, seed=1)
+    victima = sim.state.agents[HERIDO]
+
+    # Antes de que nadie le haga nada: la puerta de agravio no deja pasar a
+    # nadie, y no debe crashear al calcularla (any(...) sobre pack.actions).
+    antes = candidates(sim.state, victima)
+    assert not [d for d in antes if d.action == ActionId("vengarse")]
+
+    # Sin este arreglo, esta línea es la que lanzaba el TypeError.
+    sim.run(4)
+
+    assert any(
+        r.por_quien == SANADOR for r in sim.state.memoria.de(HERIDO)
+    ), "el agresor tenía que dejarle una deuda"
+
+    # Ahora sí, el inocente se acerca: si `vengarse` lo eligiera a él en vez
+    # del agresor, sería la prueba de que el desempate volvió a mirar el
+    # aprecio en vez del agravio.
+    sim.state.agents[OTRO].at = P1
+    despues = candidates(sim.state, victima)
+    vengarse = [d for d in despues if d.action == ActionId("vengarse")]
+    assert vengarse and all(d.target == SANADOR for d in vengarse), (
+        "la venganza apunta a quien golpeó, no al inocente presente"
+    )
+
+
 # --- lo que desbloquea --------------------------------------------------------
 
 

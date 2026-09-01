@@ -536,6 +536,43 @@ class TraitSpec(Spec):
     canal no mueva ningún contrato ya medido.
     """
 
+    regret_multiplier: PositiveFactor = 1.0
+    """Cuánto le dura el RENCOR en particular. Compone sobre `memory_multipliers`,
+    no lo sustituye — ver el docstring de `grief_multiplier`, que explica el
+    patrón compartido de los cuatro lentes (D-045)."""
+
+    fear_multiplier: PositiveFactor = 1.0
+    """Cuánto le dura el MIEDO en particular. Mismo patrón que `grief_multiplier`
+    (D-045)."""
+
+    grief_multiplier: PositiveFactor = 1.0
+    """Cuánto le dura el DUELO en particular, por encima de `memory_multipliers`.
+
+    **El motivo por el que existen los cuatro lentes.** `memory_multipliers` dice
+    cuánto le dura a alguien la memoria EN CONJUNTO, pero una persona real no
+    olvida todo a la misma velocidad: el duelo por quien de verdad quiso puede
+    durarle años mientras el rencor por un mal trato cualquiera se le pasa en
+    semanas — o al revés. Un solo canal general no puede expresar esa asimetría;
+    partirlo por los CUATRO ÍNDICES que el motor ya define (rencor, miedo, duelo,
+    agravio) sí, porque son un conjunto cerrado y no un eje abierto que el pack
+    tenga que inventar (por eso no contradice la razón por la que
+    `memory_multipliers` sigue siendo un número suelto y no un diccionario por
+    necesidad).
+
+    Compone MULTIPLICANDO sobre el general, nunca sustituyéndolo — así "propio de
+    cada índice" y "propio de la persona" son la misma fórmula en dos capas:
+
+        fade_del_duelo = base ** (1 / (memory_multipliers · grief_multiplier))
+
+    En 1.0 (el defecto) el duelo de esa persona dura exactamente lo que ya
+    determinaba `memory_multipliers`, así que declarar el rasgo sin tocar estos
+    cuatro campos no cambia nada.
+    """
+
+    grudge_multiplier: PositiveFactor = 1.0
+    """Cuánto le dura el AGRAVIO en particular. Mismo patrón que
+    `grief_multiplier` (D-045)."""
+
     phase_shift: int = Field(default=0)
     """Tercer canal: cuánto se desplaza el reloj INTERNO de esta persona.
 

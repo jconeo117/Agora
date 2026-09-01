@@ -283,17 +283,55 @@ class MemoriaEpisodica:
     mundo, así que un pack sin el canal no paga memoria por él ni cambia en nada.
     """
 
+    fade_de_rencor: dict[AgentId, float] = field(default_factory=dict)
+    fade_de_miedo: dict[AgentId, float] = field(default_factory=dict)
+    fade_de_duelo: dict[AgentId, float] = field(default_factory=dict)
+    fade_de_agravio: dict[AgentId, float] = field(default_factory=dict)
+    """Los cuatro lentes (D-045): el ritmo de olvido de CADA índice, cuando se
+    desvía del general (`fade_de`) de esa misma persona.
+
+    Misma disciplina que `fade_de`: dispersos, y solo llevan entrada quien
+    declare el canal correspondiente (`regret_multiplier`, `fear_multiplier`,
+    `grief_multiplier`, `grudge_multiplier`) con un valor que de verdad cambie
+    algo. Un agente sin ninguno de los cuatro no aparece en ningún diccionario y
+    se comporta exactamente igual que antes de que existieran.
+    """
+
     _por_duenyo: dict[AgentId, list[Recuerdo]] = field(default_factory=dict)
 
     def fade_of(self, owner: AgentId) -> float:
-        """A qué ritmo olvida esta persona. El suyo si lo tiene, si no el común.
+        """A qué ritmo olvida esta persona EN CONJUNTO. El suyo si lo tiene, si
+        no el común.
 
-        **Todo lo que lea un recuerdo tiene que pasar por aquí.** Un solo sitio
-        que se deje `self.fade` a secas dejaría a ese agente olvidando al ritmo
-        del mundo en ese cálculo y al suyo en el resto — y el síntoma sería una
-        conducta incoherente sin nada roto que encontrar.
+        **Todo lo que lea un recuerdo sin distinguir de índice tiene que pasar
+        por aquí** (`recall`, y el desalojo por capacidad como suelo — ver
+        `_fade_para_desalojo`). Un solo sitio que se deje `self.fade` a secas
+        dejaría a ese agente olvidando al ritmo del mundo en ese cálculo y al
+        suyo en el resto — y el síntoma sería una conducta incoherente sin nada
+        roto que encontrar.
         """
         return self.fade_de.get(owner, self.fade)
+
+    def fade_of_rencor(self, owner: AgentId) -> float:
+        """El ritmo de olvido del RENCOR (D-045). El propio del lente si lo
+        tiene; si no, el general de la persona (`fade_of`)."""
+        return self.fade_de_rencor.get(owner, self.fade_of(owner))
+
+    def fade_of_miedo(self, owner: AgentId) -> float:
+        """El ritmo de olvido del MIEDO (D-045). Mismo patrón que
+        `fade_of_rencor`."""
+        return self.fade_de_miedo.get(owner, self.fade_of(owner))
+
+    def fade_of_duelo(self, owner: AgentId) -> float:
+        """El ritmo de olvido del DUELO (D-045). Mismo patrón que
+        `fade_of_rencor` — es el que hace posible que un duelo dure décadas sin
+        que el rencor o el miedo de la misma persona se enteren."""
+        return self.fade_de_duelo.get(owner, self.fade_of(owner))
+
+    def fade_of_agravio(self, owner: AgentId) -> float:
+        """El ritmo de olvido del AGRAVIO (D-045). Mismo patrón que
+        `fade_of_rencor`."""
+        return self.fade_de_agravio.get(owner, self.fade_of(owner))
 
     def __len__(self) -> int:
         return sum(len(v) for v in self._por_duenyo.values())
@@ -350,6 +388,35 @@ class MemoriaEpisodica:
             self._olvidar(owner, guardados, event.tick)
         return recuerdo
 
+    def _fade_para_desalojo(self, owner: AgentId, recuerdo: Recuerdo) -> float:
+        """El fade que decide si ESTE recuerdo sobrevive al desalojo (D-046).
+
+        **El más lento de los que le apliquen**, nunca solo el general. Sin
+        esto, D-045 sería cosmético: un recuerdo de pérdida con
+        `grief_multiplier` altísimo podría desaparecer de la memoria por
+        completo —desalojado por capacidad— antes de que `duelo()` llegara a
+        leerlo, porque el desalojo competiría con el ritmo general a secas.
+
+        Las condiciones repiten, a propósito, exactamente el filtro de cada
+        índice (`rencor`/`miedo`/`duelo`/`agravio`): un recuerdo solo se
+        protege con el lente al que de verdad podría alimentar.
+        """
+        fade = self.fade_of(owner)
+        if recuerdo.valencia < 0.0:
+            if recuerdo.action is not None:
+                fade = max(fade, self.fade_of_rencor(owner))
+            elif recuerdo.about is not None:
+                fade = max(fade, self.fade_of_duelo(owner))
+            if (
+                recuerdo.place is not None
+                and recuerdo.action is None
+                and recuerdo.culpable is not None
+            ):
+                fade = max(fade, self.fade_of_miedo(owner))
+            if recuerdo.por_quien is not None:
+                fade = max(fade, self.fade_of_agravio(owner))
+        return fade
+
     def _olvidar(self, owner: AgentId, guardados: list[Recuerdo], tick: int) -> None:
         """Descarta el de menor valor retenido. **No el más viejo.**
 
@@ -358,14 +425,22 @@ class MemoriaEpisodica:
         Con FIFO, cualquier cosa memorable queda enterrada por la rutina de los
         días siguientes, que es justo al revés de como funciona una biografía.
 
+        Cada recuerdo compite con SU PROPIO fade (D-046), no uno común: el de
+        duelo de una pérdida que de verdad dolió no se apaga al ritmo con el que
+        esta persona olvida una cena cualquiera.
+
         Desempate por `seq` para que el orden no dependa de la comparación de
         floats cuando dos valores coinciden — el mismo cuidado que `_rank` en la
         deliberación, y por el mismo motivo: sin él, dos procesos con la misma
         semilla podrían divergir.
         """
-        fade = self.fade_of(owner)
-        peor = min(range(len(guardados)),
-                   key=lambda i: (guardados[i].valor(tick, fade), guardados[i].seq))
+        peor = min(
+            range(len(guardados)),
+            key=lambda i: (
+                guardados[i].valor(tick, self._fade_para_desalojo(owner, guardados[i])),
+                guardados[i].seq,
+            ),
+        )
         del guardados[peor]
 
     def recall(self, owner: AgentId, cue: Cue, limit: int) -> tuple[Recuerdo, ...]:
@@ -433,7 +508,7 @@ class MemoriaEpisodica:
         guardados = self._por_duenyo.get(owner)
         if not guardados or escala <= 0.0:
             return {}
-        fade = self.fade_of(owner)
+        fade = self.fade_of_rencor(owner)
 
         bruto: dict[ActionId, float] = {}
         for recuerdo in guardados:
@@ -468,7 +543,7 @@ class MemoriaEpisodica:
         guardados = self._por_duenyo.get(owner)
         if not guardados or escala <= 0.0:
             return {}
-        fade = self.fade_of(owner)
+        fade = self.fade_of_miedo(owner)
 
         bruto: dict[PlaceId, float] = {}
         for recuerdo in guardados:
@@ -587,7 +662,7 @@ class MemoriaEpisodica:
         guardados = self._por_duenyo.get(owner)
         if not guardados or escala <= 0.0:
             return {}
-        fade = self.fade_of(owner)
+        fade = self.fade_of_agravio(owner)
 
         bruto: dict[AgentId, float] = {}
         for recuerdo in guardados:
@@ -632,7 +707,7 @@ class MemoriaEpisodica:
         guardados = self._por_duenyo.get(owner)
         if not guardados or escala <= 0.0:
             return {}
-        fade = self.fade_of(owner)
+        fade = self.fade_of_duelo(owner)
 
         bruto: dict[AgentId, float] = {}
         for recuerdo in guardados:
