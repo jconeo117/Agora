@@ -42,6 +42,12 @@ health:
   # contra la ventana en vez de contra el mundo.
   - forjar_espada
   - vender_espada
+  # `criar` no puede ocurrir en catorce dias por construccion, y no por estar
+  # muerta: la espera dura 25920 ticks (nueve meses), asi que en la ventana del
+  # panel no existe todavia ningun crio al que criar. Es el unico caso del pack
+  # en que la ventana no es corta sino de otra escala que el mecanismo: medirla
+  # exige una corrida larga aparte (medido a 400 dias con `--skip 7`).
+  - criar
 tuning:
   travel_discount: 0.94
   candidate_pool: 3
@@ -1115,6 +1121,50 @@ actions:
     inflicts:
       situation: gestacion
       lasts: 25920
+# Criar (D-076). Es lo que hace que "acabar queriendolo" tenga numeros detras.
+# Medido antes de esto: 210 vinculos padre/madre -> hijo con mediana de aprecio
+# +0.001 y maximo +0.130. El aprecio solo crece por `remember_company` -- por
+# compartir algo -- y nadie comparte nada con un crio, asi que el vinculo no
+# arrancaba nunca. Un padre que no lo buscaba se quedaba en su 0.04 de por vida,
+# y eso convierte una decision de dise~no en un callejon.
+#
+# `requires_condition: infancia` y no una edad maxima: el motor sabe exigirle al
+# destinatario una edad MINIMA, no un techo. Una condicion si se ve estando
+# delante, y la ni~nez es exactamente eso -- algo que se lleva encima y se pasa
+# solo.
+#
+# No pide ser el padre. Cuidar del crio de otro es una cosa que pasa, y gatearlo
+# por relacion dejaria fuera al abuelo, al vecino y al maestro. Lo que hace que
+# normalmente sea el padre es el `regard_weight`: se cuida antes a quien se
+# quiere, y a un hijo buscado se le quiere de entrada.
+- id: criar
+  label: criar
+  duration_ticks: 10
+  requires_affordance: quietud
+  requires_company: 1
+  requires_edad: 622080
+  # `deseo` y no solo `vinculo`, y es la leccion de E-009 por tercera vez: con
+  # `vinculo: 1.0` a secas la accion promete exactamente lo que `charlar` da
+  # gratis en 17 sitios, y ocurria 10 veces en 400 dias. Criar satisface el
+  # mismo impulso que buscar descendencia -- quien ya esta criando no anda
+  # buscando otro -- asi que compite con `engendrar` por su eje, que es lo que
+  # tiene que pasar.
+  satisfies:
+    deseo: 0.85
+    vinculo: 0.4
+  costs:
+    descanso: 0.35
+  effects:
+    deseo: 0.3
+    vinculo: 0.15
+    descanso: -0.08
+  saturation_gain: 0.15
+  target:
+    requires_condition: infancia
+    gives:
+      vinculo: 0.3
+      sustento: 0.12
+    regard_weight: 0.5
 - id: cazar
   label: cazar
   duration_ticks: 16
@@ -1882,6 +1932,13 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 2039040
+  goals:
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   traits:
     varon: 1.0
     afin_fuego: 1.0
@@ -1910,6 +1967,13 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1175040
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -1938,6 +2002,13 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 933120
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -2038,6 +2109,13 @@ agents:
   home: salon_comunal_gigante
   start_at: plaza_gigante
   edad_inicial: 760320
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -2095,6 +2173,12 @@ agents:
       ambicion: -0.35
       audacia: -0.3
     at_least: 0.96
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   relations:
     pareja:
     - brix_zarzal_184
@@ -2134,6 +2218,12 @@ agents:
     on_success: *id001
     on_failure: *id002
     at_least: 0.93
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   relations:
     pareja:
     - varn_rocaviva
@@ -2207,6 +2297,12 @@ agents:
     on_success: *id001
     on_failure: *id002
     at_least: 0.93
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   relations:
     pareja:
     - dain_vadohondo
@@ -2248,6 +2344,12 @@ agents:
     on_success: *id001
     on_failure: *id002
     at_least: 0.93
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   relations:
     pareja:
     - eris_rocaviva
@@ -2261,6 +2363,13 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 691200
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_agua: 0.42
@@ -2323,6 +2432,12 @@ agents:
       sociabilidad: -0.3
       audacia: -0.25
     at_least: 0.94
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   relations:
     pareja:
     - nyx_cenizal_196
@@ -2362,6 +2477,12 @@ agents:
       sociabilidad: -0.55
       ambicion: 0.25
     at_least: 0.97
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   relations:
     pareja:
     - pell_zarzal
@@ -2375,6 +2496,13 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1900800
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_fuego: 1.0
@@ -2454,6 +2582,12 @@ agents:
       ambicion: -0.4
       sociabilidad: 0.3
     at_least: 0.97
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   relations:
     pareja:
     - ivar_vadohondo
@@ -2466,6 +2600,13 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1831680
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_fuego: 1.0
@@ -2520,6 +2661,13 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1244160
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -2597,6 +2745,12 @@ agents:
     on_success: *id003
     on_failure: *id004
     at_least: 0.94
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   relations:
     pareja:
     - fenn_rocaviva
@@ -2639,6 +2793,12 @@ agents:
       ambicion: -0.3
       aprension: 0.25
     at_rank: 4
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   relations:
     pareja:
     - eris_vadohondo
@@ -2652,6 +2812,13 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 2073600
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -2806,6 +2973,13 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1313280
+  goals:
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   traits:
     varon: 1.0
     afin_agua: 1.0
@@ -2834,6 +3008,13 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1140480
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_fuego: 0.44
@@ -2894,6 +3075,12 @@ agents:
     on_success: *id006
     on_failure: *id007
     at_rank: 4
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   relations:
     hermano:
     - ivar_hojaclara
@@ -3001,6 +3188,12 @@ agents:
     on_success: *id008
     on_failure: *id009
     at_least: 0.97
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   relations:
     hermano:
     - sela_nieblalta
@@ -3039,6 +3232,12 @@ agents:
     on_success: *id010
     on_failure: *id011
     at_least: 0.97
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   relations:
     hermano:
     - dorn_fuegolento
@@ -3067,6 +3266,12 @@ agents:
     on_success: *id003
     on_failure: *id004
     at_least: 0.94
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   relations:
     pareja:
     - cael_vadohondo
@@ -3079,6 +3284,13 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1347840
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_agua: 0.36
@@ -3132,6 +3344,12 @@ agents:
     on_success: *id001
     on_failure: *id002
     at_least: 0.93
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   relations:
     hermano:
     - quen_umbrio
@@ -3224,6 +3442,12 @@ agents:
     on_success: *id003
     on_failure: *id004
     at_least: 0.94
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   relations:
     hermano:
     - rask_hojaclara
@@ -3297,6 +3521,13 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1693440
+  goals:
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -3346,6 +3577,12 @@ agents:
     on_success: *id010
     on_failure: *id011
     at_least: 0.97
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   relations:
     hermano:
     - eyla_fuegolento_51
@@ -3412,6 +3649,12 @@ agents:
     on_success: *id012
     on_failure: *id013
     at_rank: 2
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   relations:
     hermano:
     - kel_marfrio
@@ -3442,6 +3685,12 @@ agents:
     on_success: *id014
     on_failure: *id015
     at_least: 0.96
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   relations:
     pareja:
     - yves_cenizal_176
@@ -3502,6 +3751,12 @@ agents:
     on_success: *id001
     on_failure: *id002
     at_least: 0.93
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
 - id: hale_nieblalta
   label: Hale Nieblalta
   home: posada_elfica
@@ -3540,6 +3795,13 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1175040
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -3589,6 +3851,12 @@ agents:
     on_success: *id010
     on_failure: *id011
     at_least: 0.97
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   relations:
     hermano:
     - bern_zarzal
@@ -3649,6 +3917,12 @@ agents:
     on_success: *id010
     on_failure: *id011
     at_least: 0.97
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   relations:
     hermano:
     - aral_marfrio
@@ -3663,6 +3937,13 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1002240
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_fuego: 1.0
@@ -3690,6 +3971,13 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 760320
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -3717,6 +4005,13 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1658880
+  goals:
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   traits:
     varon: 1.0
     afin_tierra: 0.49
@@ -3806,6 +4101,13 @@ agents:
   home: salon_comunal_gigante
   start_at: plaza_gigante
   edad_inicial: 2004480
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -3830,6 +4132,13 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 933120
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -3961,6 +4270,12 @@ agents:
     on_success: *id006
     on_failure: *id007
     at_rank: 4
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   relations:
     hermano:
     - fror_piedraparda_61
@@ -4045,6 +4360,12 @@ agents:
     on_success: *id010
     on_failure: *id011
     at_least: 0.97
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
 - id: dorn_umbrio
   label: Dorn Umbrio
   home: posada_enana
@@ -4139,6 +4460,12 @@ agents:
     on_success: *id008
     on_failure: *id009
     at_least: 0.97
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
 - id: gwen_vientolargo
   label: Gwen Vientolargo
   home: posada_central
@@ -4231,6 +4558,12 @@ agents:
     on_success: *id001
     on_failure: *id002
     at_least: 0.93
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
 - id: pell_yunquenegro
   label: Pell Yunquenegro
   home: posada_elfica
@@ -4262,6 +4595,12 @@ agents:
     on_success: *id012
     on_failure: *id013
     at_rank: 2
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   initial_bonds:
     yves_cenizal: 0.38
 - id: mor_marfrio_75
@@ -4269,6 +4608,13 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 933120
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -4322,6 +4668,12 @@ agents:
     on_success: *id001
     on_failure: *id002
     at_least: 0.93
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
 - id: eris_solraso
   label: Eris Solraso
   home: salon_comunal_gigante
@@ -4452,6 +4804,12 @@ agents:
     on_success: *id001
     on_failure: *id002
     at_least: 0.93
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
 - id: yves_nieblalta
   label: Yves Nieblalta
   home: posada_central
@@ -4546,6 +4904,12 @@ agents:
     on_success: *id010
     on_failure: *id011
     at_least: 0.97
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   initial_bonds:
     hurn_hojaclara: 0.38
 - id: isla_yunquenegro_85
@@ -4624,6 +4988,12 @@ agents:
     on_success: *id001
     on_failure: *id002
     at_least: 0.93
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   relations:
     maestro:
     - gwen_yunquenegro
@@ -4687,6 +5057,13 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1624320
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -4709,6 +5086,13 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 898560
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_fuego: 1.0
@@ -4840,6 +5224,12 @@ agents:
     on_success: *id008
     on_failure: *id009
     at_least: 0.97
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   initial_bonds:
     ivar_hojaclara: 0.38
 - id: gwen_vientolargo_97
@@ -4901,6 +5291,13 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 898560
+  goals:
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   traits:
     varon: 1.0
     afin_fuego: 1.0
@@ -4966,6 +5363,12 @@ agents:
     on_success: *id003
     on_failure: *id004
     at_least: 0.94
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
 - id: cyra_zarzal
   label: Cyra Zarzal
   home: posada_de_la_manada
@@ -5054,6 +5457,13 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1589760
+  goals:
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   traits:
     varon: 1.0
     afin_agua: 0.29
@@ -5123,6 +5533,12 @@ agents:
     on_success: *id008
     on_failure: *id009
     at_least: 0.97
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
 - id: sela_solraso_108
   label: Sela Solraso
   home: posada_de_la_manada
@@ -5279,6 +5695,12 @@ agents:
     on_success: *id012
     on_failure: *id013
     at_rank: 2
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
 - id: quen_marfrio
   label: Quen Marfrio
   home: posada_central
@@ -5323,6 +5745,12 @@ agents:
     on_success: *id001
     on_failure: *id002
     at_least: 0.93
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
 - id: cyra_piedraparda
   label: Cyra Piedraparda
   home: posada_de_la_manada
@@ -5353,6 +5781,12 @@ agents:
     on_success: *id010
     on_failure: *id011
     at_least: 0.97
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
 - id: cael_vientolargo
   label: Cael Vientolargo
   home: posada_central
@@ -5460,6 +5894,12 @@ agents:
     on_success: *id014
     on_failure: *id015
     at_least: 0.96
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
 - id: dain_nieblalta
   label: Dain Nieblalta
   home: posada_central
@@ -5488,6 +5928,12 @@ agents:
     on_success: *id003
     on_failure: *id004
     at_least: 0.94
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
 - id: torv_hojaclara
   label: Torv Hojaclara
   home: posada_central
@@ -5514,6 +5960,12 @@ agents:
     on_success: *id001
     on_failure: *id002
     at_least: 0.93
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
 - id: xan_nieblalta
   label: Xan Nieblalta
   home: posada_elfica
@@ -5544,6 +5996,12 @@ agents:
     on_success: *id010
     on_failure: *id011
     at_least: 0.97
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   initial_bonds:
     eris_cenizal_40: 0.38
 - id: xan_solraso
@@ -5576,6 +6034,12 @@ agents:
     on_success: *id001
     on_failure: *id002
     at_least: 0.93
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
 - id: brix_hierrogris
   label: Brix Hierrogris
   home: posada_central
@@ -5631,6 +6095,12 @@ agents:
     on_success: *id012
     on_failure: *id013
     at_rank: 2
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   relations:
     maestro:
     - mor_marfrio
@@ -5710,6 +6180,12 @@ agents:
     on_success: *id008
     on_failure: *id009
     at_least: 0.97
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
 - id: ivar_cenizal
   label: Ivar Cenizal
   home: posada_central
@@ -5739,6 +6215,13 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1589760
+  goals:
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   traits:
     varon: 1.0
     afin_viento: 1.0
@@ -5845,6 +6328,12 @@ agents:
     on_success: *id010
     on_failure: *id011
     at_least: 0.97
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
 - id: hale_marfrio
   label: Hale Marfrio
   home: posada_elfica
@@ -5874,11 +6363,24 @@ agents:
     on_success: *id014
     on_failure: *id015
     at_least: 0.96
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
 - id: isla_cantorroto
   label: Isla Cantorroto
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 2004480
+  goals:
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   traits:
     mujer: 1.0
     afin_fuego: 1.0
@@ -5943,6 +6445,12 @@ agents:
     on_success: *id003
     on_failure: *id004
     at_least: 0.94
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
 - id: yves_piedraparda
   label: Yves Piedraparda
   home: posada_marea
@@ -5996,6 +6504,12 @@ agents:
     on_success: *id012
     on_failure: *id013
     at_rank: 2
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   relations:
     maestro:
     - jarl_nieblalta
@@ -6057,6 +6571,12 @@ agents:
     on_success: *id003
     on_failure: *id004
     at_least: 0.94
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
 - id: ulla_vadohondo
   label: Ulla Vadohondo
   home: posada_central
@@ -6084,6 +6604,12 @@ agents:
     on_success: *id008
     on_failure: *id009
     at_least: 0.97
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   initial_bonds:
     orin_vientolargo: 0.38
 - id: jarl_zarzal
@@ -6112,6 +6638,12 @@ agents:
     on_success: *id012
     on_failure: *id013
     at_rank: 2
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
 - id: rask_zarzal
   label: Rask Zarzal
   home: posada_de_la_manada
@@ -6141,6 +6673,12 @@ agents:
     on_success: *id008
     on_failure: *id009
     at_least: 0.97
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
 - id: gith_vadohondo
   label: Gith Vadohondo
   home: posada_de_la_manada
@@ -6170,6 +6708,12 @@ agents:
     on_success: *id008
     on_failure: *id009
     at_least: 0.97
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
 - id: gwen_yunquenegro
   label: Gwen Yunquenegro
   home: posada_central
@@ -6258,6 +6802,12 @@ agents:
     on_success: *id012
     on_failure: *id013
     at_rank: 2
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   initial_bonds:
     varn_hierrogris: 0.38
 - id: cael_yunquenegro
@@ -6308,6 +6858,12 @@ agents:
     on_success: *id012
     on_failure: *id013
     at_rank: 2
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   initial_bonds:
     nyx_piedraparda: 0.38
 - id: xan_solraso_153
@@ -6372,6 +6928,12 @@ agents:
     on_success: *id003
     on_failure: *id004
     at_least: 0.94
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
 - id: adze_umbrio_155
   label: Adze Umbrio
   home: posada_elfica
@@ -6402,6 +6964,12 @@ agents:
     on_success: *id010
     on_failure: *id011
     at_least: 0.97
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
 - id: brix_rocaviva_156
   label: Brix Rocaviva
   home: posada_elfica
@@ -6508,6 +7076,12 @@ agents:
     on_success: *id003
     on_failure: *id004
     at_least: 0.94
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   initial_bonds:
     brix_cenizal: 0.5
 - id: fror_cenizal
@@ -6600,6 +7174,12 @@ agents:
     on_success: *id003
     on_failure: *id004
     at_least: 0.94
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
 - id: zar_fuegolento
   label: Zar Fuegolento
   home: posada_enana
@@ -6737,6 +7317,12 @@ agents:
     on_success: *id010
     on_failure: *id011
     at_least: 0.97
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   initial_bonds:
     fror_vadohondo: 0.5
 - id: eyla_rocaviva
@@ -6744,6 +7330,13 @@ agents:
   home: salon_comunal_gigante
   start_at: plaza_gigante
   edad_inicial: 1762560
+  goals:
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   traits:
     varon: 1.0
     afin_fuego: 1.0
@@ -6813,6 +7406,13 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1347840
+  goals:
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -6995,6 +7595,12 @@ agents:
     on_success: *id010
     on_failure: *id011
     at_least: 0.97
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   initial_bonds:
     sela_hierrogris: 0.5
 - id: jarl_vientolargo
@@ -7093,6 +7699,12 @@ agents:
     on_success: *id012
     on_failure: *id013
     at_rank: 2
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   relations:
     maestro:
     - aral_solraso
@@ -7130,6 +7742,12 @@ agents:
     on_success: *id012
     on_failure: *id013
     at_rank: 2
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   initial_bonds:
     quen_yunquenegro: 0.5
     ivar_cenizal: 0.38
@@ -7344,6 +7962,12 @@ agents:
     on_success: *id012
     on_failure: *id013
     at_rank: 2
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   initial_bonds:
     xan_fuegolento: 0.5
 - id: eyla_hojaclara
@@ -7429,6 +8053,12 @@ agents:
     on_success: *id012
     on_failure: *id013
     at_rank: 2
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   initial_bonds:
     cyra_nieblalta: 0.5
 - id: eyla_piedraparda
@@ -7458,6 +8088,12 @@ agents:
     on_success: *id012
     on_failure: *id013
     at_rank: 2
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   initial_bonds:
     dain_umbrio: 0.5
 - id: pell_hierrogris
@@ -7509,6 +8145,12 @@ agents:
     on_success: *id014
     on_failure: *id015
     at_least: 0.96
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   initial_bonds:
     nyx_marfrio: 0.5
 - id: nyx_cenizal_196
@@ -7541,6 +8183,12 @@ agents:
     on_success: *id001
     on_failure: *id002
     at_least: 0.93
+  - id: ser_madre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      madre: 1
+    weight_multiplier: 1.0
   initial_bonds:
     mor_marfrio: 0.5
 - id: pell_zarzal
@@ -7548,6 +8196,13 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 967680
+  goals:
+  - id: ser_padre
+    label: tener descendencia
+    need: deseo
+    at_kin:
+      padre: 1
+    weight_multiplier: 1.0
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -7618,6 +8273,25 @@ situations:
 # `al_expirar` es lo que nace: hereda el temperamento de los dos mezclado,
 # sortea el genero, y entra emparentado con quien lo llevaba y -- si sigue vivo
 # -- con quien lo engendro.
+# La ninyez (D-076). Una condicion que se pasa sola a los dieciocho anyos, y
+# que existe por una razon mecanica antes que narrativa: el motor sabe exigirle
+# al destinatario una edad MINIMA, no una maxima, asi que sin esto no hay forma
+# de escribir una accion que solo valga sobre un crio. Una condicion si se ve
+# estando delante.
+#
+# Y de paso hace algo mientras dura, que es lo que la separa de una etiqueta:
+# un ninyo aprende mas rapido lo que le ensenyan y rinde menos en un oficio.
+- id: infancia
+  label: crio
+  personal: true
+  gain_multipliers:
+    dominio: 0.45
+    mana: 0.45
+    hierro: 0.3
+    vinculo: 1.2
+  temperament_multipliers:
+    travel_discount: 0.8
+    novelty_weight: 1.4
 - id: gestacion
   label: esperando
   personal: true
@@ -7668,6 +8342,25 @@ situations:
     relacion_con_portador: hijo_de_madre
     relacion_con_causante: hijo_de_padre
     label: cria de
+    # Nace crio, y deja de serlo a los dieciocho por si solo.
+    inflicts:
+      situation: infancia
+      lasts: 622080
+    # Y aqui esta la diferencia entre un padre y otro (D-076). No es un suelo de
+    # aprecio por relacion: un suelo se lo pone a todo el mundo igual, y lo que
+    # separa a dos padres del mismo hijo es si lo QUISIERON antes -- si tenian
+    # por meta tener descendencia. El que no lo buscaba arranca casi en cero, ni
+    # carinyo ni rencor, y sube conviviendo como cualquier otro vinculo: puede
+    # acabar queriendolo si esta presente, y no si no lo esta.
+    regard_buscado: 0.62
+    regard_no_buscado: 0.04
+    regard_hacia_progenitores: 0.5
+    # Y lo que consiguieron juntos es un hecho entre ELLOS, que ningun premio
+    # hacia la criatura puede decir. Solo si los dos lo querian.
+    regard_entre_progenitores: 0.18
+    goals:
+    - ser_madre
+    - ser_padre
 - id: herida
   label: herida
   personal: true
