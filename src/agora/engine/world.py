@@ -45,6 +45,7 @@ from agora.engine.ontology import (
     RelationId,
     SituationId,
     SituationSpec,
+    TasteSpec,
     TraitId,
 )
 from agora.engine.outcome import (
@@ -98,6 +99,18 @@ class Simulation:
     @property
     def pack(self) -> ContentPack:
         return self.state.pack
+
+    @property
+    def se_rompen(self) -> bool:
+        """Si algún lazo de este mundo puede deshacerse (D-087).
+
+        Se pregunta una vez y no por agente: en un mundo donde nada se rompe
+        —los cuatro packs anteriores a esto— el paso entero se salta.
+        """
+        return any(
+            r.se_rompe_sin_verse or r.se_rompe_bajo is not None
+            for r in self.pack.relations
+        )
 
     @property
     def envejecen(self) -> tuple[SituationSpec, ...]:
@@ -219,6 +232,19 @@ class Simulation:
                 f"{one!r} ya tiene {relation!r} ({', '.join(sorted(suyas))}) y es "
                 f"exclusiva; rómpela antes"
             )
+        # Y EL OTRO LADO. Se comprobaba solo el de quien la pide, y el agujero
+        # no era alcanzable mientras ningún contenido llamara a esto: quedaba
+        # para quien escribiera el motor. Con `crea_relacion` (D-082) lo es —
+        # basta con que el libre sea quien actúa— y produce lo que la
+        # exclusividad existe para impedir: alguien con dos parejas, medido.
+        del_otro = relation if spec.symmetric else spec.inverse
+        if spec.exclusive and del_otro is not None:
+            ajenas = self.state.agents[other].relations.get(del_otro, set())
+            if ajenas:
+                raise ValueError(
+                    f"{other!r} ya tiene {del_otro!r} ({', '.join(sorted(ajenas))}) "
+                    f"y es exclusiva; rómpela antes"
+                )
         suyas.add(other)
 
         # El otro lado. Una simétrica se replica con su nombre; una dirigida
@@ -658,6 +684,20 @@ class Simulation:
             # se mueva, así que todos observan la misma foto.
             others = occupants.get(agent.at, frozenset()) - {agent.spec_id}
             agent.observe(tick, others)
+
+            # Lo que ya no es, y va JUSTO antes del olvido: `forget_bonds`
+            # protege a los tuyos, así que mientras el lazo aguante nadie se
+            # olvida de nadie. Al romperlo aquí la protección se cae y el olvido
+            # sigue su curso en la misma ronda — primero dejas de ser algo suyo,
+            # después se te olvida. Al revés costaría un tick por lazo, y con
+            # `bond_horizon` largo eso es un mundo lleno de exparejas que nadie
+            # puede olvidar.
+            #
+            # Y después de `observe`, no antes: quien se ha cruzado contigo este
+            # tick tiene la marca fresca, así que no se rompe por desapego el
+            # mismo instante en que os habéis visto.
+            if self.se_rompen:
+                self._romper_lo_que_ya_no_es(agent)
 
             # Olvidar va antes de todo lo demás: quien ya no está en tu vida no
             # debería seguir pesando en el alivio de esta misma ronda.
@@ -1525,6 +1565,61 @@ class Simulation:
         )
         return rng.uniform(aflige.gravedad_min, aflige.gravedad_max)
 
+    def _romper_lo_que_ya_no_es(self, agent: AgentState) -> None:
+        """Deshace los lazos que el pack declara perecederos (D-087).
+
+        **Invierte lo que el README decía** —*una relación con nombre no se
+        disuelve nunca*— y solo para lo que el pack marque: la sangre no declara
+        ninguna de las dos causas y sigue sin romperse jamás.
+
+        Dos formas, y son distintas:
+
+        - **por desapego**, tiempo sin cruzarse. Alguien a quien no ves desde
+          hace meses no es tu novio, y sostener que lo es no es conservador, es
+          falso;
+        - **por desamor**, el aprecio DESDIBUJADO por debajo de un umbral.
+          Desdibujado y no crudo, que fue el primer intento y salió inerte: el
+          valor crudo solo lo mueve compartir algo, así que la ausencia no lo
+          baja y una pareja que deja de verse conservaba su aprecio intacto para
+          siempre. Medido: 0 rupturas por esta vía en 120 días, y ni un solo
+          vínculo del mundo por debajo del umbral. `regard_at` es justo lo que
+          hacía falta — desdibuja con el tiempo sin verse y NO aplica el suelo
+          de la relación, que es la otra mitad: el suelo gobierna cómo la tratas
+          mientras es tuya, no si lo sigue siendo.
+
+        Se recorre ordenado y se acumula antes de romper: `end_relation` toca el
+        diccionario de los dos implicados, y mutar lo que se está iterando es la
+        forma barata de saltarse la mitad de los lazos.
+        """
+        rotas: list[tuple[AgentId, RelationId]] = []
+        for relation in sorted(agent.relations):
+            spec = self.pack.relation_by_id.get(relation)
+            if spec is None or (
+                not spec.se_rompe_sin_verse and spec.se_rompe_bajo is None
+            ):
+                continue
+            for otro in sorted(agent.relations[relation]):
+                bond = agent.bonds.get(otro)
+                sin_verse = (
+                    self.state.tick - bond.last_seen if bond is not None
+                    else self.state.tick - agent.nacido_en
+                )
+                if spec.se_rompe_sin_verse and sin_verse > spec.se_rompe_sin_verse:
+                    rotas.append((otro, relation))
+                    continue
+                if spec.se_rompe_bajo is not None and bond is not None and (
+                    bond.regard_at(self.state.tick, agent.temperament.bond_fade)
+                    < spec.se_rompe_bajo
+                ):
+                    rotas.append((otro, relation))
+        for otro, relation in rotas:
+            if otro in self.state.agents:
+                self.end_relation(agent.spec_id, otro, relation)
+            else:
+                # Se murió. El lazo se cae igual, pero `end_relation` querría
+                # tocar su diccionario y ya no está.
+                agent.relations[relation].discard(otro)
+
     def _envejecer(self, agent: AgentState) -> None:
         """Lo que llega por estar vivo, y no porque nadie lo haga (D-084).
 
@@ -1593,8 +1688,13 @@ class Simulation:
         spec = self.pack.relation_by_id.get(relacion)
         if spec is None:
             return
-        if spec.exclusive and uno.relations.get(relacion):
-            return
+        if spec.exclusive:
+            del_otro = relacion if spec.symmetric else spec.inverse
+            ocupado = bool(uno.relations.get(relacion)) or (
+                del_otro is not None and bool(otro.relations.get(del_otro))
+            )
+            if ocupado:
+                return
         self.begin_relation(uno.spec_id, otro.spec_id, relacion)
 
     def _endeudar(
@@ -1711,6 +1811,18 @@ class Simulation:
                 traits[trait] = 1.0 if trait == elegido else 0.0
         traits.update(birth.traits)
 
+        # Los gustos, si el pack quiere (D-086). Sin esto la atracción se acaba
+        # en una generación: son la única forma de que a alguien le atraiga
+        # alguien, y un nacido no tiene YAML donde escribírselos.
+        tastes: dict[str, float] = {}
+        if birth.hereda_tastes:
+            suyos = dict(portador.tastes)
+            del_otro = {} if causante is None else dict(causante.tastes)
+            for objetivo in sorted(set(suyos) | set(del_otro)):
+                a, b = suyos.get(objetivo), del_otro.get(objetivo)
+                valores = [v for v in (a, b) if v is not None]
+                tastes[objetivo] = sum(valores) / len(valores)
+
         metas = {str(g) for g in birth.goals}
         ficha = AgentSpec(
             id=nuevo,
@@ -1721,6 +1833,10 @@ class Simulation:
             home=self.state.spec_of(portador).home,
             start_at=portador.at,
             traits=traits,
+            tastes=tuple(
+                TasteSpec(target=objetivo, multiplier=valor)
+                for objetivo, valor in sorted(tastes.items())
+            ),
             initial_needs=dict(birth.initial_needs),
             goals=tuple(
                 meta
@@ -1929,6 +2045,11 @@ class Simulation:
             )
         if destino.crea_deuda is not None:
             self._endeudar(agent, otro, spec)
+        if destino.acerca != 0.0:
+            # Mutuo: los dos estaban ahí. Y de golpe, no a plazos -- hay
+            # vínculos que no se van cocinando, pasan (D-086).
+            agent.acercar(otro.spec_id, destino.acerca, self.state.tick)
+            otro.acercar(agent.spec_id, destino.acerca, self.state.tick)
         if destino.crea_relacion is not None:
             self._anudar(agent, otro, destino.crea_relacion)
 

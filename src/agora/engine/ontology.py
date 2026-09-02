@@ -990,6 +990,23 @@ class TargetSpec(Spec):
     """Cuánto depende de CUÁNTO te deba. Espejo exacto de `agravio_weight`,
     sobre el monto de la deuda en vez del agravio acumulado."""
 
+    acerca: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Cuánto sube el aprecio MUTUO de golpe al hacerlo. 0.0 = nada (D-086).
+
+    Todo lo demás llega al aprecio a plazos: `remember_company` persigue un
+    premio con un ritmo, y ese es el mecanismo correcto para el trato. Pero
+    algunos vínculos no se van cocinando — **pasan**, y el motor no tenía forma
+    de decirlo. Es `acercar` (D-078), que hasta hoy solo usaba el parto,
+    ofrecido al pack.
+
+    Mutuo y no dirigido: los dos estaban ahí. El amor no correspondido pide dos
+    números y no uno, y no se puede escribir todavía — queda anotado.
+
+    Se suma sobre lo que hubiera, así que dos que ya se querían acaban más
+    arriba que dos desconocidos: al revés que `remember_company`, donde un
+    suceso único casi no mueve a quien ya está cerca del premio.
+    """
+
     crea_relacion: RelationId | None = None
     """Esta acción ANUDA este lazo entre quien actúa y el destinatario (D-082).
 
@@ -1974,6 +1991,47 @@ class RelationSpec(Spec):
     la diferencia entre apreciar a alguien y que ese alguien sea de los tuyos.
     """
 
+    se_rompe_sin_verse: int = Field(default=0, ge=0)
+    """Tras cuántos ticks sin cruzarse deja de ser. 0 = nunca (D-087).
+
+    **Invierte lo que el README decía**: *una relación con nombre no se disuelve
+    nunca*. Valía mientras las únicas relaciones fueran de sangre y de oficio,
+    donde es cierto —un hermano al que no ves en un año sigue siendo tu
+    hermano—, pero deja de valer en cuanto un mundo tiene noviazgos: alguien a
+    quien no ves desde hace meses no es tu novio, y sostener que lo es no es
+    conservador, es falso.
+
+    Por eso lo decide el PACK relación a relación, como el suelo de aprecio
+    (D-034), y no el motor: la sangre declara 0 y no se rompe jamás.
+
+    Es el hermano de `bond_horizon`, que olvida a quien no ves — y `forget_bonds`
+    protege a los tuyos de ese olvido justamente porque son tuyos. Cuando esto
+    rompe el lazo, la protección se cae con él y el olvido sigue su curso, que es
+    el orden correcto: primero dejas de ser algo suyo, después se te olvida.
+    """
+
+    se_rompe_bajo: float | None = Field(default=None, ge=-1.0, le=1.0)
+    """Aprecio por debajo del cual deja de ser. `None` = nunca (D-087).
+
+    Mira el aprecio **desdibujado** (`Bond.regard_at`), no el crudo ni el que
+    devuelve `regard_for`, y las dos exclusiones importan:
+
+    - **No el crudo**, que fue el primer intento y salió inerte. El valor crudo
+      solo lo mueve compartir algo, así que la ausencia no lo baja: una pareja
+      que deja de verse conservaba su aprecio intacto para siempre. Medido, 120
+      días de `confluencia`: cero rupturas por esta vía y ni un solo vínculo del
+      mundo por debajo del umbral.
+    - **No el de `regard_for`**, que aplica el suelo de la relación. Con el
+      suelo puesto, una pareja con `regard_floor` no podría romperse jamás por
+      desamor — que es justo lo que un suelo NO quiere decir. **El suelo
+      gobierna cómo tratas a alguien mientras es tuyo; esto, si lo sigue
+      siendo.**
+
+    Así las dos causas dicen lo mismo a dos escalas: `se_rompe_sin_verse` es el
+    corte duro y esto la cuesta abajo. Con el desdibujado de `confluencia`
+    (0.9997 por tick), un aprecio de 0.5 tarda unos 56 días en caer a 0.1.
+    """
+
     hereda: bool = False
     """Quien tenga esta relación con un difunto puede heredar sus propiedades
     (D-055, propiedad).
@@ -2518,6 +2576,18 @@ class BirthSpec(Spec):
     ruido porque sin él dos hermanos con los mismos padres serían idénticos y
     la línea de sangre no explicaría nada que no explicara ya el apellido. Con
     un solo progenitor conocido, la media es su valor a secas.
+    """
+
+    hereda_tastes: bool = False
+    """Si el nacido hereda los gustos de sus progenitores, promediados (D-086).
+
+    Sin esto la atracción se acaba en una generación: los gustos son la única
+    forma de que a alguien le atraiga alguien, y un nacido en marcha no tiene
+    ninguno porque no hay YAML donde escribírselos. Se promedian los dos como
+    los rasgos, y con un solo progenitor conocido son los suyos a secas.
+
+    Es aprendido y no genético, y el motor no distingue: aquí lo que importa es
+    que se transmita, no por qué.
     """
 
     ruido: float = Field(default=0.0, ge=0.0, le=1.0)

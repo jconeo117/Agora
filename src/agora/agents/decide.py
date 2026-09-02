@@ -591,6 +591,11 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
                 reward *= agent.disposicion(
                     destinatario.spec_id, action.target, agravio, deudas
                 )
+                # Y por QUIÉN ES, no solo por lo que sientes hacia él (D-086).
+                # Son dos preguntas distintas: la de arriba mira el aprecio, la
+                # deuda o el agravio —lo que ha pasado entre vosotros— y esta
+                # mira sus rasgos, que es lo que permite que algo empiece.
+                reward *= agent.afinidad(destinatario)
             reward *= tastes.get(str(action.id), 1.0)
             reward *= novelty(agent, action.id, temperament.novelty_weight)
             reward *= companionship(

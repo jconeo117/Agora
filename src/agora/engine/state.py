@@ -985,6 +985,7 @@ class AgentState:
         """
         mejor: AgentState | None = None
         mejor_valor = 0.0
+        mejor_atraccion = 0.0
         agravios = agravio or {}
         deudas_reales = deudas or {}
         for otro in presentes:
@@ -1010,6 +1011,7 @@ class AgentState:
                 tick is None or otro.edad(tick) < spec.requires_edad
             ):
                 continue
+            atraccion = 0.0
             if spec.por_agravio:
                 valor = agravios.get(otro.spec_id, 0.0)
                 if valor < spec.min_agravio:
@@ -1027,9 +1029,56 @@ class AgentState:
                 valor = self.bonds[otro.spec_id].regard if otro.spec_id in self.bonds else 0.0
                 if valor < spec.min_regard:
                     continue
-            if mejor is None or (valor, otro.spec_id) > (mejor_valor, mejor.spec_id):
-                mejor, mejor_valor = otro, valor
+                # Y a igualdad de aprecio, el que más te atrae (D-086). Va de
+                # desempate y no dentro del valor a propósito: el aprecio manda,
+                # porque es lo que ha pasado entre vosotros. Lo que la atracción
+                # decide es el caso que antes se resolvía por id —dos
+                # desconocidos, los dos a cero— que es exactamente donde empieza
+                # todo.
+                atraccion = self.afinidad(otro)
+            if (mejor is None
+                    or (valor, atraccion, otro.spec_id)
+                    > (mejor_valor, mejor_atraccion, mejor.spec_id)):
+                mejor, mejor_valor, mejor_atraccion = otro, valor, atraccion
         return mejor
+
+    def afinidad(self, otro: AgentState) -> float:
+        """Cuánto le atrae ESTE, por quién es (D-086). Multiplica la recompensa.
+
+        Los gustos ya sesgaban instancias —un lugar concreto, una acción
+        concreta— y podían apuntar a una persona desde la capa relacional, pero
+        **nadie los consultaba nunca hacia nadie**: medido en `confluencia`, los
+        704 gustos del pack apuntaban a lugares. Esto es esa consulta, y con ella
+        la compatibilidad entre personas deja de ser inexpresable.
+
+        Dos claves, y son la misma tabla:
+
+        - el **id del otro**, que es un gusto por alguien concreto y solo lo
+          puede escribir un pack a mano;
+        - uno de sus **rasgos**, que es lo que hace falta para que la atracción
+          funcione con quien no estaba escrito — un nacido en marcha incluido.
+
+        Escala por la INTENSIDAD del rasgo y no por tenerlo o no:
+
+            factor = Π (1 + (gusto - 1) · intensidad)
+
+        Un gusto de 1.4 hacia la audacia rinde 1.4 con alguien de audacia 1.0 y
+        1.2 con alguien de 0.5. Un umbral daría un escalón donde lo que hay es
+        una gradación, y además haría que 0.49 y 0.51 fueran mundos distintos.
+
+        Lo negativo se recorta a cero: un rasgo con signo (`audacia -0.6`) dice
+        que la persona es lo contrario, no que tenga menos de lo que a ti te
+        gusta, y multiplicar por un negativo daría una atracción invertida que
+        nadie pidió.
+        """
+        if not self.tastes:
+            return 1.0
+        factor = self.tastes.get(str(otro.spec_id), 1.0)
+        for clave, gusto in sorted(self.tastes.items()):
+            intensidad = otro.traits.get(TraitId(clave), 0.0)
+            if intensidad > 0.0:
+                factor *= 1.0 + (gusto - 1.0) * intensidad
+        return factor
 
     def disposicion(
         self,

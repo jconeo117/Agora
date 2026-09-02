@@ -1159,10 +1159,14 @@ class ContentPack(Spec):
             frozenset(str(a.id) for a in self.actions)
             | frozenset(str(p.id) for p in self.places)
             | frozenset(str(a.id) for a in self.agents)
+            # Y un RASGO (D-086): es la única clave que sirve para alguien que
+            # no estaba escrito en el YAML, y por tanto la única con la que la
+            # atracción sobrevive a la segunda generación.
+            | frozenset(str(t.id) for t in self.traits)
         )
         return [
             f"agente {agent.id!r}: gusto hacia {taste.target!r}, que no es "
-            f"ninguna acción, lugar ni agente"
+            f"ninguna acción, lugar, agente ni rasgo"
             for agent in self.agents
             for taste in agent.tastes
             if str(taste.target) not in known
