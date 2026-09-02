@@ -2367,6 +2367,46 @@ class SituationSpec(Spec):
     riesgo crezca con la exposición.
     """
 
+    desde_edad: int = Field(default=0, ge=0)
+    """Edad a la que esta condición personal se pega SOLA, en ticks. 0 = nunca,
+    y es el defecto (D-084).
+
+    El quinto sitio que inflige algo, y el primero que no lo causa nadie: los
+    otros cuatro salen de una acción, de una situación del mundo, de lo que otro
+    te hace o de nacer. Esto sale de estar vivo.
+
+    Solo tiene sentido en una `personal`, y sin plazo: lo que llega con la edad
+    no se pasa. Se pega una vez —`afligir` agrava si ya la llevaba, así que
+    comprobar antes no es una optimización sino la diferencia entre envejecer y
+    envejecer cada tick— y desde entonces hace lo que la situación diga: drenar
+    un eje, rebajar lo que rinde el trabajo, quitar ganas de viajar.
+
+    **Alcanza a todo el mundo por igual y a la vez**, incluido quien ya nació
+    viejo: el primer tick pega la condición a quien ya pase de la edad, que es
+    lo correcto — un pack no declara a un anciano diciendo que es joven.
+    """
+
+    gravedad_por_rango: dict[NeedId, float] = Field(default_factory=dict)
+    """Qué rangos ABLANDAN esta condición al pegarse, y cuánto.
+
+        gravedad = 1 / (1 + Σ peso · rango)
+
+    Es lo que hace que la vejez no le caiga igual a todo el mundo, y que la
+    diferencia sea **lo que hiciste con tu vida** y no con lo que naciste: un
+    rango solo se rompe trabajando el eje. Quien nunca trabajó ninguno lleva
+    rango 0 y la gravedad entera; quien llegó lejos la lleva a la mitad o a un
+    tercio, y se muere mucho más tarde.
+
+    El rasgo ya tenía su canal para esto —`cost_multipliers`, el temple, que
+    `endure` aplica— y no sirve aquí: el temple es de nacimiento y esto es
+    biografía. Los dos se componen, que es lo correcto: nacer fuerte y además
+    haber vivido activo.
+
+    Se calcula UNA vez, al pegarse. Lo que fuiste hasta entonces decide cómo
+    envejeces; entrenar después no deshace los años, y esa es una regla que se
+    lee sola.
+    """
+
     al_expirar: BirthSpec | None = None
     """Qué nace cuando esta condición se pasa sola (D-071). `None` = nada, y es
     el defecto.

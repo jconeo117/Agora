@@ -44,6 +44,7 @@ from agora.engine.ontology import (
     PropertyKind,
     RelationId,
     SituationId,
+    SituationSpec,
     TraitId,
 )
 from agora.engine.outcome import (
@@ -97,6 +98,18 @@ class Simulation:
     @property
     def pack(self) -> ContentPack:
         return self.state.pack
+
+    @property
+    def envejecen(self) -> tuple[SituationSpec, ...]:
+        """Las condiciones que se pegan solas al cumplir una edad (D-084).
+
+        Se filtra una vez y no por agente y tick: en un mundo sin vejez es una
+        tupla vacía, y el paso entero se salta con una comprobación — la misma
+        pereza que ya rige la lista de presentes cuando nada apunta a nadie.
+        """
+        return tuple(
+            s for s in self.pack.situations if s.desde_edad > 0 and s.personal
+        )
 
     # -------------------------------------------------------------------------
     # Guardar y reanudar
@@ -691,6 +704,12 @@ class Simulation:
                 for need_id, delta in efectos.items():
                     if delta < 0.0:
                         culpables[need_id] = situation
+
+            # Lo que llega con la edad, antes de aplicar nada (D-084): el
+            # primer tick en que alguien cruza el umbral la condición ya cobra,
+            # igual que una recién infligida por una situación.
+            if self.envejecen:
+                self._envejecer(agent)
 
             # Lo que lleva encima, después de lo que le pasa al sitio y con el
             # mismo `endure`: una herida no es una decisión suya, así que se
@@ -1505,6 +1524,55 @@ class Simulation:
             "gravedad", quien.spec_id, aflige.situation, self.state.tick
         )
         return rng.uniform(aflige.gravedad_min, aflige.gravedad_max)
+
+    def _envejecer(self, agent: AgentState) -> None:
+        """Lo que llega por estar vivo, y no porque nadie lo haga (D-084).
+
+        Es el quinto sitio del motor que pega una condición y el único sin
+        autor: los otros cuatro salen de una acción, de una situación del mundo,
+        de lo que otro te hace, o de nacer.
+
+        Se comprueba que no la lleve ya, y no es una optimización: `afligir`
+        AGRAVA cuando le llega una idéntica, así que sin la guarda envejecer
+        sería envejecer un poco más cada tick, y a los cien ticks de cumplir la
+        edad la gravedad sería cien.
+        """
+        for spec in self.envejecen:
+            if agent.edad(self.state.tick) < spec.desde_edad or agent.lleva(spec.id):
+                continue
+            agent.afligir(spec.id, gravedad=self._ablandada_por_rango(agent, spec))
+            self.log.emit(
+                tick=self.state.tick,
+                kind=EventKind.SITUATION_BEGAN,
+                actor=agent.spec_id,
+                place=agent.at,
+                data={
+                    "situation": str(spec.id),
+                    "personal": True,
+                    "porque": "edad",
+                },
+            )
+
+    @staticmethod
+    def _ablandada_por_rango(agent: AgentState, spec: SituationSpec) -> float:
+        """Cuán grave le sale, según lo lejos que haya llegado.
+
+            gravedad = 1 / (1 + Σ peso · rango)
+
+        Dividir y no restar: restar dejaría que un rango suficiente la pusiera en
+        cero o en negativo, y llegar lejos no hace a nadie inmortal — lo hace
+        envejecer más despacio, que es lo que un divisor dice y una resta no.
+
+        Ordenado por eje porque son sumas de floats y el orden decide el último
+        decimal.
+        """
+        if not spec.gravedad_por_rango:
+            return 1.0
+        ganado = sum(
+            peso * agent.rango.get(eje, 0)
+            for eje, peso in sorted(spec.gravedad_por_rango.items())
+        )
+        return 1.0 / (1.0 + ganado)
 
     def _anudar(
         self, uno: AgentState, otro: AgentState, relacion: RelationId

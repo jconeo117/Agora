@@ -862,6 +862,35 @@ class ContentPack(Spec):
         conocidas_relaciones = frozenset(str(r.id) for r in self.relations)
         conocidas_metas = {str(g.id) for a in self.agents for g in a.goals}
         for situation in self.situations:
+            if situation.desde_edad and not situation.personal:
+                problems.append(
+                    f"situación {situation.id!r} declara `desde_edad` y no es "
+                    f"`personal`: la edad la tiene una persona, no el mundo"
+                )
+            if situation.gravedad_por_rango:
+                problems += self._unknown_keys(
+                    f"situación {situation.id!r}.gravedad_por_rango", "necesidad",
+                    situation.gravedad_por_rango, ejes,
+                )
+                sin_rangos = sorted(
+                    str(eje)
+                    for eje in situation.gravedad_por_rango
+                    if eje in self.need_by_id and self.need_by_id[eje].rank_slowdown <= 0.0
+                )
+                if sin_rangos:
+                    # Sin rangos el número nunca sube, así que la gravedad seria
+                    # la misma para todo el mundo y el campo estaria mintiendo.
+                    problems.append(
+                        f"situación {situation.id!r}.gravedad_por_rango nombra "
+                        f"{sin_rangos}, que no tiene(n) `rank_slowdown`: el rango "
+                        f"no subiría nunca y no ablandaría nada"
+                    )
+                if not situation.desde_edad:
+                    problems.append(
+                        f"situación {situation.id!r} declara `gravedad_por_rango` "
+                        f"y no `desde_edad`: hoy solo la condición que llega con "
+                        f"la edad calcula su gravedad así"
+                    )
             birth = situation.al_expirar
             if birth is None:
                 continue
@@ -1058,6 +1087,10 @@ class ContentPack(Spec):
             # pero de la que nace alguien al terminar, es de lo que más hace en
             # un mundo -- y sin esta línea el motor la llamaba contenido muerto.
             and situation.al_expirar is None
+            # Y el séptimo (D-084): una que se pega sola al cumplir una edad
+            # hace algo por definición, aunque solo sea existir encima de
+            # alguien — de ahí cuelgan sus efectos y sus multiplicadores.
+            and not situation.desde_edad
         ]
 
     def _check_places_are_open_sometime_despite_situations(self) -> list[str]:

@@ -864,3 +864,150 @@ def test_a_goal_about_a_bond_nothing_can_tie_still_does_not_load() -> None:
             {"id": "ella", "label": "Ella", "home": "p1", "start_at": "p1",
              "edad_inicial": 10_000, "traits": {"mujer": 1.0}},
         ]})
+
+
+# --- la vejez (D-084) ----------------------------------------------------------
+#
+# El quinto sitio del motor que pega una condición, y el único sin autor: los
+# otros cuatro salen de una acción, de una situación del mundo, de lo que otro te
+# hace, o de nacer. Esto sale de estar vivo.
+#
+# Y lo que la hace algo más que un reloj: no le cae igual a todo el mundo, y la
+# diferencia es lo que HICISTE con tu vida, no con lo que naciste. Un rango solo
+# se rompe trabajando el eje.
+
+VEJEZ = SituationId("vejez")
+
+
+def vejez_pack(**overrides: Any) -> ContentPack:
+    data: dict[str, Any] = {
+        "needs": [
+            {"id": "vinculo", "label": "vinculo", "decay_per_tick": 0.02,
+             "initial": 0.2},
+            {"id": "salud", "label": "salud", "decay_per_tick": 0.0,
+             "initial": 1.0, "lethal_after": 8},
+            {"id": "dominio", "label": "dominio", "decay_per_tick": 0.0,
+             "initial": 0.0, "progression": True, "rank_slowdown": 1.0, "cap": 0.5},
+        ],
+        "situations": [
+            {"id": "vejez", "label": "viejo", "personal": True,
+             "desde_edad": 10_000,
+             "gravedad_por_rango": {"dominio": 0.5},
+             "effects": {"salud": -0.01}},
+        ],
+        "actions": [
+            {"id": "nada", "label": "nada", "duration_ticks": 1},
+        ],
+        "agents": [
+            {"id": "el", "label": "Viejo", "home": "p1", "start_at": "p1",
+             "edad_inicial": 20_000},
+            {"id": "ella", "label": "Joven", "home": "p1", "start_at": "p1",
+             "edad_inicial": 100},
+        ],
+    }
+    data.update(copy.deepcopy(overrides))
+    return nacer_pack(**data)
+
+
+def test_old_age_arrives_without_anyone_causing_it() -> None:
+    sim = Simulation(vejez_pack(), seed=1)
+    sim.run(1)
+    assert sim.state.agents[EL].lleva(VEJEZ)
+    assert not sim.state.agents[ELLA].lleva(VEJEZ)
+
+
+def test_whoever_was_already_old_gets_it_on_the_first_tick() -> None:
+    """Un pack no declara a un anciano diciendo que es joven."""
+    sim = Simulation(vejez_pack(), seed=1)
+    sim.run(1)
+    empezó = sim.log.of_kind(EventKind.SITUATION_BEGAN)
+    assert [e.data["porque"] for e in empezó if e.actor == EL] == ["edad"]
+
+
+def test_it_arrives_by_itself_when_the_age_comes() -> None:
+    sim = Simulation(vejez_pack(**{"agents": [
+        {"id": "el", "label": "El", "home": "p1", "start_at": "p1",
+         "edad_inicial": 9_980},
+        {"id": "ella", "label": "Ella", "home": "p1", "start_at": "p1",
+         "edad_inicial": 100},
+    ]}), seed=1)
+    sim.run(5)
+    assert not sim.state.agents[EL].lleva(VEJEZ)
+    sim.run(30)
+    assert sim.state.agents[EL].lleva(VEJEZ)
+
+
+def test_growing_old_happens_once_and_not_every_tick() -> None:
+    """`afligir` AGRAVA cuando le llega una idéntica, así que sin la guarda
+    envejecer sería envejecer un poco más cada tick: a los cien ticks de cumplir
+    la edad, la gravedad sería cien."""
+    sim = Simulation(vejez_pack(), seed=1)
+    sim.run(40)
+    cond = [c for c in sim.state.agents[EL].condiciones if c.situacion == VEJEZ]
+    assert len(cond) == 1
+    assert cond[0].gravedad == pytest.approx(1.0)
+
+
+def test_having_gone_far_softens_it() -> None:
+    """Y divide en vez de restar: llegar lejos no hace a nadie inmortal, lo hace
+    envejecer más despacio."""
+    sim = Simulation(vejez_pack(**{"agents": [
+        {"id": "el", "label": "El", "home": "p1", "start_at": "p1",
+         "edad_inicial": 9_990},
+        {"id": "ella", "label": "Ella", "home": "p1", "start_at": "p1",
+         "edad_inicial": 100},
+    ]}), seed=1)
+    sim.state.agents[EL].rango[NeedId("dominio")] = 6
+    sim.run(30)
+    cond = next(c for c in sim.state.agents[EL].condiciones if c.situacion == VEJEZ)
+    # 1 / (1 + 0.5 * 6)
+    assert cond.gravedad == pytest.approx(0.25)
+
+
+def test_the_sedentary_one_dies_first() -> None:
+    """La frase entera del mecanismo, medida: dos personas de la misma edad, una
+    con rangos y otra sin ellos, y la vida que les queda no es la misma."""
+    def hasta_morir(rango: int) -> int:
+        sim = Simulation(vejez_pack(), seed=1)
+        sim.state.agents[EL].rango[NeedId("dominio")] = rango
+        for tick in range(1, 4000):
+            sim.run(1)
+            if EL not in sim.state.agents:
+                return tick
+        return 4000
+
+    sedentario = hasta_morir(0)
+    veterano = hasta_morir(8)
+    assert sedentario < veterano, "el rango no alargó ni un tick"
+    assert veterano > sedentario * 2
+
+
+def test_what_you_do_after_does_not_undo_the_years() -> None:
+    """La gravedad se calcula UNA vez, al pegarse: lo que fuiste hasta entonces
+    decide cómo envejeces."""
+    sim = Simulation(vejez_pack(), seed=1)
+    sim.run(2)
+    sim.state.agents[EL].rango[NeedId("dominio")] = 20
+    sim.run(20)
+    cond = next(c for c in sim.state.agents[EL].condiciones if c.situacion == VEJEZ)
+    assert cond.gravedad == pytest.approx(1.0)
+
+
+def test_an_age_that_the_world_cannot_have_does_not_load() -> None:
+    with pytest.raises(ValidationError, match="no es `personal`"):
+        vejez_pack(**{"situations": [
+            {"id": "vejez", "label": "viejo", "desde_edad": 10_000,
+             "effects": {"salud": -0.01}},
+        ]})
+
+
+def test_softening_by_an_axis_without_ranks_does_not_load() -> None:
+    """Sin rangos el número nunca sube, así que la gravedad sería la misma para
+    todo el mundo y el campo estaría mintiendo."""
+    with pytest.raises(ValidationError, match="no tiene"):
+        vejez_pack(**{"situations": [
+            {"id": "vejez", "label": "viejo", "personal": True,
+             "desde_edad": 10_000,
+             "gravedad_por_rango": {"vinculo": 0.5},
+             "effects": {"salud": -0.01}},
+        ]})
