@@ -875,6 +875,48 @@ actions:
     mana: -0.16
     vinculo: -0.05
   saturation_gain: 0.1
+- id: cobrar_deuda
+  label: cobrar una deuda por la fuerza
+  # Usa `por_deuda` (D-063): apunta a quien de los presentes le debe más al
+  # ASESINO mismo, no al que más aprecia ni al que más le debe daño. Encima
+  # del goteo pasivo de la propiedad DEUDA (`renta`, cobrado solo por existir)
+  # este es el sobresalto: una suma mayor, de una vez, y a costa de un golpe.
+  #
+  # `deuda_weight: 0.0` y no un peso real: `renta` es una TASA por tick (aquí
+  # 0.015-0.02), no un saldo total, así que meterla dentro de `disposicion`
+  # (que espera algo cerca de [0, 1] como el agravio) la aplastaba a un
+  # factor ~0.2 y `cobrar_deuda` nunca competía con nada. Con la puerta
+  # (`min_deuda`) ya filtrando quién debe de verdad, la disposición no
+  # necesita encoger además por cuánto -- se cobra igual de a gusto una
+  # deuda pequeña que una algo mayor, como la codicia de `por_desconocido`.
+  #
+  # `satisfies` alto y no moderado: `candidate_pool: 3` solo deja competir a
+  # los tres mejores por deliberación, así que un servicio que solo es
+  # candidato cuando el deudor está delante (la puerta `elegir_destinatario`
+  # ya lo exige) necesita GANAR ese instante estrecho, no quedarse en el
+  # puesto nueve de trescientos y no ocurrir nunca. Medido: con dinero 0.5 /
+  # dominio 0.15 nunca entraba en los tres finalistas en 30 días; con 1.0 /
+  # 0.5 es el primero cuando hay a quién cobrarle, y solo entonces.
+  duration_ticks: 6
+  requires_company: 1
+  requires_traits:
+    asesino: 0.3
+  satisfies:
+    dinero: 1.0
+    dominio: 0.5
+  costs:
+    descanso: 0.2
+  effects:
+    dinero: 0.24
+    dominio: 0.06
+    descanso: -0.08
+  target:
+    gives:
+      dinero: -0.24
+      salud: -0.05
+    por_deuda: true
+    min_deuda: 0.01
+    deuda_weight: 0.0
 - id: cazar
   label: cazar
   duration_ticks: 16
@@ -969,6 +1011,47 @@ relations:
   inverse: maestro
   regard_floor: 0.3
   company_multiplier: 1.6
+properties:
+# Primer uso real de Propiedad en este pack (D-053/D-063): deudas de dinero a
+# mano, no generadas dinámicamente todavía -- crear préstamos sobre la marcha
+# ("prestar_dinero") queda para una pasada futura. `renta` aquí es el goteo
+# pasivo que ya cobra `_aplicar_rentas` cada tick; `cobrar_deuda` es el
+# sobresalto violento que se le suma encima cuando el asesino decide ir a
+# buscarlo, no un segundo cobro del mismo goteo.
+#
+# Cuatro deudas repartidas entre tres acreedores, y cada deudor comparte
+# `home` con su acreedor a propósito -- confluencia es un mundo violento
+# (802 muertes/90 días medidas) y un único par puede perder al deudor antes
+# de que el motor tenga ocasión de cobrarle nada. Compartir casa no evita la
+# muerte, pero multiplica las ocasiones de encuentro mientras ambos viven.
+- id: deuda_hale_con_eris
+  label: deuda de hale con eris
+  tipo: deuda
+  objeto: hale_zarzal
+  dueño_inicial: eris_cenizal
+  renta:
+    dinero: 0.015
+- id: deuda_ulla_con_eris
+  label: deuda de ulla con eris
+  tipo: deuda
+  objeto: ulla_yunquenegro
+  dueño_inicial: eris_cenizal
+  renta:
+    dinero: 0.02
+- id: deuda_adze_con_brix
+  label: deuda de adze con brix
+  tipo: deuda
+  objeto: adze_piedraparda
+  dueño_inicial: brix_cenizal
+  renta:
+    dinero: 0.02
+- id: deuda_quen_con_jarl
+  label: deuda de quen con jarl
+  tipo: deuda
+  objeto: quen_yunquenegro
+  dueño_inicial: jarl_yunquenegro
+  renta:
+    dinero: 0.02
 places:
 - id: plaza_mayor
   label: la plaza mayor
