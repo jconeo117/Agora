@@ -706,6 +706,83 @@ class AflictionSpec(Spec):
     """
 
 
+class DebtSpec(Spec):
+    """Lo que una acción dirigida deja DEBIENDO al otro: una `Propiedad` de
+    tipo DEUDA creada en marcha, a favor de quien actúa.
+
+    **Es la primera entidad que el motor crea durante la partida.** Hasta aquí
+    todo lo que existía en un mundo estaba escrito en el pack antes de
+    arrancar — los agentes, los lugares, las propiedades — y lo único que
+    cambiaba era su estado. Prestar no se podía escribir así: quién le debe a
+    quién es justamente lo que la simulación tiene que descubrir, no lo que se
+    declara de antemano.
+
+    Dos campos y ninguno es opcional, porque una deuda sin los dos no es una
+    deuda:
+
+    - `renta`: el goteo por tick, lo mismo que ya cobra cualquier propiedad —
+      del bolsillo del deudor al del acreedor (D-063).
+    - `saldo`: cuánto queda por devolver **en total**. Cada tick baja lo que
+      la renta transfiere, y al llegar a cero la deuda se extingue: deja de
+      cobrarse y desaparece de `WorldState.propiedades`.
+
+    Sin `saldo` esto no sería prestar sino someter: un goteo perpetuo que solo
+    para cuando alguien muere, y que en un mundo con préstamos dinámicos
+    acumularía deudas para siempre sin que ninguna se saldase nunca. Las
+    cuatro deudas escritas a mano de un pack pueden permitirse ser perpetuas
+    (`PropertySpec.saldo` vacío) porque las escribió alguien a sabiendas; una
+    que nace sola, no.
+
+    **El interés se escribe, no se calcula.** El motor no relaciona `saldo`
+    con lo que `gives` entrega: prestar 0.30 y declarar un saldo de 0.36 es un
+    préstamo con interés, y declarar 0.30 es uno sin él. Derivar el interés
+    aquí obligaría al motor a saber qué eje es "dinero", que es exactamente lo
+    que no puede saber.
+    """
+
+    renta: dict[NeedId, float]
+    """Cuánto se transfiere por tick, del deudor al acreedor. Mismas claves que
+    `saldo`."""
+
+    saldo: dict[NeedId, float]
+    """Cuánto queda por devolver en total. Mismas claves que `renta`.
+
+    Prestar dos veces a la misma persona no abre una segunda deuda: la que ya
+    hay crece (`renta` y `saldo` se suman). Una sola deuda por par
+    acreedor/deudor y acción mantiene la identidad estable, que es lo que
+    `por_deuda` y la persistencia necesitan para no depender de cuántas veces
+    se prestó.
+    """
+
+    @model_validator(mode="after")
+    def _renta_y_saldo_hablan_de_lo_mismo(self) -> DebtSpec:
+        """Las dos mitades tienen que nombrar los mismos ejes, y ninguna puede
+        ser cero.
+
+        Un eje con renta y sin saldo no se amortiza nunca —la perpetuidad por
+        la puerta de atrás, que es justo lo que este spec existe para evitar—
+        y uno con saldo y sin renta no se cobra jamás: las dos formas se leen
+        como una deuda viva y ninguna de las dos lo es.
+        """
+        if not self.renta or not self.saldo:
+            raise ValueError("una deuda necesita `renta` y `saldo`, los dos")
+        if set(self.renta) != set(self.saldo):
+            raise ValueError(
+                f"`renta` y `saldo` nombran ejes distintos: "
+                f"{sorted(self.renta)} contra {sorted(self.saldo)}"
+            )
+        malos = sorted(
+            need
+            for need, valor in {**self.renta, **self.saldo}.items()
+            if valor <= 0.0
+        )
+        if malos:
+            raise ValueError(
+                f"una deuda se cobra hacia un lado solo: {malos} no son > 0"
+            )
+        return self
+
+
 class TargetSpec(Spec):
     """A quién le hace algo una acción, y qué le hace.
 
@@ -879,6 +956,26 @@ class TargetSpec(Spec):
     deuda_weight: float = Field(default=0.0, ge=0.0, le=1.0)
     """Cuánto depende de CUÁNTO te deba. Espejo exacto de `agravio_weight`,
     sobre el monto de la deuda en vez del agravio acumulado."""
+
+    crea_deuda: DebtSpec | None = None
+    """Esta acción deja al otro DEBIENDO: crea una `Propiedad` DEUDA a favor de
+    quien actúa, en marcha (D-065).
+
+    Es el otro extremo de `por_deuda`, que hasta aquí solo sabía cobrar deudas
+    que el pack hubiera escrito antes de arrancar. Con esto la deuda deja de
+    ser decorado del mundo inicial y pasa a ser consecuencia de algo que
+    alguien hizo.
+
+    **Lo que se presta va en `gives`, no aquí.** Prestar es dar ahora y cobrar
+    después, y las dos mitades ya tienen su sitio: `gives` (más `costs` de la
+    acción, que es lo que le cuesta al prestamista) entrega el préstamo, y
+    esto anota la devolución. Meter el monto aquí duplicaría `gives` con la
+    diferencia de que el motor tendría que saber que son lo mismo.
+
+    Se crea solo si el destinatario sigue delante al terminar, como todo lo
+    demás de `TargetSpec`: una promesa que no llega a decirse no obliga a
+    nada.
+    """
 
 
 class ActionSpec(Spec):
@@ -1864,6 +1961,22 @@ class PropertySpec(Spec):
     """Qué fracción [0, 1] de cada eje que GANE el `objeto` (si es una
     PERSONA) se redirige también a quien la posee. Vacío en las otras cuatro
     clases: ver `renta`."""
+
+    saldo: dict[NeedId, float] = Field(default_factory=dict)
+    """Cuánto queda por cobrar en total antes de que la propiedad se extinga.
+    **Vacío = perpetua**, que es el defecto y lo que eran las cinco clases
+    hasta aquí (D-065).
+
+    Solo tiene sentido en una DEUDA, y el pack no carga si lo declara otra
+    clase: una deuda se salda y deja de existir, mientras que un lugar o un
+    título siguen siendo lo que son cuando dejan de rendir. Un yacimiento que
+    se agota es una idea distinta —la propiedad sigue ahí, vacía— y merecerá
+    su propio campo el día que un mundo lo pida; darle este significaría que
+    la mina desaparece del mapa al agotarse.
+
+    Las mismas claves que `renta`, por lo mismo que en `DebtSpec`: un eje con
+    renta y sin saldo no se amortizaría nunca.
+    """
 
 
 # ---------------------------------------------------------------------------

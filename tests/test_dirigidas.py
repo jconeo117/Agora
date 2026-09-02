@@ -31,13 +31,23 @@ argumento del coste:
 from __future__ import annotations
 
 import copy
+from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from agora.agents.decide import candidates
 from agora.engine.events import EventKind
-from agora.engine.ontology import ActionId, AgentId, NeedId, PlaceId, SituationId
+from agora.engine.ontology import (
+    ActionId,
+    AgentId,
+    NeedId,
+    PlaceId,
+    PropertyId,
+    PropertyKind,
+    SituationId,
+)
 from agora.engine.pack import ContentPack
 from agora.engine.state import PerformingAction
 from agora.engine.world import Simulation
@@ -841,3 +851,187 @@ def test_a_pack_without_targets_pays_nothing_for_this() -> None:
     sim = Simulation(pack, seed=1)
     sim.run(50)
     assert len(sim.state.agents) == 2
+
+
+# --- crea_deuda (D-065): prestar, o la primera entidad que nace en marcha -----
+#
+# Hasta aquí todo lo que existía en un mundo estaba escrito en el pack antes del
+# tick cero, y lo único que cambiaba era su estado. Quién le debe a quién no se
+# puede declarar así: es justamente lo que la simulación descubre. Prestar es la
+# otra mitad de `por_deuda` (D-063), que hasta aquí solo sabía cobrar deudas
+# escritas a mano.
+#
+# Dos cosas importan más que el mecanismo:
+#
+#   - **La deuda se salda.** Sin `saldo` esto no sería prestar sino someter: un
+#     goteo perpetuo que solo para cuando alguien muere, y en un mundo con
+#     préstamos dinámicos las deudas se acumularían para siempre.
+#   - **El interés se escribe, no se calcula.** El motor no relaciona `saldo`
+#     con lo que `gives` entrega — derivarlo le exigiría saber qué eje es
+#     dinero, que es exactamente lo que no puede saber.
+
+DINERO = NeedId("dinero")
+DEUDA_PRESTAR = PropertyId("prestar:sanador:herido")
+
+
+def prestamo_pack(**overrides: Any) -> ContentPack:
+    """`sanador` presta a `herido`: le da 0.10 ahora y le queda debiendo 0.12,
+    que es un préstamo con interés escrito, no calculado."""
+    data: dict[str, Any] = {
+        "needs": [
+            {"id": "sangre", "label": "sangre", "decay_per_tick": 0.0,
+             "initial": 1.0, "lethal_after": 8},
+            {"id": "vinculo", "label": "vinculo", "decay_per_tick": 0.02,
+             "initial": 0.3},
+            {"id": "dinero", "label": "dinero", "decay_per_tick": 0.0,
+             "initial": 0.5},
+        ],
+        # Solo el que tiene con qué presta: sin la puerta los dos se prestarían
+        # el uno al otro y habría dos deudas simétricas donde el test quiere
+        # mirar una.
+        "traits": [{"id": "prestamista", "label": "prestamista"}],
+        "actions": [
+            {"id": "prestar", "label": "prestar", "duration_ticks": 1,
+             "requires_affordance": "sitio", "requires_company": 1,
+             "requires_traits": {"prestamista": 0.5},
+             "satisfies": {"vinculo": 1.0},
+             # `costs` es lo que el agente ANTICIPA gastar y solo entra en la
+             # deliberación; el dinero sale de verdad por `effects`, que es el
+             # delta real. Confundir los dos deja un préstamo que no le cuesta
+             # nada a quien lo hace.
+             "costs": {"dinero": 0.10},
+             "effects": {"vinculo": 0.20, "dinero": -0.10},
+             "target": {"gives": {"dinero": 0.10},
+                        "crea_deuda": {"renta": {"dinero": 0.01},
+                                       "saldo": {"dinero": 0.12}}}},
+            {"id": "nada", "label": "nada", "duration_ticks": 1},
+        ],
+        "agents": [
+            {"id": "sanador", "label": "Sanador", "home": "p1",
+             "start_at": "p1", "traits": {"prestamista": 1.0}},
+            {"id": "herido", "label": "Herido", "home": "p1", "start_at": "p1"},
+        ],
+    }
+    data.update(copy.deepcopy(overrides))
+    return dirigido_pack(**data)
+
+
+def test_lending_creates_a_debt_that_was_never_in_the_pack() -> None:
+    """La primera entidad que el motor crea durante la partida."""
+    sim = Simulation(prestamo_pack(), seed=1)
+    assert sim.state.propiedades == {}, "el pack no declara ninguna propiedad"
+
+    sim.run(3)
+
+    deuda = sim.state.propiedades[DEUDA_PRESTAR]
+    assert deuda.tipo is PropertyKind.DEUDA
+    assert deuda.dueño == SANADOR, "el acreedor es quien prestó"
+    assert deuda.objeto == str(HERIDO), "el deudor es a quien se le prestó"
+    assert deuda.saldo[DINERO] > 0.0
+
+
+def test_the_new_debt_is_announced_with_who_owes_whom() -> None:
+    sim = Simulation(prestamo_pack(), seed=1)
+    sim.run(3)
+
+    creadas = sim.log.of_kind(EventKind.PROPERTY_CREATED)
+    assert creadas, "una entidad que nace en marcha tiene algo que contar"
+    assert creadas[0].actor == SANADOR and creadas[0].subject == HERIDO
+
+
+def test_lending_twice_grows_the_same_debt_instead_of_opening_a_second() -> None:
+    """Prestar de nuevo engorda lo que ya se debe. Abrir una segunda deuda
+    llenaría el mundo de deudas de un céntimo y, peor, reemplazar la primera
+    haría que pedir otra vez saliera más barato que no pedir nada."""
+    sim = Simulation(prestamo_pack(), seed=1)
+    sim.run(3)
+    antes = sim.state.propiedades[DEUDA_PRESTAR]
+    saldo_antes, renta_antes = antes.saldo[DINERO], antes.renta[DINERO]
+
+    # Se le vuelve a prestar a mano, sin esperar a que la deliberación repita.
+    sim._endeudar(
+        sim.state.agents[SANADOR],
+        sim.state.agents[HERIDO],
+        sim.pack.action_by_id[ActionId("prestar")],
+    )
+
+    assert len(sim.state.propiedades) == 1, "una sola deuda por par y acción"
+    despues = sim.state.propiedades[DEUDA_PRESTAR]
+    assert despues.saldo[DINERO] == pytest.approx(saldo_antes + 0.12)
+    assert despues.renta[DINERO] == pytest.approx(renta_antes + 0.01)
+
+
+def test_nobody_owes_you_for_a_loan_that_never_reached_them() -> None:
+    """Misma verdad-en-la-mano que el resto de `TargetSpec`: una promesa que no
+    llega a decirse no obliga a nada."""
+    sim = Simulation(prestamo_pack(), seed=1)
+    for _ in range(6):
+        sim.state.agents[SANADOR].at = P1
+        sim.state.agents[HERIDO].at = P2
+        sim.run(1)
+
+    assert sim.state.propiedades == {}
+
+
+def test_a_directed_action_that_only_lends_is_not_dead_content() -> None:
+    """Dejar a alguien debiendo es hacerle algo, aunque `gives` esté vacío."""
+    pack = prestamo_pack(**{"actions": [
+        {"id": "prestar", "label": "prestar", "duration_ticks": 1,
+         "requires_affordance": "sitio", "requires_company": 1,
+         "requires_traits": {"prestamista": 0.5},
+         "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+         "target": {"crea_deuda": {"renta": {"dinero": 0.04},
+                                   "saldo": {"dinero": 0.12}}}},
+        {"id": "nada", "label": "nada", "duration_ticks": 1}]})
+    Simulation(pack, seed=1).run(3)
+
+
+def test_a_debt_naming_different_axes_on_each_half_does_not_load() -> None:
+    """Un eje con renta y sin saldo no se amortiza nunca: la perpetuidad por la
+    puerta de atrás, en algo que declaró querer extinguirse."""
+    with pytest.raises(ValidationError, match="ejes distintos"):
+        prestamo_pack(**{"actions": [
+            {"id": "prestar", "label": "prestar", "duration_ticks": 1,
+             "requires_affordance": "sitio", "requires_company": 1,
+             "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+             "target": {"gives": {"dinero": 0.10},
+                        "crea_deuda": {"renta": {"dinero": 0.04},
+                                       "saldo": {"vinculo": 0.12}}}},
+            {"id": "nada", "label": "nada", "duration_ticks": 1}]})
+
+
+def test_a_debt_on_an_axis_this_world_does_not_have_does_not_load() -> None:
+    with pytest.raises(ValidationError, match="crea_deuda"):
+        prestamo_pack(**{"actions": [
+            {"id": "prestar", "label": "prestar", "duration_ticks": 1,
+             "requires_affordance": "sitio", "requires_company": 1,
+             "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+             "target": {"gives": {"dinero": 0.10},
+                        "crea_deuda": {"renta": {"oro": 0.04},
+                                       "saldo": {"oro": 0.12}}}},
+            {"id": "nada", "label": "nada", "duration_ticks": 1}]})
+
+
+def test_what_is_lent_comes_out_of_one_pocket_and_into_the_other() -> None:
+    """`costs` paga el préstamo y `gives` lo entrega: las dos mitades ya tenían
+    su sitio, y por eso el monto no se declara dentro de `crea_deuda`."""
+    sim = Simulation(prestamo_pack(), seed=1)
+    sim.run(3)
+
+    assert sim.state.agents[HERIDO].needs[DINERO] > 0.5, "recibió el préstamo"
+    assert sim.state.agents[SANADOR].needs[DINERO] < 0.5, "lo pagó de su bolsillo"
+
+
+def test_a_debt_born_in_play_survives_save_and_resume(tmp_path: Path) -> None:
+    """El pack no sabe nada de ella: o se guarda entera o se pierde al reanudar."""
+    sim = Simulation(prestamo_pack(), seed=1)
+    sim.run(3)
+    antes = sim.state.propiedades[DEUDA_PRESTAR]
+    sim.save(tmp_path / "s.json")
+
+    reanudado = Simulation.resume(tmp_path / "s.json", prestamo_pack())
+    despues = reanudado.state.propiedades[DEUDA_PRESTAR]
+    assert despues.dueño == antes.dueño
+    assert despues.objeto == antes.objeto
+    assert despues.renta == antes.renta
+    assert despues.saldo == antes.saldo

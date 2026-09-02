@@ -657,6 +657,33 @@ class ContentPack(Spec):
                 for need, valor in sorted(prop.tributo.items())
                 if not 0.0 <= valor <= 1.0
             ]
+            problems += self._unknown_keys(
+                f"propiedad {prop.id!r}.saldo", "necesidad", prop.saldo,
+                conocidas_necesidades,
+            )
+            # Una deuda se salda y desaparece; un lugar o un título dejan de
+            # rendir y siguen siendo de alguien (D-065). Darle `saldo` a los
+            # otros cuatro tipos significaría que la mina se borra del mapa al
+            # agotarse, que es otra idea y merece otro campo.
+            if prop.saldo and prop.tipo is not PropertyKind.DEUDA:
+                problems.append(
+                    f"propiedad {prop.id!r} no es DEUDA y declara `saldo`: solo "
+                    f"una deuda se extingue al terminar de cobrarse"
+                )
+            elif prop.saldo and set(prop.saldo) != set(prop.renta):
+                # Un eje con renta y sin saldo no se amortiza nunca -- la
+                # perpetuidad por la puerta de atrás, en una propiedad que
+                # declaró querer extinguirse.
+                problems.append(
+                    f"propiedad {prop.id!r}: `renta` y `saldo` nombran ejes "
+                    f"distintos ({sorted(prop.renta)} contra {sorted(prop.saldo)})"
+                )
+            problems += [
+                f"propiedad {prop.id!r}.saldo[{need!r}]: {valor!r} no es > 0 -- "
+                f"una deuda ya saldada no es una deuda"
+                for need, valor in sorted(prop.saldo.items())
+                if valor <= 0.0
+            ]
 
         # A lo sumo un dueño de tributo por persona: el motor cobra el
         # tributo sobre `received` una sola vez por acción completada, y con
@@ -748,6 +775,7 @@ class ContentPack(Spec):
                         f"una herida no vuelve cada primavera"
                     )
         personales = {str(s.id) for s in self.situations if s.personal}
+        ejes = frozenset(str(n.id) for n in self.needs)
         for action in self.actions:
             problems += [
                 f"acción {action.id!r}.cures: {c!r} no es una situación personal, "
@@ -784,10 +812,28 @@ class ContentPack(Spec):
             # Una acción dirigida que no le hace NADA al otro es contenido
             # muerto que se lee como vivo, igual que una situación sin efectos:
             # sale en el log, se elige un destinatario, y no pasa nada.
-            if not (destino.gives or destino.cures or destino.inflicts):
+            if not (
+                destino.gives
+                or destino.cures
+                or destino.inflicts
+                or destino.crea_deuda
+            ):
                 problems.append(
                     f"acción {action.id!r} apunta a alguien y no le hace nada: "
-                    f"declara `gives`, `cures` o `inflicts`, o quita `target`"
+                    f"declara `gives`, `cures`, `inflicts` o `crea_deuda`, o "
+                    f"quita `target`"
+                )
+            if destino.crea_deuda is not None:
+                # `DebtSpec` ya valida su propia forma (mismos ejes en las dos
+                # mitades, todo > 0); lo que no puede saber es si esos ejes
+                # existen en ESTE mundo.
+                problems += self._unknown_keys(
+                    f"acción {action.id!r}.target.crea_deuda.renta", "necesidad",
+                    destino.crea_deuda.renta, ejes,
+                )
+                problems += self._unknown_keys(
+                    f"acción {action.id!r}.target.crea_deuda.saldo", "necesidad",
+                    destino.crea_deuda.saldo, ejes,
                 )
             if action.requires_company < 1:
                 # Sin esto, una acción dirigida es elegible a solas y se cae en

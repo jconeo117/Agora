@@ -225,9 +225,14 @@ class Propiedad:
     dueño puede no existir, y `objeto` puede ser una persona, un lugar, o
     algo que no vive en ninguna otra parte del motor.
 
-    Lo único que cambia respecto a `PropertySpec`, de la que nace, es
-    `dueño`: el resto (`tipo`, `objeto`, `renta`, `tributo`) es lo que el
-    pack declaró y no se toca en marcha.
+    Dos cosas cambian respecto a `PropertySpec`, de la que nace: `dueño`, que
+    se reasigna al heredar, y `saldo`, que baja cada vez que la renta cobra.
+    El resto (`tipo`, `objeto`, `renta`, `tributo`) es lo que el pack declaró
+    y no se toca en marcha.
+
+    Y desde D-065 no todas nacen de un `PropertySpec`: una DEUDA puede
+    crearse durante la partida (`TargetSpec.crea_deuda`), así que esto ya no
+    es siempre la sombra mutable de algo escrito en el pack.
     """
 
     id: PropertyId
@@ -236,6 +241,8 @@ class Propiedad:
     renta: dict[NeedId, float]
     tributo: dict[NeedId, float]
     dueño: AgentId | None = None
+    saldo: dict[NeedId, float] = field(default_factory=dict)
+    """Lo que queda por cobrar antes de extinguirse. Vacío = perpetua."""
 
 
 @dataclass(slots=True)
@@ -1649,6 +1656,7 @@ class WorldState:
                     renta=dict(spec.renta),
                     tributo=dict(spec.tributo),
                     dueño=spec.dueño_inicial,
+                    saldo=dict(spec.saldo),
                 )
                 for spec in pack.properties
             },

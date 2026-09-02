@@ -38,6 +38,7 @@ from agora.engine.ontology import (
     NeedId,
     PlaceId,
     PropertyId,
+    PropertyKind,
     RelationId,
     SituationId,
     TraitId,
@@ -48,6 +49,7 @@ from agora.engine.state import (
     Bond,
     Condicion,
     PerformingAction,
+    Propiedad,
     Traveling,
     WorldState,
 )
@@ -167,6 +169,22 @@ def _agente_a_dict(agent: AgentState, recuerdos: tuple[Recuerdo, ...]) -> dict[s
     }
 
 
+def _propiedad_a_dict(prop: Propiedad, del_pack: bool) -> dict[str, Any]:
+    """Lo que hay que guardar de una propiedad, que depende de si el pack la
+    conoce: de la suya, solo lo que cambió; de una nacida en marcha, todo.
+    """
+    datos: dict[str, Any] = {
+        "id": str(prop.id),
+        "dueño": None if prop.dueño is None else str(prop.dueño),
+        "saldo": sorted([str(n), v] for n, v in prop.saldo.items()),
+    }
+    if not del_pack:
+        datos["tipo"] = str(prop.tipo)
+        datos["objeto"] = prop.objeto
+        datos["renta"] = sorted([str(n), v] for n, v in prop.renta.items())
+    return datos
+
+
 def save(world: WorldState, together: set[tuple[AgentId, AgentId]], path: Path) -> None:
     """Vuelca la partida. El pack NO va dentro: se pasa al cargar.
 
@@ -210,13 +228,20 @@ def save(world: WorldState, together: set[tuple[AgentId, AgentId]], path: Path) 
         # No es lo mismo que el censo, que se reconstruye del pack de hoy. Esto
         # es lo único del reparto que no se puede derivar: la ausencia con causa.
         "muertos": sorted(str(a) for a in set(world.censo) - set(world.agents)),
-        # Solo el dueño: tipo, objeto, renta y tributo los fija el pack de HOY,
-        # igual que el fade de la memoria. Guardarlos otra vez los dejaría
-        # desincronizados en cuanto se retoque el pack entre corrida y corrida.
-        "propiedades": sorted(
-            [str(p.id), None if p.dueño is None else str(p.dueño)]
-            for p in world.propiedades.values()
-        ),
+        # De una propiedad DEL PACK se guarda lo que cambia en marcha —el dueño
+        # y lo que queda por cobrar— y nada más: tipo, objeto, renta y tributo
+        # los fija el pack de HOY, igual que el fade de la memoria, y guardarlos
+        # otra vez los dejaría desincronizados en cuanto se retoque el pack
+        # entre corrida y corrida.
+        #
+        # Una DEUDA nacida en marcha (D-065) no tiene esa red: el pack no sabe
+        # nada de ella, así que o se guarda entera o se pierde al reanudar. Es
+        # la primera vez que el guardado lleva algo que no es el estado mutable
+        # de una entidad declarada, sino la entidad.
+        "propiedades": [
+            _propiedad_a_dict(prop, prop.id in world.pack.property_by_id)
+            for prop in sorted(world.propiedades.values(), key=lambda p: p.id)
+        ],
     }
     path.write_text(json.dumps(datos, indent=1, ensure_ascii=False), encoding="utf-8")
 
@@ -449,10 +474,50 @@ def load(path: Path, pack: ContentPack) -> tuple[WorldState, set[tuple[AgentId, 
     # ya le puso. Una propiedad borrada del pack no vuelve, igual que un
     # agente o una situación; una nueva entra con lo que el pack diga, porque
     # el guardado no puede tener opinión sobre algo que no existía.
-    for id_prop, dueño in datos.get("propiedades", []):
-        propiedad = world.propiedades.get(PropertyId(id_prop))
-        if propiedad is not None:
-            propiedad.dueño = None if dueño is None else AgentId(dueño)
+    for fila in datos.get("propiedades", []):
+        # Un guardado anterior a D-065 escribía pares `[id, dueño]` en vez de un
+        # objeto. Se leen los dos: las partidas largas son horas de simulación y
+        # tirarlas para no escribir cuatro líneas sería cobrar caro un formato.
+        if isinstance(fila, list):
+            fila = {"id": fila[0], "dueño": fila[1]}
+        id_prop = PropertyId(str(fila["id"]))
+        propiedad = world.propiedades.get(id_prop)
+        if propiedad is None:
+            # No está en el pack de hoy. O nació en marcha —y entonces el
+            # guardado trae con qué reconstruirla— o el pack la borró entre
+            # corridas, y una propiedad borrada no vuelve, igual que un agente
+            # o una situación.
+            if "tipo" not in fila:
+                continue
+            renta = {
+                NeedId(str(n)): float(v)
+                for n, v in fila.get("renta", [])
+                if NeedId(str(n)) in pack.need_by_id
+            }
+            if not renta:
+                # Todos sus ejes desaparecieron del pack: no queda nada que
+                # cobrar, así que no hay deuda que reconstruir.
+                continue
+            propiedad = Propiedad(
+                id=id_prop,
+                tipo=PropertyKind(str(fila["tipo"])),
+                objeto=str(fila["objeto"]),
+                renta=renta,
+                tributo={},
+            )
+            world.propiedades[id_prop] = propiedad
+        propiedad.dueño = None if fila["dueño"] is None else AgentId(str(fila["dueño"]))
+        # Solo si trae algo: un saldo vacío en el guardado significa "esta
+        # propiedad era perpetua cuando se guardó", y sobrescribir con él
+        # borraría un `saldo` que el pack de hoy acabe de declarar. Una deuda
+        # que llegó a cero no se guarda nunca — se extingue antes.
+        saldo = {
+            NeedId(str(n)): float(v)
+            for n, v in fila.get("saldo", [])
+            if NeedId(str(n)) in pack.need_by_id
+        }
+        if saldo:
+            propiedad.saldo = saldo
     # Los que el pack tiene y el guardado no —fichas nuevas— entran frescos, tal
     # y como los dejo `WorldState.new`. Asi se puede ampliar el elenco sin
     # perder la partida.

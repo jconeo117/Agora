@@ -39,6 +39,7 @@ from agora.engine.ontology import (
     GoalStatus,
     NeedId,
     PlaceId,
+    PropertyId,
     PropertyKind,
     RelationId,
     SituationId,
@@ -50,7 +51,14 @@ from agora.engine.outcome import (
     signed_saturation,
 )
 from agora.engine.pack import ContentPack
-from agora.engine.state import AgentState, Busy, PerformingAction, Traveling, WorldState
+from agora.engine.state import (
+    AgentState,
+    Busy,
+    PerformingAction,
+    Propiedad,
+    Traveling,
+    WorldState,
+)
 
 if TYPE_CHECKING:
     from typing import TextIO
@@ -781,29 +789,70 @@ class Simulation:
         `received` ya existe.
 
         Recorrido ordenado por id, no porque `dict.values()` vaya a
-        desordenarse -- se construye desde `pack.properties`, que es una
-        tupla -- sino por la misma disciplina que el resto del motor: el
-        orden de iteración nunca es un accidente que alguien tenga que
-        redescubrir.
+        desordenarse -- ya no se construye solo desde `pack.properties`, que
+        es una tupla: desde D-065 una deuda puede nacer en marcha -- sino por
+        la misma disciplina que el resto del motor: el orden de iteración
+        nunca es un accidente que alguien tenga que redescubrir. Y aquí ya no
+        es solo disciplina: el orden decide qué extinción se emite antes.
+
+        **Lo que se extingue se borra después del recorrido**, nunca dentro:
+        mutar el diccionario que se está iterando es la forma más barata de
+        que una propiedad se salte un cobro según por dónde vaya el bucle.
         """
         if not self.state.propiedades:
             return
+        extintas: list[tuple[PropertyId, str]] = []
         for propiedad in sorted(self.state.propiedades.values(), key=lambda p: p.id):
-            if propiedad.dueño is None or not propiedad.renta:
-                continue
-            dueño = self.state.agents.get(propiedad.dueño)
-            if dueño is not None:
-                dueño.apply(propiedad.renta, self.pack.need_by_id)
             # DEUDA no es un lugar ni un objeto: lo que cobra el acreedor sale
             # del bolsillo del deudor (D-063), o el motor estaría creando
             # dinero de la nada cada tick. `objeto` está garantizado a ser un
             # agente real para este tipo (`_check_property_refs`).
+            deudor: AgentState | None = None
             if propiedad.tipo is PropertyKind.DEUDA:
                 deudor = self.state.agents.get(AgentId(propiedad.objeto))
-                if deudor is not None:
-                    deudor.apply(
-                        {n: -v for n, v in propiedad.renta.items()}, self.pack.need_by_id
-                    )
+                if deudor is None:
+                    # Y si el deudor ya no está, la deuda tampoco. Sin esto el
+                    # acreedor seguía cobrando de un muerto para siempre --
+                    # exactamente el dinero de la nada que la resta de D-063
+                    # existía para evitar, entrando por la otra puerta. Una
+                    # deuda no se hereda por el lado del deudor: heredar
+                    # `dueño` (D-055/056) es quedarse con lo que rinde, no con
+                    # lo que se debe.
+                    extintas.append((propiedad.id, "sin_objeto"))
+                    continue
+            if propiedad.dueño is None or not propiedad.renta:
+                continue
+            cobro = propiedad.renta
+            if propiedad.saldo:
+                # El último cobro es el resto, no la cuota entera: sin el
+                # recorte, una deuda de 0.36 a 0.05 por tick devolvería 0.40 y
+                # el acreedor ganaría cuatro céntimos por saber contar mal.
+                cobro = {
+                    need: min(cuota, propiedad.saldo.get(need, 0.0))
+                    for need, cuota in propiedad.renta.items()
+                }
+                cobro = {need: cuanto for need, cuanto in cobro.items() if cuanto > 0.0}
+                for need, cuanto in cobro.items():
+                    propiedad.saldo[need] -= cuanto
+                if all(queda <= 0.0 for queda in propiedad.saldo.values()):
+                    extintas.append((propiedad.id, "saldada"))
+            if not cobro:
+                continue
+            dueño = self.state.agents.get(propiedad.dueño)
+            if dueño is not None:
+                dueño.apply(cobro, self.pack.need_by_id)
+            if deudor is not None:
+                deudor.apply({n: -v for n, v in cobro.items()}, self.pack.need_by_id)
+
+        for id_prop, porque in extintas:
+            propiedad = self.state.propiedades.pop(id_prop)
+            self.log.emit(
+                tick=self.state.tick,
+                kind=EventKind.PROPERTY_ENDED,
+                actor=propiedad.dueño,
+                place=None,
+                data={"propiedad": str(id_prop), "porque": porque},
+            )
 
     def _meta_cumplida(self, agent: AgentState, goal: GoalSpec) -> bool:
         """Si esta meta ya está. Cuatro varas, y el pack declara exactamente una.
@@ -1422,6 +1471,61 @@ class Simulation:
         )
         return rng.uniform(aflige.gravedad_min, aflige.gravedad_max)
 
+    def _endeudar(
+        self, acreedor: AgentState, deudor: AgentState, spec: ActionSpec
+    ) -> None:
+        """Prestar: crear una `Propiedad` DEUDA en marcha (D-065).
+
+        **Es la primera vez que el motor crea una entidad durante la
+        partida.** Todo lo demás -- agentes, lugares, propiedades -- existía
+        antes del tick cero y solo cambiaba de estado. Quién le debe a quién
+        no se puede escribir así: es lo que la simulación descubre.
+
+        El id se deriva de la acción y de los dos implicados, y por dos
+        razones que apuntan al mismo sitio. **Determinismo**: un contador de
+        préstamos daría ids distintos según el orden en que se resolvieran, y
+        el orden depende de quién estaba dónde. **Identidad**: prestar dos
+        veces a la misma persona no abre una segunda deuda, engorda la que ya
+        hay -- `por_deuda` mira la suma, la persistencia guarda un renglón, y
+        el mundo no se llena de deudas de un céntimo.
+
+        Sumar y no reemplazar es lo que hace que el segundo préstamo signifique
+        algo. Reemplazar borraría lo que faltaba por devolver del primero, y
+        prestar de nuevo saldría más barato para el deudor que no pedir nada.
+        """
+        deuda = spec.target.crea_deuda if spec.target is not None else None
+        if deuda is None:
+            return
+        id_deuda = PropertyId(f"{spec.id}:{acreedor.spec_id}:{deudor.spec_id}")
+        propiedad = self.state.propiedades.get(id_deuda)
+        if propiedad is None:
+            self.state.propiedades[id_deuda] = Propiedad(
+                id=id_deuda,
+                tipo=PropertyKind.DEUDA,
+                objeto=str(deudor.spec_id),
+                renta=dict(deuda.renta),
+                tributo={},
+                dueño=acreedor.spec_id,
+                saldo=dict(deuda.saldo),
+            )
+            self.log.emit(
+                tick=self.state.tick,
+                kind=EventKind.PROPERTY_CREATED,
+                actor=acreedor.spec_id,
+                place=acreedor.at,
+                action=spec.id,
+                subject=deudor.spec_id,
+                data={"propiedad": str(id_deuda)},
+            )
+            return
+        # Ya se le había prestado antes. El acreedor es el mismo por
+        # construcción (está en el id), así que no hay que decidir a quién se
+        # le debe ahora: solo cuánto más.
+        for need, cuanto in sorted(deuda.renta.items()):
+            propiedad.renta[need] = propiedad.renta.get(need, 0.0) + cuanto
+        for need, cuanto in sorted(deuda.saldo.items()):
+            propiedad.saldo[need] = propiedad.saldo.get(need, 0.0) + cuanto
+
     def _infligir(
         self, quien: AgentState, aflige: AflictionSpec, porque: str
     ) -> bool:
@@ -1518,6 +1622,8 @@ class Simulation:
             otro.aliviar(curada, cuanto)
         if destino.inflicts is not None:
             self._infligir(otro, destino.inflicts, porque=str(spec.id))
+        if destino.crea_deuda is not None:
+            self._endeudar(agent, otro, spec)
 
         # El otro lo recuerda, y lo recuerda CON NOMBRE: `about` sale del
         # `subject` del evento, que es quien actuó.

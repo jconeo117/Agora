@@ -30,7 +30,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
+from agora.engine.events import EventKind
 from agora.engine.ontology import AgentId, NeedId, PlaceId, PropertyId
 from agora.engine.pack import ContentPack
 from agora.engine.world import Simulation
@@ -395,3 +397,120 @@ def test_a_property_removed_from_the_pack_does_not_come_back(tmp_path: Path) -> 
     pack_sin_propiedad = propiedad_pack(properties=[])
     reanudado = Simulation.resume(tmp_path / "s.json", pack_sin_propiedad)
     assert reanudado.state.propiedades == {}
+
+
+# --- saldo: la deuda que se salda y deja de existir (D-065) --------------------
+#
+# `renta` sin techo es un goteo perpetuo, y para las cuatro deudas que un pack
+# escribe a mano eso vale: las escribió alguien a sabiendas. Para una deuda que
+# NACE en marcha (`TargetSpec.crea_deuda`) no: prestar sería someter, y el mundo
+# acumularía deudas que nunca se saldan. `saldo` es cuánto queda por devolver;
+# al llegar a cero la propiedad se extingue.
+#
+# Solo una DEUDA lo admite. Un lugar o un título que dejan de rendir siguen
+# siendo de alguien -- un yacimiento agotado es otra idea, y darle este campo
+# significaría que la mina desaparece del mapa.
+
+
+def deuda_pack(**overrides: Any) -> ContentPack:
+    data: dict[str, Any] = {
+        "properties": [
+            {"id": "pagare", "label": "pagaré", "tipo": "deuda",
+             "objeto": "esclavo", "dueño_inicial": "duenyo",
+             "renta": {"dinero": 0.05}, "saldo": {"dinero": 0.12}},
+        ],
+    }
+    data.update(copy.deepcopy(overrides))
+    return propiedad_pack(**data)
+
+
+PAGARE = PropertyId("pagare")
+
+
+def test_a_debt_with_a_balance_stops_existing_once_it_is_paid_off() -> None:
+    sim = Simulation(deuda_pack(), seed=1)
+    sim.run(2)
+    assert PAGARE in sim.state.propiedades, "0.10 cobrados de 0.12: aún debe"
+
+    sim.run(1)
+    assert PAGARE not in sim.state.propiedades
+
+
+def test_settling_a_debt_says_why_it_ended() -> None:
+    sim = Simulation(deuda_pack(), seed=1)
+    sim.run(4)
+    acabadas = sim.log.of_kind(EventKind.PROPERTY_ENDED)
+    assert [e.data["porque"] for e in acabadas] == ["saldada"]
+
+
+def test_the_last_installment_is_the_remainder_not_the_whole_quota() -> None:
+    """Sin el recorte, una deuda de 0.12 a 0.05 por tick devolvería 0.15 y el
+    acreedor ganaría tres céntimos por saber contar mal."""
+    # Sin nada que hacer salvo esperar: lo único que mueve el dinero de nadie
+    # aquí es el cobro de la deuda.
+    sim = Simulation(deuda_pack(**{"actions": [
+        {"id": "nada", "label": "nada", "duration_ticks": 1},
+    ]}), seed=1)
+    partida = sim.state.agents[ESCLAVO].needs[DINERO]
+    sim.run(4)
+    assert sim.state.agents[ESCLAVO].needs[DINERO] == pytest.approx(partida - 0.12)
+
+
+def test_a_debt_whose_debtor_is_gone_is_gone_too() -> None:
+    """Sin esto el acreedor seguía cobrando de un muerto para siempre -- el
+    dinero de la nada que la resta al deudor existía para evitar, entrando por
+    la otra puerta. Una deuda no se hereda por el lado del deudor: heredar es
+    quedarse con lo que rinde, no con lo que se debe.
+    """
+    sim = Simulation(deuda_pack(), seed=1)
+    sim.morir(ESCLAVO)
+    sim.run(1)
+
+    assert PAGARE not in sim.state.propiedades
+    acabadas = sim.log.of_kind(EventKind.PROPERTY_ENDED)
+    assert [e.data["porque"] for e in acabadas] == ["sin_objeto"]
+
+
+def test_a_debt_with_no_balance_is_still_perpetual() -> None:
+    """Lo que había antes de D-065 sigue significando lo mismo: `saldo` vacío es
+    el defecto, y las deudas escritas a mano de un pack pueden ser perpetuas."""
+    sim = Simulation(deuda_pack(**{"properties": [
+        {"id": "pagare", "label": "pagaré", "tipo": "deuda", "objeto": "esclavo",
+         "dueño_inicial": "duenyo", "renta": {"dinero": 0.05}},
+    ]}), seed=1)
+    sim.run(20)
+    assert PAGARE in sim.state.propiedades
+
+
+def test_only_a_debt_may_declare_a_balance() -> None:
+    with pytest.raises(ValidationError, match="no es DEUDA y declara `saldo`"):
+        deuda_pack(**{"properties": [
+            {"id": "granja", "label": "granja", "tipo": "lugar", "objeto": "p1",
+             "dueño_inicial": "duenyo", "renta": {"dinero": 0.05},
+             "saldo": {"dinero": 0.12}},
+        ]})
+
+
+def test_a_balance_and_a_rent_naming_different_axes_do_not_load() -> None:
+    with pytest.raises(ValidationError, match="ejes distintos"):
+        deuda_pack(**{"needs": [
+            {"id": "dinero", "label": "dinero", "decay_per_tick": 0.0, "initial": 0.3},
+            {"id": "deuda_moral", "label": "deuda moral", "decay_per_tick": 0.0,
+             "initial": 0.3},
+        ], "properties": [
+            {"id": "pagare", "label": "pagaré", "tipo": "deuda", "objeto": "esclavo",
+             "dueño_inicial": "duenyo", "renta": {"dinero": 0.05},
+             "saldo": {"deuda_moral": 0.12}},
+        ]})
+
+
+def test_what_is_left_to_pay_survives_save_and_resume(tmp_path: Path) -> None:
+    """El saldo es progreso, no algo derivado del pack: reanudar no puede
+    devolver la deuda al principio."""
+    sim = Simulation(deuda_pack(), seed=1)
+    sim.run(2)
+    quedaba = dict(sim.state.propiedades[PAGARE].saldo)
+    sim.save(tmp_path / "s.json")
+
+    reanudado = Simulation.resume(tmp_path / "s.json", deuda_pack())
+    assert reanudado.state.propiedades[PAGARE].saldo == quedaba

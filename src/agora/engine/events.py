@@ -103,6 +103,25 @@ class EventKind(StrEnum):
     verlo escrito: **una muerte que no le duele a nadie no ocurre socialmente.**
     """
 
+    PROPERTY_CREATED = "property_created"
+    """Algo pasa a ser propiedad de alguien **durante la partida**. `actor` es
+    el dueño; `subject`, el objeto cuando es un agente.
+
+    Hasta D-065 no hacía falta: toda propiedad estaba escrita en el pack antes
+    de arrancar, y anunciar su existencia habría sido anunciar que el mundo
+    existe. Con las deudas que nacen de prestar, la primera entidad que el
+    motor crea en marcha, hay algo que contar.
+    """
+
+    PROPERTY_ENDED = "property_ended"
+    """Una propiedad deja de existir. `data['porque']` dice cuál de las dos
+    formas: `saldada` (la deuda terminó de devolverse) o `sin_objeto` (aquello
+    de lo que hablaba ya no está).
+
+    Solo lo emiten hoy las deudas. Un lugar o un título no se extinguen: dejan
+    de rendir, si acaso, y siguen siendo de alguien.
+    """
+
     SITUATION_BEGAN = "situation_began"
     """Al mundo le empezó a pasar algo. Solo las eventuales lo emiten: una
     periódica es una función del reloj y anunciarla sería anunciar que amaneció
