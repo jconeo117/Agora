@@ -48,6 +48,11 @@ health:
   # en que la ventana no es corta sino de otra escala que el mecanismo: medirla
   # exige una corrida larga aparte (medido a 400 dias con `--skip 7`).
   - criar
+  # Lo mismo, y por lo mismo: en catorce dias nadie tiene hijos todavia ni hay
+  # ningun crio al que apadrinar.
+  - velar_por_los_suyos
+  - velar_por_los_suyos_padre
+  - apadrinar
 tuning:
   travel_discount: 0.94
   candidate_pool: 3
@@ -1165,6 +1170,80 @@ actions:
       vinculo: 0.3
       sustento: 0.12
     regard_weight: 0.5
+# Los tuyos por delante de los desconocidos. `charlar` da vinculo gratis en 17
+# sitios y con quien sea; esto pide que este delante alguien tuyo, y a cambio
+# rinde bastante mas -- que es como se escribe "es mas reconfortante estar con
+# tu gente que salir a charlar con cualquiera" sin que el motor sepa lo que es
+# una familia. El `company_multiplier` de las relaciones de sangre (2.2 y 1.9)
+# hace el resto: la misma compania vale mas si es la tuya.
+#
+# Dos acciones y no una, por lo mismo que `engendrar`: `requires_relation` mira
+# UNA relacion, y una madre tiene `madre` donde un padre tiene `padre`.
+- id: velar_por_los_suyos
+  label: velar por los suyos
+  duration_ticks: 5
+  requires_affordance: quietud
+  requires_company: 1
+  requires_relation: madre
+  requires_edad: 622080
+  satisfies:
+    vinculo: 1.0
+    deseo: 0.55
+  costs:
+    descanso: 0.08
+  effects:
+    vinculo: 0.34
+    deseo: 0.14
+    descanso: -0.02
+  effects_per_company:
+    vinculo: 0.5
+  saturation_gain: 0.14
+- id: velar_por_los_suyos_padre
+  label: velar por los suyos
+  duration_ticks: 5
+  requires_affordance: quietud
+  requires_company: 1
+  requires_relation: padre
+  requires_edad: 622080
+  satisfies:
+    vinculo: 1.0
+    deseo: 0.55
+  costs:
+    descanso: 0.08
+  effects:
+    vinculo: 0.34
+    deseo: 0.14
+    descanso: -0.02
+  effects_per_company:
+    vinculo: 0.5
+  saturation_gain: 0.14
+# Presentar al crio a los tuyos, y que le quede algo de ello (D-082). No pide
+# ser el padre: cuidar del crio de otro es una cosa que pasa, y gatearlo por
+# sangre dejaria fuera al vecino y al maestro. Lo que hace que normalmente sea
+# alguien cercano es `min_regard`: se apadrina a quien ya se quiere, y un lazo
+# que naciera de la nada seria un accidente en vez de una consecuencia.
+- id: apadrinar
+  label: apadrinar a un crio
+  duration_ticks: 6
+  requires_affordance: corrillo
+  requires_company: 1
+  requires_edad: 622080
+  satisfies:
+    vinculo: 0.9
+    dominio: 0.25
+  costs:
+    descanso: 0.15
+  effects:
+    vinculo: 0.26
+    dominio: 0.004
+    descanso: -0.03
+  saturation_gain: 0.5
+  target:
+    requires_condition: infancia
+    min_regard: 0.1
+    gives:
+      vinculo: 0.28
+    crea_relacion: padrino
 - id: cazar
   label: cazar
   duration_ticks: 16
@@ -1273,21 +1352,37 @@ relations:
 - id: hijo_de_madre
   label: hijo de
   inverse: madre
-  company_multiplier: 1.5
+  company_multiplier: 2.2
 - id: madre
   label: madre de
   inverse: hijo_de_madre
-  company_multiplier: 1.5
+  company_multiplier: 2.2
   hereda: true
 - id: hijo_de_padre
   label: hijo de
   inverse: padre
-  company_multiplier: 1.3
+  company_multiplier: 1.9
 - id: padre
   label: padre de
   inverse: hijo_de_padre
-  company_multiplier: 1.3
+  company_multiplier: 1.9
   hereda: true
+# Un lazo que NO es de sangre y nace de algo que alguien hizo (D-082): el
+# adulto que se acerca a un crio que ya aprecia acaba siendo suyo de otra
+# manera. Es el primer lazo de este mundo que no estaba escrito antes del tick
+# cero ni sale de un parto.
+#
+# Sin `hereda`: un padrino no es un progenitor, y la herencia es un hecho
+# legal. Y sin `regard_floor`, como la sangre: se apadrina a quien se quiere,
+# no se quiere a quien se apadrina.
+- id: padrino
+  label: padrino de
+  inverse: ahijado
+  company_multiplier: 1.6
+- id: ahijado
+  label: ahijado de
+  inverse: padrino
+  company_multiplier: 1.6
 properties:
 # Primer uso real de Propiedad en este pack (D-053/D-063): deudas de dinero a
 # mano, no generadas dinámicamente todavía -- crear préstamos sobre la marcha
@@ -1936,6 +2031,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -1971,6 +2067,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -2006,6 +2103,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -2088,6 +2186,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: &id001
@@ -2113,6 +2212,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -2164,6 +2264,7 @@ agents:
   - id: dominar_su_reserva
     label: dominar su reserva
     need: mana
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: &id014
@@ -2176,6 +2277,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -2213,6 +2315,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -2221,6 +2324,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -2252,6 +2356,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -2292,6 +2397,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -2300,6 +2406,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -2339,6 +2446,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -2347,6 +2455,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -2367,6 +2476,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -2423,6 +2533,7 @@ agents:
   - id: que_le_conozcan_en_la_ciudad
     label: que le conozcan en la ciudad
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: &id003
@@ -2435,6 +2546,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -2469,6 +2581,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: &id010
@@ -2480,6 +2593,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -2500,6 +2614,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -2574,6 +2689,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: &id008
@@ -2585,6 +2701,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -2604,6 +2721,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -2665,6 +2783,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -2740,6 +2859,7 @@ agents:
   - id: que_le_conozcan_en_la_ciudad
     label: que le conozcan en la ciudad
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id003
@@ -2748,6 +2868,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -2783,6 +2904,7 @@ agents:
   - id: que_su_nombre_pese_en_la_torre
     label: que su nombre pese en la torre
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: &id006
@@ -2796,6 +2918,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -2816,6 +2939,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -2864,6 +2988,7 @@ agents:
   - id: senda_1
     label: que le tomen en serio
     need: dominio
+    requires_edad: 345600
     at_rank: 2
     weight_multiplier: 1.35
     deadline: 11520
@@ -2876,6 +3001,7 @@ agents:
   - id: senda_2
     label: hacerse un nombre
     need: dominio
+    requires_edad: 345600
     at_traits:
       nombrado: 1.0
     requires_goal: senda_1
@@ -2885,6 +3011,7 @@ agents:
   - id: senda_3
     label: que su nombre llegue lejos
     need: dominio
+    requires_edad: 345600
     at_rank: 5
     requires_goal: senda_2
     weight_multiplier: 1.5
@@ -2950,6 +3077,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: &id012
@@ -2977,6 +3105,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -3012,6 +3141,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -3070,6 +3200,7 @@ agents:
   - id: que_su_nombre_pese_en_la_torre
     label: que su nombre pese en la torre
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id006
@@ -3078,6 +3209,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -3109,6 +3241,7 @@ agents:
   - id: que_su_nombre_pese_en_la_torre
     label: que su nombre pese en la torre
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id006
@@ -3142,6 +3275,7 @@ agents:
   - id: que_le_conozcan_en_la_ciudad
     label: que le conozcan en la ciudad
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id003
@@ -3183,6 +3317,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id008
@@ -3191,6 +3326,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -3227,6 +3363,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -3235,6 +3372,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -3261,6 +3399,7 @@ agents:
   - id: que_le_conozcan_en_la_ciudad
     label: que le conozcan en la ciudad
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id003
@@ -3269,6 +3408,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -3288,6 +3428,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -3339,6 +3480,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -3347,6 +3489,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -3403,6 +3546,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id008
@@ -3437,6 +3581,7 @@ agents:
   - id: que_le_conozcan_en_la_ciudad
     label: que le conozcan en la ciudad
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id003
@@ -3445,6 +3590,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -3511,6 +3657,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id012
@@ -3525,6 +3672,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -3572,6 +3720,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -3580,6 +3729,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -3611,6 +3761,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id008
@@ -3644,6 +3795,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id012
@@ -3652,6 +3804,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -3680,6 +3833,7 @@ agents:
   - id: dominar_su_reserva
     label: dominar su reserva
     need: mana
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id014
@@ -3688,6 +3842,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -3746,6 +3901,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -3754,6 +3910,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -3782,6 +3939,7 @@ agents:
   - id: que_su_nombre_pese_en_la_torre
     label: que su nombre pese en la torre
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id006
@@ -3799,6 +3957,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -3846,6 +4005,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -3854,6 +4014,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -3912,6 +4073,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -3920,6 +4082,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -3941,6 +4104,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -3975,6 +4139,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -4009,6 +4174,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -4060,6 +4226,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -4087,6 +4254,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -4105,6 +4273,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -4136,6 +4305,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -4235,6 +4405,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id008
@@ -4265,6 +4436,7 @@ agents:
   - id: que_su_nombre_pese_en_la_torre
     label: que su nombre pese en la torre
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id006
@@ -4273,6 +4445,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -4355,6 +4528,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -4363,6 +4537,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -4391,6 +4566,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -4420,6 +4596,7 @@ agents:
   - id: dominar_su_reserva
     label: dominar su reserva
     need: mana
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id014
@@ -4455,6 +4632,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id008
@@ -4463,6 +4641,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -4487,6 +4666,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -4516,6 +4696,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -4553,6 +4734,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -4561,6 +4743,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -4590,6 +4773,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id012
@@ -4598,6 +4782,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -4612,6 +4797,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -4663,6 +4849,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -4671,6 +4858,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -4747,6 +4935,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -4799,6 +4988,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -4807,6 +4997,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -4833,6 +5024,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -4863,6 +5055,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -4899,6 +5092,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -4907,6 +5101,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -4983,6 +5178,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -4991,6 +5187,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -5047,6 +5244,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -5061,6 +5259,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -5090,6 +5289,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -5177,6 +5377,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id008
@@ -5219,6 +5420,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id008
@@ -5227,6 +5429,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -5276,6 +5479,7 @@ agents:
   - id: que_le_conozcan_en_la_ciudad
     label: que le conozcan en la ciudad
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id003
@@ -5295,6 +5499,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -5358,6 +5563,7 @@ agents:
   - id: que_le_conozcan_en_la_ciudad
     label: que le conozcan en la ciudad
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id003
@@ -5366,6 +5572,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -5415,6 +5622,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id012
@@ -5447,6 +5655,7 @@ agents:
   - id: que_su_nombre_pese_en_la_torre
     label: que su nombre pese en la torre
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id006
@@ -5461,6 +5670,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -5528,6 +5738,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id008
@@ -5536,6 +5747,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -5563,6 +5775,7 @@ agents:
   - id: que_su_nombre_pese_en_la_torre
     label: que su nombre pese en la torre
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id006
@@ -5596,6 +5809,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -5690,6 +5904,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id012
@@ -5698,6 +5913,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -5740,6 +5956,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -5748,6 +5965,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -5776,6 +5994,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -5784,6 +6003,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -5807,6 +6027,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id008
@@ -5837,6 +6058,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -5889,6 +6111,7 @@ agents:
   - id: dominar_su_reserva
     label: dominar su reserva
     need: mana
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id014
@@ -5897,6 +6120,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -5923,6 +6147,7 @@ agents:
   - id: que_le_conozcan_en_la_ciudad
     label: que le conozcan en la ciudad
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id003
@@ -5931,6 +6156,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -5955,6 +6181,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -5963,6 +6190,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -5991,6 +6219,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -5999,6 +6228,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -6029,6 +6259,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -6037,6 +6268,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -6061,6 +6293,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -6090,6 +6323,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id012
@@ -6098,6 +6332,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -6128,6 +6363,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id008
@@ -6175,6 +6411,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id008
@@ -6183,6 +6420,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -6219,6 +6457,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -6323,6 +6562,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -6331,6 +6571,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -6358,6 +6599,7 @@ agents:
   - id: dominar_su_reserva
     label: dominar su reserva
     need: mana
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id014
@@ -6366,6 +6608,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -6378,6 +6621,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -6440,6 +6684,7 @@ agents:
   - id: que_le_conozcan_en_la_ciudad
     label: que le conozcan en la ciudad
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id003
@@ -6448,6 +6693,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -6499,6 +6745,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id012
@@ -6507,6 +6754,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -6566,6 +6814,7 @@ agents:
   - id: que_le_conozcan_en_la_ciudad
     label: que le conozcan en la ciudad
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id003
@@ -6574,6 +6823,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -6599,6 +6849,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id008
@@ -6607,6 +6858,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -6633,6 +6885,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id012
@@ -6641,6 +6894,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -6668,6 +6922,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id008
@@ -6676,6 +6931,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -6703,6 +6959,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id008
@@ -6711,6 +6968,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -6736,6 +6994,7 @@ agents:
   - id: que_le_conozcan_en_la_ciudad
     label: que le conozcan en la ciudad
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id003
@@ -6767,6 +7026,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id008
@@ -6797,6 +7057,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id012
@@ -6805,6 +7066,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -6853,6 +7115,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id012
@@ -6861,6 +7124,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -6891,6 +7155,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -6923,6 +7188,7 @@ agents:
   - id: que_le_conozcan_en_la_ciudad
     label: que le conozcan en la ciudad
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id003
@@ -6931,6 +7197,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -6959,6 +7226,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -6967,6 +7235,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -6996,6 +7265,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id012
@@ -7071,6 +7341,7 @@ agents:
   - id: que_le_conozcan_en_la_ciudad
     label: que le conozcan en la ciudad
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id003
@@ -7079,6 +7350,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -7105,6 +7377,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -7169,6 +7442,7 @@ agents:
   - id: que_le_conozcan_en_la_ciudad
     label: que le conozcan en la ciudad
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id003
@@ -7177,6 +7451,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -7226,6 +7501,7 @@ agents:
   - id: dominar_su_reserva
     label: dominar su reserva
     need: mana
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id014
@@ -7258,6 +7534,7 @@ agents:
   - id: que_le_conozcan_en_la_ciudad
     label: que le conozcan en la ciudad
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id003
@@ -7312,6 +7589,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -7320,6 +7598,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -7334,6 +7613,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -7396,6 +7676,7 @@ agents:
   - id: que_le_conozcan_en_la_ciudad
     label: que le conozcan en la ciudad
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id003
@@ -7410,6 +7691,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -7480,6 +7762,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -7507,6 +7790,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id008
@@ -7558,6 +7842,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -7590,6 +7875,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -7598,6 +7884,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -7629,6 +7916,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id012
@@ -7661,6 +7949,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -7694,6 +7983,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id012
@@ -7702,6 +7992,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -7737,6 +8028,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id012
@@ -7745,6 +8037,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -7773,6 +8066,7 @@ agents:
   - id: no_volver_a_estar_solo
     label: no volver a estar solo
     need: vinculo
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id010
@@ -7806,6 +8100,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -7854,6 +8149,7 @@ agents:
   - id: dominar_su_reserva
     label: dominar su reserva
     need: mana
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id014
@@ -7887,6 +8183,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -7919,6 +8216,7 @@ agents:
   - id: juntar_una_fortuna
     label: juntar una fortuna
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id008
@@ -7957,6 +8255,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id012
@@ -7965,6 +8264,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -8048,6 +8348,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id012
@@ -8056,6 +8357,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -8083,6 +8385,7 @@ agents:
   - id: hacerse_un_nombre_con_las_armas
     label: hacerse un nombre con las armas
     need: dominio
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id012
@@ -8091,6 +8394,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -8140,6 +8444,7 @@ agents:
   - id: dominar_su_reserva
     label: dominar su reserva
     need: mana
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id014
@@ -8148,6 +8453,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
@@ -8178,6 +8484,7 @@ agents:
   - id: saldar_lo_que_debe
     label: saldar lo que debe
     need: dinero
+    requires_edad: 345600
     weight_multiplier: 2.2
     deadline: 11520
     on_success: *id001
@@ -8186,6 +8493,7 @@ agents:
   - id: ser_madre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       madre: 1
     weight_multiplier: 1.0
@@ -8200,6 +8508,7 @@ agents:
   - id: ser_padre
     label: tener descendencia
     need: deseo
+    requires_edad: 345600
     at_kin:
       padre: 1
     weight_multiplier: 1.0
