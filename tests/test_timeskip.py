@@ -25,6 +25,7 @@ import pytest
 
 from agora.engine.ontology import AgentId, NeedId, SituationId
 from agora.engine.pack import ContentPack
+from agora.engine.state import Bond
 from agora.engine.timeskip import error_de_salto, saltar
 from agora.engine.world import Simulation
 
@@ -145,7 +146,7 @@ def test_what_oscillates_stays_where_it_belongs() -> None:
 
 def test_the_error_is_reported_not_hidden() -> None:
     """Un salto es una aproximacion, y el pack tiene derecho a saber cuanta."""
-    error = error_de_salto(asentado(), 90, factor=7)
+    error = error_de_salto(asentado(), 90, factor=7).ejes
     assert set(error) == {HAMBRE, SABER}
     assert all(v >= 0.0 for v in error.values())
 
@@ -325,3 +326,45 @@ def test_a_place_situation_does_not_charge_the_stride() -> None:
     # de siete. Si la ventisca cobrara la zancada estaria muerto.
     perdido = 1.0 - sim.state.agents[AgentId("ag1")].needs[NeedId("salud")]
     assert perdido == pytest.approx(0.002 * 96, abs=0.02)
+
+
+# --- lo que el hueco SI envejece (D-088) ---------------------------------------
+
+
+def test_only_who_you_saw_today_keeps_a_fresh_mark() -> None:
+    """Las marcas de «cuando lo vi» adelantaban TODAS con el reloj, y el motivo
+    era bueno: sin eso un salto de seis meses caducaria de golpe la memoria del
+    mundo entero. Pero el instrumento era romo — para no caducar los vinculos de
+    la gente con la que convives, congelaba tambien los de la gente a la que no
+    ves, y con ellos `tick - last_seen` no crecia nunca."""
+    sim = Simulation(skip_pack(), seed=1312)
+    sim.run(96)
+    ag1 = sim.state.agents[AgentId("ag1")]
+    # Alguien a quien no ve desde hace mucho, y que no aparecera hoy.
+    ag1.bonds[AgentId("fantasma")] = Bond(regard=0.5, encounters=1, last_seen=0)
+    antes_vecino = dict(ag1.bonds)
+
+    saltar(sim, 7, 7)
+
+    hueco_fantasma = sim.state.tick - ag1.bonds[AgentId("fantasma")].last_seen
+    assert hueco_fantasma > 96 * 6, "al que no viste, el hueco le cuenta entero"
+    # Y a quien SI se vio hoy no le caduca nada, que es lo que el adelanto
+    # protegia desde el principio.
+    vistos = [
+        o for o, b in antes_vecino.items()
+        if o != AgentId("fantasma") and b.last_seen > 0
+    ]
+    for otro in vistos:
+        assert sim.state.tick - sim.state.agents[AgentId("ag1")].bonds[otro].last_seen < 96 * 2
+
+
+def test_the_instrument_counts_events_and_not_only_averages() -> None:
+    """Una media poblacional no ve lo que NO ocurrio. Con solo los ejes, este
+    instrumento decia que el salto estaba sano mientras suprimia la mitad de las
+    muertes del mundo."""
+    f = error_de_salto(asentado(dias=5), 20, factor=5)
+    assert set(f.sucesos()) == {
+        "muertes", "partos", "lazos rotos", "lazos nuevos", "poblacion"
+    }
+    assert f.poblacion[0] == f.poblacion[1] == 2
+    assert f.ejes, "y los ejes siguen estando"
