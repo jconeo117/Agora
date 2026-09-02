@@ -1244,6 +1244,38 @@ actions:
     gives:
       vinculo: 0.28
     crea_relacion: padrino
+# Cortejar (D-086). Lo que faltaba para que las parejas se formen en vez de venir
+# escritas: hoy 62 de 200 tienen pareja, declarada en el tick 0.
+#
+# `acerca` es el flechazo: un salto de aprecio de golpe en vez del goteo de
+# `remember_company`. Hay vinculos que no se van cocinando, pasan.
+#
+# A quien se corteja lo decide la ATRACCION (`afinidad`), que desempata cuando
+# el aprecio es igual -- y entre dos desconocidos siempre lo es, que es
+# exactamente donde empieza todo. Antes ese caso lo resolvia el orden
+# alfabetico del id.
+- id: cortejar
+  label: cortejar
+  duration_ticks: 4
+  requires_affordance: corrillo
+  requires_company: 1
+  requires_edad: 622080
+  satisfies:
+    vinculo: 1.0
+    deseo: 0.5
+  costs:
+    descanso: 0.1
+  effects:
+    vinculo: 0.22
+    deseo: 0.08
+    descanso: -0.03
+  saturation_gain: 0.35
+  target:
+    requires_edad: 622080
+    gives:
+      vinculo: 0.2
+    acerca: 0.22
+    crea_relacion: pareja
 - id: cazar
   label: cazar
   duration_ticks: 16
@@ -1318,12 +1350,28 @@ actions:
     requires_condition: herida
     regard_weight: 0.7
 relations:
+# La pareja deja de ser eterna (D-087). El README decia que una relacion con
+# nombre no se disuelve nunca, y valia mientras las unicas fueran de sangre y de
+# oficio; con noviazgos es falso: a quien no ves desde hace meses no es tu
+# pareja.
+#
+# `se_rompe_sin_verse: 8640` son noventa dias de este reloj: el corte duro.
+# `se_rompe_bajo: 0.08` es la cuesta abajo, sobre el aprecio DESDIBUJADO -- con
+# el desdibujado de este mundo (0.9997 por tick), un aprecio de 0.5 tarda unos
+# 56 dias sin verse en caer a 0.1. Sobre el crudo estaba inerte: la ausencia no
+# baja el valor crudo, asi que una pareja que deja de verse lo conservaba
+# intacto para siempre (medido: 0 rupturas en 120 dias).
+#
+# Y no sobre el que devuelve `regard_for`, que aplica el suelo: con el suelo
+# puesto, `regard_floor: 0.45` haria imposible romper por desamor.
 - id: pareja
   label: pareja
   symmetric: true
   exclusive: true
   regard_floor: 0.45
   company_multiplier: 2.0
+  se_rompe_sin_verse: 8640
+  se_rompe_bajo: 0.08
 - id: hermano
   label: hermano
   symmetric: true
@@ -2043,6 +2091,10 @@ agents:
     guerrero: 0.76
     pereza: 0.83
   tastes:
+  - target: sociabilidad
+    multiplier: 1.41
+  - target: calculo
+    multiplier: 1.23
   - target: plaza_enana
     multiplier: 1.21
   - target: posada_enana
@@ -2079,6 +2131,10 @@ agents:
     pereza: -0.53
     prodigio: -0.41
   tastes:
+  - target: sociabilidad
+    multiplier: 1.50
+  - target: curiosidad
+    multiplier: 1.22
   - target: plaza_elfica
     multiplier: 1.09
   - target: posada_elfica
@@ -2115,6 +2171,10 @@ agents:
     montaraz: 0.87
     tenacidad: 0.93
   tastes:
+  - target: constancia
+    multiplier: 1.32
+  - target: sociabilidad
+    multiplier: 1.17
   - target: plaza_portuaria
     multiplier: 1.14
   - target: posada_marea
@@ -2144,6 +2204,10 @@ agents:
     guerrero: 0.93
     impulsividad: 0.82
   tastes:
+  - target: curiosidad
+    multiplier: 1.62
+  - target: calculo
+    multiplier: 1.17
   - target: plaza_demihumana
     multiplier: 1.42
   - target: posada_de_la_manada
@@ -2174,6 +2238,10 @@ agents:
     guerrero: 0.77
     pereza: -0.44
   tastes:
+  - target: ambicion
+    multiplier: 1.62
+  - target: arraigo
+    multiplier: 1.23
   - target: plaza_enana
     multiplier: 1.28
   - target: posada_enana
@@ -2223,6 +2291,10 @@ agents:
     gigante: 1.0
     guerrero: 0.88
   tastes:
+  - target: apego
+    multiplier: 1.36
+  - target: ambicion
+    multiplier: 1.17
   - target: plaza_gigante
     multiplier: 1.07
   - target: salon_comunal_gigante
@@ -2252,6 +2324,10 @@ agents:
     mago: 0.94
     nocturnidad: 0.85
   tastes:
+  - target: sociabilidad
+    multiplier: 1.49
+  - target: devocion
+    multiplier: 1.24
   - target: plaza_enana
     multiplier: 1.11
   - target: posada_enana
@@ -2303,6 +2379,10 @@ agents:
     elfo: 1.0
     guerrero: 0.78
   tastes:
+  - target: arraigo
+    multiplier: 1.52
+  - target: audacia
+    multiplier: 1.10
   - target: plaza_elfica
     multiplier: 1.01
   - target: posada_elfica
@@ -2348,6 +2428,10 @@ agents:
     humano: 1.0
     sociabilidad: -0.46
   tastes:
+  - target: constancia
+    multiplier: 1.51
+  - target: sociabilidad
+    multiplier: 1.14
   - target: plaza_mayor
     multiplier: 1.15
   - target: posada_central
@@ -2385,6 +2469,10 @@ agents:
     montaraz: 0.98
     sociabilidad: -0.9
   tastes:
+  - target: devocion
+    multiplier: 1.58
+  - target: impulsividad
+    multiplier: 1.14
   - target: plaza_elfica
     multiplier: 1.05
   - target: posada_elfica
@@ -2434,6 +2522,10 @@ agents:
     nocturnidad: 0.67
     templanza: 0.46
   tastes:
+  - target: curiosidad
+    multiplier: 1.59
+  - target: sociabilidad
+    multiplier: 1.15
   - target: plaza_portuaria
     multiplier: 1.24
   - target: posada_marea
@@ -2488,6 +2580,10 @@ agents:
     humano: 1.0
     sociabilidad: 0.44
   tastes:
+  - target: impulsividad
+    multiplier: 1.58
+  - target: ambicion
+    multiplier: 1.19
   - target: plaza_portuaria
     multiplier: 1.14
   - target: posada_marea
@@ -2521,6 +2617,10 @@ agents:
     dureza: -0.96
     guerrero: 0.93
   tastes:
+  - target: arraigo
+    multiplier: 1.42
+  - target: apego
+    multiplier: 1.14
   - target: plaza_demihumana
     multiplier: 1.16
   - target: posada_de_la_manada
@@ -2573,6 +2673,10 @@ agents:
     humano: 1.0
     pereza: -0.62
   tastes:
+  - target: constancia
+    multiplier: 1.37
+  - target: arraigo
+    multiplier: 1.23
   - target: plaza_mayor
     multiplier: 1.43
   - target: posada_central
@@ -2626,6 +2730,10 @@ agents:
     mago: 0.82
     prodigio: 0.68
   tastes:
+  - target: devocion
+    multiplier: 1.46
+  - target: curiosidad
+    multiplier: 1.17
   - target: plaza_portuaria
     multiplier: 1.34
   - target: posada_marea
@@ -2654,6 +2762,10 @@ agents:
     mago: 0.72
     templanza: -0.89
   tastes:
+  - target: sociabilidad
+    multiplier: 1.29
+  - target: constancia
+    multiplier: 1.16
   - target: plaza_enana
     multiplier: 1.05
   - target: posada_enana
@@ -2681,6 +2793,10 @@ agents:
     humano: 1.0
     montaraz: 0.81
   tastes:
+  - target: ambicion
+    multiplier: 1.32
+  - target: devocion
+    multiplier: 1.14
   - target: plaza_mayor
     multiplier: 1.24
   - target: posada_central
@@ -2734,6 +2850,10 @@ agents:
     talento: -0.66
     templanza: -0.59
   tastes:
+  - target: arraigo
+    multiplier: 1.54
+  - target: apego
+    multiplier: 1.21
   - target: plaza_demihumana
     multiplier: 1.1
   - target: posada_de_la_manada
@@ -2763,6 +2883,10 @@ agents:
     humano: 1.0
     mago: 0.87
   tastes:
+  - target: calculo
+    multiplier: 1.36
+  - target: apego
+    multiplier: 1.23
   - target: plaza_mayor
     multiplier: 1.13
   - target: posada_central
@@ -2794,6 +2918,10 @@ agents:
     enano: 1.0
     montaraz: 0.78
   tastes:
+  - target: apego
+    multiplier: 1.52
+  - target: curiosidad
+    multiplier: 1.21
   - target: plaza_enana
     multiplier: 1.12
   - target: posada_enana
@@ -2821,6 +2949,10 @@ agents:
     demihumano: 1.0
     mago: 0.92
   tastes:
+  - target: curiosidad
+    multiplier: 1.43
+  - target: audacia
+    multiplier: 1.09
   - target: plaza_demihumana
     multiplier: 1.16
   - target: posada_de_la_manada
@@ -2851,6 +2983,10 @@ agents:
     invocador: 0.83
     prodigio: -0.62
   tastes:
+  - target: arraigo
+    multiplier: 1.30
+  - target: sociabilidad
+    multiplier: 1.14
   - target: plaza_mayor
     multiplier: 1.02
   - target: posada_central
@@ -2892,6 +3028,10 @@ agents:
     invocador: 0.97
     nocturnidad: -0.86
   tastes:
+  - target: devocion
+    multiplier: 1.44
+  - target: audacia
+    multiplier: 1.10
   - target: plaza_enana
     multiplier: 1.11
   - target: posada_enana
@@ -2950,6 +3090,10 @@ agents:
     enano: 1.0
     montaraz: 0.71
   tastes:
+  - target: ambicion
+    multiplier: 1.35
+  - target: calculo
+    multiplier: 1.24
   - target: plaza_enana
     multiplier: 1.17
   - target: posada_enana
@@ -2976,6 +3120,10 @@ agents:
     talento: 0.69
     templanza: 0.8
   tastes:
+  - target: devocion
+    multiplier: 1.62
+  - target: calculo
+    multiplier: 1.05
   - target: plaza_gigante
     multiplier: 1.45
   - target: salon_comunal_gigante
@@ -3041,6 +3189,10 @@ agents:
     guerrero: 0.89
     talento: 0.47
   tastes:
+  - target: curiosidad
+    multiplier: 1.59
+  - target: impulsividad
+    multiplier: 1.10
   - target: plaza_enana
     multiplier: 0.95
   - target: posada_enana
@@ -3065,6 +3217,10 @@ agents:
     demihumano: 1.0
     montaraz: 0.92
   tastes:
+  - target: constancia
+    multiplier: 1.50
+  - target: arraigo
+    multiplier: 1.20
   - target: plaza_demihumana
     multiplier: 1.12
   - target: posada_de_la_manada
@@ -3117,6 +3273,10 @@ agents:
     elfo: 1.0
     impulsividad: -0.58
   tastes:
+  - target: calculo
+    multiplier: 1.35
+  - target: devocion
+    multiplier: 1.19
   - target: plaza_elfica
     multiplier: 1.38
   - target: posada_elfica
@@ -3155,6 +3315,10 @@ agents:
     humano: 1.0
     montaraz: 0.97
   tastes:
+  - target: arraigo
+    multiplier: 1.39
+  - target: audacia
+    multiplier: 1.20
   - target: plaza_portuaria
     multiplier: 1.44
   - target: posada_marea
@@ -3188,6 +3352,10 @@ agents:
     enano: 1.0
     mago: 0.72
   tastes:
+  - target: arraigo
+    multiplier: 1.31
+  - target: apego
+    multiplier: 1.14
   - target: plaza_enana
     multiplier: 1.42
   - target: posada_enana
@@ -3229,6 +3397,10 @@ agents:
     mago: 0.91
     pereza: -0.54
   tastes:
+  - target: sociabilidad
+    multiplier: 1.44
+  - target: constancia
+    multiplier: 1.16
   - target: plaza_elfica
     multiplier: 1.37
   - target: posada_elfica
@@ -3267,6 +3439,10 @@ agents:
     humano: 1.0
     prodigio: -0.96
   tastes:
+  - target: ambicion
+    multiplier: 1.64
+  - target: constancia
+    multiplier: 1.18
   - target: plaza_mayor
     multiplier: 1.26
   - target: posada_central
@@ -3305,6 +3481,10 @@ agents:
     prodigio: -0.67
     templanza: 0.63
   tastes:
+  - target: curiosidad
+    multiplier: 1.32
+  - target: apego
+    multiplier: 1.15
   - target: plaza_enana
     multiplier: 1.39
   - target: posada_enana
@@ -3351,6 +3531,10 @@ agents:
     mago: 0.71
     templanza: 0.95
   tastes:
+  - target: impulsividad
+    multiplier: 1.49
+  - target: calculo
+    multiplier: 1.11
   - target: plaza_portuaria
     multiplier: 1.06
   - target: posada_marea
@@ -3391,6 +3575,10 @@ agents:
     guerrero: 0.77
     humano: 1.0
   tastes:
+  - target: sociabilidad
+    multiplier: 1.54
+  - target: constancia
+    multiplier: 1.16
   - target: plaza_mayor
     multiplier: 1.1
   - target: posada_central
@@ -3442,6 +3630,10 @@ agents:
     demihumano: 1.0
     docilidad: 0.66
   tastes:
+  - target: ambicion
+    multiplier: 1.36
+  - target: calculo
+    multiplier: 1.08
   - target: plaza_demihumana
     multiplier: 1.2
   - target: posada_de_la_manada
@@ -3468,6 +3660,10 @@ agents:
     humano: 1.0
     montaraz: 0.92
   tastes:
+  - target: constancia
+    multiplier: 1.43
+  - target: audacia
+    multiplier: 1.22
   - target: plaza_portuaria
     multiplier: 1.4
   - target: posada_marea
@@ -3511,6 +3707,10 @@ agents:
     guerrero: 0.82
     humano: 1.0
   tastes:
+  - target: sociabilidad
+    multiplier: 1.59
+  - target: curiosidad
+    multiplier: 1.19
   - target: plaza_portuaria
     multiplier: 1.02
   - target: posada_marea
@@ -3534,6 +3734,10 @@ agents:
     asesino: 0.79
     humano: 1.0
   tastes:
+  - target: ambicion
+    multiplier: 1.56
+  - target: arraigo
+    multiplier: 1.11
   - target: plaza_portuaria
     multiplier: 1.11
   - target: posada_marea
@@ -3569,6 +3773,10 @@ agents:
     guerrero: 0.92
     tenacidad: -0.96
   tastes:
+  - target: impulsividad
+    multiplier: 1.34
+  - target: curiosidad
+    multiplier: 1.10
   - target: plaza_demihumana
     multiplier: 1.16
   - target: posada_de_la_manada
@@ -3612,6 +3820,10 @@ agents:
     mago: 0.99
     prodigio: 0.98
   tastes:
+  - target: impulsividad
+    multiplier: 1.41
+  - target: audacia
+    multiplier: 1.17
   - target: plaza_enana
     multiplier: 1.13
   - target: posada_enana
@@ -3645,6 +3857,10 @@ agents:
     sociabilidad: 0.68
     talento: -0.4
   tastes:
+  - target: apego
+    multiplier: 1.45
+  - target: sociabilidad
+    multiplier: 1.12
   - target: plaza_enana
     multiplier: 1.3
   - target: posada_enana
@@ -3685,6 +3901,10 @@ agents:
     docilidad: -0.46
     enano: 1.0
   tastes:
+  - target: sociabilidad
+    multiplier: 1.34
+  - target: devocion
+    multiplier: 1.12
   - target: plaza_enana
     multiplier: 1.26
   - target: posada_enana
@@ -3708,6 +3928,10 @@ agents:
     invocador: 0.87
     tenacidad: -0.99
   tastes:
+  - target: sociabilidad
+    multiplier: 1.30
+  - target: devocion
+    multiplier: 1.21
   - target: plaza_gigante
     multiplier: 1.23
   - target: salon_comunal_gigante
@@ -3749,6 +3973,10 @@ agents:
     demihumano: 1.0
     gula: -0.47
   tastes:
+  - target: ambicion
+    multiplier: 1.29
+  - target: impulsividad
+    multiplier: 1.06
   - target: plaza_demihumana
     multiplier: 1.12
   - target: posada_de_la_manada
@@ -3783,6 +4011,10 @@ agents:
     guerrero: 0.92
     gula: -0.86
   tastes:
+  - target: audacia
+    multiplier: 1.26
+  - target: calculo
+    multiplier: 1.10
   - target: plaza_demihumana
     multiplier: 1.33
   - target: posada_de_la_manada
@@ -3825,6 +4057,10 @@ agents:
     invocador: 0.73
     pereza: 0.46
   tastes:
+  - target: devocion
+    multiplier: 1.41
+  - target: apego
+    multiplier: 1.20
   - target: plaza_mayor
     multiplier: 0.99
   - target: posada_central
@@ -3867,6 +4103,10 @@ agents:
     gula: 0.61
     tenacidad: -0.81
   tastes:
+  - target: audacia
+    multiplier: 1.30
+  - target: sociabilidad
+    multiplier: 1.09
   - target: plaza_enana
     multiplier: 1.14
   - target: posada_enana
@@ -3889,6 +4129,10 @@ agents:
     enano: 1.0
     montaraz: 0.89
   tastes:
+  - target: impulsividad
+    multiplier: 1.58
+  - target: calculo
+    multiplier: 1.09
   - target: plaza_enana
     multiplier: 1.23
   - target: posada_enana
@@ -3927,6 +4171,10 @@ agents:
     mago: 0.91
     nocturnidad: 0.54
   tastes:
+  - target: arraigo
+    multiplier: 1.53
+  - target: calculo
+    multiplier: 1.19
   - target: plaza_elfica
     multiplier: 1.01
   - target: posada_elfica
@@ -3970,6 +4218,10 @@ agents:
     humano: 1.0
     templanza: 0.54
   tastes:
+  - target: calculo
+    multiplier: 1.44
+  - target: audacia
+    multiplier: 1.05
   - target: plaza_portuaria
     multiplier: 1.1
   - target: posada_marea
@@ -3993,6 +4245,10 @@ agents:
     mago: 0.98
     talento: -0.81
   tastes:
+  - target: apego
+    multiplier: 1.32
+  - target: impulsividad
+    multiplier: 1.20
   - target: plaza_gigante
     multiplier: 0.95
   - target: salon_comunal_gigante
@@ -4039,6 +4295,10 @@ agents:
     mago: 0.98
     prodigio: -0.73
   tastes:
+  - target: curiosidad
+    multiplier: 1.59
+  - target: sociabilidad
+    multiplier: 1.18
   - target: plaza_elfica
     multiplier: 0.97
   - target: posada_elfica
@@ -4065,6 +4325,10 @@ agents:
     calculo: -0.47
     humano: 1.0
   tastes:
+  - target: impulsividad
+    multiplier: 1.48
+  - target: calculo
+    multiplier: 1.12
   - target: plaza_mayor
     multiplier: 1.4
   - target: posada_central
@@ -4118,6 +4382,10 @@ agents:
     humano: 1.0
     montaraz: 0.74
   tastes:
+  - target: sociabilidad
+    multiplier: 1.58
+  - target: calculo
+    multiplier: 1.15
   - target: plaza_portuaria
     multiplier: 1.44
   - target: posada_marea
@@ -4150,6 +4418,10 @@ agents:
     enano: 1.0
     montaraz: 0.97
   tastes:
+  - target: curiosidad
+    multiplier: 1.61
+  - target: ambicion
+    multiplier: 1.13
   - target: plaza_enana
     multiplier: 1.12
   - target: posada_enana
@@ -4188,6 +4460,10 @@ agents:
     mago: 0.98
     tenacidad: -0.77
   tastes:
+  - target: impulsividad
+    multiplier: 1.45
+  - target: audacia
+    multiplier: 1.09
   - target: plaza_elfica
     multiplier: 1.37
   - target: posada_elfica
@@ -4214,6 +4490,10 @@ agents:
     invocador: 0.9
     nocturnidad: -0.44
   tastes:
+  - target: sociabilidad
+    multiplier: 1.33
+  - target: apego
+    multiplier: 1.06
   - target: plaza_enana
     multiplier: 1.16
   - target: posada_enana
@@ -4246,6 +4526,10 @@ agents:
     impulsividad: -0.8
     pereza: -0.59
   tastes:
+  - target: apego
+    multiplier: 1.58
+  - target: arraigo
+    multiplier: 1.09
   - target: plaza_mayor
     multiplier: 0.99
   - target: posada_central
@@ -4286,6 +4570,10 @@ agents:
     gigante: 1.0
     mago: 0.96
   tastes:
+  - target: curiosidad
+    multiplier: 1.64
+  - target: calculo
+    multiplier: 1.18
   - target: plaza_gigante
     multiplier: 1.12
   - target: salon_comunal_gigante
@@ -4317,6 +4605,10 @@ agents:
     demihumano: 1.0
     templanza: -0.74
   tastes:
+  - target: constancia
+    multiplier: 1.40
+  - target: devocion
+    multiplier: 1.21
   - target: plaza_demihumana
     multiplier: 1.38
   - target: posada_de_la_manada
@@ -4343,6 +4635,10 @@ agents:
     elfo: 1.0
     pereza: -0.62
   tastes:
+  - target: devocion
+    multiplier: 1.59
+  - target: audacia
+    multiplier: 1.06
   - target: plaza_elfica
     multiplier: 1.17
   - target: posada_elfica
@@ -4369,6 +4665,10 @@ agents:
     enano: 1.0
     prodigio: 0.93
   tastes:
+  - target: impulsividad
+    multiplier: 1.33
+  - target: devocion
+    multiplier: 1.09
   - target: plaza_enana
     multiplier: 1.16
   - target: posada_enana
@@ -4393,6 +4693,10 @@ agents:
     impulsividad: -0.46
     templanza: 0.41
   tastes:
+  - target: audacia
+    multiplier: 1.63
+  - target: calculo
+    multiplier: 1.09
   - target: plaza_gigante
     multiplier: 0.96
   - target: salon_comunal_gigante
@@ -4424,6 +4728,10 @@ agents:
     pereza: 0.5
     sociabilidad: 0.85
   tastes:
+  - target: apego
+    multiplier: 1.44
+  - target: sociabilidad
+    multiplier: 1.24
   - target: plaza_elfica
     multiplier: 1.17
   - target: posada_elfica
@@ -4465,6 +4773,10 @@ agents:
     elfo: 1.0
     montaraz: 0.76
   tastes:
+  - target: sociabilidad
+    multiplier: 1.47
+  - target: impulsividad
+    multiplier: 1.17
   - target: plaza_elfica
     multiplier: 1.28
   - target: posada_elfica
@@ -4490,6 +4802,10 @@ agents:
     guerrero: 0.74
     humano: 1.0
   tastes:
+  - target: constancia
+    multiplier: 1.40
+  - target: impulsividad
+    multiplier: 1.09
   - target: plaza_portuaria
     multiplier: 1.14
   - target: posada_marea
@@ -4516,6 +4832,10 @@ agents:
     enano: 1.0
     guerrero: 0.9
   tastes:
+  - target: sociabilidad
+    multiplier: 1.59
+  - target: ambicion
+    multiplier: 1.23
   - target: plaza_enana
     multiplier: 1.34
   - target: posada_enana
@@ -4554,6 +4874,10 @@ agents:
     enano: 1.0
     guerrero: 0.8
   tastes:
+  - target: constancia
+    multiplier: 1.37
+  - target: sociabilidad
+    multiplier: 1.07
   - target: plaza_enana
     multiplier: 1.2
   - target: posada_enana
@@ -4584,6 +4908,10 @@ agents:
     mago: 0.7
     pereza: 0.82
   tastes:
+  - target: sociabilidad
+    multiplier: 1.35
+  - target: devocion
+    multiplier: 1.07
   - target: plaza_portuaria
     multiplier: 1.08
   - target: posada_marea
@@ -4620,6 +4948,10 @@ agents:
     montaraz: 0.87
     templanza: 0.5
   tastes:
+  - target: devocion
+    multiplier: 1.47
+  - target: curiosidad
+    multiplier: 1.13
   - target: plaza_elfica
     multiplier: 1.34
   - target: posada_elfica
@@ -4658,6 +4990,10 @@ agents:
     humano: 1.0
     invocador: 0.9
   tastes:
+  - target: sociabilidad
+    multiplier: 1.32
+  - target: calculo
+    multiplier: 1.10
   - target: plaza_mayor
     multiplier: 0.99
   - target: posada_central
@@ -4688,6 +5024,10 @@ agents:
     humano: 1.0
     prodigio: -0.91
   tastes:
+  - target: impulsividad
+    multiplier: 1.59
+  - target: constancia
+    multiplier: 1.15
   - target: plaza_mayor
     multiplier: 1.18
   - target: posada_central
@@ -4722,6 +5062,10 @@ agents:
     enano: 1.0
     talento: -0.75
   tastes:
+  - target: constancia
+    multiplier: 1.48
+  - target: arraigo
+    multiplier: 1.21
   - target: plaza_enana
     multiplier: 1.37
   - target: posada_enana
@@ -4761,6 +5105,10 @@ agents:
     gula: -0.71
     montaraz: 0.96
   tastes:
+  - target: constancia
+    multiplier: 1.63
+  - target: devocion
+    multiplier: 1.19
   - target: plaza_elfica
     multiplier: 1.02
   - target: posada_elfica
@@ -4809,6 +5157,10 @@ agents:
     mago: 0.98
     talento: -0.44
   tastes:
+  - target: audacia
+    multiplier: 1.41
+  - target: curiosidad
+    multiplier: 1.20
   - target: plaza_portuaria
     multiplier: 1.06
   - target: posada_marea
@@ -4837,6 +5189,10 @@ agents:
     guerrero: 0.87
     gula: 0.68
   tastes:
+  - target: impulsividad
+    multiplier: 1.39
+  - target: devocion
+    multiplier: 1.12
   - target: plaza_gigante
     multiplier: 1.25
   - target: salon_comunal_gigante
@@ -4875,6 +5231,10 @@ agents:
     gula: -0.44
     montaraz: 0.88
   tastes:
+  - target: impulsividad
+    multiplier: 1.32
+  - target: ambicion
+    multiplier: 1.19
   - target: plaza_gigante
     multiplier: 1.38
   - target: salon_comunal_gigante
@@ -4897,6 +5257,10 @@ agents:
     nocturnidad: 0.46
     prodigio: 0.44
   tastes:
+  - target: curiosidad
+    multiplier: 1.50
+  - target: arraigo
+    multiplier: 1.17
   - target: plaza_portuaria
     multiplier: 1.08
   - target: posada_marea
@@ -4923,6 +5287,10 @@ agents:
     codicia: -0.83
     enano: 1.0
   tastes:
+  - target: sociabilidad
+    multiplier: 1.50
+  - target: impulsividad
+    multiplier: 1.19
   - target: plaza_enana
     multiplier: 1.0
   - target: posada_enana
@@ -4953,6 +5321,10 @@ agents:
     asesino: 0.94
     enano: 1.0
   tastes:
+  - target: ambicion
+    multiplier: 1.60
+  - target: audacia
+    multiplier: 1.14
   - target: plaza_enana
     multiplier: 1.26
   - target: posada_enana
@@ -4976,6 +5348,10 @@ agents:
     guerrero: 0.84
     impulsividad: -0.69
   tastes:
+  - target: apego
+    multiplier: 1.39
+  - target: ambicion
+    multiplier: 1.21
   - target: plaza_enana
     multiplier: 1.39
   - target: posada_enana
@@ -5016,6 +5392,10 @@ agents:
     humano: 1.0
     montaraz: 0.83
   tastes:
+  - target: curiosidad
+    multiplier: 1.33
+  - target: calculo
+    multiplier: 1.14
   - target: plaza_mayor
     multiplier: 1.43
   - target: posada_central
@@ -5047,6 +5427,10 @@ agents:
     humano: 1.0
     tenacidad: 0.71
   tastes:
+  - target: ambicion
+    multiplier: 1.27
+  - target: sociabilidad
+    multiplier: 1.13
   - target: plaza_mayor
     multiplier: 1.31
   - target: posada_central
@@ -5080,6 +5464,10 @@ agents:
     curiosidad: 0.6
     demihumano: 1.0
   tastes:
+  - target: devocion
+    multiplier: 1.50
+  - target: calculo
+    multiplier: 1.11
   - target: plaza_demihumana
     multiplier: 1.25
   - target: posada_de_la_manada
@@ -5121,6 +5509,10 @@ agents:
     guerrero: 0.86
     impulsividad: 0.92
   tastes:
+  - target: calculo
+    multiplier: 1.48
+  - target: audacia
+    multiplier: 1.07
   - target: plaza_gigante
     multiplier: 1.11
   - target: salon_comunal_gigante
@@ -5143,6 +5535,10 @@ agents:
     talento: -0.65
     tenacidad: -0.93
   tastes:
+  - target: audacia
+    multiplier: 1.57
+  - target: arraigo
+    multiplier: 1.16
   - target: plaza_portuaria
     multiplier: 1.33
   - target: posada_marea
@@ -5166,6 +5562,10 @@ agents:
     invocador: 0.98
     prodigio: -0.62
   tastes:
+  - target: devocion
+    multiplier: 1.53
+  - target: calculo
+    multiplier: 1.18
   - target: plaza_elfica
     multiplier: 1.43
   - target: posada_elfica
@@ -5212,6 +5612,10 @@ agents:
     humano: 1.0
     montaraz: 0.7
   tastes:
+  - target: calculo
+    multiplier: 1.36
+  - target: ambicion
+    multiplier: 1.10
   - target: plaza_portuaria
     multiplier: 1.41
   - target: posada_marea
@@ -5232,6 +5636,10 @@ agents:
     demihumano: 1.0
     guerrero: 0.92
   tastes:
+  - target: apego
+    multiplier: 1.56
+  - target: devocion
+    multiplier: 1.06
   - target: plaza_demihumana
     multiplier: 0.97
   - target: posada_de_la_manada
@@ -5272,6 +5680,10 @@ agents:
     elfo: 1.0
     invocador: 0.79
   tastes:
+  - target: impulsividad
+    multiplier: 1.46
+  - target: apego
+    multiplier: 1.07
   - target: plaza_elfica
     multiplier: 1.14
   - target: posada_elfica
@@ -5301,6 +5713,10 @@ agents:
     montaraz: 0.86
     nocturnidad: -0.78
   tastes:
+  - target: devocion
+    multiplier: 1.54
+  - target: audacia
+    multiplier: 1.22
   - target: plaza_portuaria
     multiplier: 1.29
   - target: posada_marea
@@ -5322,6 +5738,10 @@ agents:
     impulsividad: 0.77
     montaraz: 0.71
   tastes:
+  - target: curiosidad
+    multiplier: 1.34
+  - target: audacia
+    multiplier: 1.24
   - target: plaza_elfica
     multiplier: 0.98
   - target: posada_elfica
@@ -5344,6 +5764,10 @@ agents:
     mago: 0.91
     pereza: -0.62
   tastes:
+  - target: apego
+    multiplier: 1.46
+  - target: arraigo
+    multiplier: 1.23
   - target: plaza_portuaria
     multiplier: 1.09
   - target: posada_marea
@@ -5365,6 +5789,10 @@ agents:
     demihumano: 1.0
     dureza: -0.9
   tastes:
+  - target: arraigo
+    multiplier: 1.50
+  - target: calculo
+    multiplier: 1.24
   - target: plaza_demihumana
     multiplier: 1.02
   - target: posada_de_la_manada
@@ -5396,6 +5824,10 @@ agents:
     guerrero: 0.91
     humano: 1.0
   tastes:
+  - target: audacia
+    multiplier: 1.26
+  - target: devocion
+    multiplier: 1.24
   - target: plaza_mayor
     multiplier: 1.0
   - target: posada_central
@@ -5412,6 +5844,10 @@ agents:
     humano: 1.0
     montaraz: 0.93
   tastes:
+  - target: curiosidad
+    multiplier: 1.46
+  - target: arraigo
+    multiplier: 1.06
   - target: plaza_mayor
     multiplier: 1.21
   - target: posada_central
@@ -5450,6 +5886,10 @@ agents:
     guerrero: 0.84
     prodigio: -0.83
   tastes:
+  - target: curiosidad
+    multiplier: 1.49
+  - target: devocion
+    multiplier: 1.10
   - target: plaza_enana
     multiplier: 1.31
   - target: posada_enana
@@ -5471,6 +5911,10 @@ agents:
     sociabilidad: 0.8
     tenacidad: 0.76
   tastes:
+  - target: devocion
+    multiplier: 1.50
+  - target: ambicion
+    multiplier: 1.13
   - target: plaza_mayor
     multiplier: 0.97
   - target: posada_central
@@ -5510,6 +5954,10 @@ agents:
     enano: 1.0
     guerrero: 0.78
   tastes:
+  - target: audacia
+    multiplier: 1.42
+  - target: apego
+    multiplier: 1.16
   - target: plaza_enana
     multiplier: 1.12
   - target: posada_enana
@@ -5530,6 +5978,10 @@ agents:
     impulsividad: -0.79
     mago: 0.91
   tastes:
+  - target: apego
+    multiplier: 1.41
+  - target: arraigo
+    multiplier: 1.08
   - target: plaza_enana
     multiplier: 1.36
   - target: posada_enana
@@ -5551,6 +6003,10 @@ agents:
     gula: 0.43
     tenacidad: -0.4
   tastes:
+  - target: constancia
+    multiplier: 1.61
+  - target: impulsividad
+    multiplier: 1.15
   - target: plaza_demihumana
     multiplier: 1.07
   - target: posada_de_la_manada
@@ -5590,6 +6046,10 @@ agents:
     invocador: 0.89
     sociabilidad: 0.76
   tastes:
+  - target: ambicion
+    multiplier: 1.64
+  - target: sociabilidad
+    multiplier: 1.15
   - target: plaza_demihumana
     multiplier: 1.42
   - target: posada_de_la_manada
@@ -5610,6 +6070,10 @@ agents:
     montaraz: 0.85
     nocturnidad: -0.55
   tastes:
+  - target: ambicion
+    multiplier: 1.54
+  - target: calculo
+    multiplier: 1.10
   - target: plaza_enana
     multiplier: 1.44
   - target: posada_enana
@@ -5643,6 +6107,10 @@ agents:
     invocador: 0.73
     sociabilidad: 0.61
   tastes:
+  - target: apego
+    multiplier: 1.34
+  - target: impulsividad
+    multiplier: 1.09
   - target: plaza_elfica
     multiplier: 1.12
   - target: posada_elfica
@@ -5683,6 +6151,10 @@ agents:
     invocador: 1.0
     talento: -0.42
   tastes:
+  - target: impulsividad
+    multiplier: 1.62
+  - target: devocion
+    multiplier: 1.20
   - target: plaza_demihumana
     multiplier: 1.17
   - target: posada_de_la_manada
@@ -5709,6 +6181,10 @@ agents:
     prodigio: -0.78
     tenacidad: -0.59
   tastes:
+  - target: sociabilidad
+    multiplier: 1.59
+  - target: impulsividad
+    multiplier: 1.09
   - target: plaza_elfica
     multiplier: 1.09
   - target: posada_elfica
@@ -5730,6 +6206,10 @@ agents:
     humano: 1.0
     tenacidad: 0.46
   tastes:
+  - target: audacia
+    multiplier: 1.44
+  - target: sociabilidad
+    multiplier: 1.08
   - target: plaza_mayor
     multiplier: 1.12
   - target: posada_central
@@ -5763,6 +6243,10 @@ agents:
     mago: 1.0
     pereza: 0.66
   tastes:
+  - target: arraigo
+    multiplier: 1.40
+  - target: constancia
+    multiplier: 1.12
   - target: plaza_demihumana
     multiplier: 1.37
   - target: posada_de_la_manada
@@ -5801,6 +6285,10 @@ agents:
     mago: 0.75
     templanza: -0.47
   tastes:
+  - target: curiosidad
+    multiplier: 1.42
+  - target: impulsividad
+    multiplier: 1.13
   - target: plaza_mayor
     multiplier: 1.37
   - target: posada_central
@@ -5830,6 +6318,10 @@ agents:
     montaraz: 0.77
     sociabilidad: 0.46
   tastes:
+  - target: sociabilidad
+    multiplier: 1.58
+  - target: apego
+    multiplier: 1.08
   - target: plaza_enana
     multiplier: 1.03
   - target: posada_enana
@@ -5851,6 +6343,10 @@ agents:
     montaraz: 0.78
     pereza: -0.88
   tastes:
+  - target: devocion
+    multiplier: 1.34
+  - target: calculo
+    multiplier: 1.18
   - target: plaza_elfica
     multiplier: 1.21
   - target: posada_elfica
@@ -5872,6 +6368,10 @@ agents:
     docilidad: -0.52
     guerrero: 0.88
   tastes:
+  - target: calculo
+    multiplier: 1.40
+  - target: apego
+    multiplier: 1.05
   - target: plaza_demihumana
     multiplier: 1.22
   - target: posada_de_la_manada
@@ -5892,6 +6392,10 @@ agents:
     humano: 1.0
     pereza: -0.99
   tastes:
+  - target: devocion
+    multiplier: 1.46
+  - target: audacia
+    multiplier: 1.14
   - target: plaza_portuaria
     multiplier: 1.18
   - target: posada_marea
@@ -5931,6 +6435,10 @@ agents:
     dureza: 0.49
     humano: 1.0
   tastes:
+  - target: apego
+    multiplier: 1.30
+  - target: constancia
+    multiplier: 1.20
   - target: plaza_mayor
     multiplier: 1.4
   - target: posada_central
@@ -5948,6 +6456,10 @@ agents:
     devocion: 0.83
     humano: 1.0
   tastes:
+  - target: arraigo
+    multiplier: 1.53
+  - target: ambicion
+    multiplier: 1.06
   - target: plaza_mayor
     multiplier: 1.31
   - target: posada_central
@@ -5982,6 +6494,10 @@ agents:
     mago: 0.92
     templanza: -0.59
   tastes:
+  - target: arraigo
+    multiplier: 1.33
+  - target: impulsividad
+    multiplier: 1.19
   - target: plaza_demihumana
     multiplier: 1.27
   - target: posada_de_la_manada
@@ -6019,6 +6535,10 @@ agents:
     humano: 1.0
     nocturnidad: -0.61
   tastes:
+  - target: ambicion
+    multiplier: 1.39
+  - target: constancia
+    multiplier: 1.12
   - target: plaza_mayor
     multiplier: 1.16
   - target: posada_central
@@ -6046,6 +6566,10 @@ agents:
     guerrero: 0.91
     sociabilidad: -0.78
   tastes:
+  - target: arraigo
+    multiplier: 1.28
+  - target: devocion
+    multiplier: 1.10
   - target: plaza_demihumana
     multiplier: 1.23
   - target: posada_de_la_manada
@@ -6077,6 +6601,10 @@ agents:
     montaraz: 0.7
     sociabilidad: 0.8
   tastes:
+  - target: sociabilidad
+    multiplier: 1.25
+  - target: ambicion
+    multiplier: 1.06
   - target: plaza_demihumana
     multiplier: 1.35
   - target: posada_de_la_manada
@@ -6099,6 +6627,10 @@ agents:
     gula: -0.41
     mago: 0.79
   tastes:
+  - target: devocion
+    multiplier: 1.27
+  - target: curiosidad
+    multiplier: 1.11
   - target: plaza_elfica
     multiplier: 1.01
   - target: posada_elfica
@@ -6139,6 +6671,10 @@ agents:
     sociabilidad: 0.72
     tenacidad: -0.51
   tastes:
+  - target: sociabilidad
+    multiplier: 1.49
+  - target: constancia
+    multiplier: 1.19
   - target: plaza_mayor
     multiplier: 1.02
   - target: posada_central
@@ -6173,6 +6709,10 @@ agents:
     guerrero: 0.73
     humano: 1.0
   tastes:
+  - target: arraigo
+    multiplier: 1.45
+  - target: curiosidad
+    multiplier: 1.13
   - target: plaza_mayor
     multiplier: 1.28
   - target: posada_central
@@ -6207,6 +6747,10 @@ agents:
     mago: 0.95
     prodigio: -0.92
   tastes:
+  - target: audacia
+    multiplier: 1.40
+  - target: arraigo
+    multiplier: 1.12
   - target: plaza_elfica
     multiplier: 1.24
   - target: posada_elfica
@@ -6247,6 +6791,10 @@ agents:
     nocturnidad: -0.41
     tenacidad: -0.8
   tastes:
+  - target: arraigo
+    multiplier: 1.41
+  - target: sociabilidad
+    multiplier: 1.13
   - target: plaza_demihumana
     multiplier: 1.17
   - target: posada_de_la_manada
@@ -6285,6 +6833,10 @@ agents:
     humano: 1.0
     pereza: 0.84
   tastes:
+  - target: audacia
+    multiplier: 1.43
+  - target: apego
+    multiplier: 1.22
   - target: plaza_mayor
     multiplier: 1.07
   - target: posada_central
@@ -6311,6 +6863,10 @@ agents:
     gigante: 1.0
     guerrero: 0.96
   tastes:
+  - target: constancia
+    multiplier: 1.29
+  - target: calculo
+    multiplier: 1.09
   - target: plaza_gigante
     multiplier: 1.29
   - target: salon_comunal_gigante
@@ -6355,6 +6911,10 @@ agents:
     humano: 1.0
     impulsividad: 0.84
   tastes:
+  - target: sociabilidad
+    multiplier: 1.55
+  - target: devocion
+    multiplier: 1.13
   - target: plaza_mayor
     multiplier: 1.03
   - target: posada_central
@@ -6382,6 +6942,10 @@ agents:
     montaraz: 0.92
     templanza: -0.71
   tastes:
+  - target: apego
+    multiplier: 1.35
+  - target: impulsividad
+    multiplier: 1.07
   - target: plaza_mayor
     multiplier: 1.12
   - target: posada_central
@@ -6399,6 +6963,10 @@ agents:
     demihumano: 1.0
     templanza: 0.49
   tastes:
+  - target: apego
+    multiplier: 1.58
+  - target: arraigo
+    multiplier: 1.08
   - target: plaza_demihumana
     multiplier: 1.33
   - target: posada_de_la_manada
@@ -6437,6 +7005,10 @@ agents:
     humano: 1.0
     nocturnidad: -0.56
   tastes:
+  - target: impulsividad
+    multiplier: 1.28
+  - target: audacia
+    multiplier: 1.15
   - target: plaza_mayor
     multiplier: 1.04
   - target: posada_central
@@ -6468,6 +7040,10 @@ agents:
     devocion: 0.7
     humano: 1.0
   tastes:
+  - target: sociabilidad
+    multiplier: 1.41
+  - target: constancia
+    multiplier: 1.21
   - target: plaza_mayor
     multiplier: 1.19
   - target: posada_central
@@ -6486,6 +7062,10 @@ agents:
     humano: 1.0
     mago: 0.99
   tastes:
+  - target: impulsividad
+    multiplier: 1.47
+  - target: sociabilidad
+    multiplier: 1.16
   - target: plaza_mayor
     multiplier: 1.43
   - target: posada_central
@@ -6508,6 +7088,10 @@ agents:
     elfo: 1.0
     invocador: 0.79
   tastes:
+  - target: constancia
+    multiplier: 1.44
+  - target: impulsividad
+    multiplier: 1.21
   - target: plaza_elfica
     multiplier: 1.09
   - target: posada_elfica
@@ -6529,6 +7113,10 @@ agents:
     montaraz: 0.71
     sociabilidad: -0.57
   tastes:
+  - target: calculo
+    multiplier: 1.61
+  - target: ambicion
+    multiplier: 1.08
   - target: plaza_elfica
     multiplier: 1.16
   - target: posada_elfica
@@ -6550,6 +7138,10 @@ agents:
     demihumano: 1.0
     invocador: 0.9
   tastes:
+  - target: sociabilidad
+    multiplier: 1.63
+  - target: curiosidad
+    multiplier: 1.17
   - target: plaza_demihumana
     multiplier: 1.24
   - target: posada_de_la_manada
@@ -6587,6 +7179,10 @@ agents:
     mago: 0.8
     tenacidad: -0.87
   tastes:
+  - target: curiosidad
+    multiplier: 1.30
+  - target: devocion
+    multiplier: 1.23
   - target: plaza_elfica
     multiplier: 1.26
   - target: posada_elfica
@@ -6632,6 +7228,10 @@ agents:
     montaraz: 0.94
     tenacidad: -0.41
   tastes:
+  - target: calculo
+    multiplier: 1.37
+  - target: curiosidad
+    multiplier: 1.14
   - target: plaza_demihumana
     multiplier: 1.35
   - target: posada_de_la_manada
@@ -6655,6 +7255,10 @@ agents:
     nocturnidad: 0.67
     tenacidad: 0.64
   tastes:
+  - target: curiosidad
+    multiplier: 1.53
+  - target: ambicion
+    multiplier: 1.13
   - target: plaza_mayor
     multiplier: 1.14
   - target: posada_central
@@ -6672,6 +7276,10 @@ agents:
     guerrero: 0.83
     sociabilidad: 0.73
   tastes:
+  - target: audacia
+    multiplier: 1.45
+  - target: ambicion
+    multiplier: 1.08
   - target: plaza_demihumana
     multiplier: 1.18
   - target: posada_de_la_manada
@@ -6711,6 +7319,10 @@ agents:
     montaraz: 0.82
     nocturnidad: 0.87
   tastes:
+  - target: devocion
+    multiplier: 1.34
+  - target: constancia
+    multiplier: 1.16
   - target: plaza_portuaria
     multiplier: 1.3
   - target: posada_marea
@@ -6733,6 +7345,10 @@ agents:
     humano: 1.0
     impulsividad: 0.82
   tastes:
+  - target: impulsividad
+    multiplier: 1.33
+  - target: arraigo
+    multiplier: 1.21
   - target: plaza_portuaria
     multiplier: 1.21
   - target: posada_marea
@@ -6778,6 +7394,10 @@ agents:
     humano: 1.0
     prodigio: 0.69
   tastes:
+  - target: apego
+    multiplier: 1.55
+  - target: audacia
+    multiplier: 1.17
   - target: plaza_portuaria
     multiplier: 1.06
   - target: posada_marea
@@ -6802,6 +7422,10 @@ agents:
     invocador: 0.9
     templanza: -0.54
   tastes:
+  - target: constancia
+    multiplier: 1.43
+  - target: arraigo
+    multiplier: 1.17
   - target: plaza_elfica
     multiplier: 1.4
   - target: posada_elfica
@@ -6841,6 +7465,10 @@ agents:
     humano: 1.0
     sociabilidad: -0.49
   tastes:
+  - target: calculo
+    multiplier: 1.34
+  - target: devocion
+    multiplier: 1.22
   - target: plaza_mayor
     multiplier: 1.13
   - target: posada_central
@@ -6877,6 +7505,10 @@ agents:
     impulsividad: -0.71
     pereza: -0.53
   tastes:
+  - target: constancia
+    multiplier: 1.27
+  - target: calculo
+    multiplier: 1.06
   - target: plaza_mayor
     multiplier: 1.24
   - target: posada_central
@@ -6910,6 +7542,10 @@ agents:
     demihumano: 1.0
     guerrero: 0.87
   tastes:
+  - target: curiosidad
+    multiplier: 1.26
+  - target: devocion
+    multiplier: 1.05
   - target: plaza_demihumana
     multiplier: 1.16
   - target: posada_de_la_manada
@@ -6947,6 +7583,10 @@ agents:
     docilidad: 0.44
     montaraz: 0.85
   tastes:
+  - target: constancia
+    multiplier: 1.61
+  - target: calculo
+    multiplier: 1.13
   - target: plaza_demihumana
     multiplier: 1.15
   - target: posada_de_la_manada
@@ -6986,6 +7626,10 @@ agents:
     humano: 1.0
     invocador: 0.95
   tastes:
+  - target: arraigo
+    multiplier: 1.31
+  - target: devocion
+    multiplier: 1.16
   - target: plaza_mayor
     multiplier: 1.27
   - target: posada_central
@@ -7014,6 +7658,10 @@ agents:
     gula: -0.86
     montaraz: 0.79
   tastes:
+  - target: devocion
+    multiplier: 1.56
+  - target: sociabilidad
+    multiplier: 1.21
   - target: plaza_demihumana
     multiplier: 1.29
   - target: posada_de_la_manada
@@ -7045,6 +7693,10 @@ agents:
     humano: 1.0
     talento: -0.48
   tastes:
+  - target: devocion
+    multiplier: 1.30
+  - target: arraigo
+    multiplier: 1.23
   - target: plaza_portuaria
     multiplier: 0.99
   - target: posada_marea
@@ -7086,6 +7738,10 @@ agents:
     mago: 0.78
     pereza: -0.89
   tastes:
+  - target: impulsividad
+    multiplier: 1.34
+  - target: calculo
+    multiplier: 1.12
   - target: plaza_portuaria
     multiplier: 1.38
   - target: posada_marea
@@ -7107,6 +7763,10 @@ agents:
     humano: 1.0
     montaraz: 0.95
   tastes:
+  - target: apego
+    multiplier: 1.51
+  - target: curiosidad
+    multiplier: 1.19
   - target: plaza_mayor
     multiplier: 1.22
   - target: posada_central
@@ -7143,6 +7803,10 @@ agents:
     humano: 1.0
     montaraz: 0.85
   tastes:
+  - target: curiosidad
+    multiplier: 1.34
+  - target: arraigo
+    multiplier: 1.09
   - target: plaza_portuaria
     multiplier: 1.06
   - target: posada_marea
@@ -7176,6 +7840,10 @@ agents:
     pereza: 0.43
     prodigio: -0.53
   tastes:
+  - target: curiosidad
+    multiplier: 1.58
+  - target: arraigo
+    multiplier: 1.11
   - target: plaza_elfica
     multiplier: 1.25
   - target: posada_elfica
@@ -7214,6 +7882,10 @@ agents:
     elfo: 1.0
     tenacidad: 0.52
   tastes:
+  - target: curiosidad
+    multiplier: 1.43
+  - target: apego
+    multiplier: 1.12
   - target: plaza_elfica
     multiplier: 1.21
   - target: posada_elfica
@@ -7253,6 +7925,10 @@ agents:
     elfo: 1.0
     talento: -0.76
   tastes:
+  - target: calculo
+    multiplier: 1.63
+  - target: sociabilidad
+    multiplier: 1.06
   - target: plaza_elfica
     multiplier: 1.06
   - target: posada_elfica
@@ -7286,6 +7962,10 @@ agents:
     enano: 1.0
     mago: 0.84
   tastes:
+  - target: constancia
+    multiplier: 1.34
+  - target: audacia
+    multiplier: 1.18
   - target: plaza_enana
     multiplier: 1.4
   - target: posada_enana
@@ -7306,6 +7986,10 @@ agents:
     demihumano: 1.0
     montaraz: 0.83
   tastes:
+  - target: arraigo
+    multiplier: 1.41
+  - target: constancia
+    multiplier: 1.16
   - target: plaza_demihumana
     multiplier: 1.23
   - target: posada_de_la_manada
@@ -7329,6 +8013,10 @@ agents:
     pereza: 0.6
     talento: -0.57
   tastes:
+  - target: constancia
+    multiplier: 1.47
+  - target: calculo
+    multiplier: 1.23
   - target: plaza_elfica
     multiplier: 0.98
   - target: posada_elfica
@@ -7369,6 +8057,10 @@ agents:
     humano: 1.0
     pereza: -0.59
   tastes:
+  - target: apego
+    multiplier: 1.43
+  - target: arraigo
+    multiplier: 1.13
   - target: plaza_mayor
     multiplier: 1.23
   - target: posada_central
@@ -7397,6 +8089,10 @@ agents:
     humano: 1.0
     mago: 0.82
   tastes:
+  - target: curiosidad
+    multiplier: 1.32
+  - target: audacia
+    multiplier: 1.13
   - target: plaza_mayor
     multiplier: 1.32
   - target: posada_central
@@ -7413,6 +8109,10 @@ agents:
     mago: 0.73
     nocturnidad: 0.72
   tastes:
+  - target: calculo
+    multiplier: 1.27
+  - target: curiosidad
+    multiplier: 1.09
   - target: plaza_mayor
     multiplier: 1.31
   - target: posada_central
@@ -7430,6 +8130,10 @@ agents:
     mago: 0.83
     pereza: 0.43
   tastes:
+  - target: arraigo
+    multiplier: 1.47
+  - target: constancia
+    multiplier: 1.15
   - target: plaza_portuaria
     multiplier: 1.24
   - target: posada_marea
@@ -7468,6 +8172,10 @@ agents:
     invocador: 0.91
     pereza: -0.64
   tastes:
+  - target: constancia
+    multiplier: 1.27
+  - target: devocion
+    multiplier: 1.13
   - target: plaza_enana
     multiplier: 0.97
   - target: posada_enana
@@ -7489,6 +8197,10 @@ agents:
     elfo: 1.0
     mago: 0.93
   tastes:
+  - target: devocion
+    multiplier: 1.49
+  - target: sociabilidad
+    multiplier: 1.08
   - target: plaza_elfica
     multiplier: 1.22
   - target: posada_elfica
@@ -7522,6 +8234,10 @@ agents:
     enano: 1.0
     invocador: 0.93
   tastes:
+  - target: ambicion
+    multiplier: 1.52
+  - target: constancia
+    multiplier: 1.16
   - target: plaza_enana
     multiplier: 1.0
   - target: posada_enana
@@ -7556,6 +8272,10 @@ agents:
     humano: 1.0
     talento: -1.0
   tastes:
+  - target: curiosidad
+    multiplier: 1.34
+  - target: devocion
+    multiplier: 1.16
   - target: plaza_portuaria
     multiplier: 1.04
   - target: posada_marea
@@ -7577,6 +8297,10 @@ agents:
     guerrero: 0.81
     gula: -0.78
   tastes:
+  - target: ambicion
+    multiplier: 1.55
+  - target: calculo
+    multiplier: 1.19
   - target: plaza_enana
     multiplier: 1.02
   - target: posada_enana
@@ -7624,6 +8348,10 @@ agents:
     gigante: 1.0
     montaraz: 0.92
   tastes:
+  - target: devocion
+    multiplier: 1.35
+  - target: impulsividad
+    multiplier: 1.18
   - target: plaza_gigante
     multiplier: 1.29
   - target: salon_comunal_gigante
@@ -7645,6 +8373,10 @@ agents:
     humano: 1.0
     mago: 0.94
   tastes:
+  - target: sociabilidad
+    multiplier: 1.38
+  - target: constancia
+    multiplier: 1.14
   - target: plaza_mayor
     multiplier: 1.37
   - target: posada_central
@@ -7664,6 +8396,10 @@ agents:
     guerrero: 0.74
     humano: 1.0
   tastes:
+  - target: audacia
+    multiplier: 1.62
+  - target: apego
+    multiplier: 1.06
   - target: plaza_portuaria
     multiplier: 1.18
   - target: posada_marea
@@ -7703,6 +8439,10 @@ agents:
     sociabilidad: 1.0
     templanza: 0.9
   tastes:
+  - target: constancia
+    multiplier: 1.33
+  - target: calculo
+    multiplier: 1.05
   - target: plaza_portuaria
     multiplier: 1.34
   - target: posada_marea
@@ -7726,6 +8466,10 @@ agents:
     invocador: 0.93
     pereza: -0.64
   tastes:
+  - target: curiosidad
+    multiplier: 1.26
+  - target: apego
+    multiplier: 1.11
   - target: plaza_portuaria
     multiplier: 1.36
   - target: posada_marea
@@ -7750,6 +8494,10 @@ agents:
     montaraz: 0.9
     templanza: -0.74
   tastes:
+  - target: calculo
+    multiplier: 1.60
+  - target: impulsividad
+    multiplier: 1.10
   - target: plaza_enana
     multiplier: 1.25
   - target: posada_enana
@@ -7782,6 +8530,10 @@ agents:
     humano: 1.0
     talento: 0.89
   tastes:
+  - target: devocion
+    multiplier: 1.41
+  - target: ambicion
+    multiplier: 1.05
   - target: plaza_mayor
     multiplier: 1.1
   - target: posada_central
@@ -7809,6 +8561,10 @@ agents:
     montaraz: 0.75
     sociabilidad: -0.77
   tastes:
+  - target: impulsividad
+    multiplier: 1.63
+  - target: constancia
+    multiplier: 1.24
   - target: plaza_mayor
     multiplier: 1.18
   - target: posada_central
@@ -7830,6 +8586,10 @@ agents:
     mago: 0.75
     nocturnidad: -0.62
   tastes:
+  - target: curiosidad
+    multiplier: 1.51
+  - target: arraigo
+    multiplier: 1.13
   - target: plaza_elfica
     multiplier: 1.32
   - target: posada_elfica
@@ -7863,6 +8623,10 @@ agents:
     gula: 0.47
     montaraz: 0.82
   tastes:
+  - target: constancia
+    multiplier: 1.28
+  - target: arraigo
+    multiplier: 1.12
   - target: plaza_enana
     multiplier: 1.4
   - target: posada_enana
@@ -7904,6 +8668,10 @@ agents:
     impulsividad: 0.86
     talento: -1.0
   tastes:
+  - target: curiosidad
+    multiplier: 1.57
+  - target: arraigo
+    multiplier: 1.16
   - target: plaza_portuaria
     multiplier: 1.23
   - target: posada_marea
@@ -7937,6 +8705,10 @@ agents:
     guerrero: 0.93
     impulsividad: 0.79
   tastes:
+  - target: devocion
+    multiplier: 1.43
+  - target: constancia
+    multiplier: 1.23
   - target: plaza_demihumana
     multiplier: 1.22
   - target: posada_de_la_manada
@@ -7971,6 +8743,10 @@ agents:
     guerrero: 0.96
     gula: -0.81
   tastes:
+  - target: impulsividad
+    multiplier: 1.64
+  - target: devocion
+    multiplier: 1.05
   - target: plaza_gigante
     multiplier: 1.06
   - target: salon_comunal_gigante
@@ -8016,6 +8792,10 @@ agents:
     demihumano: 1.0
     pereza: 0.73
   tastes:
+  - target: apego
+    multiplier: 1.43
+  - target: sociabilidad
+    multiplier: 1.07
   - target: plaza_demihumana
     multiplier: 1.28
   - target: posada_de_la_manada
@@ -8058,6 +8838,10 @@ agents:
     humano: 1.0
     talento: -0.95
   tastes:
+  - target: devocion
+    multiplier: 1.25
+  - target: calculo
+    multiplier: 1.10
   - target: plaza_mayor
     multiplier: 1.36
   - target: posada_central
@@ -8088,6 +8872,10 @@ agents:
     enano: 1.0
     templanza: -0.75
   tastes:
+  - target: devocion
+    multiplier: 1.28
+  - target: calculo
+    multiplier: 1.11
   - target: plaza_enana
     multiplier: 1.09
   - target: posada_enana
@@ -8122,6 +8910,10 @@ agents:
     mago: 0.89
     templanza: -0.67
   tastes:
+  - target: constancia
+    multiplier: 1.41
+  - target: impulsividad
+    multiplier: 1.08
   - target: plaza_mayor
     multiplier: 1.08
   - target: posada_central
@@ -8141,6 +8933,10 @@ agents:
     mago: 0.94
     sociabilidad: -0.79
   tastes:
+  - target: audacia
+    multiplier: 1.46
+  - target: impulsividad
+    multiplier: 1.10
   - target: plaza_mayor
     multiplier: 1.27
   - target: posada_central
@@ -8171,6 +8967,10 @@ agents:
     elfo: 1.0
     montaraz: 0.96
   tastes:
+  - target: sociabilidad
+    multiplier: 1.32
+  - target: ambicion
+    multiplier: 1.24
   - target: plaza_elfica
     multiplier: 1.1
   - target: posada_elfica
@@ -8204,6 +9004,10 @@ agents:
     gigante: 1.0
     montaraz: 0.98
   tastes:
+  - target: calculo
+    multiplier: 1.63
+  - target: ambicion
+    multiplier: 1.16
   - target: plaza_gigante
     multiplier: 1.04
   - target: salon_comunal_gigante
@@ -8243,6 +9047,10 @@ agents:
     humano: 1.0
     pereza: -0.8
   tastes:
+  - target: arraigo
+    multiplier: 1.46
+  - target: calculo
+    multiplier: 1.18
   - target: plaza_portuaria
     multiplier: 1.14
   - target: posada_marea
@@ -8283,6 +9091,10 @@ agents:
     gigante: 1.0
     mago: 1.0
   tastes:
+  - target: impulsividad
+    multiplier: 1.63
+  - target: ambicion
+    multiplier: 1.23
   - target: plaza_gigante
     multiplier: 1.44
   - target: salon_comunal_gigante
@@ -8313,6 +9125,10 @@ agents:
     enano: 1.0
     montaraz: 0.82
   tastes:
+  - target: impulsividad
+    multiplier: 1.48
+  - target: devocion
+    multiplier: 1.24
   - target: plaza_enana
     multiplier: 1.06
   - target: posada_enana
@@ -8336,6 +9152,10 @@ agents:
     enano: 1.0
     guerrero: 0.71
   tastes:
+  - target: arraigo
+    multiplier: 1.51
+  - target: calculo
+    multiplier: 1.12
   - target: plaza_enana
     multiplier: 1.37
   - target: posada_enana
@@ -8377,6 +9197,10 @@ agents:
     constancia: 0.66
     humano: 1.0
   tastes:
+  - target: calculo
+    multiplier: 1.63
+  - target: curiosidad
+    multiplier: 1.05
   - target: plaza_mayor
     multiplier: 1.1
   - target: posada_central
@@ -8413,6 +9237,10 @@ agents:
     sociabilidad: -0.87
     talento: -0.98
   tastes:
+  - target: calculo
+    multiplier: 1.35
+  - target: apego
+    multiplier: 1.22
   - target: plaza_portuaria
     multiplier: 1.05
   - target: posada_marea
@@ -8436,6 +9264,10 @@ agents:
     humano: 1.0
     mago: 0.93
   tastes:
+  - target: sociabilidad
+    multiplier: 1.25
+  - target: arraigo
+    multiplier: 1.07
   - target: plaza_mayor
     multiplier: 1.4
   - target: posada_central
@@ -8472,6 +9304,10 @@ agents:
     demihumano: 1.0
     impulsividad: -0.59
   tastes:
+  - target: apego
+    multiplier: 1.43
+  - target: arraigo
+    multiplier: 1.23
   - target: plaza_demihumana
     multiplier: 1.39
   - target: posada_de_la_manada
@@ -8519,6 +9355,10 @@ agents:
     humano: 1.0
     pereza: 0.67
   tastes:
+  - target: curiosidad
+    multiplier: 1.55
+  - target: apego
+    multiplier: 1.10
   - target: plaza_mayor
     multiplier: 1.13
   - target: posada_central
@@ -8538,6 +9378,10 @@ agents:
     demihumano: 1.0
     mago: 0.81
   tastes:
+  - target: audacia
+    multiplier: 1.47
+  - target: constancia
+    multiplier: 1.12
   - target: plaza_demihumana
     multiplier: 1.35
   - target: posada_de_la_manada
@@ -8563,6 +9407,10 @@ agents:
     humano: 1.0
     templanza: 0.83
   tastes:
+  - target: sociabilidad
+    multiplier: 1.25
+  - target: arraigo
+    multiplier: 1.22
   - target: plaza_mayor
     multiplier: 1.39
   - target: posada_central
@@ -8672,6 +9520,10 @@ situations:
     # Sin ruido dos hermanos serian identicos y la sangre no explicaria nada
     # que no explicara ya el apellido.
     ruido: 0.15
+    # Sin esto la atraccion se acaba en una generacion: los gustos son la unica
+    # forma de que a alguien le atraiga alguien, y un nacido no tiene YAML donde
+    # escribirselos.
+    hereda_tastes: true
     sortea_traits:
     - - varon
       - mujer
