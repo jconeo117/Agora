@@ -8590,6 +8590,40 @@ situations:
 #
 # Y de paso hace algo mientras dura, que es lo que la separa de una etiqueta:
 # un ninyo aprende mas rapido lo que le ensenyan y rinde menos en un oficio.
+# La vejez (D-084). Se pega sola a los cincuenta y no se pasa: lo que llega con
+# la edad no se cura.
+#
+# `gravedad_por_rango` es lo que hace que no le caiga igual a todo el mundo, y
+# que la diferencia sea lo que HICISTE con tu vida y no con lo que naciste: un
+# rango solo se rompe trabajando el eje, y `dominio` es el unico eje de este
+# mundo que los tiene. Sirve para las dos vias a la vez sin declarar nada mas:
+# lo suben `practicar` y `templar_el_cuerpo`, pero tambien `estudiar` y los
+# cuatro `conjurar_*`. El veterano de rango altisimo y el mago que alarga su
+# vida son el mismo numero.
+#
+#   gravedad = 1 / (1 + 0.09 * rango)
+#     rango  0 (sedentario)   1.00 -> ~15 anyos hasta vaciar la salud
+#     rango  5               0.69 -> ~22
+#     rango 12               0.48 -> ~31
+#     rango 25               0.31 -> ~48, es decir se muere de otra cosa antes
+#
+# El drenaje sale de la cuenta al reves: 1.0 de salud entre quince anyos de este
+# reloj (15 * 34560 ticks) es 1.929e-06 por tick, y `lethal_after: 288` remata
+# los tres dias finales. Nadie se muere de viejo de golpe.
+- id: vejez
+  label: viejo
+  personal: true
+  desde_edad: 1728000
+  gravedad_por_rango:
+    dominio: 0.09
+  effects:
+    salud: -1.929e-06
+  gain_multipliers:
+    dominio: 0.7
+    hierro: 0.6
+  temperament_multipliers:
+    travel_discount: 0.82
+    novelty_weight: 0.7
 - id: infancia
   label: crio
   personal: true
