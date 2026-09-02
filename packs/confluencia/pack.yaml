@@ -101,6 +101,28 @@ needs:
   decay_per_tick: 0.0012
   initial: 0.5
   urgency_exponent: 1.6
+# El eje que mueve a engendrar (D-071). Existe por la leccion de E-009: una
+# accion cuyo premio ya lo sirve algo gratis no gana nunca, y todo lo social de
+# este mundo lo paga `vinculo`, que `charlar` da sin coste en 17 sitios. Buscar
+# descendencia tiene que pedir algo que no pida ninguna otra cosa.
+#
+# `base_weight` bajo (0.3) y decaimiento lento a proposito: es el mismo remedio
+# que `saber_minar` (D-062). Sin bajarlo, un eje que solo una accion con cuatro
+# puertas puede llenar dejaria a media poblacion -- los menores, los que no
+# encuentran con quien -- arrastrando una carencia que no pueden resolver.
+- id: deseo
+  label: deseo
+  decay_per_tick: 0.00018
+  initial: 0.62
+  base_weight: 0.3
+  urgency_exponent: 1.4
+  # No es una emergencia, es un impulso: sigue apeteciendo llenarlo y con la
+  # misma curva, pero pierde el poder de interrumpir lo que se este haciendo.
+  # Sin esto los NINYOS lo pagan: nacen con el eje vacio, no pueden tocarlo
+  # hasta los dieciocho, y pasarian toda la infancia contando como poblacion en
+  # crisis. Es exactamente el caso del inventario -- la bolsa vacia es un
+  # martes -- visto desde la otra punta de la vida.
+  urgent_when_low: false
 - id: vinculo
   label: vinculo
   decay_per_tick: 0.003
@@ -150,6 +172,18 @@ needs:
   urgency_exponent: 2.6
   lethal_after: 288
 traits:
+# Genero (D-071). Va aqui y no en el motor porque es ambientacion: un mundo de
+# maquinas o de colmenas no lo tendria, y el motor no puede saberlo. Lo unico
+# que el motor aporta es poder exigir un rasgo AL DESTINATARIO (D-070), que es
+# lo que hace escribible algo que necesita dos partes que no son
+# intercambiables.
+#
+# Sin multiplicadores de ninguna clase: aqui no dicen nada sobre quien rinde
+# mas en que. Son etiquetas de identidad, como `enano` o `elfo`.
+- id: varon
+  label: varon
+- id: mujer
+  label: mujer
 - id: humano
   label: humano
 - id: enano
@@ -588,6 +622,7 @@ actions:
   saturation_gain: 0.06
 - id: contrato_del_gremio
   label: tomar un contrato
+  requires_edad: 622080  # firmar un contrato no es cosa de ninyos (D-070)
   duration_ticks: 22
   requires_affordance: contratos
   requires:
@@ -640,6 +675,7 @@ actions:
   saturation_gain: 0.09
 - id: desafiar
   label: desafiar a duelo
+  requires_edad: 622080  # pelear en serio no es cosa de ninyos (D-070)
   # Primera acción de agresión real entre agentes (D-052). Plantilla para
   # futuras `gives` negativos: apunta a quien te debe algo, no a quien más
   # aprecias -- `por_agravio: true` es lo que lo hace posible, y sin él
@@ -699,6 +735,7 @@ actions:
     descanso: -0.02
 - id: minar_hierro
   label: minar hierro
+  requires_edad: 622080  # un oficio de pico no es cosa de ninyos (D-070)
   duration_ticks: 14
   requires_affordance: mineria
   requires:
@@ -712,6 +749,7 @@ actions:
     descanso: -0.10
 - id: forjar_espada
   label: forjar una espada
+  requires_edad: 622080  # un oficio de yunque no es cosa de ninyos (D-070)
   duration_ticks: 18
   requires_affordance: forja
   requires:
@@ -728,6 +766,7 @@ actions:
     descanso: -0.15
 - id: vender_espada
   label: vender una espada
+  requires_edad: 622080  # cerrar una venta no es cosa de ninyos (D-070)
   duration_ticks: 4
   requires_affordance: mercaduria
   requires_company: 1
@@ -859,6 +898,7 @@ actions:
   saturation_gain: 0.08
 - id: trabajo_sucio
   label: hacer un trabajo sucio
+  requires_edad: 622080  # un encargo sucio no es cosa de ninyos (D-070)
   duration_ticks: 12
   requires_affordance: contrabando
   requires_traits:
@@ -877,6 +917,7 @@ actions:
   saturation_gain: 0.1
 - id: cobrar_deuda
   label: cobrar una deuda por la fuerza
+  requires_edad: 622080  # cobrar por la fuerza no es cosa de ninyos (D-070)
   # Usa `por_deuda` (D-063): apunta a quien de los presentes le debe más al
   # ASESINO mismo, no al que más aprecia ni al que más le debe daño. Encima
   # del goteo pasivo de la propiedad DEUDA (`renta`, cobrado solo por existir)
@@ -940,6 +981,7 @@ actions:
 # El negocio se lo lleva igual.
 - id: prestar_dinero
   label: prestar dinero
+  requires_edad: 622080  # prestar no es cosa de ninyos (D-070)
   duration_ticks: 4
   requires_affordance: contratos
   requires_company: 1
@@ -982,6 +1024,97 @@ actions:
         dinero: 0.003
       saldo:
         dinero: 0.30
+# Engendrar (D-071). Hacen falta dos, y no cualquiera dos: la puerta de quien
+# ACTUA pide `mujer` y la del DESTINATARIO pide `varon` (D-070), que es la
+# pieza que faltaba -- un rasgo de quien actua no dice nada del otro. Los dos
+# mayores de edad, con la puerta puesta en las dos mitades: con una sola se
+# escribiria media regla y la mitad que falta no se ve en el log.
+#
+# Se escribe desde el lado de ELLA y no de el, y por una razon mecanica: la
+# espera se la queda quien actua (`inflicts`, no `target.inflicts`), y asi la
+# accion no depende de que el varon decida nada. `Condicion.por_quien` guarda
+# igualmente de quien es, porque una condicion que te queda de algo hecho CON
+# otro tiene por autor a ese otro.
+#
+# `forbids_condition` es el candado: quien ya espera no vuelve a empezar. Es la
+# unica puerta en negativo del motor, y sin ella habria que modelar "esta
+# disponible" con un eje que baje a cero, que es un numero donde lo que hay es
+# un si o un no.
+#
+# No pide relacion ninguna a proposito: no hace falta ser pareja, y exigirlo
+# convertiria toda la descendencia de este mundo en descendencia de matrimonio.
+- id: engendrar
+  label: buscar descendencia
+  duration_ticks: 6
+  requires_affordance: cama
+  requires_company: 1
+  requires_traits:
+    mujer: 0.5
+  requires_edad: 622080
+  forbids_condition: gestacion
+  satisfies:
+    deseo: 1.0
+    vinculo: 0.3
+  costs:
+    descanso: 0.3
+  effects:
+    deseo: 0.55
+    vinculo: 0.06
+    descanso: -0.05
+  inflicts:
+    situation: gestacion
+    lasts: 25920
+  saturation_gain: 0.3
+  target:
+    gives:
+      deseo: 0.5
+      vinculo: 0.06
+    requires_traits:
+      varon: 0.5
+    requires_edad: 622080
+    # Se busca antes con quien se aprecia, pero encoge y no veta: este mundo no
+    # exige carinyo para esto, solo lo hace mas probable.
+    regard_weight: 0.45
+# El mismo trato desde el otro lado. Dos acciones y no una porque una accion
+# tiene UN actor, y con solo la version de ella los varones no tenian forma de
+# resolver `deseo` por su cuenta: medido, el eje se quedaba en 0.48 de oferta y
+# el tiempo en crisis subia del 11.5% al 45%. La mitad de la poblacion con una
+# carencia que no podia tocar no es un mundo desigual, es un eje roto.
+#
+# La diferencia con la de ella es donde cae la espera: aqui es `target.inflicts`
+# (se la deja a la otra), alli era `inflicts` (se la queda quien actua). El
+# motor apunta al autor en los dos casos, asi que el hijo sabe de quien es
+# venga de donde venga.
+- id: engendrar_con
+  label: buscar descendencia
+  duration_ticks: 6
+  requires_affordance: cama
+  requires_company: 1
+  requires_traits:
+    varon: 0.5
+  requires_edad: 622080
+  satisfies:
+    deseo: 1.0
+    vinculo: 0.3
+  costs:
+    descanso: 0.3
+  effects:
+    deseo: 0.55
+    vinculo: 0.06
+    descanso: -0.05
+  saturation_gain: 0.3
+  target:
+    gives:
+      deseo: 0.5
+      vinculo: 0.06
+    requires_traits:
+      mujer: 0.5
+    requires_edad: 622080
+    forbids_condition: gestacion
+    regard_weight: 0.45
+    inflicts:
+      situation: gestacion
+      lasts: 25920
 - id: cazar
   label: cazar
   duration_ticks: 16
@@ -1076,6 +1209,35 @@ relations:
   inverse: maestro
   regard_floor: 0.3
   company_multiplier: 1.6
+# Sangre (D-071). Dos pares y no uno: quien te llevo y quien te engendro son
+# dos papeles distintos, y un hijo puede tener el primero sin el segundo -- si
+# el padre murio durante la espera, nace huerfano y esa relacion no se crea.
+#
+# `hereda: true` en las dos, que es lo que enlaza descendencia con propiedad:
+# hasta hoy `RelationSpec.hereda` (D-055) solo podia repartir entre gente ya
+# escrita en el YAML, porque no habia forma de nombrar herederos nuevos.
+#
+# Sin `regard_floor`: por lo mismo que `hermano` no lo lleva (D-034). Un padre
+# sin suelo de aprecio modela al padre que nunca reconocio a su hijo, y ese
+# padre tiene que poder existir.
+- id: hijo_de_madre
+  label: hijo de
+  inverse: madre
+  company_multiplier: 1.5
+- id: madre
+  label: madre de
+  inverse: hijo_de_madre
+  company_multiplier: 1.5
+  hereda: true
+- id: hijo_de_padre
+  label: hijo de
+  inverse: padre
+  company_multiplier: 1.3
+- id: padre
+  label: padre de
+  inverse: hijo_de_padre
+  company_multiplier: 1.3
+  hereda: true
 properties:
 # Primer uso real de Propiedad en este pack (D-053/D-063): deudas de dinero a
 # mano, no generadas dinámicamente todavía -- crear préstamos sobre la marcha
@@ -1719,7 +1881,9 @@ agents:
   label: Cyra Nieblalta
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 2039040
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     codicia: 0.89
     enano: 1.0
@@ -1745,7 +1909,9 @@ agents:
   label: Adze Piedraparda
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1175040
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     elfo: 1.0
     invocador: 0.75
@@ -1771,7 +1937,9 @@ agents:
   label: Isla Cenizal
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 933120
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     ambicion: 0.47
     humano: 1.0
@@ -1798,7 +1966,9 @@ agents:
   label: Sela Yunquenegro
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 933120
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     curiosidad: 0.47
     demihumano: 1.0
@@ -1826,7 +1996,9 @@ agents:
   label: Hurn Fuegolento
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 725760
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     constancia: 0.71
     enano: 1.0
@@ -1865,7 +2037,9 @@ agents:
   label: Eris Zarzal
   home: salon_comunal_gigante
   start_at: plaza_gigante
+  edad_inicial: 760320
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     aprension: -0.48
     gigante: 1.0
@@ -1890,7 +2064,9 @@ agents:
   label: Adze Umbrio
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1486080
   traits:
+    varon: 1.0
     afin_viento: 1.0
     devocion: -0.52
     enano: 1.0
@@ -1931,7 +2107,9 @@ agents:
   label: Ivar Fuegolento
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 2108160
   traits:
+    varon: 1.0
     afin_agua: 0.37
     afin_viento: 1.0
     calculo: -0.93
@@ -1967,7 +2145,9 @@ agents:
   label: Eris Cenizal
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 794880
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     asesino: 0.77
     curiosidad: -0.47
@@ -1999,7 +2179,9 @@ agents:
   label: Yves Cenizal
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 898560
   traits:
+    varon: 1.0
     afin_agua: 0.45
     afin_viento: 1.0
     calculo: -0.43
@@ -2039,7 +2221,9 @@ agents:
   label: Xan Fuegolento
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 2039040
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     constancia: -0.42
     humano: 1.0
@@ -2076,7 +2260,9 @@ agents:
   label: Orin Vientolargo
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 691200
   traits:
+    mujer: 1.0
     afin_agua: 0.42
     afin_tierra: 1.0
     guerrero: 0.98
@@ -2107,7 +2293,9 @@ agents:
   label: Mor Marfrio
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1002240
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     arraigo: -0.99
     demihumano: 1.0
@@ -2148,7 +2336,9 @@ agents:
   label: Ulla Yunquenegro
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1002240
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     curiosidad: -0.81
     docilidad: 0.66
@@ -2184,7 +2374,9 @@ agents:
   label: Pell Vadohondo
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1900800
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     docilidad: -0.46
     humano: 1.0
@@ -2210,7 +2402,9 @@ agents:
   label: Sela Hierrogris
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1969920
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     constancia: 0.88
     enano: 1.0
@@ -2236,7 +2430,9 @@ agents:
   label: Nyx Marfrio
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 864000
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     codicia: -0.6
     humano: 1.0
@@ -2269,7 +2465,9 @@ agents:
   label: Quen Yunquenegro
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1831680
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     arraigo: 0.53
     demihumano: 1.0
@@ -2297,7 +2495,9 @@ agents:
   label: Dain Umbrio
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1555200
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     curiosidad: 0.5
     gula: -0.71
@@ -2319,7 +2519,9 @@ agents:
   label: Orin Zarzal
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1244160
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     ambicion: 0.41
     enano: 1.0
@@ -2344,7 +2546,9 @@ agents:
   label: Xan Cenizal
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 933120
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     audacia: 0.91
     demihumano: 1.0
@@ -2370,7 +2574,9 @@ agents:
   label: Hale Zarzal
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 2108160
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     docilidad: 0.9
     gula: 0.55
@@ -2402,7 +2608,9 @@ agents:
   label: Fror Vadohondo
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1555200
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     audacia: 0.8
     enano: 1.0
@@ -2443,7 +2651,9 @@ agents:
   label: Gith Solraso
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 2073600
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     codicia: 0.61
     enano: 1.0
@@ -2464,7 +2674,9 @@ agents:
   label: Xan Fuegolento
   home: salon_comunal_gigante
   start_at: plaza_gigante
+  edad_inicial: 760320
   traits:
+    varon: 1.0
     afin_agua: 0.5
     afin_viento: 1.0
     gigante: 1.0
@@ -2526,7 +2738,9 @@ agents:
   label: Dorn Cenizal
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1762560
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     ambicion: -0.42
     enano: 1.0
@@ -2549,7 +2763,9 @@ agents:
   label: Ivar Rocaviva
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1555200
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     arraigo: 0.58
     demihumano: 1.0
@@ -2589,7 +2805,9 @@ agents:
   label: Brix Cenizal
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1313280
   traits:
+    varon: 1.0
     afin_agua: 1.0
     afin_viento: 0.4
     asesino: 0.87
@@ -2615,7 +2833,9 @@ agents:
   label: Zar Nieblalta
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1140480
   traits:
+    mujer: 1.0
     afin_fuego: 0.44
     afin_tierra: 1.0
     calculo: 0.96
@@ -2646,7 +2866,9 @@ agents:
   label: Sela Nieblalta
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 794880
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     afin_viento: 0.3
     apego: -0.44
@@ -2680,7 +2902,9 @@ agents:
   label: Gith Piedraparda
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1036800
   traits:
+    varon: 1.0
     afin_agua: 1.0
     elfo: 1.0
     mago: 0.91
@@ -2714,7 +2938,9 @@ agents:
   label: Orin Marfrio
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 794880
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     ambicion: -0.47
     guerrero: 0.97
@@ -2748,7 +2974,9 @@ agents:
   label: Ivar Hojaclara
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1175040
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     docilidad: 0.72
     enano: 1.0
@@ -2785,7 +3013,9 @@ agents:
   label: Gith Fuegolento
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1313280
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     codicia: -0.67
     humano: 1.0
@@ -2816,7 +3046,9 @@ agents:
   label: Dorn Fuegolento
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1831680
   traits:
+    varon: 1.0
     afin_viento: 1.0
     apego: -0.82
     guerrero: 0.77
@@ -2846,7 +3078,9 @@ agents:
   label: Jarl Yunquenegro
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1347840
   traits:
+    mujer: 1.0
     afin_agua: 0.36
     afin_tierra: 1.0
     aprension: 0.41
@@ -2873,7 +3107,9 @@ agents:
   label: Gith Vientolargo
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1969920
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     calculo: -0.54
     humano: 1.0
@@ -2905,7 +3141,9 @@ agents:
   label: Quen Umbrio
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 2039040
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     apego: 0.85
     constancia: 0.62
@@ -2927,7 +3165,9 @@ agents:
   label: Hale Cenizal
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1728000
   traits:
+    varon: 1.0
     afin_agua: 1.0
     apego: 0.84
     asesino: 0.79
@@ -2957,7 +3197,9 @@ agents:
   label: Brix Vadohondo
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1555200
   traits:
+    varon: 1.0
     afin_viento: 1.0
     aprension: -0.41
     demihumano: 1.0
@@ -2991,7 +3233,9 @@ agents:
   label: Eris Cenizal
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1175040
   traits:
+    varon: 1.0
     afin_tierra: 0.39
     afin_viento: 1.0
     enano: 1.0
@@ -3021,7 +3265,9 @@ agents:
   label: Varn Piedraparda
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 725760
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     codicia: -0.74
     enano: 1.0
@@ -3050,7 +3296,9 @@ agents:
   label: Pell Fuegolento
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1693440
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     arraigo: -0.95
     asesino: 0.95
@@ -3072,7 +3320,9 @@ agents:
   label: Bern Zarzal
   home: salon_comunal_gigante
   start_at: plaza_gigante
+  edad_inicial: 898560
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     devocion: -0.86
     gigante: 1.0
@@ -3103,7 +3353,9 @@ agents:
   label: Rask Hojaclara
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 898560
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     asesino: 0.81
     codicia: -0.48
@@ -3134,7 +3386,9 @@ agents:
   label: Fror Piedraparda
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1036800
   traits:
+    varon: 1.0
     afin_viento: 1.0
     codicia: -0.58
     demihumano: 1.0
@@ -3167,7 +3421,9 @@ agents:
   label: Cyra Cenizal
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 933120
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     humano: 1.0
     invocador: 0.73
@@ -3197,7 +3453,9 @@ agents:
   label: Eyla Fuegolento
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1693440
   traits:
+    varon: 1.0
     afin_fuego: 0.29
     afin_tierra: 1.0
     enano: 1.0
@@ -3217,7 +3475,9 @@ agents:
   label: Isla Vientolargo
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1555200
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     apego: 0.56
     codicia: 0.46
@@ -3246,7 +3506,9 @@ agents:
   label: Hale Nieblalta
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 587520
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     codicia: -0.48
     elfo: 1.0
@@ -3277,7 +3539,9 @@ agents:
   label: Aral Marfrio
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1175040
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     afin_fuego: 0.4
     ambicion: -0.86
@@ -3300,7 +3564,9 @@ agents:
   label: Eyla Fuegolento
   home: salon_comunal_gigante
   start_at: plaza_gigante
+  edad_inicial: 1036800
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     gigante: 1.0
     mago: 0.98
@@ -3334,7 +3600,9 @@ agents:
   label: Adze Fuegolento
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 933120
   traits:
+    varon: 1.0
     afin_agua: 1.0
     ambicion: -0.74
     devocion: -0.99
@@ -3359,7 +3627,9 @@ agents:
   label: Cael Hierrogris
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1762560
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     aprension: 1.0
     asesino: 1.0
@@ -3392,7 +3662,9 @@ agents:
   label: Yves Solraso
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1002240
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     afin_viento: 0.27
     aprension: -0.78
@@ -3417,7 +3689,9 @@ agents:
   label: Isla Yunquenegro
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 760320
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     aprension: -0.71
     enano: 1.0
@@ -3442,7 +3716,9 @@ agents:
   label: Gwen Vadohondo
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1658880
   traits:
+    varon: 1.0
     afin_tierra: 0.49
     afin_viento: 1.0
     curiosidad: -0.85
@@ -3468,7 +3744,9 @@ agents:
   label: Brix Solraso
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 725760
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     audacia: 0.51
     enano: 1.0
@@ -3496,7 +3774,9 @@ agents:
   label: Lira Fuegolento
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 2108160
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     devocion: 0.44
     guerrero: 0.84
@@ -3525,7 +3805,9 @@ agents:
   label: Sela Vientolargo
   home: salon_comunal_gigante
   start_at: plaza_gigante
+  edad_inicial: 2004480
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     aprension: -0.69
     audacia: 0.46
@@ -3547,7 +3829,9 @@ agents:
   label: Kel Marfrio
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 933120
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     asesino: 0.94
     calculo: -0.67
@@ -3571,7 +3855,9 @@ agents:
   label: Fror Piedraparda
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 760320
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     apego: 0.42
     asesino: 0.7
@@ -3594,7 +3880,9 @@ agents:
   label: Kel Cenizal
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1244160
   traits:
+    mujer: 1.0
     afin_fuego: 0.43
     afin_viento: 1.0
     apego: -0.62
@@ -3617,7 +3905,9 @@ agents:
   label: Dorn Hojaclara
   home: salon_comunal_gigante
   start_at: plaza_gigante
+  edad_inicial: 1520640
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     gigante: 1.0
     guerrero: 0.82
@@ -3645,7 +3935,9 @@ agents:
   label: Quen Nieblalta
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 725760
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     elfo: 1.0
     mago: 0.84
@@ -3677,7 +3969,9 @@ agents:
   label: Aral Vientolargo
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 829440
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     calculo: 0.55
     elfo: 1.0
@@ -3699,7 +3993,9 @@ agents:
   label: Jora Hojaclara
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1969920
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     afin_fuego: 0.32
     ambicion: 0.72
@@ -3723,7 +4019,9 @@ agents:
   label: Xan Fuegolento
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 2108160
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     constancia: 0.68
     dureza: -0.72
@@ -3751,7 +4049,9 @@ agents:
   label: Dorn Umbrio
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 587520
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     apego: -0.65
     audacia: 0.87
@@ -3779,7 +4079,9 @@ agents:
   label: Bern Fuegolento
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 760320
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     humano: 1.0
     mago: 0.7
@@ -3810,7 +4112,9 @@ agents:
   label: Hale Solraso
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1175040
   traits:
+    mujer: 1.0
     afin_agua: 0.31
     afin_viento: 1.0
     codicia: -0.83
@@ -3839,7 +4143,9 @@ agents:
   label: Gwen Vientolargo
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1175040
   traits:
+    varon: 1.0
     afin_tierra: 0.3
     afin_viento: 1.0
     dureza: -0.74
@@ -3867,7 +4173,9 @@ agents:
   label: Hale Rocaviva
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 656640
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     guerrero: 0.95
     humano: 1.0
@@ -3898,7 +4206,9 @@ agents:
   label: Orin Cenizal
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1831680
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     asesino: 0.74
     enano: 1.0
@@ -3925,7 +4235,9 @@ agents:
   label: Pell Yunquenegro
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1728000
   traits:
+    varon: 1.0
     afin_fuego: 0.32
     afin_viento: 1.0
     ambicion: -0.89
@@ -3956,7 +4268,9 @@ agents:
   label: Mor Marfrio
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 933120
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     apego: -0.76
     humano: 1.0
@@ -3981,7 +4295,9 @@ agents:
   label: Sela Yunquenegro
   home: salon_comunal_gigante
   start_at: plaza_gigante
+  edad_inicial: 656640
   traits:
+    mujer: 1.0
     afin_fuego: 0.28
     afin_tierra: 1.0
     dureza: -0.47
@@ -4010,7 +4326,9 @@ agents:
   label: Eris Solraso
   home: salon_comunal_gigante
   start_at: plaza_gigante
+  edad_inicial: 1140480
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     codicia: 0.88
     gigante: 1.0
@@ -4029,7 +4347,9 @@ agents:
   label: Jora Cenizal
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1658880
   traits:
+    varon: 1.0
     afin_viento: 1.0
     arraigo: 0.57
     asesino: 0.88
@@ -4054,7 +4374,9 @@ agents:
   label: Nyx Cenizal
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 587520
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     ambicion: -0.62
     asesino: 0.9
@@ -4082,7 +4404,9 @@ agents:
   label: Jarl Nieblalta
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1658880
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     ambicion: 0.42
     asesino: 0.94
@@ -4103,7 +4427,9 @@ agents:
   label: Hurn Umbrio
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1900800
   traits:
+    varon: 1.0
     afin_agua: 1.0
     enano: 1.0
     guerrero: 0.84
@@ -4130,7 +4456,9 @@ agents:
   label: Yves Nieblalta
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1762560
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     afin_viento: 0.48
     audacia: -0.62
@@ -4160,7 +4488,9 @@ agents:
   label: Varn Hierrogris
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1416960
   traits:
+    varon: 1.0
     afin_agua: 1.0
     asesino: 0.96
     audacia: -0.64
@@ -4191,7 +4521,9 @@ agents:
   label: Wyn Solraso
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 829440
   traits:
+    varon: 1.0
     afin_viento: 1.0
     asesino: 0.94
     curiosidad: 0.6
@@ -4220,7 +4552,9 @@ agents:
   label: Isla Yunquenegro
   home: salon_comunal_gigante
   start_at: plaza_gigante
+  edad_inicial: 829440
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     arraigo: -0.59
     docilidad: -0.42
@@ -4240,7 +4574,9 @@ agents:
   label: Nyx Cantorroto
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1105920
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     humano: 1.0
     montaraz: 0.75
@@ -4261,7 +4597,9 @@ agents:
   label: Dain Umbrio
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1589760
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     dureza: -0.93
     elfo: 1.0
@@ -4297,7 +4635,9 @@ agents:
   label: Ivar Rocaviva
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1036800
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     afin_viento: 0.38
     calculo: -0.89
@@ -4317,7 +4657,9 @@ agents:
   label: Ulla Rocaviva
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 587520
   traits:
+    varon: 1.0
     afin_viento: 1.0
     codicia: -0.79
     demihumano: 1.0
@@ -4344,7 +4686,9 @@ agents:
   label: Xan Vadohondo
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1624320
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     afin_viento: 0.49
     ambicion: 0.92
@@ -4364,7 +4708,9 @@ agents:
   label: Cyra Hojaclara
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 898560
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     codicia: 0.59
     humano: 1.0
@@ -4383,7 +4729,9 @@ agents:
   label: Dain Fuegolento
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1589760
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     afin_viento: 0.38
     elfo: 1.0
@@ -4402,7 +4750,9 @@ agents:
   label: Pell Vadohondo
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1347840
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     constancia: 0.67
     docilidad: 0.7
@@ -4422,7 +4772,9 @@ agents:
   label: Wyn Umbrio
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1175040
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     asesino: 0.9
     calculo: -0.46
@@ -4450,7 +4802,9 @@ agents:
   label: Adze Cantorroto
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 656640
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     afin_viento: 0.34
     ambicion: -0.67
@@ -4465,7 +4819,9 @@ agents:
   label: Bern Fuegolento
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 2108160
   traits:
+    varon: 1.0
     afin_viento: 1.0
     calculo: 0.73
     humano: 1.0
@@ -4490,7 +4846,9 @@ agents:
   label: Gwen Vientolargo
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1382400
   traits:
+    mujer: 1.0
     afin_fuego: 0.48
     afin_tierra: 1.0
     codicia: 0.56
@@ -4511,7 +4869,9 @@ agents:
   label: Sela Solraso
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1278720
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     guerrero: 0.95
     humano: 1.0
@@ -4540,7 +4900,9 @@ agents:
   label: Jarl Hierrogris
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 898560
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     apego: 0.63
     enano: 1.0
@@ -4558,7 +4920,9 @@ agents:
   label: Torv Solraso
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 898560
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     enano: 1.0
     impulsividad: -0.79
@@ -4576,7 +4940,9 @@ agents:
   label: Zar Nieblalta
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1728000
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     demihumano: 1.0
     guerrero: 0.77
@@ -4604,7 +4970,9 @@ agents:
   label: Cyra Zarzal
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1866240
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     codicia: -0.48
     demihumano: 1.0
@@ -4624,7 +4992,9 @@ agents:
   label: Fror Rocaviva
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1140480
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     enano: 1.0
     montaraz: 0.85
@@ -4651,7 +5021,9 @@ agents:
   label: Hale Nieblalta
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1520640
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     afin_viento: 0.49
     docilidad: -0.66
@@ -4681,7 +5053,9 @@ agents:
   label: Orin Piedraparda
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1589760
   traits:
+    varon: 1.0
     afin_agua: 0.29
     afin_tierra: 1.0
     audacia: -0.63
@@ -4706,7 +5080,9 @@ agents:
   label: Hale Vientolargo
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 2108160
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     elfo: 1.0
     montaraz: 0.87
@@ -4725,7 +5101,9 @@ agents:
   label: Aral Nieblalta
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1969920
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     arraigo: -0.48
     asesino: 0.8
@@ -4749,7 +5127,9 @@ agents:
   label: Sela Solraso
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1209600
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     demihumano: 1.0
     mago: 1.0
@@ -4783,7 +5163,9 @@ agents:
   label: Cyra Vadohondo
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1002240
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     docilidad: 0.73
     humano: 1.0
@@ -4807,7 +5189,9 @@ agents:
   label: Dorn Nieblalta
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1520640
   traits:
+    varon: 1.0
     afin_agua: 1.0
     afin_tierra: 0.32
     ambicion: 0.86
@@ -4829,7 +5213,9 @@ agents:
   label: Lira Cantorroto
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 691200
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     elfo: 1.0
     montaraz: 0.78
@@ -4847,7 +5233,9 @@ agents:
   label: Kel Vadohondo
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1624320
   traits:
+    varon: 1.0
     afin_viento: 1.0
     aprension: 0.61
     demihumano: 1.0
@@ -4866,7 +5254,9 @@ agents:
   label: Wyn Piedraparda
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1416960
   traits:
+    varon: 1.0
     afin_viento: 1.0
     asesino: 0.85
     humano: 1.0
@@ -4893,7 +5283,9 @@ agents:
   label: Quen Marfrio
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 691200
   traits:
+    varon: 1.0
     afin_agua: 1.0
     aprension: -0.64
     asesino: 0.72
@@ -4909,7 +5301,9 @@ agents:
   label: Mor Zarzal
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1624320
   traits:
+    mujer: 1.0
     afin_fuego: 0.31
     afin_viento: 1.0
     asesino: 0.9
@@ -4933,7 +5327,9 @@ agents:
   label: Cyra Piedraparda
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 2108160
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     audacia: -0.56
     demihumano: 1.0
@@ -4961,7 +5357,9 @@ agents:
   label: Cael Vientolargo
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1416960
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     guerrero: 0.82
     humano: 1.0
@@ -4984,7 +5382,9 @@ agents:
   label: Fenn Solraso
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1036800
   traits:
+    varon: 1.0
     afin_viento: 1.0
     curiosidad: 0.79
     demihumano: 1.0
@@ -5012,7 +5412,9 @@ agents:
   label: Yves Vientolargo
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1486080
   traits:
+    varon: 1.0
     afin_viento: 1.0
     constancia: 0.99
     demihumano: 1.0
@@ -5031,7 +5433,9 @@ agents:
   label: Brix Rocaviva
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1002240
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     afin_viento: 0.28
     devocion: 0.83
@@ -5060,7 +5464,9 @@ agents:
   label: Dain Nieblalta
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1451520
   traits:
+    varon: 1.0
     afin_agua: 1.0
     afin_viento: 0.37
     arraigo: 0.66
@@ -5086,7 +5492,9 @@ agents:
   label: Torv Hojaclara
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 898560
   traits:
+    mujer: 1.0
     afin_fuego: 0.3
     afin_tierra: 1.0
     constancia: -0.55
@@ -5110,7 +5518,9 @@ agents:
   label: Xan Nieblalta
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1555200
   traits:
+    varon: 1.0
     afin_agua: 1.0
     afin_fuego: 0.29
     elfo: 1.0
@@ -5140,7 +5550,9 @@ agents:
   label: Xan Solraso
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1935360
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     demihumano: 1.0
     guerrero: 0.87
@@ -5168,7 +5580,9 @@ agents:
   label: Brix Hierrogris
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1486080
   traits:
+    varon: 1.0
     afin_agua: 1.0
     asesino: 0.86
     curiosidad: -0.86
@@ -5192,7 +5606,9 @@ agents:
   label: Wyn Solraso
   home: salon_comunal_gigante
   start_at: plaza_gigante
+  edad_inicial: 898560
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     constancia: -0.98
     gigante: 1.0
@@ -5224,7 +5640,9 @@ agents:
   label: Torv Cenizal
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 2073600
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     arraigo: -0.94
     curiosidad: 0.49
@@ -5249,7 +5667,9 @@ agents:
   label: Dorn Umbrio
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1693440
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     apego: -0.42
     humano: 1.0
@@ -5264,7 +5684,9 @@ agents:
   label: Cyra Hojaclara
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1175040
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     asesino: 0.74
     constancia: 0.75
@@ -5292,7 +5714,9 @@ agents:
   label: Ivar Cenizal
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 656640
   traits:
+    mujer: 1.0
     afin_agua: 0.39
     afin_fuego: 1.0
     asesino: 0.96
@@ -5314,7 +5738,9 @@ agents:
   label: Zar Umbrio
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1589760
   traits:
+    varon: 1.0
     afin_viento: 1.0
     asesino: 0.74
     devocion: 0.7
@@ -5328,7 +5754,9 @@ agents:
   label: Sela Umbrio
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1693440
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     afin_tierra: 0.45
     codicia: -0.44
@@ -5349,7 +5777,9 @@ agents:
   label: Fror Vientolargo
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1486080
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     afin_viento: 0.31
     calculo: -0.71
@@ -5368,7 +5798,9 @@ agents:
   label: Orin Vadohondo
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 587520
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     devocion: 0.72
     elfo: 1.0
@@ -5387,7 +5819,9 @@ agents:
   label: Gwen Solraso
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1209600
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     audacia: 0.68
     codicia: 0.63
@@ -5415,7 +5849,9 @@ agents:
   label: Hale Marfrio
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 2039040
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     elfo: 1.0
     mago: 0.8
@@ -5442,7 +5878,9 @@ agents:
   label: Isla Cantorroto
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 2004480
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     demihumano: 1.0
     montaraz: 0.94
@@ -5462,7 +5900,9 @@ agents:
   label: Xan Marfrio
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1831680
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     humano: 1.0
     mago: 0.87
@@ -5477,7 +5917,9 @@ agents:
   label: Eyla Fuegolento
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1140480
   traits:
+    varon: 1.0
     afin_viento: 1.0
     curiosidad: -0.66
     demihumano: 1.0
@@ -5505,7 +5947,9 @@ agents:
   label: Yves Piedraparda
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1969920
   traits:
+    varon: 1.0
     afin_agua: 1.0
     ambicion: 0.92
     docilidad: 0.5
@@ -5526,7 +5970,9 @@ agents:
   label: Hurn Hojaclara
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1555200
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     asesino: 1.0
     curiosidad: 0.82
@@ -5561,7 +6007,9 @@ agents:
   label: Adze Umbrio
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1762560
   traits:
+    varon: 1.0
     afin_agua: 1.0
     asesino: 0.73
     devocion: -1.0
@@ -5581,7 +6029,9 @@ agents:
   label: Adze Nieblalta
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 725760
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     afin_viento: 0.36
     ambicion: 0.72
@@ -5611,7 +6061,9 @@ agents:
   label: Ulla Vadohondo
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1797120
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     docilidad: -0.71
     dureza: 0.92
@@ -5638,7 +6090,9 @@ agents:
   label: Jarl Zarzal
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1831680
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     asesino: 0.75
     humano: 1.0
@@ -5662,7 +6116,9 @@ agents:
   label: Rask Zarzal
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 933120
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     apego: -0.9
     demihumano: 1.0
@@ -5689,7 +6145,9 @@ agents:
   label: Gith Vadohondo
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1693440
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     demihumano: 1.0
     docilidad: 0.44
@@ -5716,7 +6174,9 @@ agents:
   label: Gwen Yunquenegro
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1175040
   traits:
+    varon: 1.0
     afin_agua: 0.26
     afin_tierra: 1.0
     codicia: -0.8
@@ -5743,7 +6203,9 @@ agents:
   label: Brix Zarzal
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1624320
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     demihumano: 1.0
     gula: -0.86
@@ -5770,7 +6232,9 @@ agents:
   label: Kel Cantorroto
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1797120
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     aprension: -0.98
     asesino: 0.92
@@ -5800,7 +6264,9 @@ agents:
   label: Cael Yunquenegro
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1762560
   traits:
+    varon: 1.0
     afin_agua: 1.0
     ambicion: -0.47
     arraigo: -0.7
@@ -5820,7 +6286,9 @@ agents:
   label: Eris Cantorroto
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1831680
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     codicia: -0.96
     dureza: 0.78
@@ -5846,7 +6314,9 @@ agents:
   label: Xan Solraso
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1831680
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     apego: -0.92
     arraigo: -0.62
@@ -5874,7 +6344,9 @@ agents:
   label: Mor Fuegolento
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1071360
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     afin_viento: 0.34
     apego: 0.93
@@ -5904,7 +6376,9 @@ agents:
   label: Adze Umbrio
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1728000
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     asesino: 0.76
     docilidad: 0.98
@@ -5932,7 +6406,9 @@ agents:
   label: Brix Rocaviva
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1002240
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     afin_tierra: 0.48
     arraigo: -0.45
@@ -5963,7 +6439,9 @@ agents:
   label: Mor Vientolargo
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1036800
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     afin_tierra: 0.44
     constancia: 0.93
@@ -5982,7 +6460,9 @@ agents:
   label: Rask Nieblalta
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1693440
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     audacia: 0.83
     demihumano: 1.0
@@ -6002,7 +6482,9 @@ agents:
   label: Gith Piedraparda
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1935360
   traits:
+    varon: 1.0
     afin_agua: 1.0
     elfo: 1.0
     mago: 0.93
@@ -6032,7 +6514,9 @@ agents:
   label: Fror Cenizal
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1624320
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     aprension: -0.79
     guerrero: 0.87
@@ -6056,7 +6540,9 @@ agents:
   label: Yves Solraso
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 794880
   traits:
+    varon: 1.0
     afin_agua: 1.0
     codicia: 0.78
     devocion: 0.65
@@ -6072,7 +6558,9 @@ agents:
   label: Zar Hojaclara
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1693440
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     humano: 1.0
     mago: 0.73
@@ -6086,7 +6574,9 @@ agents:
   label: Quen Hojaclara
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1693440
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     curiosidad: -0.79
     humano: 1.0
@@ -6114,7 +6604,9 @@ agents:
   label: Zar Fuegolento
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1140480
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     calculo: -0.59
     enano: 1.0
@@ -6133,7 +6625,9 @@ agents:
   label: Dain Vadohondo
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1209600
   traits:
+    varon: 1.0
     afin_agua: 1.0
     afin_viento: 0.26
     arraigo: -0.47
@@ -6163,7 +6657,9 @@ agents:
   label: Jarl Cantorroto
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1416960
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     aprension: -0.61
     codicia: -0.96
@@ -6193,7 +6689,9 @@ agents:
   label: Adze Umbrio
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1416960
   traits:
+    varon: 1.0
     afin_tierra: 0.37
     afin_viento: 1.0
     dureza: 0.46
@@ -6213,7 +6711,9 @@ agents:
   label: Eris Vadohondo
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 933120
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     docilidad: 0.59
     enano: 1.0
@@ -6243,7 +6743,9 @@ agents:
   label: Eyla Rocaviva
   home: salon_comunal_gigante
   start_at: plaza_gigante
+  edad_inicial: 1762560
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     codicia: 0.9
     gigante: 1.0
@@ -6261,7 +6763,9 @@ agents:
   label: Mor Fuegolento
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1797120
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     ambicion: -0.47
     gula: -0.52
@@ -6278,7 +6782,9 @@ agents:
   label: Torv Rocaviva
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1555200
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     apego: 0.77
     dureza: 0.86
@@ -6306,7 +6812,9 @@ agents:
   label: Dorn Solraso
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1347840
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     guerrero: 0.74
     humano: 1.0
@@ -6327,7 +6835,9 @@ agents:
   label: Dorn Zarzal
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1555200
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     constancia: 0.53
     humano: 1.0
@@ -6348,7 +6858,9 @@ agents:
   label: Adze Hojaclara
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1624320
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     aprension: -0.88
     constancia: -0.95
@@ -6379,7 +6891,9 @@ agents:
   label: Gith Marfrio
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1762560
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     guerrero: 0.7
     humano: 1.0
@@ -6402,7 +6916,9 @@ agents:
   label: Yves Cenizal
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1209600
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     codicia: -0.51
     humano: 1.0
@@ -6419,7 +6935,9 @@ agents:
   label: Varn Rocaviva
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 2039040
   traits:
+    mujer: 1.0
     afin_tierra: 0.3
     afin_viento: 1.0
     aprension: -1.0
@@ -6451,7 +6969,9 @@ agents:
   label: Gwen Cenizal
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1589760
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     docilidad: -0.6
     enano: 1.0
@@ -6481,7 +7001,9 @@ agents:
   label: Jarl Vientolargo
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1175040
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     afin_viento: 0.5
     asesino: 0.76
@@ -6512,7 +7034,9 @@ agents:
   label: Aral Solraso
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1347840
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     demihumano: 1.0
     dureza: -0.86
@@ -6543,7 +7067,9 @@ agents:
   label: Isla Solraso
   home: salon_comunal_gigante
   start_at: plaza_gigante
+  edad_inicial: 1140480
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     arraigo: -0.47
     gigante: 1.0
@@ -6576,7 +7102,9 @@ agents:
   label: Yves Rocaviva
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 587520
   traits:
+    varon: 1.0
     afin_fuego: 0.29
     afin_viento: 1.0
     aprension: -0.88
@@ -6609,7 +7137,9 @@ agents:
   label: Cael Vadohondo
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 829440
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     afin_viento: 0.38
     asesino: 0.82
@@ -6636,7 +7166,9 @@ agents:
   label: Brix Zarzal
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1036800
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     apego: -0.9
     asesino: 0.78
@@ -6667,7 +7199,9 @@ agents:
   label: Torv Cenizal
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1175040
   traits:
+    mujer: 1.0
     afin_fuego: 0.42
     afin_viento: 1.0
     constancia: 0.62
@@ -6685,7 +7219,9 @@ agents:
   label: Fenn Rocaviva
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1762560
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     arraigo: -0.74
     humano: 1.0
@@ -6712,7 +7248,9 @@ agents:
   label: Kel Fuegolento
   home: posada_elfica
   start_at: plaza_elfica
+  edad_inicial: 1105920
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     devocion: -0.7
     docilidad: -0.57
@@ -6743,7 +7281,9 @@ agents:
   label: Nyx Piedraparda
   home: salon_comunal_gigante
   start_at: plaza_gigante
+  edad_inicial: 933120
   traits:
+    mujer: 1.0
     afin_viento: 1.0
     constancia: -0.9
     gigante: 1.0
@@ -6778,7 +7318,9 @@ agents:
   label: Eris Rocaviva
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 1071360
   traits:
+    varon: 1.0
     afin_agua: 1.0
     afin_fuego: 0.48
     guerrero: 0.84
@@ -6808,7 +7350,9 @@ agents:
   label: Eyla Hojaclara
   home: salon_comunal_gigante
   start_at: plaza_gigante
+  edad_inicial: 1658880
   traits:
+    varon: 1.0
     afin_agua: 1.0
     ambicion: 0.56
     audacia: -0.41
@@ -6836,7 +7380,9 @@ agents:
   label: Torv Yunquenegro
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 1036800
   traits:
+    mujer: 1.0
     afin_fuego: 1.0
     afin_tierra: 0.33
     dureza: 0.79
@@ -6857,7 +7403,9 @@ agents:
   label: Brix Piedraparda
   home: posada_enana
   start_at: plaza_enana
+  edad_inicial: 2108160
   traits:
+    varon: 1.0
     afin_fuego: 1.0
     curiosidad: 0.52
     dureza: 0.79
@@ -6887,7 +7435,9 @@ agents:
   label: Eyla Piedraparda
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 1969920
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     apego: 0.93
     aprension: -0.48
@@ -6914,7 +7464,9 @@ agents:
   label: Pell Hierrogris
   home: posada_marea
   start_at: plaza_portuaria
+  edad_inicial: 794880
   traits:
+    varon: 1.0
     afin_agua: 1.0
     humano: 1.0
     mago: 0.74
@@ -6935,7 +7487,9 @@ agents:
   label: Ivar Vadohondo
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 2004480
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     apego: 0.69
     calculo: -0.72
@@ -6961,7 +7515,9 @@ agents:
   label: Nyx Cenizal
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1555200
   traits:
+    mujer: 1.0
     afin_tierra: 1.0
     arraigo: 0.87
     asesino: 0.74
@@ -6991,7 +7547,9 @@ agents:
   label: Pell Zarzal
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 967680
   traits:
+    varon: 1.0
     afin_tierra: 1.0
     asesino: 0.7
     humano: 1.0
@@ -7007,7 +7565,9 @@ agents:
   label: Dain Fuegolento
   home: posada_de_la_manada
   start_at: plaza_demihumana
+  edad_inicial: 1382400
   traits:
+    mujer: 1.0
     afin_agua: 1.0
     afin_tierra: 0.31
     ambicion: 0.96
@@ -7029,7 +7589,9 @@ agents:
   label: Torv Vientolargo
   home: posada_central
   start_at: plaza_mayor
+  edad_inicial: 2073600
   traits:
+    varon: 1.0
     afin_agua: 1.0
     afin_fuego: 0.35
     asesino: 0.71
@@ -7044,6 +7606,68 @@ agents:
   initial_bonds:
     eris_cenizal: 0.5
 situations:
+# La espera (D-071). Nueve meses de este reloj: 96 ticks/dia * 30 dias * 9 =
+# 25920, y el plazo lo pone quien la pega (`engendrar`), no esto -- una
+# situacion personal no declara su duracion, la declara el `inflicts` que la
+# cuelga.
+#
+# Hace algo MIENTRAS dura, y no es adorno: cansa, y quita ganas de pelear y de
+# viajar. Sin eso seria una etiqueta invisible durante nueve meses de la que un
+# dia sale una persona.
+#
+# `al_expirar` es lo que nace: hereda el temperamento de los dos mezclado,
+# sortea el genero, y entra emparentado con quien lo llevaba y -- si sigue vivo
+# -- con quien lo engendro.
+- id: gestacion
+  label: esperando
+  personal: true
+  effects:
+    descanso: -0.0006
+  gain_multipliers:
+    dominio: 0.75
+  temperament_multipliers:
+    travel_discount: 0.88
+  al_expirar:
+    # Los diez ejes de temperamento y las cuatro afinidades. Las razas y las
+    # clases NO: un hijo de enano y elfa tendria 0.5 de cada una, que no es
+    # "mestizo" sino "medio enano y medio elfo a la vez", y eso son dos cosas
+    # distintas que el motor no sabe distinguir. Queda anotado.
+    hereda_traits:
+    - audacia
+    - impulsividad
+    - calculo
+    - arraigo
+    - sociabilidad
+    - curiosidad
+    - constancia
+    - docilidad
+    - apego
+    - ambicion
+    - codicia
+    - gula
+    - pereza
+    - devocion
+    - aprension
+    - afin_fuego
+    - afin_agua
+    - afin_tierra
+    - afin_viento
+    # Sin ruido dos hermanos serian identicos y la sangre no explicaria nada
+    # que no explicara ya el apellido.
+    ruido: 0.15
+    sortea_traits:
+    - - varon
+      - mujer
+    initial_needs:
+      # Nace sin la carencia, no con ella al maximo: el eje ya no interrumpe
+      # nada (`urgent_when_low: false`), pero dejarlo en 0 haria que la primera
+      # deliberacion de una criatura fuera ir a buscar pareja y chocar contra
+      # la puerta de edad una y otra vez durante dieciocho anyos.
+      deseo: 1.0
+      dominio: 0.0
+    relacion_con_portador: hijo_de_madre
+    relacion_con_causante: hijo_de_padre
+    label: cria de
 - id: herida
   label: herida
   personal: true
