@@ -337,6 +337,8 @@ def is_available(
     situations: Sequence[SituationId] = (),
     kin: Mapping[RelationId, int] | None = None,
     rango: Mapping[NeedId, int] | None = None,
+    edad: int | None = None,
+    condiciones: Sequence[SituationId] = (),
 ) -> bool:
     """¿Se puede ejecutar esta acción aquí y ahora? Siete puertas duras:
 
@@ -347,6 +349,8 @@ def is_available(
     - **está QUIEN tiene que estar** (`requires_relation`)
     - **alcanzan los recursos** (`requires`)
     - **eres quien hay que ser** (`requires_traits`)
+    - **llevas bastante tiempo aquí** (`requires_edad`, D-070)
+    - **no llevas encima el candado** (`forbids_condition`, la única en negativo)
 
     Las dos de gente no son la misma pregunta, y confundirlas sería el error
     fácil: `requires_company` cuenta CABEZAS —una fiesta necesita cuerpos— y
@@ -405,6 +409,14 @@ def is_available(
         rango.get(eje, 0) < minimo for eje, minimo in action.requires_rank.items()
     ):
         return False
+    # DÉCIMA: cuánto llevas en el mundo. `None` la desactiva, igual que las
+    # otras que dependen de tener un agente delante.
+    if action.requires_edad > 0 and (edad is None or edad < action.requires_edad):
+        return False
+    # UNDÉCIMA, y la única en negativo: lo que llevas encima puede ser un
+    # candado. Todas las demás piden que algo esté; esta pide que no esté.
+    if action.forbids_condition is not None and action.forbids_condition in condiciones:
+        return False
     return all(needs[need] >= minimum for need, minimum in action.requires.items())
 
 
@@ -434,6 +446,11 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
     occupants = world.occupants()
     tuning = pack.tuning
     horizon = tuning.sighting_horizon
+    # Lo que lleva encima, una vez por deliberación y no una por lugar: no
+    # cambia al mirar otro sitio, y `forbids_condition` lo consulta en cada
+    # combinación de lugar y acción.
+    lleva_encima = tuple(sorted({c.situacion for c in agent.condiciones}))
+    edad_ahora = agent.edad(world.tick)
 
     # Quién tiene delante, de verdad y con su estado. Solo hace falta si algo
     # apunta a alguien, y en un pack sin acciones dirigidas no se paga ni una
@@ -546,7 +563,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
         for action in pack.actions:
             if not is_available(
                 action, place, headcount, agent.needs, open_phase, agent.traits, aqui,
-                kin, agent.rango
+                kin, agent.rango, edad_ahora, lleva_encima
             ):
                 continue
             # OCTAVA PUERTA: hay a quién hacérselo, y está delante.
@@ -563,7 +580,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
                 if place.id != agent.at:
                     continue
                 destinatario = agent.elegir_destinatario(
-                    here, action.target, agravio, deudas
+                    here, action.target, agravio, deudas, world.tick
                 )
                 if destinatario is None:
                     continue

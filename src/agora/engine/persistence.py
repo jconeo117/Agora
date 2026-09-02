@@ -28,11 +28,14 @@ import json
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
 from agora.engine.events import EventKind
 from agora.engine.memory import Recuerdo
 from agora.engine.ontology import (
     ActionId,
     AgentId,
+    AgentSpec,
     GoalId,
     GoalStatus,
     NeedId,
@@ -111,6 +114,10 @@ def _agente_a_dict(agent: AgentState, recuerdos: tuple[Recuerdo, ...]) -> dict[s
     return {
         "spec_id": str(agent.spec_id),
         "at": str(agent.at),
+        # Cuándo entró en el mundo (D-070). Sin esto, reanudar devuelve a todo
+        # el mundo a la edad que el pack le dio de partida, y un mundo con
+        # puertas de edad se rejuvenece entero al cargar.
+        "nacido_en": agent.nacido_en,
         "needs": {str(k): v for k, v in agent.needs.items()},
         "traits": {str(k): v for k, v in agent.traits.items()},
         "tastes": dict(agent.tastes),
@@ -128,7 +135,8 @@ def _agente_a_dict(agent: AgentState, recuerdos: tuple[Recuerdo, ...]) -> dict[s
         "condiciones": [
             [str(c.situacion), c.marca, c.gravedad,
              -1 if c.hasta is None else c.hasta,
-             "" if c.donde is None else str(c.donde)]
+             "" if c.donde is None else str(c.donde),
+             "" if c.por_quien is None else str(c.por_quien)]
             for c in agent.condiciones
         ],
         "gain_beliefs": {
@@ -191,6 +199,7 @@ def save(world: WorldState, together: set[tuple[AgentId, AgentId]], path: Path) 
     Dejarlo fuera es lo que permite reanudar sobre un pack retocado, que es el
     caso normal cuando se esta calibrando.
     """
+    pack_ids = {a.id for a in world.pack.agents}
     datos = {
         "formato": FORMATO,
         "pack": world.pack.id,
@@ -228,6 +237,16 @@ def save(world: WorldState, together: set[tuple[AgentId, AgentId]], path: Path) 
         # No es lo mismo que el censo, que se reconstruye del pack de hoy. Esto
         # es lo único del reparto que no se puede derivar: la ausencia con causa.
         "muertos": sorted(str(a) for a in set(world.censo) - set(world.agents)),
+        # QUIÉN NACIÓ DESPUÉS DE EMPEZAR (D-071). Del resto del reparto basta
+        # con el estado, porque su ficha está en el pack y se reconstruye de
+        # ahí; de estos no hay ficha en ningún YAML, así que o se guarda entera
+        # o al reanudar no existen. Es la misma decisión que con una deuda
+        # nacida en marcha (D-065), un escalón más arriba: aquí lo que se pierde
+        # no es un renglón de contabilidad, es una persona.
+        "nacidos": [
+            world.censo[a].model_dump(mode="json")
+            for a in sorted(set(world.censo) - set(pack_ids))
+        ],
         # De una propiedad DEL PACK se guarda lo que cambia en marcha —el dueño
         # y lo que queda por cobrar— y nada más: tipo, objeto, renta y tributo
         # los fija el pack de HOY, igual que el fade de la memoria, y guardarlos
@@ -330,6 +349,10 @@ def _dict_a_agente(datos: dict[str, Any], pack: ContentPack) -> AgentState:
     agent = AgentState(
         spec_id=AgentId(datos["spec_id"]),
         at=PlaceId(datos["at"]),
+        # `.get` con el defecto de siempre: un guardado anterior a las edades se
+        # lee como un mundo donde todos nacieron en el tick cero, que es lo que
+        # era -- no había edad que llevar.
+        nacido_en=int(datos.get("nacido_en", 0)),
         needs=_reconciliar_necesidades(datos["needs"], pack),
         # Los rasgos borrados del pack se caen: `compose_*` los buscaria en
         # `trait_by_id` y reventaria con un KeyError sin explicacion.
@@ -361,9 +384,17 @@ def _dict_a_agente(datos: dict[str, Any], pack: ContentPack) -> AgentState:
                 # Un lugar borrado del pack se lee como "sin sitio": la herida
                 # sigue doliendo, pero ya no se puede temer donde te la hicieron.
                 donde=PlaceId(donde) if donde in conocidos_lugar else None,
+                # Y quién se la pegó. Un guardado anterior a D-071 se lee como
+                # una condición sin autor, que es lo que era: entonces ninguna
+                # lo tenía. Un autor que ya no está en el censo se mantiene a
+                # propósito -- lo que cuelga de la condición (el parto) ya sabe
+                # tratar con un causante muerto, y borrarlo aquí convertiría a
+                # un huérfano en hijo de nadie por haber guardado la partida.
+                por_quien=AgentId(autor) if autor else None,
             )
             for s, marca, veces, hasta, *resto in datos.get("condiciones", ())
             for donde in (resto[0] if resto else "",)
+            for autor in (resto[1] if len(resto) > 1 else "",)
             if s in {str(x.id) for x in pack.situations}
         ],
         gain_beliefs={
@@ -426,13 +457,27 @@ def load(path: Path, pack: ContentPack) -> tuple[WorldState, set[tuple[AgentId, 
             f"{pack.id!r}. Son mundos distintos."
         )
 
-    conocidos = frozenset(str(a.id) for a in pack.agents)
+    # Los que nacieron en marcha entran en el censo ANTES de rehidratar a nadie:
+    # su ficha no está en el pack, y sin ella `_dict_a_agente` los descartaría
+    # como si el pack los hubiera borrado. Una ficha guardada que ya no valide
+    # contra el pack de hoy —un rasgo que desapareció, una meta que se quitó—
+    # se cae aquí con el resto, que es la misma regla de siempre.
+    nacidos: dict[AgentId, AgentSpec] = {}
+    for crudo in datos.get("nacidos", []):
+        try:
+            ficha = AgentSpec.model_validate(crudo)
+        except ValidationError:
+            continue
+        nacidos[ficha.id] = ficha
+
+    conocidos = frozenset(str(a.id) for a in pack.agents) | {str(a) for a in nacidos}
     # Quien ya no existe en el pack no vuelve. Es la contrapartida honesta de
     # reconciliar: el guardado se adapta al pack, no al reves.
     agentes = [_dict_a_agente(d, pack) for d in datos["agents"] if d["spec_id"] in conocidos]
 
     world = WorldState.new(pack, seed=datos["seed"])
     world.tick = datos["tick"]
+    world.censo.update(nacidos)
 
     # `.get` y no `[...]`, a diferencia del resto de campos, y no es descuido:
     # un guardado anterior a la memoria episódica se lee perfectamente como

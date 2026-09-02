@@ -103,6 +103,17 @@ class EventKind(StrEnum):
     verlo escrito: **una muerte que no le duele a nadie no ocurre socialmente.**
     """
 
+    AGENT_BORN = "agent_born"
+    """Alguien empieza a estar. `actor` es el recién nacido; `subject`, quien lo
+    llevaba encima. `data` lleva al otro progenitor cuando se sabe quién fue.
+
+    Espejo de `AGENT_DIED`, y con una asimetría que conviene tener escrita: una
+    muerte se emite **una vez por superviviente que la sufre**, porque lo que
+    importa de morir es a quién le duele. Un nacimiento se emite **una sola
+    vez**, porque nacer no le pasa a nadie más que a quien nace: los demás se
+    enterarán o no, y eso ya lo cuentan los rumores.
+    """
+
     PROPERTY_CREATED = "property_created"
     """Algo pasa a ser propiedad de alguien **durante la partida**. `actor` es
     el dueño; `subject`, el objeto cuando es un agente.

@@ -199,6 +199,17 @@ class Condicion:
     y por eso da miedo.
     """
 
+    por_quien: AgentId | None = None
+    """**Quién te la pegó.** `None` para lo que no tiene autor: una situación
+    del mundo, algo puesto por API.
+
+    Hermano de `donde`, y por el mismo motivo: un recuerdo ya sabía culpar a
+    alguien (`Recuerdo.por_quien`) pero una condición no, así que lo que una
+    condición dejara detrás no podía apuntar a nadie. Hoy lo necesita el parto
+    (D-071), que sin esto no sabría de quién es el hijo — la memoria no sirve,
+    porque nueve meses son mucho más de lo que dura un recuerdo.
+    """
+
     donde: PlaceId | None = None
     """**Dónde te la hicieron.** No dónde estás ahora.
 
@@ -574,6 +585,18 @@ class AgentState:
     permite que esto escale a un mundo poblado.
     """
 
+    nacido_en: int = 0
+    """Tick en que entró en el mundo. Negativo para quien ya estaba al empezar
+    (D-070): el pack declara `edad_inicial` y esto guarda su inverso, para que
+    la edad sea SIEMPRE `tick - nacido_en` y no haya dos fórmulas según si
+    alguien venía en el YAML o nació en marcha.
+
+    Se guarda cuándo empezó y no cuánto lleva por la misma razón que
+    `Bond.last_seen` guarda el tick del último encuentro: un contador habría
+    que adelantarlo a mano en cada tick y en cada salto temporal, y el día que
+    alguien olvidara una de las dos cosas, media población envejecería el doble.
+    """
+
     relations: dict[RelationId, set[AgentId]] = field(default_factory=dict)
     """De quién es qué. Al lado de `bonds` y a propósito NO dentro.
 
@@ -668,6 +691,7 @@ class AgentState:
             # Lo declarado, tal cual. Las simetrías las cierra `WorldState.new`,
             # que es quien ve a los dos lados; desde aquí solo se ve uno.
             relations={rel: set(quienes) for rel, quienes in spec.relations.items()},
+            nacido_en=-spec.edad_inicial,
             bonds={
                 other: Bond(regard=regard, encounters=1)
                 for other, regard in spec.initial_bonds.items()
@@ -858,6 +882,7 @@ class AgentState:
         spec: TargetSpec,
         agravio: Mapping[AgentId, float] | None = None,
         deudas: Mapping[AgentId, float] | None = None,
+        tick: int | None = None,
     ) -> AgentState | None:
         """A quién de los que están aquí. `None` si a ninguno.
 
@@ -889,6 +914,13 @@ class AgentState:
         lo mismo que `agravio` — una es propiedad, la otra es memoria), y el
         desempate es a quien más te deba.
 
+        Las puertas de quién ES el otro (`requires_traits`, `requires_edad`,
+        `forbids_condition`, D-070) van con la de condición y no con el
+        desempate: son objetivas, se ven estando delante, y ninguna de las
+        cuatro depende de a quién aprecies. `tick` a `None` desactiva solo la
+        de edad, para poder preguntar sin un reloj delante — igual que
+        `traits=None` desactiva la suya en `is_available`.
+
         Desempate por id, como en todas partes: sin él, dos procesos con la misma
         semilla curarían a personas distintas.
         """
@@ -901,6 +933,22 @@ class AgentState:
                 continue
             if spec.requires_condition is not None and not otro.lleva(
                 spec.requires_condition
+            ):
+                continue
+            if spec.forbids_condition is not None and otro.lleva(
+                spec.forbids_condition
+            ):
+                continue
+            # Quién es y cuánto lleva (D-070). Las dos se ven estando delante,
+            # igual que una condición: lo que no se ve es el valor de sus
+            # necesidades, y por eso eso no se puede filtrar aquí.
+            if any(
+                otro.traits.get(trait, 0.0) < minimo
+                for trait, minimo in sorted(spec.requires_traits.items())
+            ):
+                continue
+            if spec.requires_edad > 0 and (
+                tick is None or otro.edad(tick) < spec.requires_edad
             ):
                 continue
             if spec.por_agravio:
@@ -967,6 +1015,7 @@ class AgentState:
         hasta: int | None = None,
         donde: PlaceId | None = None,
         gravedad: float = 1.0,
+        por_quien: AgentId | None = None,
     ) -> Condicion:
         """Le pasa algo. Si ya llevaba una idéntica, se agrava en vez de duplicar.
 
@@ -990,10 +1039,16 @@ class AgentState:
                 # lugar es lo que empezó, no lo que remató.
                 if cond.donde is None:
                     cond.donde = donde
+                # Y el autor con él, por lo mismo: quien lo empezó, no quien
+                # remató. Lo que cuelgue de una condición al terminar (D-071)
+                # tiene que apuntar a una sola persona, y la primera es la
+                # única elección que no depende de por dónde vaya el bucle.
+                if cond.por_quien is None:
+                    cond.por_quien = por_quien
                 return cond
 
         cond = Condicion(situacion=situacion, marca=marca, hasta=hasta,
-                         donde=donde, gravedad=gravedad)
+                         donde=donde, gravedad=gravedad, por_quien=por_quien)
         self.condiciones.append(cond)
         # Orden estable y por clave, no de llegada: los efectos se aplican en
         # secuencia y sumar floats en otro orden da otro número.
@@ -1033,10 +1088,19 @@ class AgentState:
         self.condiciones = [c for c in self.condiciones if c.gravedad > 1e-9]
         return antes - len(self.condiciones)
 
-    def expirar_condiciones(self, tick: int) -> list[SituationId]:
-        """Quita las que se han pasado solas. Devuelve cuáles, para el log."""
+    def edad(self, tick: int) -> int:
+        """Cuánto lleva en el mundo, en ticks. Puerta única: nadie más resta."""
+        return tick - self.nacido_en
+
+    def expirar_condiciones(self, tick: int) -> list[Condicion]:
+        """Quita las que se han pasado solas. Devuelve cuáles.
+
+        Devuelve la condición ENTERA y no solo su id: desde D-071 lo que una
+        condición deja al expirar puede depender de quién se la pegó
+        (`por_quien`), y ese dato muere con ella si aquí solo sale el nombre.
+        """
         vencidas = [
-            c.situacion for c in self.condiciones if c.hasta is not None and tick >= c.hasta
+            c for c in self.condiciones if c.hasta is not None and tick >= c.hasta
         ]
         if vencidas:
             self.condiciones = [

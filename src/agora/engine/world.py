@@ -35,6 +35,7 @@ from agora.engine.ontology import (
     ActionSpec,
     AflictionSpec,
     AgentId,
+    AgentSpec,
     GoalSpec,
     GoalStatus,
     NeedId,
@@ -43,6 +44,7 @@ from agora.engine.ontology import (
     PropertyKind,
     RelationId,
     SituationId,
+    TraitId,
 )
 from agora.engine.outcome import (
     company_premium,
@@ -54,6 +56,7 @@ from agora.engine.pack import ContentPack
 from agora.engine.state import (
     AgentState,
     Busy,
+    Condicion,
     PerformingAction,
     Propiedad,
     Traveling,
@@ -697,8 +700,22 @@ class Simulation:
                     tick=self.state.tick,
                     kind=EventKind.SITUATION_ENDED,
                     actor=agent.spec_id,
-                    data={"situation": str(vencida), "personal": True},
+                    data={"situation": str(vencida.situacion), "personal": True},
                 )
+                # Y si de esa espera colgaba algo, nace aquí (D-071): expirar y
+                # dar fruto son el mismo instante, y separarlos en dos pasos
+                # dejaría un tick en que la condición ya no está y lo que dejó
+                # todavía no.
+                #
+                # El recién nacido entra en `agents` a mitad de ESTE recorrido,
+                # que es el del decaimiento (paso 2 del tick), así que no decae
+                # ni sufre nada este tick — pero sí delibera, porque el paso 5
+                # vuelve a pedir `agents_in_order()` y para entonces ya está.
+                # Es correcto y conviene tenerlo escrito: nace despierto. Lo que
+                # pueda hacer recién llegado es cosa de las puertas de edad que
+                # el pack ponga, no del motor.
+                if by_situation[vencida.situacion].al_expirar is not None:
+                    self._nacer(agent, vencida)
             for cond in agent.condiciones:
                 efectos = by_situation[cond.situacion].effects
                 if not efectos:
@@ -1218,7 +1235,14 @@ class Simulation:
         # Un `costs` se paga una vez; esto sigue sangrando hasta que alguien lo
         # cure, que es lo que separa una consecuencia de un precio.
         if spec.inflicts is not None:
-            self._infligir(agent, spec.inflicts, porque=str(spec.id))
+            # Y con quién lo hiciste, si lo hiciste con alguien (D-071). Una
+            # condición que te dejas encima por tu cuenta no tiene más autor que
+            # tú; una que te queda de algo hecho CON otro, sí — y es lo que hace
+            # que engendrar se pueda escribir desde cualquiera de los dos lados
+            # en vez de solo desde el que se lo hace al otro.
+            self._infligir(
+                agent, spec.inflicts, porque=str(spec.id), por_quien=target
+            )
         # La mitad *por acción* de cómo se sale de una condición. Al terminar,
         # no al empezar: vendarse a medias no cura.
         for curada, cuanto in sorted(spec.cures.items()):
@@ -1526,8 +1550,114 @@ class Simulation:
         for need, cuanto in sorted(deuda.saldo.items()):
             propiedad.saldo[need] = propiedad.saldo.get(need, 0.0) + cuanto
 
+    def _nacer(self, portador: AgentState, cond: Condicion) -> AgentId | None:
+        """Nace alguien. **La segunda entidad que el motor crea en marcha, y la
+        primera que decide por sí misma** (D-071).
+
+        Con la deuda (D-065) el motor aprendió a hacer aparecer algo que el pack
+        no había escrito. Esto es lo mismo un escalón más arriba: lo que aparece
+        tiene ficha, delibera, se mueve, puede morir y puede a su vez engendrar.
+        Un reparto cerrado pasa a ser un reparto que se renueva.
+
+        Los dos progenitores salen de la propia condición y no de la memoria:
+        el **portador** es quien la llevaba y el **causante** es quien se la
+        pegó (`Condicion.por_quien`). Tenía que ser así porque la espera es
+        larga —lo que el pack declare en `lasts`— y un recuerdo no dura tanto:
+        preguntarle a la memoria de quién es el hijo daría *nadie* la mayoría
+        de las veces.
+
+        El causante puede haber muerto durante la espera. No es un error: es un
+        huérfano, hereda solo del portador y se queda sin esa relación.
+
+        El id se deriva de la situación, del portador y del tick, nunca de un
+        contador — la misma lección que D-065, y por el mismo motivo: un
+        contador depende del orden en que se resuelvan los agentes, y ese orden
+        depende de quién estaba dónde.
+        """
+        birth = self.pack.situation_by_id[cond.situacion].al_expirar
+        if birth is None:
+            return None
+        nuevo = AgentId(f"{cond.situacion}:{portador.spec_id}:{self.state.tick}")
+        if nuevo in self.state.censo:
+            # Dos partos idénticos en el mismo tick del mismo portador no
+            # pueden ocurrir (una condición con la misma marca se agrava, no se
+            # duplica), pero reanudar sobre un guardado sí puede traer ya al
+            # nacido. Callar y no duplicarlo es lo correcto.
+            return None
+
+        causante = (
+            self.state.agents.get(cond.por_quien) if cond.por_quien is not None else None
+        )
+        rng = self.state.rng.stream("nacer", portador.spec_id, self.state.tick)
+
+        traits: dict[TraitId, float] = {}
+        for trait in sorted(birth.hereda_traits):
+            suyo = portador.traits.get(trait, 0.0)
+            # La media de los dos, o el del portador a secas cuando no hay otro.
+            # No es lo mismo que suponer 0.0 en el ausente: eso haría que un
+            # huérfano naciera con la mitad de todo, y quedarse sin padre no
+            # rebaja a nadie.
+            medio = suyo if causante is None else (suyo + causante.traits.get(trait, 0.0)) / 2.0
+            if birth.ruido > 0.0:
+                medio += rng.uniform(-birth.ruido, birth.ruido)
+            traits[trait] = min(1.0, max(0.0, medio))
+        for grupo in birth.sortea_traits:
+            if not grupo:
+                continue
+            elegido = grupo[rng.randrange(len(grupo))]
+            for trait in grupo:
+                traits[trait] = 1.0 if trait == elegido else 0.0
+        traits.update(birth.traits)
+
+        metas = {str(g) for g in birth.goals}
+        ficha = AgentSpec(
+            id=nuevo,
+            label=f"{birth.label} {nuevo}".strip() if birth.label else str(nuevo),
+            # Se cría donde se crió quien lo llevaba. El motor no tiene otra
+            # respuesta honesta: un hogar es un sitio del mapa, y el único que
+            # esta escena conoce es el del portador.
+            home=self.state.spec_of(portador).home,
+            start_at=portador.at,
+            traits=traits,
+            initial_needs=dict(birth.initial_needs),
+            goals=tuple(
+                meta
+                for agente in self.pack.agents
+                for meta in agente.goals
+                if str(meta.id) in metas
+            )[: len(metas)],
+        )
+        self.state.censo[nuevo] = ficha
+        criatura = AgentState.from_spec(self.pack, ficha)
+        criatura.nacido_en = self.state.tick
+        self.state.agents[nuevo] = criatura
+
+        # Y las relaciones, con la API de siempre: `begin_relation` ya pone el
+        # otro lado (`inverse`), así que el pack declara una sola dirección.
+        if birth.relacion_con_portador is not None:
+            self.begin_relation(nuevo, portador.spec_id, birth.relacion_con_portador)
+        if causante is not None and birth.relacion_con_causante is not None:
+            self.begin_relation(nuevo, causante.spec_id, birth.relacion_con_causante)
+
+        self.log.emit(
+            tick=self.state.tick,
+            kind=EventKind.AGENT_BORN,
+            actor=nuevo,
+            place=criatura.at,
+            subject=portador.spec_id,
+            data={
+                "situation": str(cond.situacion),
+                "otro": "" if causante is None else str(causante.spec_id),
+            },
+        )
+        return nuevo
+
     def _infligir(
-        self, quien: AgentState, aflige: AflictionSpec, porque: str
+        self,
+        quien: AgentState,
+        aflige: AflictionSpec,
+        porque: str,
+        por_quien: AgentId | None = None,
     ) -> bool:
         """Le pega una condición. `True` si prendió.
 
@@ -1557,6 +1687,10 @@ class Simulation:
             # Y cuán grave. Se sortea en el rango que el pack declara, así que un
             # mismo brote reparte fiebres leves y fiebres que matan.
             gravedad=self._gravedad_de(aflige, quien),
+            # Y de quién viene, cuando viene de alguien. Solo lo pasa la acción
+            # dirigida: una situación del mundo no tiene autor, y lo que uno se
+            # hace a sí mismo tampoco necesita apuntarse.
+            por_quien=por_quien,
         )
         self.log.emit(
             tick=self.state.tick,
@@ -1621,7 +1755,9 @@ class Simulation:
         for curada, cuanto in sorted(destino.cures.items()):
             otro.aliviar(curada, cuanto)
         if destino.inflicts is not None:
-            self._infligir(otro, destino.inflicts, porque=str(spec.id))
+            self._infligir(
+                otro, destino.inflicts, porque=str(spec.id), por_quien=agent.spec_id
+            )
         if destino.crea_deuda is not None:
             self._endeudar(agent, otro, spec)
 

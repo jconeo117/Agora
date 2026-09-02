@@ -837,6 +837,39 @@ class TargetSpec(Spec):
     ahora; con esto se le deja algo encima que sigue doliendo después.
     """
 
+    requires_traits: dict[TraitId, float] = Field(default_factory=dict)
+    """Solo vale sobre quien SEA esto. `{}` = sobre cualquiera (D-070).
+
+    El espejo de `ActionSpec.requires_traits`, que hasta aquí solo sabía
+    preguntar quién eres TÚ. Hacía falta para lo que necesita dos partes que no
+    son intercambiables: engendrar pide que quien actúa sea de una clase y
+    quien recibe de otra, y con una sola mitad de la puerta no se puede
+    escribir — un rasgo del actor no dice nada del otro.
+
+    Es una puerta dura y se comprueba donde se elige al destinatario, no al
+    puntuar: se ve **quién es** alguien que tienes delante, igual que se ve una
+    condición. Lo que no se ve es el valor de sus necesidades.
+    """
+
+    requires_edad: int = Field(default=0, ge=0)
+    """Edad mínima del destinatario, en ticks. 0 = cualquiera.
+
+    Espejo de `ActionSpec.requires_edad`, y por la misma razón que
+    `requires_traits`: hay cosas que exigen que las DOS partes lleven un tiempo
+    en el mundo, y con la puerta puesta solo en quien actúa se escribiría la
+    mitad de la regla.
+    """
+
+    forbids_condition: SituationId | None = None
+    """No vale sobre quien lleve esto. `None` = sobre cualquiera.
+
+    Negativo de `requires_condition`, y no es lo mismo con otro nombre: la
+    afirmativa dice *a quién SÍ* (curar al herido) y esta dice *a quién ya
+    no hace falta* (no dejar en estado a quien ya lo está). Sin ella, la
+    única forma de escribirlo sería una condición "disponible" que hubiera que
+    quitar y devolver a mano, y eso son dos puertas donde hay una.
+    """
+
     requires_condition: SituationId | None = None
     """Solo vale sobre quien lleve esto encima. `None` = sobre cualquiera.
 
@@ -1048,6 +1081,30 @@ class ActionSpec(Spec):
 
     Separado de `requires` a propósito: aquel mira lo que tienes ahora —y se
     gasta— y esto mira lo que has llegado a ser, que no se pierde.
+    """
+
+    requires_edad: int = Field(default=0, ge=0)
+    """Cuánto tiene que llevar en el mundo quien lo intente, en ticks. 0 = da
+    igual, y es el defecto (D-070).
+
+    Décima puerta dura. Es la única que no mira lo que tienes, lo que eres ni
+    dónde estás, sino **cuánto llevas**: `tick - nacido_en`. En ticks y no en
+    días por lo mismo que todo lo demás que el pack declara en tiempo — cambiar
+    la duración del tick no puede cambiar lo que significa una regla.
+
+    No es un rasgo. Un rasgo se declara y se queda; esto crece solo, para todo
+    el mundo, sin que nadie lo toque. Y no es un eje de progresión: un eje se
+    gana haciendo algo y este no se gana, se cumple.
+    """
+
+    forbids_condition: SituationId | None = None
+    """No se puede intentar llevando esto encima. `None` = da igual.
+
+    La contraria de `ActionSpec.cures`, que quita una condición: esta la usa
+    como candado. Existe porque hay estados que se excluyen a sí mismos —quien
+    ya está en uno no puede volver a entrar— y sin ella habría que modelarlo
+    con un eje de necesidad que baje a cero, que es un número donde lo que hay
+    es un sí o un no.
     """
 
     requires_traits: dict[TraitId, float] = Field(default_factory=dict)
@@ -1577,6 +1634,19 @@ class AgentSpec(Spec):
     """Rasgo -> intensidad en -1..1. Validado abajo."""
 
     tastes: tuple[TasteSpec, ...] = ()
+    edad_inicial: int = Field(default=0, ge=0)
+    """Cuántos ticks lleva en el mundo cuando empieza la partida (D-070).
+
+    El pack lo declara y el estado guarda su inverso: `nacido_en = -edad_inicial`,
+    para que la edad sea siempre `tick - nacido_en` y no haya dos fórmulas según
+    si alguien estaba al principio o nació después. Un nacido en marcha entra
+    con `nacido_en` igual al tick del parto y cae en la misma cuenta.
+
+    0 es un mundo sin edades, y es el defecto: los cuatro packs anteriores a
+    esto siguen significando lo mismo. Ojo con dejarlo a 0 en un pack CON
+    puertas de edad — todo el reparto sería recién nacido.
+    """
+
     initial_needs: dict[NeedId, float] = Field(default_factory=dict)
     """Override del `initial` de cada NeedSpec. Lo que falte usa el default."""
 
@@ -2253,6 +2323,19 @@ class SituationSpec(Spec):
     riesgo crezca con la exposición.
     """
 
+    al_expirar: BirthSpec | None = None
+    """Qué nace cuando esta condición se pasa sola (D-071). `None` = nada, y es
+    el defecto.
+
+    Solo tiene sentido en una `personal` con `lasts` — una condición que no se
+    pasa nunca no llega a expirar, y una del mundo no la lleva nadie encima, así
+    que no habría de quién heredar. El pack no carga si lo declara otra cosa.
+
+    Se dispara donde ya se anunciaba que la condición terminaba, no en un paso
+    nuevo del tick: expirar y dar fruto son el mismo instante, y separarlos
+    dejaría un tick en que la condición ya no está y lo que dejó todavía no.
+    """
+
     trigger: TriggerSpec | None = None
     """Qué la enciende sola. `None` = solo se enciende llamando a la API.
 
@@ -2320,6 +2403,90 @@ class SituationSpec(Spec):
 # ---------------------------------------------------------------------------
 # Calibración
 # ---------------------------------------------------------------------------
+class BirthSpec(Spec):
+    """Lo que aparece cuando una condición personal se pasa sola: **un agente
+    nuevo** (D-071).
+
+    Es la segunda entidad que el motor sabe crear en marcha, después de la
+    deuda (D-065), y la que de verdad cambia lo que un mundo puede contar: un
+    reparto cerrado se convierte en un reparto que se renueva. Cuelga de la
+    situación y no de la acción a propósito — entre causar algo y que ese algo
+    dé fruto pasa tiempo, y la única pieza del motor que sabe esperar es una
+    condición con `lasts`.
+
+    Quién lo tiene son dos personas, y el motor las conoce sin que nadie se lo
+    diga: el **portador** es quien lleva la condición encima y el **causante**
+    es quien se la pegó (`Condicion.por_quien`). Nada aquí dice cuál de los dos
+    es qué en el mundo — eso lo dicen los rasgos que el pack sortea y las
+    relaciones que declara.
+
+    El causante puede no estar: pudo morir durante la espera, y nueve meses son
+    tiempo de sobra en un mundo violento. Entonces el nacido hereda solo del
+    portador y se queda sin esa relación. **No es un caso de error**: es un
+    huérfano, y el motor no tiene por qué impedirlo.
+    """
+
+    hereda_traits: tuple[TraitId, ...] = ()
+    """Qué rasgos se mezclan de los dos progenitores: la media, más un ruido
+    sorteado por clave dentro de `ruido`.
+
+    La media y no uno de los dos porque un hijo no es la copia de nadie, y el
+    ruido porque sin él dos hermanos con los mismos padres serían idénticos y
+    la línea de sangre no explicaría nada que no explicara ya el apellido. Con
+    un solo progenitor conocido, la media es su valor a secas.
+    """
+
+    ruido: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Cuánto puede apartarse de la media, arriba o abajo. 0.0 = clavado a ella.
+
+    Se sortea por clave (`blake2b(semilla, ...)`) como todo lo demás: dos
+    procesos con la misma semilla tienen que engendrar a la misma persona.
+    """
+
+    sortea_traits: tuple[tuple[TraitId, ...], ...] = ()
+    """Grupos de rasgos EXCLUYENTES entre sí: de cada grupo se enciende
+    exactamente uno, a 1.0, y los demás a 0.0.
+
+    Es lo que hace falta para lo que no se hereda mezclado sino que sale a cara
+    o cruz. Un grupo y no un rasgo suelto porque la exclusividad es la mitad del
+    significado: sortear dos veces por separado deja a alguien siendo las dos
+    cosas o ninguna.
+    """
+
+    traits: dict[TraitId, float] = Field(default_factory=dict)
+    """Lo que TODO nacido lleva igual, herede lo que herede. Se aplica después
+    de la mezcla y del sorteo, así que también sirve para fijar a la fuerza algo
+    que el pack no quiera dejar al azar."""
+
+    initial_needs: dict[NeedId, float] = Field(default_factory=dict)
+    """Con qué empieza cada eje. Lo que no se nombre entra con el `initial` de
+    la necesidad, igual que cualquier agente del pack."""
+
+    goals: tuple[GoalId, ...] = ()
+    """Qué metas trae puestas, del catálogo que el pack ya declara en algún
+    agente. Vacío = nace sin arcos, que es lo que pasaba hasta hoy con quien
+    nacía en marcha (ver `AgentState.metas_activas`)."""
+
+    relacion_con_portador: RelationId | None = None
+    """Qué es el nacido DE quien lo llevaba. El otro lado lo pone `inverse`.
+
+    Del nacido hacia el progenitor y no al revés porque es la dirección que
+    siempre existe: hay un nacido, y puede no haber causante.
+    """
+
+    relacion_con_causante: RelationId | None = None
+    """Qué es el nacido de quien causó la condición. Se omite si no se sabe
+    quién fue o si ya no está."""
+
+    label: str = ""
+    """Con qué nombre aparece en el log. Vacío = su propio id.
+
+    El motor no sabe componer un nombre —eso es ambientación— así que lo más
+    honesto que puede hacer es repetir el id y dejar que el pack ponga un
+    prefijo legible delante.
+    """
+
+
 class TuningSpec(Spec):
     """Las perillas que gobiernan CÓMO se decide, no QUÉ existe.
 

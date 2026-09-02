@@ -27,6 +27,7 @@ from pydantic import Field, ValidationError, model_validator
 from agora.engine.ontology import (
     ActionId,
     ActionSpec,
+    AflictionSpec,
     AgentId,
     AgentSpec,
     ClockSpec,
@@ -702,6 +703,26 @@ class ContentPack(Spec):
         ]
         return problems
 
+    def _afflictions(self) -> list[tuple[str, AflictionSpec]]:
+        """Los tres sitios que pegan una condición, con quién la pega.
+
+        Puerta única: la misma lista la quiere cualquier comprobación sobre
+        plazos o sobre a qué situación apuntan, y repartirla dejaría una de las
+        tres fuera el día que se añada la cuarta.
+        """
+        fuentes: list[tuple[str, AflictionSpec]] = []
+        for action in self.actions:
+            if action.inflicts is not None:
+                fuentes.append((f"acción {action.id!r}.inflicts", action.inflicts))
+            if action.target is not None and action.target.inflicts is not None:
+                fuentes.append(
+                    (f"acción {action.id!r}.target.inflicts", action.target.inflicts)
+                )
+        for otra in self.situations:
+            if otra.inflicts is not None:
+                fuentes.append((f"situación {otra.id!r}.inflicts", otra.inflicts))
+        return fuentes
+
     def _check_situation_refs(self) -> list[str]:
         """Toda situación mencionada existe, y alcanza a algún sitio real.
 
@@ -776,6 +797,66 @@ class ContentPack(Spec):
                     )
         personales = {str(s.id) for s in self.situations if s.personal}
         ejes = frozenset(str(n.id) for n in self.needs)
+        conocidos_rasgos = frozenset(str(t.id) for t in self.traits)
+        conocidas_relaciones = frozenset(str(r.id) for r in self.relations)
+        conocidas_metas = {str(g.id) for a in self.agents for g in a.goals}
+        for situation in self.situations:
+            birth = situation.al_expirar
+            if birth is None:
+                continue
+            # Una condición que no se pasa sola no llega a expirar nunca, y una
+            # del mundo no la lleva nadie encima: sin portador no hay de quién
+            # heredar ni a quién emparentar (D-071).
+            if not situation.personal:
+                problems.append(
+                    f"situación {situation.id!r} declara `al_expirar` y no es "
+                    f"`personal`: lo que nace hereda de quien la lleva encima, y "
+                    f"una situación del mundo no la lleva nadie"
+                )
+            # El plazo de una condición personal no lo pone la situación sino
+            # quien la pega (`AflictionSpec.lasts`), así que la comprobación va
+            # del lado de quien inflige: sin plazo la condición no se pasa sola,
+            # no expira, y lo que colgaba de ella no ocurre jamás.
+            sin_plazo = sorted(
+                nombre
+                for nombre, aflige in self._afflictions()
+                if aflige.situation == situation.id and aflige.lasts <= 0
+            )
+            if sin_plazo:
+                problems.append(
+                    f"situación {situation.id!r} declara `al_expirar` y "
+                    f"{', '.join(sin_plazo)} la pega sin `lasts`: lo que no se "
+                    f"pasa solo no expira nunca, así que no nacería jamás"
+                )
+            contexto = f"situación {situation.id!r}.al_expirar"
+            problems += self._unknown_keys(
+                f"{contexto}.hereda_traits", "rasgo", birth.hereda_traits, conocidos_rasgos
+            )
+            problems += self._unknown_keys(
+                f"{contexto}.traits", "rasgo", birth.traits, conocidos_rasgos
+            )
+            problems += self._unknown_keys(
+                f"{contexto}.initial_needs", "necesidad", birth.initial_needs, ejes
+            )
+            problems += self._unknown_keys(
+                f"{contexto}.goals", "meta", (str(g) for g in birth.goals),
+                frozenset(conocidas_metas),
+            )
+            for grupo in birth.sortea_traits:
+                problems += self._unknown_keys(
+                    f"{contexto}.sortea_traits", "rasgo", grupo, conocidos_rasgos
+                )
+                if len(grupo) < 2:
+                    problems.append(
+                        f"{contexto}.sortea_traits: un grupo de {len(grupo)} no "
+                        f"sortea nada -- si no hay entre qué elegir, va en `traits`"
+                    )
+            for campo, rel in (
+                ("relacion_con_portador", birth.relacion_con_portador),
+                ("relacion_con_causante", birth.relacion_con_causante),
+            ):
+                if rel is not None and str(rel) not in conocidas_relaciones:
+                    problems.append(f"{contexto}.{campo}: relación desconocida {rel!r}")
         for action in self.actions:
             problems += [
                 f"acción {action.id!r}.cures: {c!r} no es una situación personal, "
@@ -783,6 +864,15 @@ class ContentPack(Spec):
                 for c in sorted(action.cures)
                 if str(c) not in personales
             ]
+            if action.forbids_condition is not None and (
+                str(action.forbids_condition) not in personales
+            ):
+                problems.append(
+                    f"acción {action.id!r}.forbids_condition: "
+                    f"{action.forbids_condition!r} no es una situación personal, "
+                    f"así que nadie puede llevarla encima y el candado no cierra "
+                    f"nunca"
+                )
             if action.inflicts is not None and (
                 str(action.inflicts.situation) not in personales
             ):
@@ -822,6 +912,17 @@ class ContentPack(Spec):
                     f"acción {action.id!r} apunta a alguien y no le hace nada: "
                     f"declara `gives`, `cures`, `inflicts` o `crea_deuda`, o "
                     f"quita `target`"
+                )
+            problems += self._unknown_keys(
+                f"acción {action.id!r}.target.requires_traits", "rasgo",
+                destino.requires_traits, conocidos_rasgos,
+            )
+            if destino.forbids_condition is not None and (
+                str(destino.forbids_condition) not in personales
+            ):
+                problems.append(
+                    f"acción {action.id!r}.target.forbids_condition: "
+                    f"{destino.forbids_condition!r} no es una situación personal"
                 )
             if destino.crea_deuda is not None:
                 # `DebtSpec` ya valida su propia forma (mismos ejes en las dos
@@ -885,6 +986,10 @@ class ContentPack(Spec):
             # nada y no hace daño directo pero te deja congelado hace bastante:
             # olvidarlo aquí la declaraba contenido muerto siendo lo contrario.
             and situation.inflicts is None
+            # Y el sexto (D-071): una espera que no hace nada MIENTRAS dura,
+            # pero de la que nace alguien al terminar, es de lo que más hace en
+            # un mundo -- y sin esta línea el motor la llamaba contenido muerto.
+            and situation.al_expirar is None
         ]
 
     def _check_places_are_open_sometime_despite_situations(self) -> list[str]:

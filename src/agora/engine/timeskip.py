@@ -99,10 +99,16 @@ def saltar(sim: Simulation, dias: int, factor: int = 7) -> Salto:
         sim.run(ticks_dia)
 
         for agente in sim.state.agents_in_order():
+            # Quien no estaba al empezar el dia no cobra zancada: nacio a mitad
+            # (D-071), y darsela seria adelantarle un progreso de dias en los
+            # que no existia. Sale del mismo sitio que la agonia que se borra:
+            # lo que no se simula, no se inventa.
+            previo = antes.get(agente.spec_id)
+            if previo is None:
+                continue
             # La zancada: lo que subio hoy, otras `factor - 1` veces. Pasa por
             # `restore` y no por asignacion directa para que respete el techo y
             # la deuda, como cualquier otra ganancia.
-            previo = antes[agente.spec_id]
             for eje in amplificar:
                 ganado = agente.needs[eje] - previo[eje]
                 if ganado > 0.0:
@@ -116,6 +122,12 @@ def saltar(sim: Simulation, dias: int, factor: int = 7) -> Salto:
 
 def _adelantar_reloj(sim: Simulation, ticks: int) -> None:
     """Mueve el reloj sin simular, arrastrando lo que depende de el.
+
+    La EDAD no necesita nada de esto y conviene tenerlo escrito: `nacido_en` es
+    un tick absoluto (D-070), asi que adelantar el reloj envejece a todo el
+    mundo solo, y una espera con plazo (`Condicion.hasta`, tambien absoluto)
+    vence al otro lado del hueco sin que nadie la empuje. Es la ventaja de
+    guardar CUANDO paso algo en vez de cuanto lleva.
 
     Los avistamientos y los vinculos guardan CUANDO se vieron, y caducan solos.
     Sin adelantar sus marcas con el reloj, un salto de seis meses los invalidaria
