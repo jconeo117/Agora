@@ -935,13 +935,12 @@ class Simulation:
         llamaba nadie. Es lo que separa un logro de un arco — sin la deriva, el
         personaje llega a su meta y sigue siendo exactamente quien era.
         """
-        spec = self.state.spec_of(agent)
         # Primero se abre lo que toque. Va antes del bucle de cierre y en el
         # mismo tick a propósito: una meta que se desbloquea empieza a empujar
         # YA, igual que la que se cierra deja de hacerlo ya. Al revés, el arco
         # perdería un tick en cada eslabón — invisible con cuatro, absurdo con
         # veinte.
-        for goal in spec.goals:
+        for goal in agent.metas:
             if (
                 agent.goals.get(goal.id) is GoalStatus.LOCKED
                 and goal.requires_goal is not None
@@ -954,7 +953,7 @@ class Simulation:
                     data={"goal": str(goal.id), "tras": str(goal.requires_goal)},
                 )
 
-        for goal in spec.goals:
+        for goal in agent.metas:
             # Lo bloqueado no se cierra NI SE PIERDE. No puedes perder lo que aún
             # no habías empezado, y un plazo corriendo mientras esperas
             # castigaría por algo que no dependía de ti.
@@ -1634,10 +1633,41 @@ class Simulation:
 
         # Y las relaciones, con la API de siempre: `begin_relation` ya pone el
         # otro lado (`inverse`), así que el pack declara una sola dirección.
-        if birth.relacion_con_portador is not None:
-            self.begin_relation(nuevo, portador.spec_id, birth.relacion_con_portador)
-        if causante is not None and birth.relacion_con_causante is not None:
-            self.begin_relation(nuevo, causante.spec_id, birth.relacion_con_causante)
+        buscaban: list[AgentState] = []
+        for progenitor, rel in (
+            (portador, birth.relacion_con_portador),
+            (causante, birth.relacion_con_causante),
+        ):
+            if progenitor is None or rel is None:
+                continue
+            # Se pregunta ANTES de anudar: "lo buscaba" es tener una meta que
+            # nombre esta relación, y preguntarlo después la encontraría ya
+            # cumplida igual. El orden no cambia la respuesta, pero sí cambia
+            # qué significa la línea, y esto se lee muchas más veces de las que
+            # se escribe.
+            lo_queria = self._lo_buscaba(progenitor, rel)
+            self.begin_relation(nuevo, progenitor.spec_id, rel)
+            criatura.estrenar_aprecio(
+                progenitor.spec_id, birth.regard_hacia_progenitores, self.state.tick
+            )
+            progenitor.estrenar_aprecio(
+                nuevo,
+                birth.regard_buscado if lo_queria else birth.regard_no_buscado,
+                self.state.tick,
+            )
+            if lo_queria:
+                buscaban.append(progenitor)
+
+        # Lo cumplieron JUNTOS, y eso es un hecho entre ellos dos que ningún
+        # premio hacia la criatura puede decir. Solo cuando los dos lo querían:
+        # con uno solo no hay nada compartido que celebrar.
+        if len(buscaban) == 2 and birth.regard_entre_progenitores > 0.0:
+            uno, otro = buscaban
+            uno.acercar(otro.spec_id, birth.regard_entre_progenitores, self.state.tick)
+            otro.acercar(uno.spec_id, birth.regard_entre_progenitores, self.state.tick)
+
+        if birth.inflicts is not None:
+            self._infligir(criatura, birth.inflicts, porque=str(cond.situacion))
 
         self.log.emit(
             tick=self.state.tick,
@@ -1651,6 +1681,42 @@ class Simulation:
             },
         )
         return nuevo
+
+    def _lo_buscaba(self, quien: AgentState, rel: RelationId) -> bool:
+        """Si esta persona TENÍA POR META llegar a tener esto (D-076).
+
+        Querer algo ya se escribe en este motor de una sola manera —una meta— y
+        `at_kin` es la vara que cuenta parientes. Así que no hace falta un campo
+        nuevo que diga "quería un hijo": basta con mirar si alguna de sus metas
+        habla de la relación que este parto le está creando.
+
+        Cuentan las ACTIVAS y las ya LOGRADAS, y no es descuido. Una meta de
+        tener tres se cierra con el tercero, y los dos primeros los quiso
+        exactamente igual; con solo las activas, el hijo que CIERRA la meta sería
+        el único querido de los tres. Lo que se pregunta no es "¿cierra esto su
+        meta?" sino "¿es de los que querían esto?".
+
+        Las perdidas y las bloqueadas quedan fuera: a una se le pasó el plazo y a
+        la otra todavía no le tocaba.
+
+        **Se mira SU lado del lazo, no el de la criatura.** El parto le da al
+        nacido `rel` y al progenitor la inversa, y la meta habla de lo que él va
+        a tener: quien quiere ser madre lo escribe como `at_kin: {madre: 1}`, no
+        como *tener un hijo_de*. Mirar el lado equivocado no falla en ninguna
+        parte — simplemente no encuentra nunca la meta, y todo el mundo sale
+        queriendo poco a sus hijos.
+        """
+        regla = self.pack.relation_by_id.get(rel)
+        if regla is None:
+            return False
+        suya = rel if regla.symmetric else regla.inverse
+        if suya is None:
+            return False
+        return any(
+            suya in meta.at_kin
+            and quien.goals.get(meta.id) in (GoalStatus.ACTIVE, GoalStatus.ACHIEVED)
+            for meta in quien.metas
+        )
 
     def _infligir(
         self,

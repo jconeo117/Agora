@@ -1515,12 +1515,16 @@ class GoalSpec(Spec):
 
     También conjunción. *«Tener tres discípulos»* es `{"discipulo": 3}`.
 
-    ⚠️ **Hoy nada crea ni deshace relaciones en marcha.** `begin_relation` y
-    `end_relation` son API pública y ningún contenido las llama, así que esta
-    condición se decide en el tick 0 y no vuelve a cambiar. Se implementa
-    igualmente —es correcta y son cuatro líneas— pero **no escribas un arco que
-    dependa de ella** hasta que una acción pueda anudar un lazo. El validador
-    avisa cuando la meta ya está cumplida de salida.
+    **El aviso que llevaba aquí desde F1.9 ya no vale, y conviene saber por
+    qué.** Decía: *nada crea ni deshace relaciones en marcha, así que esta
+    condición se decide en el tick 0 y no vuelve a cambiar; no escribas un arco
+    que dependa de ella*. Desde D-071 el parto anuda lazos, así que esta es la
+    única vara que se puede cumplir por algo que PASA y no por algo que se
+    acumula — y de paso la única que expresa querer algo que depende de otra
+    persona.
+
+    Sigue en pie la otra mitad: el validador avisa cuando la meta ya está
+    cumplida de salida, porque eso sigue siendo contenido muerto.
     """
 
     requires_goal: GoalId | None = None
@@ -2477,6 +2481,50 @@ class BirthSpec(Spec):
     relacion_con_causante: RelationId | None = None
     """Qué es el nacido de quien causó la condición. Se omite si no se sabe
     quién fue o si ya no está."""
+
+    inflicts: AflictionSpec | None = None
+    """Qué condición trae puesta el nacido. `None` = ninguna.
+
+    Cuarto sitio que infligia algo, y el primero sobre alguien que acaba de
+    aparecer. Es lo que hace escribible la niñez: una condición con `lasts` que
+    dura lo que el pack diga, que puede cambiar lo que rinde y cómo se decide
+    mientras dura, y —sobre todo— que **se ve estando delante**, así que
+    `TargetSpec.requires_condition` puede apuntar a ella. Sin eso no hay forma
+    de escribir una acción que solo valga sobre un crío: el motor sabe exigir
+    una edad MÍNIMA al destinatario, no una máxima.
+    """
+
+    regard_buscado: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Con cuánto aprecio arranca hacia el nacido el progenitor que LO BUSCABA
+    (D-076).
+
+    "Buscarlo" no es un campo nuevo: es tener una meta cuyo `at_kin` nombre la
+    relación que este parto le crea. El motor ya sabía decir *quiero tener a los
+    míos*, y hasta hoy no había forma de que nada lo cumpliera; ahora sí, y de
+    paso contesta lo que un suelo de aprecio por relación no puede — no todo el
+    que se convierte en padre quiere a su hijo igual, y la diferencia es si lo
+    quiso ANTES.
+    """
+
+    regard_no_buscado: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Y el que no lo buscaba. Puede ser bajo sin ser negativo: quien no lo
+    quería no arranca odiándolo, arranca sin nada — y a partir de ahí el aprecio
+    sube conviviendo, como el de cualquiera. Un padre que no lo buscaba puede
+    acabar queriéndolo si está presente, y no si no lo está."""
+
+    regard_hacia_progenitores: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Con cuánto aprecio arranca el nacido hacia ellos. Uno solo para los dos:
+    un recién nacido no sabe quién lo quiso."""
+
+    regard_entre_progenitores: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Cuánto sube el aprecio MUTUO entre los dos cuando LOS DOS lo buscaban.
+
+    Es lo que un premio hacia la cría no puede decir: haber conseguido juntos lo
+    que los dos querían es un hecho entre ELLOS. Solo cuando los dos —con uno
+    solo no hay nada compartido que celebrar— y se suma al aprecio que ya
+    hubiera, así que una pareja que ya se quería acaba más arriba que dos
+    desconocidos que coincidieron.
+    """
 
     label: str = ""
     """Con qué nombre aparece en el log. Vacío = su propio id.

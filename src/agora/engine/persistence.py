@@ -25,6 +25,7 @@ parado. Esa propiedad se decidio en F0 y esta es la primera vez que se cobra.
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -329,7 +330,10 @@ def _lista_a_recuerdo(
     )
 
 
-def _dict_a_agente(datos: dict[str, Any], pack: ContentPack) -> AgentState:
+def _dict_a_agente(
+    datos: dict[str, Any], pack: ContentPack,
+    nacidos: Mapping[AgentId, AgentSpec] | None = None,
+) -> AgentState:
     conocidos_relacion = frozenset(str(r.id) for r in pack.relations)
     conocidos_accion = frozenset(str(a.id) for a in pack.actions)
     conocidos_need = frozenset(str(n.id) for n in pack.needs)
@@ -353,6 +357,15 @@ def _dict_a_agente(datos: dict[str, Any], pack: ContentPack) -> AgentState:
         # lee como un mundo donde todos nacieron en el tick cero, que es lo que
         # era -- no había edad que llevar.
         nacido_en=int(datos.get("nacido_en", 0)),
+        # Las metas salen de la ficha, no del guardado: son catálogo, como los
+        # rasgos del pack. La de quien nació en marcha viene en `nacidos`, que
+        # es su unica ficha en el mundo.
+        metas=tuple(
+            (pack.agent_by_id.get(AgentId(datos["spec_id"]))
+             or (nacidos or {}).get(AgentId(datos["spec_id"]))
+             or AgentSpec(id=AgentId(datos["spec_id"]), label="", home=PlaceId(datos["at"]),
+                          start_at=PlaceId(datos["at"]))).goals
+        ),
         needs=_reconciliar_necesidades(datos["needs"], pack),
         # Los rasgos borrados del pack se caen: `compose_*` los buscaria en
         # `trait_by_id` y reventaria con un KeyError sin explicacion.
@@ -473,7 +486,11 @@ def load(path: Path, pack: ContentPack) -> tuple[WorldState, set[tuple[AgentId, 
     conocidos = frozenset(str(a.id) for a in pack.agents) | {str(a) for a in nacidos}
     # Quien ya no existe en el pack no vuelve. Es la contrapartida honesta de
     # reconciliar: el guardado se adapta al pack, no al reves.
-    agentes = [_dict_a_agente(d, pack) for d in datos["agents"] if d["spec_id"] in conocidos]
+    agentes = [
+        _dict_a_agente(d, pack, nacidos)
+        for d in datos["agents"]
+        if d["spec_id"] in conocidos
+    ]
 
     world = WorldState.new(pack, seed=datos["seed"])
     world.tick = datos["tick"]

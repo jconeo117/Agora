@@ -585,6 +585,24 @@ class AgentState:
     permite que esto escale a un mundo poblado.
     """
 
+    metas: tuple[GoalSpec, ...] = ()
+    """El catálogo de metas de su ficha. **Derivado del censo, como los pesos lo
+    son de los rasgos** — no es estado propio, es la ficha vista desde aquí.
+
+    Estaba en el pack y se preguntaba en caliente, y eso funcionó mientras el
+    reparto no pudo crecer: quien no estaba en ningún YAML se quedaba sin arcos
+    (`test_the_stranger_has_no_pack_goals`, cuyo propio docstring decía que de
+    dónde salieran era «trabajo de descendencia»). Con gente naciendo en marcha
+    (D-071) eso dejó de ser aceptable: un nacido tenía metas escritas en su
+    ficha del censo, el bucle que las cierra las veía —lee de `spec_of`— y el
+    que las hace EMPUJAR no, porque preguntaba al pack. La meta existía y no
+    pesaba.
+
+    Vive aquí y no se vuelve a pedir porque el censo es la autoridad desde
+    F1.14, y `WorldState.new` lo llena del pack de HOY: un pack retocado entre
+    corridas sigue mandando, que era lo que la consulta en caliente protegía.
+    """
+
     nacido_en: int = 0
     """Tick en que entró en el mundo. Negativo para quien ya estaba al empezar
     (D-070): el pack declara `edad_inicial` y esto guarda su inverso, para que
@@ -692,6 +710,7 @@ class AgentState:
             # que es quien ve a los dos lados; desde aquí solo se ve uno.
             relations={rel: set(quienes) for rel, quienes in spec.relations.items()},
             nacido_en=-spec.edad_inicial,
+            metas=tuple(spec.goals),
             bonds={
                 other: Bond(regard=regard, encounters=1)
                 for other, regard in spec.initial_bonds.items()
@@ -857,6 +876,41 @@ class AgentState:
             bond.regard += rate * (target - bond.regard)
             bond.shared += 1
             bond.last_seen = tick
+
+    def estrenar_aprecio(self, other: AgentId, regard: float, tick: int) -> None:
+        """Nace un vínculo YA con un aprecio, en vez de en cero (D-076).
+
+        Todo lo demás en este motor llega al aprecio por error de predicción
+        —`remember_company`, poco a poco, compartiendo cosas— y eso es lo
+        correcto para el trato. Pero hay vínculos que no empiezan: aparecen
+        hechos. A un recién nacido no se le va cogiendo cariño desde la
+        indiferencia si lo estabas buscando.
+
+        Estrena, no acumula: si ya había vínculo se respeta el que hubiera. Dos
+        personas que ya se conocían no se reinician porque haya nacido alguien.
+        """
+        if other in self.bonds:
+            return
+        self.bonds[other] = Bond(
+            regard=max(-1.0, min(1.0, regard)), encounters=1, last_seen=tick
+        )
+
+    def acercar(self, other: AgentId, cuanto: float, tick: int) -> None:
+        """Sube el aprecio hacia alguien de golpe, por algo que pasó entre los
+        dos. Suma sobre lo que hubiera, acotado.
+
+        Distinto de `remember_company`, que persigue un objetivo con un ritmo:
+        aquello es *conviviendo se aprecia más*, y esto es *ha pasado algo*. Con
+        la forma de allí, un suceso único movería el aprecio en proporción a lo
+        lejos que estuviera del premio, así que dos que ya se querían mucho no
+        se moverían — al revés de lo que un logro compartido significa.
+        """
+        bond = self.bonds.get(other)
+        if bond is None:
+            bond = Bond()
+            self.bonds[other] = bond
+        bond.regard = max(-1.0, min(1.0, bond.regard + cuanto))
+        bond.last_seen = tick
 
     def meet(self, other: AgentId, tick: int) -> None:
         """Registra un encuentro. Crea el vínculo si es el primero.
@@ -1210,24 +1264,22 @@ class AgentState:
         significa "meta": si siguiera pesando después de conseguirla, sería una
         necesidad con otro nombre.
 
-        **Por qué `.get` y no `[...]`.** Es la única cosa que se le sigue
-        preguntando al pack en caliente, y quien no tenga ficha allí se queda sin
-        metas en vez de reventar. No es tolerancia a una errata: el pack se valida
-        al cargar y `WorldState.new` llena censo y reparto de la misma fuente, así
-        que faltar aquí solo puede significar una cosa —**haber nacido en marcha**—
-        y esa no es un error, es un estado legítimo sin arcos todavía.
+        **De dónde salen.** De `metas`, que es la ficha del CENSO vista desde
+        aquí. Antes se le preguntaba al pack en caliente y quien no estuviera en
+        ningún YAML se quedaba sin arcos; el hilo que aquel docstring dejaba
+        señalado —«cortarlo obliga a decidir dónde viven las metas de quien no
+        está escrito en ningún YAML, y esa decisión es de descendencia»— se corta
+        aquí. Viven en el censo, que es la autoridad sobre las fichas desde
+        F1.14, y de ahí las copia `from_spec`.
 
-        Es también el hilo que hay que cortar cuando los recién nacidos necesiten
-        metas propias, y no se corta hoy porque cortarlo obliga a decidir dónde
-        viven las metas de quien no está escrito en ningún YAML. Esa decisión es
-        de descendencia, no de censo.
+        `pack` sigue en la firma porque las tres composiciones que lo llaman lo
+        tienen delante y porque el día que una meta necesite consultar el pack
+        para decidir si empuja, este es el sitio.
         """
-        ficha = pack.agent_by_id.get(self.spec_id)
-        if ficha is None:
-            return ()
+        _ = pack
         return tuple(
             goal
-            for goal in ficha.goals
+            for goal in self.metas
             if self.goals.get(goal.id) is GoalStatus.ACTIVE
         )
 

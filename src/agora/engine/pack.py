@@ -397,23 +397,34 @@ class ContentPack(Spec):
                     f"de sus metas se lo sube — solo las derivas mueven un rasgo"
                 )
 
-        # LOS TUYOS. Hoy nada anuda ni deshace lazos en marcha, así que esto se
-        # decide en el tick 0. Si YA lo cumple, la meta se cierra el primer tick
-        # y es un logro regalado; si no lo cumple, no lo cumplirá nunca.
+        # LOS TUYOS. Esta comprobación decía «nada anuda lazos en marcha, así que
+        # no podrá cumplirla nunca» y rechazaba toda meta de este tipo que no
+        # estuviera ya cumplida. Desde D-071 el parto anuda lazos, así que la
+        # mitad falsa se cae y queda la que sigue siendo cierta: si YA lo cumple,
+        # la meta se cierra el primer tick y es un logro regalado; y si no lo
+        # cumple, hay que poder señalar QUÉ se lo va a anudar.
         if goal.at_kin:
             ya = all(
                 len(agent.relations.get(rel, frozenset())) >= cuantos
                 for rel, cuantos in sorted(goal.at_kin.items())
             )
-            problems.append(
-                f"agente {agent.id!r}, meta {goal.id!r}: pide {dict(goal.at_kin)} "
-                + (
-                    "y ya lo tiene, así que se cerraría en el primer tick"
-                    if ya
-                    else "y no lo tiene. Nada anuda lazos en marcha, así que no "
-                    "podrá cumplirla nunca"
+            if ya:
+                problems.append(
+                    f"agente {agent.id!r}, meta {goal.id!r}: pide "
+                    f"{dict(goal.at_kin)} y ya lo tiene, así que se cerraría en "
+                    f"el primer tick"
                 )
-            )
+            else:
+                huerfanas = sorted(
+                    str(rel) for rel in goal.at_kin if rel not in self._relaciones_que_nacen()
+                )
+                if huerfanas:
+                    problems.append(
+                        f"agente {agent.id!r}, meta {goal.id!r}: pide "
+                        f"{dict(goal.at_kin)} y no lo tiene, y nada en este pack "
+                        f"anuda {huerfanas} en marcha, así que no podrá cumplirla "
+                        f"nunca"
+                    )
 
         # LA QUE LA ABRE. Tiene que ser una meta SUYA: apuntar a la de otro
         # dejaría la cadena esperando algo que este agente no puede provocar.
@@ -702,6 +713,35 @@ class ContentPack(Spec):
             if len(ids) > 1
         ]
         return problems
+
+    def _relaciones_que_nacen(self) -> frozenset[RelationId]:
+        """Las relaciones que algo puede anudar durante la partida, con su
+        inversa (D-071).
+
+        Hoy la única fuente es el parto, pero se pregunta así —«qué puede
+        anudarse»— y no «qué partos hay» a propósito: el día que una acción anude
+        un lazo, se añade aquí y ninguna otra comprobación tiene que enterarse.
+
+        La inversa cuenta igual: si el parto le da `hijo_de` a la criatura, el
+        otro extremo recibe `madre` sin que nadie lo escriba, y una meta de ser
+        madre es exactamente lo que hay que poder escribir.
+        """
+        by_id = {r.id: r for r in self.relations}
+        nacen: set[RelationId] = set()
+        for situation in self.situations:
+            birth = situation.al_expirar
+            if birth is None:
+                continue
+            for rel in (birth.relacion_con_portador, birth.relacion_con_causante):
+                if rel is None:
+                    continue
+                nacen.add(rel)
+                regla = by_id.get(rel)
+                if regla is not None and regla.inverse is not None:
+                    nacen.add(regla.inverse)
+                if regla is not None and regla.symmetric:
+                    nacen.add(rel)
+        return frozenset(nacen)
 
     def _afflictions(self) -> list[tuple[str, AflictionSpec]]:
         """Los tres sitios que pegan una condición, con quién la pega.

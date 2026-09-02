@@ -90,6 +90,10 @@ def nacer_pack(**overrides: Any) -> ContentPack:
         "situations": [
             {"id": "prenada", "label": "prenada", "personal": True,
              "al_expirar": {
+                 "regard_buscado": 0.6,
+                 "regard_no_buscado": 0.05,
+                 "regard_hacia_progenitores": 0.4,
+                 "regard_entre_progenitores": 0.3,
                  "hereda_traits": ["fuerza"],
                  "sortea_traits": [["varon", "mujer"]],
                  "initial_needs": {"vinculo": 0.5},
@@ -477,3 +481,164 @@ def test_what_you_do_to_yourself_has_no_author() -> None:
         c for c in sim.state.agents[ELLA].condiciones if c.situacion == PRENADA
     )
     assert esperando.por_quien is None
+
+
+# --- quién lo quería (D-076) ---------------------------------------------------
+#
+# No todo el que se convierte en padre quiere a su hijo igual, y la diferencia no
+# la puede decir un suelo de aprecio por relación: un suelo se lo pone a todo el
+# mundo por igual, y lo que separa a un padre de otro es si lo quiso ANTES.
+#
+# "Quererlo antes" no necesita un campo nuevo. Querer algo ya se escribe de una
+# sola manera en este motor —una meta— y `at_kin` es la vara que cuenta
+# parientes. Lo que faltaba era que algo pudiera CUMPLIRLA: hasta el parto, nada
+# anudaba un lazo en marcha, y el propio docstring de `at_kin` avisaba de que no
+# se escribiera un arco que dependiera de ella.
+
+
+def buscado_pack(quien: str = "ella", **overrides: Any) -> ContentPack:
+    """`quien` lleva la meta de tener descendencia. El otro, no."""
+    metas = {
+        "ella": {"id": "ser_madre", "label": "ser madre", "need": "vinculo",
+                 "at_kin": {"madre": 1}},
+        "el": {"id": "ser_padre", "label": "ser padre", "need": "vinculo",
+               "at_kin": {"padre": 1}},
+    }
+    fichas = [
+        {"id": "el", "label": "El", "home": "p1", "start_at": "p1",
+         "edad_inicial": 10_000, "traits": {"varon": 1.0, "fuerza": 0.8}},
+        {"id": "ella", "label": "Ella", "home": "p1", "start_at": "p1",
+         "edad_inicial": 10_000, "traits": {"mujer": 1.0, "fuerza": 0.2}},
+    ]
+    for ficha in fichas:
+        if ficha["id"] in quien.split("+"):
+            ficha["goals"] = [metas[str(ficha["id"])]]
+    data: dict[str, Any] = {"agents": fichas}
+    data.update(copy.deepcopy(overrides))
+    return nacer_pack(**data)
+
+
+def parir(pack: ContentPack, seed: int = 1) -> tuple[Simulation, AgentId]:
+    sim = gestando(Simulation(pack, seed=seed))
+    sim.run(GESTACION + 2)
+    return sim, next(a for a in sim.state.agents if a not in (EL, ELLA))
+
+
+def test_whoever_wanted_it_starts_loving_it() -> None:
+    sim, nacido = parir(buscado_pack("ella"))
+    assert sim.state.agents[ELLA].bonds[nacido].regard == pytest.approx(0.6)
+
+
+def test_whoever_did_not_starts_at_almost_nothing() -> None:
+    """Bajo, no negativo: quien no lo quería no arranca odiándolo, arranca sin
+    nada. A partir de ahí sube conviviendo, como el de cualquiera."""
+    sim, nacido = parir(buscado_pack("ella"))
+    assert sim.state.agents[EL].bonds[nacido].regard == pytest.approx(0.05)
+
+
+def test_two_parents_of_the_same_child_can_feel_differently_about_it() -> None:
+    """Lo que un suelo de aprecio por relación no puede decir: el mismo hijo,
+    los mismos dos padres, y dos afectos distintos."""
+    sim, nacido = parir(buscado_pack("ella"))
+    assert (
+        sim.state.agents[ELLA].bonds[nacido].regard
+        > sim.state.agents[EL].bonds[nacido].regard
+    )
+
+
+def test_nobody_wanted_it_and_it_is_born_anyway() -> None:
+    """No hay forma de interrumpir una concepción, y eso es a propósito: el hijo
+    no buscado tiene que poder existir."""
+    sim, nacido = parir(buscado_pack("nadie"))
+    assert sim.state.agents[ELLA].bonds[nacido].regard == pytest.approx(0.05)
+    assert sim.state.agents[EL].bonds[nacido].regard == pytest.approx(0.05)
+
+
+def test_achieving_it_together_brings_them_closer() -> None:
+    """Un hecho entre ELLOS DOS, que ningún premio hacia la criatura puede
+    decir."""
+    solo_ella, _ = parir(buscado_pack("ella"))
+    ambos, _ = parir(buscado_pack("el+ella"))
+
+    assert ambos.state.agents[ELLA].bonds[EL].regard > (
+        solo_ella.state.agents[ELLA].bonds[EL].regard
+    )
+    assert ambos.state.agents[EL].bonds[ELLA].regard > (
+        solo_ella.state.agents[EL].bonds[ELLA].regard
+    )
+
+
+def test_the_newborn_loves_them_both_the_same() -> None:
+    """Un recién nacido no sabe quién lo quiso."""
+    sim, nacido = parir(buscado_pack("ella"))
+    cria = sim.state.agents[nacido]
+    assert cria.bonds[ELLA].regard == pytest.approx(0.4)
+    assert cria.bonds[EL].regard == pytest.approx(0.4)
+
+
+def test_a_bond_that_already_existed_is_not_reset_by_a_birth() -> None:
+    """Estrena, no acumula: dos que ya se conocían no vuelven a empezar porque
+    haya nacido alguien."""
+    pack = buscado_pack("ella")
+    sim = Simulation(pack, seed=1)
+    for t in range(30):
+        sim.state.agents[ELLA].remember_company([EL], premium=0.9, rate=0.5, tick=t)
+    antes = sim.state.agents[ELLA].bonds[EL].regard
+    gestando(sim)
+    sim.run(GESTACION + 2)
+    assert sim.state.agents[ELLA].bonds[EL].regard >= antes
+
+
+def test_wanting_it_is_read_from_the_goal_and_nothing_else() -> None:
+    """Sin `at_kin` que nombre la relación, la misma meta no dice nada: lo que
+    se pregunta es si quería ESTO, no si tenía ambiciones."""
+    pack = nacer_pack(**{"agents": [
+        {"id": "el", "label": "El", "home": "p1", "start_at": "p1",
+         "edad_inicial": 10_000, "traits": {"varon": 1.0}},
+        {"id": "ella", "label": "Ella", "home": "p1", "start_at": "p1",
+         "edad_inicial": 10_000, "traits": {"mujer": 1.0},
+         "goals": [{"id": "otra_cosa", "label": "otra cosa", "need": "vinculo",
+                    "at_least": 0.95}]},
+    ]})
+    sim, nacido = parir(pack)
+    assert sim.state.agents[ELLA].bonds[nacido].regard == pytest.approx(0.05)
+
+
+# --- que un nacido pueda querer a su vez (D-077) --------------------------------
+
+
+def test_the_newborn_can_carry_goals_of_its_own() -> None:
+    """El hilo que `pursuing` dejaba señalado desde F1.14. Sin esto, la segunda
+    generación no puede querer nada: la meta está escrita en su ficha del censo,
+    el bucle que la cierra la ve —lee del censo— y el que la hace EMPUJAR no,
+    porque preguntaba al pack. La meta existía y no pesaba."""
+    pack = buscado_pack("ella", **{"situations": [
+        {"id": "prenada", "label": "prenada", "personal": True,
+         "al_expirar": {
+             "goals": ["ser_madre"],
+             "sortea_traits": [["varon", "mujer"]],
+             "relacion_con_portador": "hijo_de_portadora",
+             "relacion_con_causante": "hijo_de_causante",
+         }},
+    ]})
+    sim, nacido = parir(pack)
+    cria = sim.state.agents[nacido]
+    assert [str(m.id) for m in cria.metas] == ["ser_madre"]
+    assert [str(m.id) for m in cria.pursuing(pack)] == ["ser_madre"]
+
+
+def test_goals_of_the_newborn_survive_save_and_resume(tmp_path: Path) -> None:
+    pack = buscado_pack("ella", **{"situations": [
+        {"id": "prenada", "label": "prenada", "personal": True,
+         "al_expirar": {
+             "goals": ["ser_madre"],
+             "sortea_traits": [["varon", "mujer"]],
+             "relacion_con_portador": "hijo_de_portadora",
+             "relacion_con_causante": "hijo_de_causante",
+         }},
+    ]})
+    sim, nacido = parir(pack)
+    sim.save(tmp_path / "s.json")
+
+    otra = Simulation.resume(tmp_path / "s.json", pack)
+    assert [str(m.id) for m in otra.state.agents[nacido].metas] == ["ser_madre"]
