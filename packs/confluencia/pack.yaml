@@ -102,6 +102,19 @@ needs:
   progression: true
   rank_slowdown: 1.0
   cap: 0.5
+# Primera cadena económica (D-058): un bien es un eje de progresión más, y
+# representa VALOR ponderado por calidad -- la aptitud de quien fabrica ya
+# hace ese trabajo (`gain_multipliers`), sin un campo de calidad aparte.
+- id: hierro
+  label: hierro
+  decay_per_tick: 0.0
+  initial: 0.0
+  progression: true
+- id: espadas
+  label: espadas
+  decay_per_tick: 0.0
+  initial: 0.0
+  progression: true
 - id: salud
   label: salud
   decay_per_tick: 0.0
@@ -632,6 +645,82 @@ actions:
     # deuda real, `agravio_weight` ya hace que pese mucho más que el azar.
     min_agravio: 0.0
     agravio_weight: 0.8
+# Primera cadena económica: minar -> forjar -> vender, y un servicio aparte.
+# Ninguna lleva `requires_traits` (D-060): cualquiera puede intentarlo, y lo
+# que varía es la calidad -- la aptitud de quien fabrica o enseña, nunca el
+# acceso.
+- id: minar_hierro
+  label: minar hierro
+  duration_ticks: 14
+  requires_affordance: mineria
+  satisfies:
+    hierro: 0.6
+  costs:
+    descanso: 0.5
+  effects:
+    hierro: 0.10
+    descanso: -0.10
+- id: forjar_espada
+  label: forjar una espada
+  duration_ticks: 18
+  requires_affordance: forja
+  requires:
+    hierro: 0.3
+  satisfies:
+    espadas: 0.5
+  costs:
+    hierro: 0.3
+    descanso: 0.4
+  effects:
+    hierro: -0.3
+    espadas: 0.08
+    descanso: -0.15
+- id: vender_espada
+  label: vender una espada
+  duration_ticks: 4
+  requires_affordance: mercaduria
+  requires_company: 1
+  # 0.08 y no 1.0: es lo que UN forjado produce (D-058, valor ponderado, no
+  # conteo de unidades enteras). Un umbral de 1.0 exigiría trece forjados
+  # seguidos antes de la primera venta -- candado sin llave, mismo error que
+  # `desafiar` con `min_agravio` la primera vez.
+  requires:
+    espadas: 0.08
+  satisfies:
+    dinero: 0.5
+  costs:
+    espadas: 0.08
+  effects:
+    espadas: -0.08
+    dinero: 0.35
+  target:
+    gives:
+      dinero: -0.35
+      espadas: 0.08
+    # Vende igual a un desconocido que a un hermano -- literalmente el
+    # ejemplo del propio docstring de `regard_weight`.
+    regard_weight: 0.0
+- id: dar_clase_de_combate
+  label: dar clase de combate
+  duration_ticks: 10
+  requires_affordance: palestra
+  requires_company: 1
+  satisfies:
+    dinero: 0.4
+  costs:
+    descanso: 0.3
+  effects:
+    dinero: 0.15
+    descanso: -0.10
+  target:
+    gives:
+      dominio: 0.03
+      dinero: -0.15
+    # D-059: la clase rinde según la pericia de quien la da (su propio
+    # `gain_multipliers[dominio]`), no solo según lo receptivo que sea el
+    # alumno -- las dos escalas se componen dentro de `apply`.
+    gives_por_pericia: dominio
+    regard_weight: 0.0
 - id: investigar
   label: investigar
   duration_ticks: 20
@@ -949,6 +1038,7 @@ places:
   - palestra
   - trabajo
   - caza
+  - forja
   tags:
   - enanos
   - fuego
@@ -959,6 +1049,7 @@ places:
   label: la mina profunda
   affordances:
   - trabajo
+  - mineria
   tags:
   - enanos
   - tierra
