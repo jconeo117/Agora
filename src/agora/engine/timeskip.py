@@ -129,31 +129,62 @@ def _adelantar_reloj(sim: Simulation, ticks: int) -> None:
     vence al otro lado del hueco sin que nadie la empuje. Es la ventaja de
     guardar CUANDO paso algo en vez de cuanto lleva.
 
+    **Lo que si cobra la zancada** es lo que una condicion personal drena: no es
+    una estimacion sino aritmetica, porque una condicion aplica lo mismo cada
+    tick, viaje donde viaje quien la lleva. Y con ella la agonia, que ya no se
+    borra: avanza donde el eje sigue a cero despues de simular el dia.
+
     Los avistamientos y los vinculos guardan CUANDO se vieron, y caducan solos.
     Sin adelantar sus marcas con el reloj, un salto de seis meses los invalidaria
     todos de golpe: nadie recordaria un sitio y `forget_bonds` borraria la ciudad
     entera el primer tick despues del salto.
     """
     sim.state.tick += ticks
+    by_situation = sim.pack.situation_by_id
+    need_specs = sim.pack.need_by_id
     for agente in sim.state.agents_in_order():
-        # La agonia se BORRA, no se adelanta, y es la unica marca de tiempo aqui
-        # que no cobra la zancada. Las demas cuentan desde cuando paso algo y
-        # siguen siendo verdad al otro lado del hueco; esta cuenta ticks
-        # SEGUIDOS, y a traves de trece dias sin simular "seguidos" es falso.
+        # LO QUE UNA CONDICION DRENA SI COBRA LA ZANCADA, y es la unica cosa que
+        # este salto extrapola. No contradice la regla de arriba —no se estima
+        # una deriva medida— porque aqui no hay nada que medir: una condicion
+        # personal drena `effects * gravedad` cada tick, viaja con quien la
+        # lleva y no depende de donde este ni de lo que haga. Multiplicar por los
+        # ticks saltados es aritmetica, no una suposicion.
         #
-        # Las dos alternativas eran inventarse algo. Adelantarla mata a todo el
-        # que estuviera a cero al saltar, porque 1248 ticks pasan cualquier
-        # umbral — y los dias simulados demuestran que esa gente come. Dejarla
-        # colgando cuenta como consecutivos unos ticks repartidos por un mes.
-        # Borrarla dice lo unico cierto: no sabemos que paso esos dias.
+        # Las situaciones del LUGAR no entran, y la diferencia es justo esa:
+        # dependen de donde este cada cual, y donde estuvo esos dias no se
+        # simulo.
+        drenaje: dict[NeedId, float] = {}
+        for cond in agente.condiciones:
+            for need_id, delta in by_situation[cond.situacion].effects.items():
+                if delta < 0.0:
+                    drenaje[need_id] = (
+                        drenaje.get(need_id, 0.0) + delta * cond.gravedad * ticks
+                    )
+        if drenaje:
+            agente.endure(drenaje, need_specs)
+
+        # LA AGONIA avanza solo donde el eje SIGUE a cero al otro lado del hueco.
         #
-        # CONSECUENCIA, y conviene tenerla escrita: bajo `--skip` no se muere
-        # nadie de hambre salvo que el pack la declare letal en menos de lo que
-        # dura un dia simulado. Una carrera de cinco anyos con `--skip 14` no
-        # produce muertes por necesidad. Es una limitacion del atajo, no del
-        # motor, y sale del mismo sitio que las demas: lo que no se simula, no
-        # se inventa.
-        agente.agonia.clear()
+        # Antes se borraba entera, y el razonamiento era bueno para lo que habia
+        # entonces: cuenta ticks SEGUIDOS, adelantarla mataba a todo el que
+        # estuviera a cero al saltar, y los dias simulados demuestran que esa
+        # gente come. Pero esa objecion la contesta la propia condicion de
+        # arriba: si comio, el dia simulado lo levanta del cero y esto no le
+        # avanza nada. Si sigue a cero DESPUES de simular un dia entero y de
+        # cobrar lo que sus condiciones drenan, decir que estuvo a cero todo el
+        # hueco es la lectura mas fiel que hay — y borrarlo hacia imposible
+        # morirse de nada bajo salto, que es peor que estimar de mas.
+        #
+        # CONSECUENCIA: una carrera de anyos con `--skip` ya produce muertes por
+        # necesidad, y sobre todo por vejez (D-084), que es un drenaje constante
+        # que nadie levanta. Lo que sigue sin producir son las muertes de quien
+        # se hunde y se recupera dentro del hueco: eso no se simulo y no se
+        # inventa.
+        agente.agonia = {
+            need_id: llevan + ticks
+            for need_id, llevan in agente.agonia.items()
+            if agente.needs[need_id] <= 0.0
+        }
         for bond in agente.bonds.values():
             bond.last_seen += ticks
         agente.sightings = {

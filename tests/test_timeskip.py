@@ -23,7 +23,7 @@ from typing import Any
 
 import pytest
 
-from agora.engine.ontology import AgentId, NeedId
+from agora.engine.ontology import AgentId, NeedId, SituationId
 from agora.engine.pack import ContentPack
 from agora.engine.timeskip import error_de_salto, saltar
 from agora.engine.world import Simulation
@@ -216,3 +216,112 @@ def test_goals_close_during_the_skip_not_after() -> None:
     assert logros, "deberia haberse cumplido"
     assert logros[0].tick < sim.state.tick, "y no en el ultimo tick"
     assert sim.state.agents[AG1].goals["sabio"] == GoalStatus.ACHIEVED  # type: ignore[index]
+
+
+# --- lo que el salto SI extrapola (D-085) -------------------------------------
+#
+# La regla del modulo es no adivinar: se simulan dias de verdad, solo que menos.
+# Una condicion personal es la unica excepcion, y no la contradice: no hay
+# ninguna deriva que medir, porque una condicion drena `effects * gravedad` cada
+# tick, viaja con quien la lleva y no depende de donde este ni de lo que haga.
+# Multiplicarlo por los ticks saltados es aritmetica, no una suposicion.
+#
+# Las situaciones del LUGAR no entran, y la diferencia es justo esa: dependen de
+# donde estuviera cada cual, y eso no se simulo.
+
+
+def herido_pack(**overrides: Any) -> ContentPack:
+    """Un mundo con una condicion que drena y mata, y nada que la cure."""
+    data: dict[str, Any] = {
+        "needs": [
+            {"id": "hambre", "label": "hambre", "decay_per_tick": 0.02, "initial": 0.7,
+             "urgency_exponent": 2.0},
+            {"id": "saber", "label": "saber", "decay_per_tick": 0.0, "progression": True,
+             "initial": 0.0, "base_weight": 0.4, "urgency_exponent": 0.8},
+            {"id": "salud", "label": "salud", "decay_per_tick": 0.0, "initial": 1.0,
+             "lethal_after": 8},
+        ],
+        "situations": [
+            {"id": "hemorragia", "label": "hemorragia", "personal": True,
+             "effects": {"salud": -0.0005}},
+        ],
+    }
+    data.update(copy.deepcopy(overrides))
+    return skip_pack(**data)
+
+
+def test_a_condition_charges_the_stride() -> None:
+    """Sin esto, la salud de un herido bajaba `factor` veces mas despacio que en
+    el mundo real mientras el reloj avanzaba igual."""
+    seguido = Simulation(herido_pack(), seed=1312)
+    seguido.state.agents[AgentId("ag1")].afligir(SituationId("hemorragia"))
+    seguido.run(7 * 96)
+
+    saltado = Simulation(herido_pack(), seed=1312)
+    saltado.state.agents[AgentId("ag1")].afligir(SituationId("hemorragia"))
+    saltar(saltado, 7, 7)
+
+    real = seguido.state.agents[AgentId("ag1")].needs[NeedId("salud")]
+    atajo = saltado.state.agents[AgentId("ag1")].needs[NeedId("salud")]
+    assert atajo == pytest.approx(real, abs=0.02)
+
+
+def test_severity_multiplies_the_stride_too() -> None:
+    uno = Simulation(herido_pack(), seed=1312)
+    uno.state.agents[AgentId("ag1")].afligir(SituationId("hemorragia"), gravedad=1.0)
+    saltar(uno, 7, 7)
+    grave = Simulation(herido_pack(), seed=1312)
+    grave.state.agents[AgentId("ag1")].afligir(SituationId("hemorragia"), gravedad=2.0)
+    saltar(grave, 7, 7)
+
+    leve = 1.0 - uno.state.agents[AgentId("ag1")].needs[NeedId("salud")]
+    fuerte = 1.0 - grave.state.agents[AgentId("ag1")].needs[NeedId("salud")]
+    assert fuerte == pytest.approx(leve * 2.0, rel=0.05)
+
+
+def test_under_a_skip_somebody_can_finally_die() -> None:
+    """Era la consecuencia que el modulo tenia escrita como limite: bajo salto no
+    se moria nadie por necesidad, porque la agonia se borraba en cada zancada.
+    Una carrera de anyos no producia una sola muerte, y eso no es un mundo
+    conservador: es un mundo distinto."""
+    sim = Simulation(herido_pack(), seed=1312)
+    sim.state.agents[AgentId("ag1")].afligir(SituationId("hemorragia"), gravedad=4.0)
+    saltar(sim, 120, 7)
+    assert AgentId("ag1") not in sim.state.agents
+    assert AgentId("ag2") in sim.state.agents, "el que no sangraba sigue vivo"
+
+
+def test_getting_up_from_zero_still_wipes_the_clock() -> None:
+    """La objecion original sigue contestada, y ahora por el propio dia simulado:
+    quien come, se levanta del cero, y entonces la agonia no avanza nada."""
+    sim = Simulation(skip_pack(**{"needs": [
+        {"id": "hambre", "label": "hambre", "decay_per_tick": 0.02, "initial": 0.02,
+         "urgency_exponent": 2.0, "lethal_after": 200},
+        {"id": "saber", "label": "saber", "decay_per_tick": 0.0, "progression": True,
+         "initial": 0.0, "base_weight": 0.4, "urgency_exponent": 0.8},
+    ]}), seed=1312)
+    saltar(sim, 60, 7)
+    assert AgentId("ag1") in sim.state.agents, "come, así que no se muere de hambre"
+    assert not sim.state.agents[AgentId("ag1")].agonia
+
+
+def test_a_place_situation_does_not_charge_the_stride() -> None:
+    """Depende de donde estuviera cada cual, y eso no se simulo."""
+    sim = Simulation(skip_pack(**{
+        "needs": [
+            {"id": "hambre", "label": "hambre", "decay_per_tick": 0.02, "initial": 0.7,
+             "urgency_exponent": 2.0},
+            {"id": "saber", "label": "saber", "decay_per_tick": 0.0, "progression": True,
+             "initial": 0.0, "base_weight": 0.4, "urgency_exponent": 0.8},
+            {"id": "salud", "label": "salud", "decay_per_tick": 0.0, "initial": 1.0},
+        ],
+        "situations": [
+            {"id": "ventisca", "label": "ventisca", "every": 96, "lasts": 95,
+             "effects": {"salud": -0.002}},
+        ],
+    }), seed=1312)
+    saltar(sim, 7, 7)
+    # Siete dias de reloj, uno simulado: pierde lo de UN dia (0.002 * 96), no lo
+    # de siete. Si la ventisca cobrara la zancada estaria muerto.
+    perdido = 1.0 - sim.state.agents[AgentId("ag1")].needs[NeedId("salud")]
+    assert perdido == pytest.approx(0.002 * 96, abs=0.02)
