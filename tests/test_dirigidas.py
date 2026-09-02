@@ -622,6 +622,70 @@ def test_a_pack_cannot_mix_the_two_targeting_modes() -> None:
             {"id": "nada", "label": "nada", "duration_ticks": 1}]})
 
 
+# --- gives_por_pericia (D-059): la calidad es de quien da, no de quien recibe -
+
+
+def test_gives_por_pericia_scales_by_the_actors_own_skill() -> None:
+    """Mismo `gives` declarado, mismo paciente -- lo único que cambia es la
+    pericia de quien cura. Sin esto, un maestro y un novato curarían
+    exactamente igual, porque `apply` solo mira la aptitud de quien RECIBE."""
+
+    def curar_con(pericia: float) -> float:
+        pack = dirigido_pack(**{
+            "traits": [{"id": "experto", "label": "experto",
+                       "gain_multipliers": {"sangre": pericia}}],
+            "actions": [
+                {"id": "curar", "label": "curar", "duration_ticks": 1,
+                 "requires_affordance": "sitio", "requires_company": 1,
+                 "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+                 "target": {"gives": {"sangre": 0.10},
+                            "gives_por_pericia": "sangre"}},
+                {"id": "nada", "label": "nada", "duration_ticks": 1}],
+            "agents": [
+                {"id": "sanador", "label": "Sanador", "home": "p1", "start_at": "p1",
+                 "traits": {"experto": 1.0}},
+                {"id": "herido", "label": "Herido", "home": "p1", "start_at": "p1",
+                 "initial_needs": {"sangre": 0.3}},
+            ]})
+        sim = Simulation(pack, seed=1)
+        sim.run(2)
+        return sim.state.agents[HERIDO].needs[SANGRE]
+
+    novato = curar_con(1.0)
+    maestro = curar_con(3.0)
+    assert maestro > novato, "el maestro cura más con el mismo gesto declarado"
+
+
+def test_without_gives_por_pericia_only_the_receiver_matters() -> None:
+    """El defecto (`None`) no cambia nada de lo que ya había: la escala sigue
+    siendo solo la de quien recibe, como con `curar` desde siempre."""
+    pack = dirigido_pack(**{
+        "traits": [{"id": "experto", "label": "experto",
+                   "gain_multipliers": {"sangre": 5.0}}],
+        "agents": [
+            {"id": "sanador", "label": "Sanador", "home": "p1", "start_at": "p1",
+             "traits": {"experto": 1.0}},
+            {"id": "herido", "label": "Herido", "home": "p1", "start_at": "p1"},
+        ]})
+    sim = Simulation(pack, seed=1)
+    sim.afligir(HERIDO, HERIDA)
+    sim.run(30)
+    assert not sim.state.agents[HERIDO].condiciones, (
+        "la pericia del sanador no declarada no debía impedir la cura normal"
+    )
+
+
+def test_gives_por_pericia_must_reference_a_real_need() -> None:
+    with pytest.raises(ValueError, match="gives_por_pericia"):
+        dirigido_pack(**{"actions": [
+            {"id": "curar", "label": "curar", "duration_ticks": 1,
+             "requires_affordance": "sitio", "requires_company": 1,
+             "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+             "target": {"gives": {"sangre": 0.10},
+                        "gives_por_pericia": "no_existe"}},
+            {"id": "nada", "label": "nada", "duration_ticks": 1}]})
+
+
 # --- lo que desbloquea --------------------------------------------------------
 
 

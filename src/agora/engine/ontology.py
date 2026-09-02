@@ -725,6 +725,27 @@ class TargetSpec(Spec):
     sangre a alguien es lo mismo que darle de comer, con el signo cambiado.
     """
 
+    gives_por_pericia: NeedId | None = None
+    """Qué aptitud de QUIEN ACTÚA escala la parte POSITIVA de `gives` (D-059).
+
+    `None` (el defecto) dice lo de siempre: lo que el otro recibe se escala
+    solo por SU propia aptitud, dentro de `apply` — correcto para curar, donde
+    es el cuerpo de quien recibe el que decide cuánto le ayuda un tratamiento.
+
+    Declarado, dice otra cosa: la calidad de lo que se ofrece depende de quien
+    lo ofrece, no de quien lo recibe. Un cazador experimentado enseña mejor
+    que uno novato — no porque el motor sepa qué es enseñar bien, sino porque
+    `gain_multipliers` ya sabe decir cuánto le cunde algo a cada cual, y aquí
+    se aplica al OTRO LADO de la acción por primera vez.
+
+    **Las dos escalas se COMPONEN, nunca se sustituyen.** Lo que sale de aquí
+    multiplica lo declarado, y ese resultado todavía pasa por `apply`, que lo
+    vuelve a escalar por la aptitud del receptor. Un maestro excelente con un
+    alumno dotado rinde más que cualquiera de los dos por separado, y es
+    exactamente lo que se pediría de cualquier otro canal del motor: aquí no
+    hay caso especial, solo dos multiplicadores de sitios distintos.
+    """
+
     cures: dict[SituationId, float] = Field(default_factory=dict)
     """Cuánta gravedad le quita **al otro** en cada condición. Solo personales.
 

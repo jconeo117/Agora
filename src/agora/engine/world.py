@@ -1493,6 +1493,13 @@ class Simulation:
 
         recibe = {n: v for n, v in destino.gives.items() if v > 0.0}
         sufre = {n: v for n, v in destino.gives.items() if v < 0.0}
+        if recibe and destino.gives_por_pericia is not None:
+            # D-059: la pericia de quien ACTÚA escala lo que el otro recibe,
+            # antes de que `apply` lo vuelva a escalar por la aptitud de quien
+            # lo recibe. Las dos se COMPONEN -- un gran maestro con un alumno
+            # dotado rinde más que cualquiera de los dos por separado.
+            pericia = agent.gains.get(destino.gives_por_pericia, 1.0)
+            recibe = {n: v * pericia for n, v in recibe.items()}
         if recibe:
             otro.apply(recibe, self.pack.need_by_id)
         if sufre:

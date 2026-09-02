@@ -239,6 +239,15 @@ class ContentPack(Spec):
                 problems += self._unknown_keys(
                     f"acción {action.id!r}.{field}", "necesidad", mapping, known
                 )
+            if (
+                action.target is not None
+                and action.target.gives_por_pericia is not None
+                and str(action.target.gives_por_pericia) not in known
+            ):
+                problems.append(
+                    f"acción {action.id!r}.target.gives_por_pericia: necesidad "
+                    f"desconocida {action.target.gives_por_pericia!r}"
+                )
 
         for agent in self.agents:
             problems += self._unknown_keys(
