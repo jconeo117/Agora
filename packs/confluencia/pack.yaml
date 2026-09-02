@@ -31,10 +31,16 @@ health:
   - sostener_un_pacto
   - trabajo_sucio
   # La cadena completa (aprender -> cruzar la puerta -> minar lo suficiente
-  # -> forjar -> tener stock) tarda más de 14 días en dar la primera venta --
-  # medido: 0 en el contrato corto, 7 a los 21 días. Es un ciclo económico
-  # que necesita tiempo real, no contenido muerto; forzar el número aquí
-  # sería calibrar contra la ventana en vez de contra el mundo.
+  # -> forjar -> tener stock) tarda más de 14 días en dar su primer fruto, y
+  # el segundo lote de servicios (escoltar/curar_con_magia/dar_clase_de_cultura)
+  # le compite el tiempo de sobra a quien todavía está aprendiendo. Medido:
+  # `forjar_espada` pasa de ocurrir dentro del contrato corto a necesitar la
+  # ventana de 21 días (0.45/agente) en cuanto existen alternativas de pago
+  # más rápidas; `vender_espada` cae de 7 a 2 en el mismo plazo. Es un ciclo
+  # económico que necesita tiempo real y ahora compite de verdad por ese
+  # tiempo -- no contenido muerto; forzar el número aquí sería calibrar
+  # contra la ventana en vez de contra el mundo.
+  - forjar_espada
   - vender_espada
 tuning:
   travel_discount: 0.94
@@ -765,6 +771,73 @@ actions:
     # `gain_multipliers[dominio]`), no solo según lo receptivo que sea el
     # alumno -- las dos escalas se componen dentro de `apply`.
     gives_por_pericia: dominio
+    regard_weight: 0.0
+# Segunda tanda de servicios (D-060): mismo patrón, distinto eje de pericia
+# cada vez. Ninguno lleva puerta -- esa es la lección de minar/forjar
+# (D-061), que son oficios manuales; un servicio se decidió abierto desde el
+# principio, y basta con que la calidad varíe.
+- id: escoltar
+  label: escoltar a alguien
+  duration_ticks: 8
+  requires_company: 1
+  satisfies:
+    dinero: 0.4
+  costs:
+    descanso: 0.3
+  effects:
+    dinero: 0.15
+    descanso: -0.10
+  target:
+    gives:
+      vinculo: 0.05
+      dinero: -0.15
+    gives_por_pericia: dominio
+    regard_weight: 0.0
+- id: curar_con_magia
+  label: curar con magia
+  duration_ticks: 6
+  requires_affordance: quietud
+  requires_company: 1
+  requires:
+    mana: 0.25
+  satisfies:
+    dinero: 0.4
+  costs:
+    mana: 0.25
+    descanso: 0.1
+  effects:
+    mana: -0.25
+    dinero: 0.15
+    descanso: -0.05
+  target:
+    gives:
+      salud: 0.15
+      dinero: -0.15
+    # Cura al herido, como `socorrer` -- pero de pago, y con maná en vez de
+    # vendajes. La pericia sale de la misma necesidad que se gasta para
+    # lanzarlo.
+    requires_condition: herida
+    gives_por_pericia: mana
+    regard_weight: 0.0
+- id: dar_clase_de_cultura
+  label: dar clase de comportamiento y cultura
+  duration_ticks: 10
+  requires_company: 1
+  satisfies:
+    dinero: 0.35
+  costs:
+    descanso: 0.2
+  effects:
+    dinero: 0.12
+    descanso: -0.08
+  target:
+    gives:
+      vinculo: 0.05
+      dinero: -0.12
+    # A diferencia de `dar_clase_de_combate`: la pericia es social
+    # (`vinculo` propio), no marcial ni arcana -- comportamiento y
+    # costumbres, no magia ni maná.
+    gives_por_pericia: vinculo
     regard_weight: 0.0
 - id: investigar
   label: investigar
