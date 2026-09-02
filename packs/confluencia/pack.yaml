@@ -915,8 +915,73 @@ actions:
       dinero: -0.24
       salud: -0.05
     por_deuda: true
-    min_deuda: 0.01
+    # 0.003 y no 0.01: desde que `prestar_dinero` (D-065) crea deudas en marcha,
+    # la puerta tiene que dejar pasar tambien la tasa de un prestamo reciente y
+    # no solo la de las cuatro deudas escritas a mano (0.015-0.02).
+    min_deuda: 0.003
     deuda_weight: 0.0
+# El otro extremo de `cobrar_deuda` (D-065). Hasta aqui las deudas de este
+# mundo estaban escritas a mano en `properties`, y quien le debia a quien se
+# decidia antes del tick cero; esta accion las crea en marcha, y es lo primero
+# que el motor hace nacer durante una partida.
+#
+# Sin puerta de clase (D-060): la puerta la pone el bolsillo (`requires:
+# dinero`), que es una condicion GANADA y no una etiqueta -- se cruza teniendo
+# con que prestar, no habiendo nacido prestamista.
+#
+# Presta 0.25 y le quedan debiendo 0.30: un veinte por ciento de interes,
+# ESCRITO y no calculado. El motor no relaciona `gives` con `saldo` -- hacerlo
+# le exigiria saber cual de los ejes es el dinero.
+#
+# `satisfies` es vinculo y no dinero, y no es un descuido. Prestar CUESTA
+# dinero en el momento (`effects`), y el interes llega despues por un goteo
+# pasivo que nadie atribuye a la accion; un agente que decide por tick no puede
+# razonar un retorno a cien ticks vista. Lo que le mueve a prestar es el favor.
+# El negocio se lo lleva igual.
+- id: prestar_dinero
+  label: prestar dinero
+  duration_ticks: 4
+  requires_affordance: contratos
+  requires_company: 1
+  requires:
+    dinero: 0.25
+  # `dominio` y no `vinculo` a secas, aunque prestar sea un favor. Medido: con
+  # `vinculo: 1.0` la accion era candidata 154 veces en 2 dias y entraba en el
+  # pool de tres UNA -- caia al puesto 33-48 detras de `charlar`, que da el
+  # mismo vinculo y no cuesta nada. Ninguna calibracion del coste arregla eso:
+  # mientras el premio sea el mismo que el de la alternativa gratis, prestar es
+  # estrictamente peor. Tener a alguien en deuda es la unica cosa que prestar da
+  # y charlar no, y este mundo ya la llama `dominio` en `cobrar_deuda`.
+  #
+  # Lo que NO se puede escribir aqui es `dinero`, por mucho que el prestamo
+  # devuelva un veinte por ciento mas: `gain_beliefs` corrige `satisfies` contra
+  # los `effects` reales, y el interes no llega por `effects` sino por el goteo
+  # pasivo de la propiedad. El agente desaprenderia la promesa en unos dias y la
+  # accion moriria sola.
+  satisfies:
+    dominio: 0.8
+    vinculo: 0.5
+  costs:
+    dinero: 0.25
+  effects:
+    dominio: 0.01
+    vinculo: 0.1
+    dinero: -0.25
+  saturation_gain: 0.2
+  target:
+    gives:
+      dinero: 0.25
+    # Se presta a quien se aprecia, pero no solo: `regard_weight` encoge y no
+    # veta, asi que prestarle a un desconocido sigue valiendo la mitad.
+    regard_weight: 0.5
+    # 0.003 por tick sobre un saldo de 0.30: cien ticks, poco mas de un dia de
+    # este reloj. Mas lento seria invisible para `cobrar_deuda`, cuya puerta
+    # mira la TASA y no el saldo (D-064); mas rapido no seria un prestamo.
+    crea_deuda:
+      renta:
+        dinero: 0.003
+      saldo:
+        dinero: 0.30
 - id: cazar
   label: cazar
   duration_ticks: 16
