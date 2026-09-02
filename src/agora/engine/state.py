@@ -850,6 +850,7 @@ class AgentState:
         presentes: Sequence[AgentState],
         spec: TargetSpec,
         agravio: Mapping[AgentId, float] | None = None,
+        deudas: Mapping[AgentId, float] | None = None,
     ) -> AgentState | None:
         """A quién de los que están aquí. `None` si a ninguno.
 
@@ -873,15 +874,21 @@ class AgentState:
         `max_regard` —descarta por DEMASIADO aprecio, no por poco— y el
         desempate MINIMIZA el aprecio en vez de maximizarlo. Es el que hace
         falta para violencia por codicia, que no puede esperar a que exista
-        una deuda (`por_agravio` no puede empezar solo) ni debe golpear al
-        mejor amigo (el modo por defecto).
+        una deuda de agravio (`por_agravio` no puede empezar solo) ni debe
+        golpear al mejor amigo (el modo por defecto).
+
+        Con `spec.por_deuda`, el cuarto modo: la puerta mira `min_deuda`
+        sobre `deudas` (lo que te deben según `WorldState.propiedades`, NO
+        lo mismo que `agravio` — una es propiedad, la otra es memoria), y el
+        desempate es a quien más te deba.
 
         Desempate por id, como en todas partes: sin él, dos procesos con la misma
         semilla curarían a personas distintas.
         """
         mejor: AgentState | None = None
         mejor_valor = 0.0
-        deudas = agravio or {}
+        agravios = agravio or {}
+        deudas_reales = deudas or {}
         for otro in presentes:
             if otro.spec_id == self.spec_id:
                 continue
@@ -890,8 +897,12 @@ class AgentState:
             ):
                 continue
             if spec.por_agravio:
-                valor = deudas.get(otro.spec_id, 0.0)
+                valor = agravios.get(otro.spec_id, 0.0)
                 if valor < spec.min_agravio:
+                    continue
+            elif spec.por_deuda:
+                valor = deudas_reales.get(otro.spec_id, 0.0)
+                if valor < spec.min_deuda:
                     continue
             elif spec.por_desconocido:
                 aprecio = self.bonds[otro.spec_id].regard if otro.spec_id in self.bonds else 0.0
@@ -907,7 +918,11 @@ class AgentState:
         return mejor
 
     def disposicion(
-        self, hacia: AgentId, spec: TargetSpec, agravio: Mapping[AgentId, float] | None = None
+        self,
+        hacia: AgentId,
+        spec: TargetSpec,
+        agravio: Mapping[AgentId, float] | None = None,
+        deudas: Mapping[AgentId, float] | None = None,
     ) -> float:
         """Cuánto le compensa hacérselo **a este**. Multiplica la recompensa.
 
@@ -916,13 +931,21 @@ class AgentState:
         cuando no hay nada mejor que hacer. Con `spec.por_agravio`, el espejo
         exacto sobre lo que te debe en vez de lo que aprecias (`agravio_weight`).
         Con `spec.por_desconocido` no encoge nada (D-101): la codicia no se mide
-        por CUÁNTO de desconocido es alguien, solo por serlo o no.
+        por CUÁNTO de desconocido es alguien, solo por serlo o no. Con
+        `spec.por_deuda`, el mismo espejo sobre una deuda real (D-063) — acotada
+        a 1.0 antes de componer, porque a diferencia del agravio (ya saturado en
+        `[0,1)`) una deuda no tiene techo natural.
         """
         if spec.por_agravio:
             if spec.agravio_weight <= 0.0:
                 return 1.0
             valor = (agravio or {}).get(hacia, 0.0)
             return (1.0 - spec.agravio_weight) + spec.agravio_weight * valor
+        if spec.por_deuda:
+            if spec.deuda_weight <= 0.0:
+                return 1.0
+            valor = min(1.0, (deudas or {}).get(hacia, 0.0))
+            return (1.0 - spec.deuda_weight) + spec.deuda_weight * valor
         if spec.por_desconocido:
             return 1.0
         if spec.regard_weight <= 0.0:

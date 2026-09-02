@@ -794,6 +794,16 @@ class Simulation:
             dueño = self.state.agents.get(propiedad.dueño)
             if dueño is not None:
                 dueño.apply(propiedad.renta, self.pack.need_by_id)
+            # DEUDA no es un lugar ni un objeto: lo que cobra el acreedor sale
+            # del bolsillo del deudor (D-063), o el motor estaría creando
+            # dinero de la nada cada tick. `objeto` está garantizado a ser un
+            # agente real para este tipo (`_check_property_refs`).
+            if propiedad.tipo is PropertyKind.DEUDA:
+                deudor = self.state.agents.get(AgentId(propiedad.objeto))
+                if deudor is not None:
+                    deudor.apply(
+                        {n: -v for n, v in propiedad.renta.items()}, self.pack.need_by_id
+                    )
 
     def _meta_cumplida(self, agent: AgentState, goal: GoalSpec) -> bool:
         """Si esta meta ya está. Cuatro varas, y el pack declara exactamente una.

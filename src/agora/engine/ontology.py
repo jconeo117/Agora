@@ -852,6 +852,34 @@ class TargetSpec(Spec):
     `min_regard` en 0.0 deja la puerta abierta por defecto para el modo
     normal."""
 
+    por_deuda: bool = False
+    """Esta acción se dirige **a quien te debe**, según una `Propiedad` tipo
+    DEUDA de la que eres dueño -- no a quien más aprecias, ni a quien te
+    agravió (`por_agravio` mira la memoria, no la propiedad; son ejes
+    distintos y pueden coincidir sin ser lo mismo).
+
+    Cuarto modo, mismo patrón que los otros tres: la puerta es objetiva
+    (`min_deuda`, cuánto te tiene que deber) y el desempate subjetivo (a
+    quien más te deba, `deuda_weight` en la recompensa). Mutuamente
+    excluyente con `por_agravio` y `por_desconocido` -- el pack no carga si
+    declara dos a la vez, por la misma razón que esos dos: no hay forma de
+    leer "a quien más te debe, y de esos a quien menos aprecias" sin
+    inventar un criterio que nadie pidió.
+
+    `deudas` llega ya resuelto por deliberación (una consulta sobre
+    `WorldState.propiedades`, no una por candidato) -- mismo motivo que
+    `agravio`.
+    """
+
+    min_deuda: float = Field(default=0.0, ge=0.0)
+    """Cuánto te tiene que deber, como mínimo, para molestarte. Puerta dura,
+    solo con `por_deuda`. En la misma unidad que la `renta` de la deuda, no
+    una fracción [0,1] -- una deuda no está acotada como un aprecio."""
+
+    deuda_weight: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Cuánto depende de CUÁNTO te deba. Espejo exacto de `agravio_weight`,
+    sobre el monto de la deuda en vez del agravio acumulado."""
+
 
 class ActionSpec(Spec):
     """Algo que un agente puede hacer durante N ticks.

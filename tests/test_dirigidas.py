@@ -622,6 +622,107 @@ def test_a_pack_cannot_mix_the_two_targeting_modes() -> None:
             {"id": "nada", "label": "nada", "duration_ticks": 1}]})
 
 
+# --- por_deuda (D-063): el cuarto modo, para cobrar lo que te deben --------
+#
+# Ni el aprecio ni el agravio (una deuda de daño, no de dinero) sirven para
+# "cóbrale al que más te debe": es un tercer eje, ortogonal a los otros dos,
+# así que necesita su propio modo en vez de forzar `por_agravio` a significar
+# dos cosas distintas. La puerta es `min_deuda` y el desempate MAXIMIZA la
+# deuda, igual que `por_agravio` maximiza el agravio -- son el mismo patrón
+# sobre una cuenta distinta.
+
+
+def test_por_deuda_tiebreak_goes_to_whoever_owes_you_most() -> None:
+    """Espejo exacto de `test_por_agravio_tiebreak_goes_to_whoever_owes_you_most`
+    sobre la cuenta de dinero en vez de la de daño."""
+    pack = dirigido_pack(**{
+        "actions": [
+            {"id": "cobrar", "label": "cobrar", "duration_ticks": 1,
+             "requires_affordance": "sitio", "requires_company": 1,
+             "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+             "target": {"gives": {"sangre": -0.05}, "por_deuda": True,
+                        "min_deuda": 0.1}},
+            {"id": "nada", "label": "nada", "duration_ticks": 1}],
+        "agents": [
+            {"id": "sanador", "label": "Sanador", "home": "p1", "start_at": "p1"},
+            {"id": "herido", "label": "Herido", "home": "p1", "start_at": "p1"},
+            {"id": "otro", "label": "Otro", "home": "p1", "start_at": "p1"},
+        ]})
+    destino = pack.action_by_id[ActionId("cobrar")].target
+    assert destino is not None
+
+    sim = Simulation(pack, seed=1)
+    elegido = sim.state.agents[SANADOR].elegir_destinatario(
+        [sim.state.agents[HERIDO], sim.state.agents[OTRO]],
+        destino,
+        deudas={HERIDO: 0.2, OTRO: 0.9},
+    )
+    assert elegido is not None and elegido.spec_id == OTRO
+
+
+def test_por_deuda_gate_excludes_debts_below_the_threshold() -> None:
+    """Bajo `min_deuda`, ni la deuda más grande presente es candidata."""
+    pack = dirigido_pack(**{
+        "actions": [
+            {"id": "cobrar", "label": "cobrar", "duration_ticks": 1,
+             "requires_affordance": "sitio", "requires_company": 1,
+             "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+             "target": {"gives": {"sangre": -0.05}, "por_deuda": True,
+                        "min_deuda": 0.5}},
+            {"id": "nada", "label": "nada", "duration_ticks": 1}],
+        "agents": [
+            {"id": "sanador", "label": "Sanador", "home": "p1", "start_at": "p1"},
+            {"id": "herido", "label": "Herido", "home": "p1", "start_at": "p1"},
+            {"id": "otro", "label": "Otro", "home": "p1", "start_at": "p1"},
+        ]})
+    destino = pack.action_by_id[ActionId("cobrar")].target
+    assert destino is not None
+
+    sim = Simulation(pack, seed=1)
+    elegido = sim.state.agents[SANADOR].elegir_destinatario(
+        [sim.state.agents[HERIDO], sim.state.agents[OTRO]],
+        destino,
+        deudas={HERIDO: 0.3, OTRO: 0.2},
+    )
+    assert elegido is None, "nadie debe lo suficiente para que valga la pena cobrar"
+
+
+def test_disposicion_scales_by_the_debt_size_clamped_to_one() -> None:
+    """`deuda_weight` funciona como `agravio_weight`, pero el monto no viene
+    pre-saturado a [0, 1) como el agravio -- de ahí el `min(1.0, ...)`."""
+    pack = dirigido_pack(**{"actions": [
+        {"id": "cobrar", "label": "cobrar", "duration_ticks": 1,
+         "requires_affordance": "sitio", "requires_company": 1,
+         "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+         "target": {"gives": {"sangre": -0.05}, "por_deuda": True,
+                    "deuda_weight": 1.0}},
+        {"id": "nada", "label": "nada", "duration_ticks": 1}]})
+    destino = pack.action_by_id[ActionId("cobrar")].target
+    assert destino is not None
+
+    sim = Simulation(pack, seed=1)
+    cobrador = sim.state.agents[SANADOR]
+    sin_deuda = cobrador.disposicion(HERIDO, destino, deudas={})
+    con_deuda_grande = cobrador.disposicion(HERIDO, destino, deudas={HERIDO: 50.0})
+
+    assert sin_deuda == 0.0, "con peso 1.0, no deber nada no compensa nada"
+    assert con_deuda_grande == 1.0, "una deuda enorme no dispara la disposición por encima de 1"
+
+
+def test_a_pack_cannot_mix_por_deuda_with_the_other_modes() -> None:
+    """`por_deuda` es un tercer desempate para la misma mitad de la elección:
+    combinarlo con cualquiera de los otros dos es tan hueco como mezclar esos
+    dos entre sí."""
+    with pytest.raises(ValueError, match=r"por_agravio.*por_deuda"):
+        dirigido_pack(**{"actions": [
+            {"id": "confuso", "label": "confuso", "duration_ticks": 1,
+             "requires_affordance": "sitio", "requires_company": 1,
+             "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.20},
+             "target": {"gives": {"sangre": -0.05}, "por_agravio": True,
+                        "por_deuda": True}},
+            {"id": "nada", "label": "nada", "duration_ticks": 1}]})
+
+
 # --- gives_por_pericia (D-059): la calidad es de quien da, no de quien recibe -
 
 

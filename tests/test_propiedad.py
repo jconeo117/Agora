@@ -189,6 +189,50 @@ def test_a_property_without_an_owner_pays_nobody() -> None:
     assert sim.state.agents[DUENYO].needs[DINERO] == pytest.approx(antes)
 
 
+# --- renta de una deuda (D-063): lo que cobra uno, lo pierde el otro --------
+
+
+def test_debt_object_must_be_a_known_agent() -> None:
+    """A diferencia de OBJETO/TITULO, una DEUDA sí tiene forma obligatoria:
+    `_aplicar_rentas` le resta la renta a `objeto` cada tick, y sin un agente
+    real esa resta cae en el vacío en silencio."""
+    with pytest.raises(ValueError, match="agente desconocido"):
+        propiedad_pack(**{"properties": [
+            {"id": "prestamo", "label": "prestamo", "tipo": "deuda",
+             "objeto": "nadie", "renta": {"dinero": 0.05},
+             "dueño_inicial": "duenyo"},
+        ]})
+
+
+def test_collecting_a_debt_charges_the_debtor() -> None:
+    """El espejo de `test_the_owner_of_a_place_collects_its_rent`: lo que
+    gana el acreedor sale del deudor, no de la nada."""
+    pack = _solo_renta_pack(properties=[
+        {"id": "prestamo", "label": "prestamo", "tipo": "deuda",
+         "objeto": "esclavo", "renta": {"dinero": 0.05},
+         "dueño_inicial": "duenyo"},
+    ])
+    sim = Simulation(pack, seed=1)
+    dinero_dueño = sim.state.agents[DUENYO].needs[DINERO]
+    dinero_deudor = sim.state.agents[ESCLAVO].needs[DINERO]
+    sim.tick()
+    assert sim.state.agents[DUENYO].needs[DINERO] == pytest.approx(dinero_dueño + 0.05)
+    assert sim.state.agents[ESCLAVO].needs[DINERO] == pytest.approx(dinero_deudor - 0.05)
+
+
+def test_an_unowned_debt_charges_nobody() -> None:
+    """Sin acreedor no hay a quién pagarle, y el motor no le cobra al deudor
+    una deuda que nadie está cobrando."""
+    pack = _solo_renta_pack(properties=[
+        {"id": "prestamo", "label": "prestamo", "tipo": "deuda",
+         "objeto": "esclavo", "renta": {"dinero": 0.05}},
+    ])
+    sim = Simulation(pack, seed=1)
+    antes = sim.state.agents[ESCLAVO].needs[DINERO]
+    sim.run(5)
+    assert sim.state.agents[ESCLAVO].needs[DINERO] == pytest.approx(antes)
+
+
 # --- tributo: la persona ------------------------------------------------------
 
 

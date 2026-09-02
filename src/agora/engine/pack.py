@@ -599,10 +599,13 @@ class ContentPack(Spec):
         """`objeto` señala a quien toca según `tipo`, `dueño_inicial` existe, y
         `renta`/`tributo` se declaran en el eje que les corresponde.
 
-        `objeto` solo se valida como agente o lugar en PERSONA/LUGAR: para las
-        otras tres clases es libre a propósito (ver el docstring de
+        `objeto` solo se valida como agente en PERSONA/DEUDA y como lugar en
+        LUGAR: para OBJETO/TITULO es libre a propósito (ver el docstring de
         `PropertySpec.objeto`), así que exigirle una forma sería inventar una
-        primitiva para lo que el motor no tiene dónde guardar.
+        primitiva para lo que el motor no tiene dónde guardar. DEUDA se suma a
+        la lista de tipos con forma obligatoria (D-063) porque `_aplicar_rentas`
+        cobra la renta de una deuda restándosela al deudor -- si `objeto` no
+        resuelve a un agente real, esa resta cae en el vacío en silencio.
         """
         conocidos_agente = frozenset(str(a.id) for a in self.agents)
         conocidos_lugar = frozenset(str(p.id) for p in self.places)
@@ -622,6 +625,10 @@ class ContentPack(Spec):
             if prop.tipo is PropertyKind.LUGAR and str(prop.objeto) not in conocidos_lugar:
                 problems.append(
                     f"propiedad {prop.id!r}.objeto: lugar desconocido {prop.objeto!r}"
+                )
+            if prop.tipo is PropertyKind.DEUDA and str(prop.objeto) not in conocidos_agente:
+                problems.append(
+                    f"propiedad {prop.id!r}.objeto: agente desconocido {prop.objeto!r}"
                 )
             problems += self._unknown_keys(
                 f"propiedad {prop.id!r}.renta", "necesidad", prop.renta, conocidas_necesidades
@@ -790,15 +797,21 @@ class ContentPack(Spec):
                     f"acción {action.id!r} apunta a alguien y no exige compañía: "
                     f"declara `requires_company: 1`"
                 )
-            if destino.por_agravio and destino.por_desconocido:
+            modos = [
+                m for m, activo in (
+                    ("por_agravio", destino.por_agravio),
+                    ("por_desconocido", destino.por_desconocido),
+                    ("por_deuda", destino.por_deuda),
+                ) if activo
+            ]
+            if len(modos) > 1:
                 # No hay forma de leer "a quien menos conoces, y de esos a quien
-                # más te debe" sin inventar un tercer criterio de desempate que
-                # nadie pidió (D-101 / D-052): los dos modos cambian la MISMA
-                # mitad de la elección y no se pueden componer.
+                # más te debe" sin inventar un cuarto criterio de desempate que
+                # nadie pidió (D-101 / D-052 / D-063): cada modo cambia la MISMA
+                # mitad de la elección y no se pueden componer entre sí.
                 problems.append(
-                    f"acción {action.id!r}.target declara `por_agravio` y "
-                    f"`por_desconocido` a la vez: son dos desempates distintos "
-                    f"para la misma elección"
+                    f"acción {action.id!r}.target declara {' y '.join(modos)!s} "
+                    f"a la vez: son desempates distintos para la misma elección"
                 )
         return problems
 

@@ -73,6 +73,7 @@ from agora.engine.ontology import (
     PhaseId,
     PlaceId,
     PlaceSpec,
+    PropertyKind,
     RelationId,
     SituationId,
     TraitId,
@@ -489,6 +490,16 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
         else {}
     )
 
+    # A quién le cobra. No es memoria: es contabilidad, así que sale de
+    # `propiedades`, no de `MemoriaEpisodica` -- y por la misma razón que
+    # arriba, solo se recorre si alguna acción se dirige `por_deuda`.
+    deudas: dict[AgentId, float] = {}
+    if any(a.target is not None and a.target.por_deuda for a in pack.actions):
+        for propiedad in world.propiedades.values():
+            if propiedad.tipo is PropertyKind.DEUDA and propiedad.dueño == agent.spec_id:
+                deudor = AgentId(propiedad.objeto)
+                deudas[deudor] = deudas.get(deudor, 0.0) + sum(propiedad.renta.values())
+
     found: list[Decision] = []
     for place in pack.places:
         travel = world.travel.distance(agent.at, place.id)
@@ -551,7 +562,9 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             if action.target is not None:
                 if place.id != agent.at:
                     continue
-                destinatario = agent.elegir_destinatario(here, action.target, agravio)
+                destinatario = agent.elegir_destinatario(
+                    here, action.target, agravio, deudas
+                )
                 if destinatario is None:
                     continue
             reward = benefit(pack, agent, action, weights) * discount * place_taste
@@ -559,7 +572,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
                 # Encoge, no veta: ayudar a un desconocido sigue valiendo algo,
                 # así que ocurre cuando no hay nada mejor que hacer.
                 reward *= agent.disposicion(
-                    destinatario.spec_id, action.target, agravio
+                    destinatario.spec_id, action.target, agravio, deudas
                 )
             reward *= tastes.get(str(action.id), 1.0)
             reward *= novelty(agent, action.id, temperament.novelty_weight)
