@@ -426,6 +426,19 @@ class ContentPack(Spec):
                         f"nunca"
                     )
 
+        # LA EDAD. Un plazo que vence antes de que llegue a poder empezarla es una
+        # meta perdida de antemano, y el motor no lo diría: se quedaría LOCKED y
+        # el plazo ni siquiera correría (D-081/D-121), así que nunca fallaría —
+        # simplemente no pasaría nada nunca.
+        if goal.requires_edad and goal.deadline is not None:
+            cumple_en = goal.requires_edad - agent.edad_inicial
+            if cumple_en >= goal.deadline:
+                problems.append(
+                    f"agente {agent.id!r}, meta {goal.id!r}: no la puede empezar "
+                    f"hasta el tick {cumple_en} y el plazo vence en "
+                    f"{goal.deadline}; nunca llegaría a estar activa"
+                )
+
         # LA QUE LA ABRE. Tiene que ser una meta SUYA: apuntar a la de otro
         # dejaría la cadena esperando algo que este agente no puede provocar.
         if goal.requires_goal is not None and goal.requires_goal not in suyas:
@@ -728,6 +741,14 @@ class ContentPack(Spec):
         """
         by_id = {r.id: r for r in self.relations}
         nacen: set[RelationId] = set()
+        for action in self.actions:
+            rel = action.target.crea_relacion if action.target is not None else None
+            if rel is None:
+                continue
+            nacen.add(rel)
+            regla = by_id.get(rel)
+            if regla is not None and regla.inverse is not None:
+                nacen.add(regla.inverse)
         for situation in self.situations:
             birth = situation.al_expirar
             if birth is None:
@@ -957,6 +978,13 @@ class ContentPack(Spec):
                 f"acción {action.id!r}.target.requires_traits", "rasgo",
                 destino.requires_traits, conocidos_rasgos,
             )
+            if destino.crea_relacion is not None and (
+                str(destino.crea_relacion) not in conocidas_relaciones
+            ):
+                problems.append(
+                    f"acción {action.id!r}.target.crea_relacion: relación "
+                    f"desconocida {destino.crea_relacion!r}"
+                )
             if destino.forbids_condition is not None and (
                 str(destino.forbids_condition) not in personales
             ):

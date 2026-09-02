@@ -990,6 +990,25 @@ class TargetSpec(Spec):
     """Cuánto depende de CUÁNTO te deba. Espejo exacto de `agravio_weight`,
     sobre el monto de la deuda en vez del agravio acumulado."""
 
+    crea_relacion: RelationId | None = None
+    """Esta acción ANUDA este lazo entre quien actúa y el destinatario (D-082).
+
+    `begin_relation` era API pública desde la capa relacional y **ningún
+    contenido la llamaba**: las relaciones de un mundo se decidían en el tick 0
+    y no volvían a cambiar. El parto abrió la primera grieta (D-071), pero solo
+    sabe anudar sangre; esto deja que un lazo nazca de algo que alguien HIZO —
+    apadrinar a un crío, tomar un discípulo, hacerse de alguien.
+
+    El otro lado lo pone `inverse` como siempre, así que se declara una sola
+    dirección. Si el lazo ya estaba, no pasa nada; si es `exclusive` y quien
+    actúa ya tiene uno, tampoco — **no se rompe el que hubiera**. Cambiar de
+    pareja no puede ser un efecto colateral de una acción que hablaba de otra
+    cosa, y romper lazos es una decisión de diseño que este motor no ha tomado.
+
+    Combina bien con `min_regard`: un lazo que nace de la nada es un accidente,
+    y uno que pide aprecio previo es una consecuencia.
+    """
+
     crea_deuda: DebtSpec | None = None
     """Esta acción deja al otro DEBIENDO: crea una `Propiedad` DEUDA a favor de
     quien actúa, en marcha (D-065).
@@ -1525,6 +1544,27 @@ class GoalSpec(Spec):
 
     Sigue en pie la otra mitad: el validador avisa cuando la meta ya está
     cumplida de salida, porque eso sigue siendo contenido muerto.
+    """
+
+    requires_edad: int = Field(default=0, ge=0)
+    """No empieza hasta que su dueño tenga esta edad, en ticks. 0 = desde el
+    primer día (D-081).
+
+    **Un recién nacido no quiere nada**, y hasta aquí el motor no sabía decirlo:
+    toda meta que no esperase a otra nacía ACTIVE, así que una criatura salía
+    del parto con las ambiciones de un adulto puestas. Se nota poco porque las
+    puertas de las acciones ya le impiden perseguirlas — y ese es justo el
+    problema: un empujón que no puede atenderse escora el eje sin que nada lo
+    resuelva.
+
+    Bloquea igual que `requires_goal`, y por eso comparte estado (`LOCKED`) y
+    consecuencia: **una meta bloqueada no se cierra NI SE PIERDE**, así que el
+    plazo no corre mientras se espera. Al revés, quien nace con una meta a diez
+    años y un plazo de tres la habría perdido antes de entenderla.
+
+    Las dos condiciones se pueden combinar, a diferencia de las cuatro varas de
+    logro: no son dos formas de medir lo mismo, son dos motivos distintos para
+    no haber empezado todavía.
     """
 
     requires_goal: GoalId | None = None

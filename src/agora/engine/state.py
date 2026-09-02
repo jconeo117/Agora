@@ -688,7 +688,12 @@ class AgentState:
             goals={
                 goal.id: (
                     GoalStatus.LOCKED
+                    # Dos motivos para no haber empezado, y ninguno excluye al
+                    # otro (D-081): esperar a otra meta, o no tener todavía la
+                    # edad. `edad_inicial` es la edad en el tick 0, que es el
+                    # único instante que esta construcción conoce.
                     if goal.requires_goal is not None
+                    or spec.edad_inicial < goal.requires_edad
                     else GoalStatus.ACTIVE
                 )
                 for goal in spec.goals

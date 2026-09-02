@@ -941,17 +941,29 @@ class Simulation:
         # perdería un tick en cada eslabón — invisible con cuatro, absurdo con
         # veinte.
         for goal in agent.metas:
+            if agent.goals.get(goal.id) is not GoalStatus.LOCKED:
+                continue
+            # Las dos condiciones se comprueban juntas y hacen falta las dos: una
+            # meta que espera a otra Y a una edad no se abre por cumplir una
+            # sola. Se leen en este orden porque la edad es lo barato.
+            if agent.edad(self.state.tick) < goal.requires_edad:
+                continue
             if (
-                agent.goals.get(goal.id) is GoalStatus.LOCKED
-                and goal.requires_goal is not None
-                and agent.goals.get(goal.requires_goal) is GoalStatus.ACHIEVED
+                goal.requires_goal is not None
+                and agent.goals.get(goal.requires_goal) is not GoalStatus.ACHIEVED
             ):
-                agent.goals[goal.id] = GoalStatus.ACTIVE
-                self._emit(
-                    EventKind.GOAL_UNLOCKED,
-                    agent,
-                    data={"goal": str(goal.id), "tras": str(goal.requires_goal)},
-                )
+                continue
+            if goal.requires_goal is None and goal.requires_edad <= 0:
+                continue
+            agent.goals[goal.id] = GoalStatus.ACTIVE
+            self._emit(
+                EventKind.GOAL_UNLOCKED,
+                agent,
+                data={
+                    "goal": str(goal.id),
+                    "tras": "" if goal.requires_goal is None else str(goal.requires_goal),
+                },
+            )
 
         for goal in agent.metas:
             # Lo bloqueado no se cierra NI SE PIERDE. No puedes perder lo que aún
@@ -1494,6 +1506,29 @@ class Simulation:
         )
         return rng.uniform(aflige.gravedad_min, aflige.gravedad_max)
 
+    def _anudar(
+        self, uno: AgentState, otro: AgentState, relacion: RelationId
+    ) -> None:
+        """Un lazo que nace de algo que alguien hizo (D-082).
+
+        `begin_relation` existía desde la capa relacional y ningún contenido la
+        llamaba: los lazos de un mundo se decidían en el tick 0. Esto es la
+        segunda forma de que cambien —la primera fue el parto— y la primera que
+        depende de una decisión y no de una espera.
+
+        **Callar y no romper nada es la regla.** Si ya lo eran, `begin_relation`
+        no hace nada. Si la relación es exclusiva y ya tiene una, se deja como
+        está: cambiar de pareja no puede ser el efecto colateral de una acción
+        que hablaba de otra cosa, y romper un lazo es una decisión de diseño que
+        este motor todavía no ha tomado.
+        """
+        spec = self.pack.relation_by_id.get(relacion)
+        if spec is None:
+            return
+        if spec.exclusive and uno.relations.get(relacion):
+            return
+        self.begin_relation(uno.spec_id, otro.spec_id, relacion)
+
     def _endeudar(
         self, acreedor: AgentState, deudor: AgentState, spec: ActionSpec
     ) -> None:
@@ -1826,6 +1861,8 @@ class Simulation:
             )
         if destino.crea_deuda is not None:
             self._endeudar(agent, otro, spec)
+        if destino.crea_relacion is not None:
+            self._anudar(agent, otro, destino.crea_relacion)
 
         # El otro lo recuerda, y lo recuerda CON NOMBRE: `about` sale del
         # `subject` del evento, que es quien actuó.

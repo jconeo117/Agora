@@ -38,6 +38,8 @@ from agora.engine.events import EventKind
 from agora.engine.ontology import (
     ActionId,
     AgentId,
+    GoalId,
+    GoalStatus,
     NeedId,
     PlaceId,
     RelationId,
@@ -61,6 +63,7 @@ RELACION_PORTADORA = RelationId("hijo_de_portadora")
 RELACION_CAUSANTE = RelationId("hijo_de_causante")
 MADRE = RelationId("madre")
 PADRE = RelationId("padre")
+OTRO = AgentId("otro")
 
 MAYORIA = 500
 GESTACION = 20
@@ -642,3 +645,222 @@ def test_goals_of_the_newborn_survive_save_and_resume(tmp_path: Path) -> None:
 
     otra = Simulation.resume(tmp_path / "s.json", pack)
     assert [str(m.id) for m in otra.state.agents[nacido].metas] == ["ser_madre"]
+
+
+# --- la edad de querer (D-081) -------------------------------------------------
+#
+# Un recién nacido no quiere nada. Hasta aquí toda meta que no esperase a otra
+# nacía ACTIVE, así que una criatura salía del parto con las ambiciones de un
+# adulto puestas — y como las puertas de las acciones ya le impiden
+# perseguirlas, lo que quedaba era un empujón que no podía atenderse.
+
+
+def con_edad_pack(requires_edad: int, edad_inicial: int = 10_000) -> ContentPack:
+    return nacer_pack(**{"agents": [
+        {"id": "el", "label": "El", "home": "p1", "start_at": "p1",
+         "edad_inicial": 10_000, "traits": {"varon": 1.0}},
+        {"id": "ella", "label": "Ella", "home": "p1", "start_at": "p1",
+         "edad_inicial": edad_inicial, "traits": {"mujer": 1.0},
+         "goals": [{"id": "ser_madre", "label": "ser madre", "need": "vinculo",
+                    "at_kin": {"madre": 1}, "requires_edad": requires_edad}]},
+    ]})
+
+
+def test_a_goal_you_are_too_young_for_starts_locked() -> None:
+    sim = Simulation(con_edad_pack(50_000), seed=1)
+    assert sim.state.agents[ELLA].goals[GoalId("ser_madre")] is GoalStatus.LOCKED
+    assert sim.state.agents[ELLA].pursuing(sim.pack) == ()
+
+
+def test_it_opens_by_itself_when_the_age_arrives() -> None:
+    """Nadie tiene que tocar nada: se abre porque pasa el tiempo."""
+    sim = Simulation(con_edad_pack(10_020), seed=1)
+    sim.run(5)
+    assert sim.state.agents[ELLA].goals[GoalId("ser_madre")] is GoalStatus.LOCKED
+    sim.run(30)
+    # Ya no espera. Puede incluso haberla cerrado: lo que se comprueba es que la
+    # edad la abrió, no en qué acabó.
+    assert sim.state.agents[ELLA].goals[GoalId("ser_madre")] is not GoalStatus.LOCKED
+    assert sim.log.of_kind(EventKind.GOAL_UNLOCKED)
+
+
+def test_being_old_enough_already_needs_no_unlocking() -> None:
+    sim = Simulation(con_edad_pack(500), seed=1)
+    assert sim.state.agents[ELLA].goals[GoalId("ser_madre")] is GoalStatus.ACTIVE
+
+
+def test_a_goal_locked_by_age_does_not_count_as_wanting_it() -> None:
+    """Lo que aún no se entiende no se quiere: quien no llega a la edad no puede
+    haberlo buscado, y su hijo lo nota."""
+    pack = nacer_pack(**{"agents": [
+        {"id": "el", "label": "El", "home": "p1", "start_at": "p1",
+         "edad_inicial": 10_000, "traits": {"varon": 1.0}},
+        {"id": "ella", "label": "Ella", "home": "p1", "start_at": "p1",
+         "edad_inicial": 10_000, "traits": {"mujer": 1.0},
+         "goals": [{"id": "ser_madre", "label": "ser madre", "need": "vinculo",
+                    "at_kin": {"madre": 1}, "requires_edad": 999_999}]},
+    ]})
+    sim, nacido = parir(pack)
+    assert sim.state.agents[ELLA].bonds[nacido].regard == pytest.approx(0.05)
+
+
+def test_the_clock_does_not_run_while_you_are_too_young() -> None:
+    """Misma regla que una meta que espera a otra (D-121): no se puede perder lo
+    que aún no habías empezado. Al revés, quien nace con una meta a diez años y
+    un plazo de tres la habría perdido antes de entenderla."""
+    sim = Simulation(con_edad_pack(50_000), seed=1)
+    sim.run(60)
+    assert sim.state.agents[ELLA].goals[GoalId("ser_madre")] is GoalStatus.LOCKED
+    assert not sim.log.of_kind(EventKind.GOAL_FAILED)
+
+
+def test_a_deadline_that_expires_before_you_can_start_does_not_load() -> None:
+    """Se quedaría LOCKED para siempre, el plazo ni siquiera correría, y no
+    pasaría nada nunca — el peor de los contenidos muertos, porque ni falla."""
+    with pytest.raises(ValidationError, match="nunca llegaría a estar activa"):
+        nacer_pack(**{"agents": [
+            {"id": "el", "label": "El", "home": "p1", "start_at": "p1",
+             "edad_inicial": 10_000, "traits": {"varon": 1.0}},
+            {"id": "ella", "label": "Ella", "home": "p1", "start_at": "p1",
+             "edad_inicial": 0, "traits": {"mujer": 1.0},
+             "goals": [{"id": "ser_madre", "label": "ser madre", "need": "vinculo",
+                        "at_kin": {"madre": 1}, "requires_edad": 5000,
+                        "deadline": 400}]},
+        ]})
+
+
+def test_the_newborn_is_born_wanting_nothing() -> None:
+    pack = buscado_pack("ella", **{"situations": [
+        {"id": "prenada", "label": "prenada", "personal": True,
+         "al_expirar": {
+             "goals": ["ser_madre"],
+             "sortea_traits": [["varon", "mujer"]],
+             "relacion_con_portador": "hijo_de_portadora",
+             "relacion_con_causante": "hijo_de_causante",
+         }},
+    ], "agents": [
+        {"id": "el", "label": "El", "home": "p1", "start_at": "p1",
+         "edad_inicial": 10_000, "traits": {"varon": 1.0}},
+        {"id": "ella", "label": "Ella", "home": "p1", "start_at": "p1",
+         "edad_inicial": 10_000, "traits": {"mujer": 1.0},
+         "goals": [{"id": "ser_madre", "label": "ser madre", "need": "vinculo",
+                    "at_kin": {"madre": 1}, "requires_edad": 5000}]},
+    ]})
+    sim, nacido = parir(pack)
+    cria = sim.state.agents[nacido]
+    assert cria.goals[GoalId("ser_madre")] is GoalStatus.LOCKED
+    assert cria.pursuing(pack) == ()
+
+
+# --- lazos que nacen de algo que alguien hizo (D-082) --------------------------
+
+
+def apadrinar_pack(**overrides: Any) -> ContentPack:
+    data: dict[str, Any] = {
+        "relations": [
+            {"id": "hijo_de_portadora", "label": "hijo de", "inverse": "madre"},
+            {"id": "madre", "label": "madre", "inverse": "hijo_de_portadora"},
+            {"id": "hijo_de_causante", "label": "hijo de", "inverse": "padre"},
+            {"id": "padre", "label": "padre", "inverse": "hijo_de_causante"},
+            {"id": "padrino", "label": "padrino de", "inverse": "ahijado"},
+            {"id": "ahijado", "label": "ahijado de", "inverse": "padrino"},
+        ],
+        "actions": [
+            {"id": "engendrar", "label": "apadrinar", "duration_ticks": 1,
+             "requires_affordance": "sitio", "requires_company": 1,
+             "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.30},
+             "target": {"gives": {"vinculo": 0.10}, "crea_relacion": "padrino"}},
+            {"id": "nada", "label": "nada", "duration_ticks": 1},
+        ],
+    }
+    data.update(copy.deepcopy(overrides))
+    return nacer_pack(**data)
+
+
+def test_an_action_can_tie_a_bond_that_was_not_in_the_pack() -> None:
+    """`begin_relation` existía desde la capa relacional y ningún contenido la
+    llamaba: los lazos de un mundo se decidían en el tick 0."""
+    sim = Simulation(apadrinar_pack(), seed=1)
+    sim.run(4)
+    padrinos = [
+        (quien, sorted(a.relations.get(RelationId("padrino"), ())))
+        for quien, a in sorted(sim.state.agents.items())
+        if a.relations.get(RelationId("padrino"))
+    ]
+    assert padrinos, "nadie apadrinó a nadie"
+    quien, ahijados = padrinos[0]
+    # Y el otro lado lo puso `inverse`, sin declarar nada más.
+    assert quien in sim.state.agents[ahijados[0]].relations[RelationId("ahijado")]
+
+
+def test_tying_a_bond_twice_is_silent() -> None:
+    sim = Simulation(apadrinar_pack(), seed=1)
+    sim.run(30)
+    for agente in sim.state.agents.values():
+        for quienes in agente.relations.values():
+            assert len(quienes) == len(set(quienes))
+
+
+def test_an_exclusive_bond_that_is_taken_is_left_alone() -> None:
+    """Cambiar de pareja no puede ser el efecto colateral de una acción que
+    hablaba de otra cosa, y romper un lazo es una decisión que este motor
+    todavía no ha tomado."""
+    pack = apadrinar_pack(**{"relations": [
+        {"id": "hijo_de_portadora", "label": "hijo de", "inverse": "madre"},
+        {"id": "madre", "label": "madre", "inverse": "hijo_de_portadora"},
+        {"id": "hijo_de_causante", "label": "hijo de", "inverse": "padre"},
+        {"id": "padre", "label": "padre", "inverse": "hijo_de_causante"},
+        {"id": "padrino", "label": "padrino de", "symmetric": True, "exclusive": True},
+    ], "actions": [
+        {"id": "engendrar", "label": "apadrinar", "duration_ticks": 1,
+         "requires_affordance": "sitio", "requires_company": 1,
+         "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.30},
+         "target": {"gives": {"vinculo": 0.10}, "crea_relacion": "padrino"}},
+        {"id": "nada", "label": "nada", "duration_ticks": 1},
+    ], "agents": [
+        {"id": "el", "label": "El", "home": "p1", "start_at": "p1",
+         "edad_inicial": 10_000, "traits": {"varon": 1.0},
+         "relations": {"padrino": ["otro"]}},
+        {"id": "ella", "label": "Ella", "home": "p1", "start_at": "p1",
+         "edad_inicial": 10_000, "traits": {"mujer": 1.0}},
+        {"id": "otro", "label": "Otro", "home": "p1", "start_at": "p1",
+         "edad_inicial": 10_000, "traits": {"varon": 1.0}},
+    ]})
+    sim = Simulation(pack, seed=1)
+    sim.run(20)
+    assert sim.state.agents[EL].relations[RelationId("padrino")] == {OTRO}
+
+
+def test_a_bond_tied_in_play_makes_an_at_kin_goal_reachable() -> None:
+    """El validador rechazaba toda meta `at_kin` no cumplida porque nada anudaba
+    lazos en marcha. Ahora comprueba que ALGO pueda anudar esa relación."""
+    apadrinar_pack(**{"agents": [
+        {"id": "el", "label": "El", "home": "p1", "start_at": "p1",
+         "edad_inicial": 10_000, "traits": {"varon": 1.0},
+         "goals": [{"id": "tener_ahijado", "label": "tener un ahijado",
+                    "need": "vinculo", "at_kin": {"padrino": 1}}]},
+        {"id": "ella", "label": "Ella", "home": "p1", "start_at": "p1",
+         "edad_inicial": 10_000, "traits": {"mujer": 1.0}},
+    ]})
+
+
+def test_a_goal_about_a_bond_nothing_can_tie_still_does_not_load() -> None:
+    """La mitad del aviso que sigue en pie: si nada del pack anuda esa relación,
+    la meta no se puede cumplir y es contenido muerto igual que antes."""
+    with pytest.raises(ValidationError, match="anuda"):
+        apadrinar_pack(**{"relations": [
+            {"id": "hijo_de_portadora", "label": "hijo de", "inverse": "madre"},
+            {"id": "madre", "label": "madre", "inverse": "hijo_de_portadora"},
+            {"id": "hijo_de_causante", "label": "hijo de", "inverse": "padre"},
+            {"id": "padre", "label": "padre", "inverse": "hijo_de_causante"},
+            {"id": "padrino", "label": "padrino de", "inverse": "ahijado"},
+            {"id": "ahijado", "label": "ahijado de", "inverse": "padrino"},
+            {"id": "rival", "label": "rival", "symmetric": True},
+        ], "agents": [
+            {"id": "el", "label": "El", "home": "p1", "start_at": "p1",
+             "edad_inicial": 10_000, "traits": {"varon": 1.0},
+             "goals": [{"id": "tener_rival", "label": "tener un rival",
+                        "need": "vinculo", "at_kin": {"rival": 1}}]},
+            {"id": "ella", "label": "Ella", "home": "p1", "start_at": "p1",
+             "edad_inicial": 10_000, "traits": {"mujer": 1.0}},
+        ]})
