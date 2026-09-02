@@ -30,6 +30,12 @@ health:
   - convidar
   - sostener_un_pacto
   - trabajo_sucio
+  # La cadena completa (aprender -> cruzar la puerta -> minar lo suficiente
+  # -> forjar -> tener stock) tarda más de 14 días en dar la primera venta --
+  # medido: 0 en el contrato corto, 7 a los 21 días. Es un ciclo económico
+  # que necesita tiempo real, no contenido muerto; forzar el número aquí
+  # sería calibrar contra la ventana en vez de contra el mundo.
+  - vender_espada
 tuning:
   travel_discount: 0.94
   candidate_pool: 3
@@ -110,6 +116,22 @@ needs:
   decay_per_tick: 0.0
   initial: 0.0
   progression: true
+# Puerta mínima, no de clase: cualquiera puede minar, pero no cualquiera SABE
+# minar todavía. `aprender_mineria`/`aprender_forja` no piden nada -- son el
+# punto de partida -- así que no hay candado sin llave: el umbral se cruza
+# solo con tiempo, nunca con una ficha que no se puede cambiar.
+- id: saber_minar
+  label: saber minar
+  decay_per_tick: 0.0
+  initial: 0.0
+  progression: true
+  base_weight: 0.35
+- id: saber_forjar
+  label: saber forjar
+  decay_per_tick: 0.0
+  initial: 0.0
+  progression: true
+  base_weight: 0.35
 - id: espadas
   label: espadas
   decay_per_tick: 0.0
@@ -649,10 +671,32 @@ actions:
 # Ninguna lleva `requires_traits` (D-060): cualquiera puede intentarlo, y lo
 # que varía es la calidad -- la aptitud de quien fabrica o enseña, nunca el
 # acceso.
+- id: aprender_mineria
+  label: aprender a minar
+  duration_ticks: 8
+  satisfies:
+    saber_minar: 0.6
+  costs:
+    descanso: 0.1
+  effects:
+    saber_minar: 0.05
+    descanso: -0.02
+- id: aprender_forja
+  label: aprender a forjar
+  duration_ticks: 8
+  satisfies:
+    saber_forjar: 0.6
+  costs:
+    descanso: 0.1
+  effects:
+    saber_forjar: 0.05
+    descanso: -0.02
 - id: minar_hierro
   label: minar hierro
   duration_ticks: 14
   requires_affordance: mineria
+  requires:
+    saber_minar: 0.6
   satisfies:
     hierro: 0.6
   costs:
@@ -665,6 +709,7 @@ actions:
   duration_ticks: 18
   requires_affordance: forja
   requires:
+    saber_forjar: 0.6
     hierro: 0.3
   satisfies:
     espadas: 0.5
