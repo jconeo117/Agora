@@ -132,7 +132,11 @@ needs:
 # encuentran con quien -- arrastrando una carencia que no pueden resolver.
 - id: deseo
   label: deseo
-  decay_per_tick: 0.00018
+  # 0.00026 y no 0.00018: al anyadir `cortejar` (D-086) la oferta del eje subio
+  # a 1.35 y el panel lo declaro MUERTO -- por encima de 1.3 un eje deja de
+  # decidir nada. Se colo sin verse porque las mediciones de esa tanda miraban
+  # las parejas y no el reparto de oferta.
+  decay_per_tick: 0.00026
   initial: 0.62
   base_weight: 0.3
   urgency_exponent: 1.4
@@ -1673,6 +1677,466 @@ properties:
 # (802 muertes/90 días medidas) y un único par puede perder al deudor antes
 # de que el motor tenga ocasión de cobrarle nada. Compartir casa no evita la
 # muerte, pero multiplica las ocasiones de encuentro mientras ambos viven.
+# PATRIMONIO (D-134). Primer uso real de LUGAR y OBJETO, que llevaban
+# implementados desde D-053 sin que ningun pack los tocara. Hasta aqui este
+# mundo solo declaraba cuatro deudas, asi que las casas tenian donde acumular
+# y nada que acumular: medido a 400 dias, 7 propiedades en total y ninguna de
+# una casa.
+#
+# Cuatro clases, sorteadas por blake2b del id como el genero y la edad:
+#   tierras    un lugar del mapa, lo mas rentable y lo mas escaso
+#   talleres   con lo que se produce
+#   tiendas    con lo que se vende
+#   academias  no rinden dinero sino RENOMBRE -- tener una escuela a tu nombre
+#              te hace conocido, y eso en este mundo es `dominio`
+#
+# RENTAS BAJAS, y esto costo una medicion: con 0.005-0.012 por tick la oferta
+# de dinero paso de 1.11 a 1.44 y el panel lo declaro MUERTO -- un eje por
+# encima de 1.3 deja de decidir nada, y con el se llevo a `deseo` a 1.35 por
+# arrastre. Divididas por cinco, el eje aguanta y sigue habiendo algo que
+# heredar: lo que se busca no es que nadie se haga rico en un anyo, sino que al
+# morir quede patrimonio.
+- id: tierra_1
+  label: granja
+  tipo: lugar
+  objeto: granja
+  dueño_inicial: ivar_fuegolento
+  renta:
+    dinero: 0.00232
+- id: tierra_2
+  label: mina
+  tipo: lugar
+  objeto: mina
+  dueño_inicial: isla_cenizal
+  renta:
+    dinero: 0.00201
+- id: tierra_3
+  label: cantera
+  tipo: lugar
+  objeto: cantera
+  dueño_inicial: isla_yunquenegro_85
+  renta:
+    dinero: 0.00183
+- id: tierra_4
+  label: forjas
+  tipo: lugar
+  objeto: forjas
+  dueño_inicial: eyla_fuegolento_51
+  renta:
+    dinero: 0.00254
+- id: tierra_5
+  label: campo_gigante
+  tipo: lugar
+  objeto: campo_gigante
+  dueño_inicial: zar_nieblalta_101
+  renta:
+    dinero: 0.00202
+- id: tierra_6
+  label: campo_de_caza
+  tipo: lugar
+  objeto: campo_de_caza
+  dueño_inicial: sela_solraso_108
+  renta:
+    dinero: 0.00253
+- id: tierra_7
+  label: arboleda_ancestral
+  tipo: lugar
+  objeto: arboleda_ancestral
+  dueño_inicial: pell_fuegolento
+  renta:
+    dinero: 0.00185
+- id: tierra_8
+  label: muelle
+  tipo: lugar
+  objeto: muelle
+  dueño_inicial: gwen_vadohondo
+  renta:
+    dinero: 0.00217
+- id: taller_9
+  label: un taller de forja
+  tipo: objeto
+  objeto: un taller de forja
+  dueño_inicial: yves_nieblalta
+  renta:
+    dinero: 0.00139
+- id: taller_10
+  label: un taller de forja
+  tipo: objeto
+  objeto: un taller de forja
+  dueño_inicial: ivar_hojaclara
+  renta:
+    dinero: 0.0011
+- id: taller_11
+  label: un taller de forja
+  tipo: objeto
+  objeto: un taller de forja
+  dueño_inicial: nyx_cenizal
+  renta:
+    dinero: 0.00138
+- id: taller_12
+  label: un obrador
+  tipo: objeto
+  objeto: un obrador
+  dueño_inicial: eris_cenizal
+  renta:
+    dinero: 0.00128
+- id: taller_13
+  label: un obrador
+  tipo: objeto
+  objeto: un obrador
+  dueño_inicial: eris_cenizal_40
+  renta:
+    dinero: 0.00125
+- id: taller_14
+  label: un obrador
+  tipo: objeto
+  objeto: un obrador
+  dueño_inicial: ivar_rocaviva_88
+  renta:
+    dinero: 0.00157
+- id: taller_15
+  label: un telar
+  tipo: objeto
+  objeto: un telar
+  dueño_inicial: eris_cenizal
+  renta:
+    dinero: 0.00123
+- id: taller_16
+  label: un telar
+  tipo: objeto
+  objeto: un telar
+  dueño_inicial: xan_fuegolento_67
+  renta:
+    dinero: 0.00144
+- id: taller_17
+  label: un telar
+  tipo: objeto
+  objeto: un telar
+  dueño_inicial: dorn_cenizal
+  renta:
+    dinero: 0.00137
+- id: taller_18
+  label: una fragua pequenya
+  tipo: objeto
+  objeto: una fragua pequenya
+  dueño_inicial: quen_yunquenegro
+  renta:
+    dinero: 0.00121
+- id: taller_19
+  label: una fragua pequenya
+  tipo: objeto
+  objeto: una fragua pequenya
+  dueño_inicial: xan_vadohondo
+  renta:
+    dinero: 0.00146
+- id: taller_20
+  label: una fragua pequenya
+  tipo: objeto
+  objeto: una fragua pequenya
+  dueño_inicial: orin_marfrio
+  renta:
+    dinero: 0.00105
+- id: taller_21
+  label: un horno
+  tipo: objeto
+  objeto: un horno
+  dueño_inicial: brix_vadohondo
+  renta:
+    dinero: 0.00153
+- id: taller_22
+  label: un horno
+  tipo: objeto
+  objeto: un horno
+  dueño_inicial: isla_vientolargo
+  renta:
+    dinero: 0.00152
+- id: taller_23
+  label: un horno
+  tipo: objeto
+  objeto: un horno
+  dueño_inicial: varn_rocaviva
+  renta:
+    dinero: 0.00159
+- id: taller_24
+  label: una curtiduria
+  tipo: objeto
+  objeto: una curtiduria
+  dueño_inicial: brix_vadohondo
+  renta:
+    dinero: 0.00146
+- id: taller_25
+  label: una curtiduria
+  tipo: objeto
+  objeto: una curtiduria
+  dueño_inicial: torv_hojaclara
+  renta:
+    dinero: 0.00131
+- id: taller_26
+  label: una curtiduria
+  tipo: objeto
+  objeto: una curtiduria
+  dueño_inicial: quen_nieblalta
+  renta:
+    dinero: 0.00105
+- id: taller_27
+  label: un torno de alfarero
+  tipo: objeto
+  objeto: un torno de alfarero
+  dueño_inicial: sela_nieblalta
+  renta:
+    dinero: 0.00122
+- id: taller_28
+  label: un torno de alfarero
+  tipo: objeto
+  objeto: un torno de alfarero
+  dueño_inicial: fenn_solraso
+  renta:
+    dinero: 0.00137
+- id: taller_29
+  label: un torno de alfarero
+  tipo: objeto
+  objeto: un torno de alfarero
+  dueño_inicial: pell_hierrogris
+  renta:
+    dinero: 0.00137
+- id: taller_30
+  label: una carpinteria
+  tipo: objeto
+  objeto: una carpinteria
+  dueño_inicial: hale_solraso
+  renta:
+    dinero: 0.00147
+- id: taller_31
+  label: una carpinteria
+  tipo: objeto
+  objeto: una carpinteria
+  dueño_inicial: cyra_piedraparda
+  renta:
+    dinero: 0.00143
+- id: taller_32
+  label: una carpinteria
+  tipo: objeto
+  objeto: una carpinteria
+  dueño_inicial: gwen_vadohondo
+  renta:
+    dinero: 0.00102
+- id: tienda_33
+  label: un puesto de mercado
+  tipo: objeto
+  objeto: un puesto de mercado
+  dueño_inicial: sela_solraso_108
+  renta:
+    dinero: 0.00098
+- id: tienda_34
+  label: un puesto de mercado
+  tipo: objeto
+  objeto: un puesto de mercado
+  dueño_inicial: ulla_vadohondo
+  renta:
+    dinero: 0.00137
+- id: tienda_35
+  label: un puesto de mercado
+  tipo: objeto
+  objeto: un puesto de mercado
+  dueño_inicial: ulla_rocaviva
+  renta:
+    dinero: 0.00126
+- id: tienda_36
+  label: una botica
+  tipo: objeto
+  objeto: una botica
+  dueño_inicial: cael_vadohondo
+  renta:
+    dinero: 0.00094
+- id: tienda_37
+  label: una botica
+  tipo: objeto
+  objeto: una botica
+  dueño_inicial: lira_fuegolento
+  renta:
+    dinero: 0.00122
+- id: tienda_38
+  label: una botica
+  tipo: objeto
+  objeto: una botica
+  dueño_inicial: quen_yunquenegro
+  renta:
+    dinero: 0.00115
+- id: tienda_39
+  label: un almacen
+  tipo: objeto
+  objeto: un almacen
+  dueño_inicial: hale_nieblalta_104
+  renta:
+    dinero: 0.00127
+- id: tienda_40
+  label: un almacen
+  tipo: objeto
+  objeto: un almacen
+  dueño_inicial: wyn_umbrio
+  renta:
+    dinero: 0.00141
+- id: tienda_41
+  label: un almacen
+  tipo: objeto
+  objeto: un almacen
+  dueño_inicial: adze_umbrio_155
+  renta:
+    dinero: 0.00097
+- id: tienda_42
+  label: una taberna pequenya
+  tipo: objeto
+  objeto: una taberna pequenya
+  dueño_inicial: eris_zarzal
+  renta:
+    dinero: 0.001
+- id: tienda_43
+  label: una taberna pequenya
+  tipo: objeto
+  objeto: una taberna pequenya
+  dueño_inicial: kel_marfrio
+  renta:
+    dinero: 0.00142
+- id: tienda_44
+  label: una taberna pequenya
+  tipo: objeto
+  objeto: una taberna pequenya
+  dueño_inicial: varn_hierrogris
+  renta:
+    dinero: 0.00094
+- id: tienda_45
+  label: una casa de cambio
+  tipo: objeto
+  objeto: una casa de cambio
+  dueño_inicial: nyx_cantorroto
+  renta:
+    dinero: 0.00128
+- id: tienda_46
+  label: una casa de cambio
+  tipo: objeto
+  objeto: una casa de cambio
+  dueño_inicial: adze_piedraparda
+  renta:
+    dinero: 0.00106
+- id: tienda_47
+  label: una casa de cambio
+  tipo: objeto
+  objeto: una casa de cambio
+  dueño_inicial: cyra_zarzal
+  renta:
+    dinero: 0.00127
+- id: tienda_48
+  label: una tienda de telas
+  tipo: objeto
+  objeto: una tienda de telas
+  dueño_inicial: torv_cenizal
+  renta:
+    dinero: 0.00094
+- id: tienda_49
+  label: una tienda de telas
+  tipo: objeto
+  objeto: una tienda de telas
+  dueño_inicial: quen_yunquenegro
+  renta:
+    dinero: 0.00148
+- id: tienda_50
+  label: una tienda de telas
+  tipo: objeto
+  objeto: una tienda de telas
+  dueño_inicial: eyla_fuegolento
+  renta:
+    dinero: 0.00141
+- id: tienda_51
+  label: una barca de carga
+  tipo: objeto
+  objeto: una barca de carga
+  dueño_inicial: dorn_zarzal
+  renta:
+    dinero: 0.00108
+- id: tienda_52
+  label: una barca de carga
+  tipo: objeto
+  objeto: una barca de carga
+  dueño_inicial: sela_vientolargo
+  renta:
+    dinero: 0.00116
+- id: tienda_53
+  label: una barca de carga
+  tipo: objeto
+  objeto: una barca de carga
+  dueño_inicial: torv_rocaviva
+  renta:
+    dinero: 0.00136
+- id: academia_54
+  label: una escuela de esgrima
+  tipo: objeto
+  objeto: una escuela de esgrima
+  dueño_inicial: mor_marfrio_75
+  renta:
+    dominio: 0.00013
+- id: academia_55
+  label: una escuela de esgrima
+  tipo: objeto
+  objeto: una escuela de esgrima
+  dueño_inicial: quen_marfrio
+  renta:
+    dominio: 0.0002
+- id: academia_56
+  label: un circulo de estudio
+  tipo: objeto
+  objeto: un circulo de estudio
+  dueño_inicial: yves_cenizal
+  renta:
+    dominio: 0.00019
+- id: academia_57
+  label: un circulo de estudio
+  tipo: objeto
+  objeto: un circulo de estudio
+  dueño_inicial: cael_hierrogris
+  renta:
+    dominio: 0.00015
+- id: academia_58
+  label: una sala de lectura
+  tipo: objeto
+  objeto: una sala de lectura
+  dueño_inicial: xan_fuegolento_67
+  renta:
+    dominio: 0.00016
+- id: academia_59
+  label: una sala de lectura
+  tipo: objeto
+  objeto: una sala de lectura
+  dueño_inicial: rask_hojaclara
+  renta:
+    dominio: 0.00014
+- id: academia_60
+  label: un patio de entrenamiento
+  tipo: objeto
+  objeto: un patio de entrenamiento
+  dueño_inicial: brix_zarzal_184
+  renta:
+    dominio: 0.00019
+- id: academia_61
+  label: un patio de entrenamiento
+  tipo: objeto
+  objeto: un patio de entrenamiento
+  dueño_inicial: eyla_hojaclara
+  renta:
+    dominio: 0.00018
+- id: academia_62
+  label: un taller de aprendices
+  tipo: objeto
+  objeto: un taller de aprendices
+  dueño_inicial: adze_hojaclara
+  renta:
+    dominio: 0.00021
+- id: academia_63
+  label: un taller de aprendices
+  tipo: objeto
+  objeto: un taller de aprendices
+  dueño_inicial: sela_yunquenegro
+  renta:
+    dominio: 0.00018
 - id: deuda_hale_con_eris
   label: deuda de hale con eris
   tipo: deuda
