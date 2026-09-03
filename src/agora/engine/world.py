@@ -36,12 +36,14 @@ from agora.engine.ontology import (
     AflictionSpec,
     AgentId,
     AgentSpec,
+    BirthSpec,
     FactionId,
     FactionKindId,
     GoalSpec,
     GoalStatus,
     NeedId,
     PlaceId,
+    Progenitor,
     PropertyId,
     PropertyKind,
     RelationId,
@@ -1583,6 +1585,61 @@ class Simulation:
         )
         return rng.uniform(aflige.gravedad_min, aflige.gravedad_max)
 
+    def _heredar_pertenencia(
+        self,
+        criatura: AgentState,
+        portador: AgentState,
+        causante: AgentState | None,
+        birth: BirthSpec,
+    ) -> None:
+        """El apellido: nacer te mete en la casa de los tuyos (D-129).
+
+        **Es lo que separa una casa de un gremio.** Sin esto, un grupo cuya
+        pertenencia solo se recluta no es un linaje sino un club, y entonces no
+        tiene sentido que sea exclusivo ni que no se salga de él.
+
+        `de` es un orden de preferencia y no una elección: `[causante,
+        portador]` es un apellido paterno con la madre como respaldo, que es lo
+        que hace falta para que el hijo de padre desconocido no se quede sin
+        casa. Con una sola opción habría que elegir entre una regla que deja
+        huérfanos sin apellido y otra que no expresa la convención.
+
+        Y si NINGUNO de los dos tiene, el nacimiento funda una. Un apellido no
+        se decide: empieza cuando hay a quien pasárselo. Colgarlo de aquí y no
+        de una acción es lo que lo hace posible — una acción tendría que ganar
+        una deliberación contra lo que ya paga ese eje gratis, y este mundo
+        lleva cinco mecanismos perdiendo esa pelea (E-009).
+        """
+        for regla in birth.hereda_faccion:
+            clase = self.pack.faction_kind_by_id.get(regla.tipo)
+            if clase is None:
+                continue
+            for cual in regla.de:
+                quien = portador if cual is Progenitor.PORTADOR else causante
+                if quien is None:
+                    continue
+                suyas = self.state.facciones_de(quien, regla.tipo)
+                if not suyas:
+                    continue
+                criatura.lealtad[suyas[0]] = clase.lealtad_inicial
+                break
+
+        if birth.funda_faccion is None:
+            return
+        if self.state.facciones_de(criatura, birth.funda_faccion):
+            return
+        # Se funda en nombre del portador, que es el único de los dos que seguro
+        # está: el causante pudo morir durante la espera.
+        nueva = self._fundar(portador, birth.funda_faccion)
+        if nueva is None:
+            return
+        clase = self.pack.faction_kind_by_id[birth.funda_faccion]
+        criatura.lealtad[nueva] = clase.lealtad_inicial
+        if causante is not None and not self.state.facciones_de(
+            causante, birth.funda_faccion
+        ):
+            causante.lealtad[nueva] = clase.lealtad_inicial
+
     def _disolver_las_vacias(self) -> None:
         """Un grupo sin nadie dentro deja de existir (D-127).
 
@@ -2066,6 +2123,7 @@ class Simulation:
 
         if birth.inflicts is not None:
             self._infligir(criatura, birth.inflicts, porque=str(cond.situacion))
+        self._heredar_pertenencia(criatura, portador, causante, birth)
 
         self.log.emit(
             tick=self.state.tick,

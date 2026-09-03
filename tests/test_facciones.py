@@ -391,3 +391,136 @@ def test_groups_founded_in_play_survive_save_and_resume(tmp_path: Any) -> None:
     otra = Simulation.resume(tmp_path / "s.json", gremio_pack())
     assert {f: (v.tipo, v.fundador) for f, v in otra.state.facciones.items()} == antes
     assert {a: dict(ag.lealtad) for a, ag in otra.state.agents.items()} == lealtades
+
+
+# --- casas: el apellido (D-129) ------------------------------------------------
+#
+# Lo que separa una casa de un gremio no son sus números: es que la pertenencia
+# se HEREDA en vez de reclutarse. Sin eso, un grupo exclusivo del que no se sale
+# no es un linaje sino un club al que hay que apuntarse, y no tiene sentido que
+# sea ninguna de las dos cosas.
+#
+# Y no hay acción que funde una casa, que es el punto entero: un apellido no se
+# decide, empieza cuando hay a quien pasárselo. Colgarlo del parto esquiva de
+# paso la pelea que este mundo lleva cinco mecanismos perdiendo — una acción
+# tendría que ganarle a lo que ya paga ese eje gratis (E-009), y la versión por
+# acción salió a CERO casas en 400 días.
+
+
+def apellido_pack(**overrides: Any) -> ContentPack:
+    """Dos adultos que pueden tener descendencia, y una casa que se hereda."""
+    from tests.test_descendencia import nacer_pack
+
+    data: dict[str, Any] = {
+        "faction_kinds": [
+            {"id": "casa", "label": "casa", "exclusive": True,
+             "company_multiplier": 2.0, "lealtad_inicial": 0.6},
+        ],
+        "situations": [
+            {"id": "prenada", "label": "prenada", "personal": True,
+             "al_expirar": {
+                 "sortea_traits": [["varon", "mujer"]],
+                 "hereda_faccion": [{"tipo": "casa", "de": ["causante", "portador"]}],
+                 "funda_faccion": "casa",
+                 "relacion_con_portador": "hijo_de_portadora",
+                 "relacion_con_causante": "hijo_de_causante",
+             }},
+        ],
+    }
+    data.update(copy.deepcopy(overrides))
+    return nacer_pack(**data)
+
+
+def _parir(pack: ContentPack, seed: int = 1) -> Any:
+    from tests.test_descendencia import GESTACION, gestando
+
+    sim = gestando(Simulation(pack, seed=seed))
+    sim.run(GESTACION + 2)
+    return sim
+
+
+def test_a_line_starts_when_there_is_somebody_to_pass_it_to() -> None:
+    pack = apellido_pack()
+    sim = Simulation(pack, seed=1)
+    assert sim.state.facciones == {}, "el mundo empieza sin un solo apellido"
+    sim = _parir(pack)
+    assert len(sim.state.facciones) == 1
+
+
+def test_both_parents_end_up_in_it() -> None:
+    """La casa de los suyos, no la del hijo solo."""
+    sim = _parir(apellido_pack())
+    cual = next(iter(sim.state.facciones))
+    assert set(sim.state.miembros_de(cual)) == set(sim.state.agents)
+
+
+def test_the_second_child_does_not_start_another_one() -> None:
+    """Fundar sin heredar daría una casa nueva por parto y ningún linaje."""
+    from tests.test_descendencia import EL, ELLA
+
+    sim = _parir(apellido_pack())
+    assert len(sim.state.facciones) == 1
+    # Lo bastante para que haya un segundo parto: la espera son 20 ticks.
+    sim.run(200)
+    cual = next(iter(sim.state.facciones))
+    assert len(sim.state.facciones) == 1, "todos los hijos son de la misma casa"
+    assert EL in sim.state.miembros_de(cual)
+    assert ELLA in sim.state.miembros_de(cual)
+
+
+def test_it_comes_from_the_father_when_there_is_one() -> None:
+    from tests.test_descendencia import EL, GESTACION, gestando
+
+    pack = apellido_pack()
+    sim = Simulation(pack, seed=1)
+    # El padre ya tiene casa: el hijo entra en la SUYA, no en una nueva.
+    suya = sim._fundar(sim.state.agents[EL], FactionKindId("casa"))
+    assert suya is not None
+    gestando(sim)
+    sim.run(GESTACION + 2)
+    assert len(sim.state.facciones) == 1
+    cria = next(a for a in sim.state.agents if a not in ("el", "ella"))
+    assert suya in sim.state.agents[cria].lealtad
+
+
+def test_the_mother_is_the_fallback_and_that_is_the_whole_point() -> None:
+    """`de` es un orden de preferencia y no una elección: con una sola opción
+    habría que elegir entre una regla que deja huérfanos sin apellido y otra que
+    no expresa la convención."""
+    from tests.test_descendencia import EL, ELLA, GESTACION, gestando
+
+    pack = apellido_pack()
+    sim = Simulation(pack, seed=1)
+    suya = sim._fundar(sim.state.agents[ELLA], FactionKindId("casa"))
+    assert suya is not None
+    gestando(sim)
+    sim.morir(EL)  # el padre no llega al parto
+    sim.run(GESTACION + 2)
+    cria = next(a for a in sim.state.agents if a != ELLA)
+    assert suya in sim.state.agents[cria].lealtad, "sin padre, la casa es la de ella"
+
+
+def test_founding_without_inheriting_does_not_load() -> None:
+    """Cada parto fundaría una casa nueva en vez de continuar la de los suyos."""
+    with pytest.raises(ValidationError, match="sin heredarla"):
+        apellido_pack(**{"situations": [
+            {"id": "prenada", "label": "prenada", "personal": True,
+             "al_expirar": {
+                 "sortea_traits": [["varon", "mujer"]],
+                 "funda_faccion": "casa",
+                 "relacion_con_portador": "hijo_de_portadora",
+             }},
+        ]})
+
+
+def test_inheriting_from_nobody_does_not_load() -> None:
+    with pytest.raises(ValidationError, match="no hereda de nadie"):
+        apellido_pack(**{"situations": [
+            {"id": "prenada", "label": "prenada", "personal": True,
+             "al_expirar": {
+                 "sortea_traits": [["varon", "mujer"]],
+                 "hereda_faccion": [{"tipo": "casa", "de": []}],
+                 "funda_faccion": "casa",
+                 "relacion_con_portador": "hijo_de_portadora",
+             }},
+        ]})

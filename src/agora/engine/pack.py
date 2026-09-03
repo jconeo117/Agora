@@ -956,6 +956,32 @@ class ContentPack(Spec):
                         f"{contexto}.sortea_traits: un grupo de {len(grupo)} no "
                         f"sortea nada -- si no hay entre qué elegir, va en `traits`"
                     )
+            for regla in birth.hereda_faccion:
+                if regla.tipo not in self.faction_kind_by_id:
+                    problems.append(
+                        f"{contexto}.hereda_faccion: clase de facción "
+                        f"desconocida {regla.tipo!r}"
+                    )
+                if not regla.de:
+                    problems.append(
+                        f"{contexto}.hereda_faccion[{regla.tipo!r}].de está vacío: "
+                        f"no hereda de nadie, que es lo mismo que no declararlo"
+                    )
+            if birth.funda_faccion is not None:
+                if birth.funda_faccion not in self.faction_kind_by_id:
+                    problems.append(
+                        f"{contexto}.funda_faccion: clase de facción desconocida "
+                        f"{birth.funda_faccion!r}"
+                    )
+                elif not any(r.tipo == birth.funda_faccion for r in birth.hereda_faccion):
+                    # Fundar sin heredar deja una casa nueva por cada parto y
+                    # ningún linaje: el hijo funda la suya en vez de entrar en
+                    # la de sus padres.
+                    problems.append(
+                        f"{contexto}.funda_faccion {birth.funda_faccion!r} sin "
+                        f"heredarla: cada parto fundaría una nueva en vez de "
+                        f"continuar la de los suyos"
+                    )
             for campo, rel in (
                 ("relacion_con_portador", birth.relacion_con_portador),
                 ("relacion_con_causante", birth.relacion_con_causante),
@@ -1114,6 +1140,11 @@ class ContentPack(Spec):
         existir jamás, por muy bien escrita que esté.
         """
         fundadas = {a.funda_faccion for a in self.actions if a.funda_faccion}
+        fundadas |= {
+            s.al_expirar.funda_faccion
+            for s in self.situations
+            if s.al_expirar is not None and s.al_expirar.funda_faccion
+        }
         miradas = {a.requires_faccion for a in self.actions if a.requires_faccion}
         for action in self.actions:
             if action.target is None:

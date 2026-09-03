@@ -2337,6 +2337,33 @@ class TriggerSpec(Spec):
         return self
 
 
+class Progenitor(StrEnum):
+    """De cuál de los dos se hereda algo al nacer (D-129).
+
+    El motor conoce a los dos por su papel en la condición —quién la llevaba y
+    quién se la pegó— y no sabe cuál es cuál en el mundo. Que un apellido venga
+    del padre, de la madre o del que tenga uno es una convención de cada
+    cultura, y por eso lo dice el pack.
+    """
+
+    PORTADOR = "portador"
+    CAUSANTE = "causante"
+
+
+class HerenciaDeFaccion(Spec):
+    """De quién hereda el nacido su pertenencia a un grupo de esta clase.
+
+    `de` es un ORDEN DE PREFERENCIA, no una elección única, y ahí está todo el
+    diseño: `[causante, portador]` es un apellido paterno **con la madre como
+    respaldo**, que es lo que hace falta para que el hijo de padre desconocido
+    no se quede sin casa. Con una sola opción habría que elegir entre una regla
+    que deja huérfanos sin apellido y otra que no expresa la convención.
+    """
+
+    tipo: FactionKindId
+    de: tuple[Progenitor, ...] = (Progenitor.PORTADOR,)
+
+
 class FactionKindSpec(Spec):
     """Qué CLASE de grupo es este: un gremio, una casa, un país (D-090).
 
@@ -2719,6 +2746,30 @@ class BirthSpec(Spec):
     ruido porque sin él dos hermanos con los mismos padres serían idénticos y
     la línea de sangre no explicaría nada que no explicara ya el apellido. Con
     un solo progenitor conocido, la media es su valor a secas.
+    """
+
+    hereda_faccion: tuple[HerenciaDeFaccion, ...] = ()
+    """Qué pertenencias hereda el nacido, y de quién (D-129).
+
+    **Es lo que separa una casa de un gremio.** Sin esto, un grupo cuya
+    pertenencia solo se recluta no es un linaje: es un club al que hay que
+    apuntarse, y entonces no tiene sentido que sea exclusivo ni que no se salga
+    de él. Con esto, los linajes que el parto ya crea —hay padre y madre
+    registrados en cada nacimiento— se convierten en apellidos que se propagan.
+    """
+
+    funda_faccion: FactionKindId | None = None
+    """Y si NINGUNO de los dos tiene una de esa clase, el nacimiento funda una,
+    con los dos progenitores dentro (D-129).
+
+    Un apellido no se decide: empieza cuando hay a quien pasárselo. Colgarlo del
+    parto y no de una acción es lo que lo hace posible — una acción tendría que
+    ganar una deliberación contra `charlar`, y este mundo lleva cinco
+    mecanismos perdiendo esa pelea (E-009). Aquí no hay nada que elegir: la
+    línea empieza porque continuó.
+
+    Se funda en nombre del PORTADOR, que es el único de los dos que seguro
+    está: el causante pudo morir durante la espera.
     """
 
     hereda_tastes: bool = False
