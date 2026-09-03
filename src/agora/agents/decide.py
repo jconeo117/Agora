@@ -448,10 +448,16 @@ def is_available(
 def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
     """Todas las opciones del mundo, puntuadas.
 
-    Coste: len(lugares) * len(acciones). Con el pack actual son 25 evaluaciones
-    por deliberación, y una deliberación solo ocurre cuando el agente queda
-    ocioso — no en cada tick. Si algún día el mundo tuviera cientos de lugares,
-    el recorte es acotar por horizonte de viaje, no cachear.
+    Coste: len(lugares) * len(acciones). **Esta cifra envejeció mal**: cuando se
+    escribió eran 25 evaluaciones por deliberación y hoy son 30 por 51 = **1 530**,
+    sesenta veces más, sin que nadie volviera a mirarla. Queda escrito porque es
+    el número que decide si un mundo grande es viable: medido, un agente cuesta
+    235 µs por tick, y con dos mil serían 45 segundos por día simulado.
+
+    Una deliberación solo ocurre cuando el agente queda ocioso — no en cada
+    tick — y eso ya amortiza mucho. El recorte siguiente no es cachear: es
+    **acotar los lugares que se miran** (LOD, ver `PLAN.md`), que quita 29 de
+    cada 30 evaluaciones a quien esté lejos del foco sin cambiar una regla.
 
     No se filtran las opciones de utilidad cero. Cuando todas las necesidades
     están llenas, todo vale 0 y el desempate por cercanía (ver `decide`) hace
