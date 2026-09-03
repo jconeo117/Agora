@@ -670,3 +670,20 @@ def test_collective_ownership_survives_save_and_resume(tmp_path: Any) -> None:
     otra = Simulation.resume(tmp_path / "s.json", patrimonio_pack())
     recuperada = otra.state.propiedades[PropertyId("granja")]
     assert recuperada.dueña == casa and recuperada.dueño is None
+
+
+def test_prestige_has_diminishing_returns_and_no_ceiling() -> None:
+    """Sumar y recortar hacía que el décimo héroe contara igual que el primero
+    hasta que el apellido tocaba techo y dejaba de decir nada: medido, una casa
+    llegó a 1.000 en dos años de corrida. Si todos los que importan están en el
+    techo, el techo no distingue."""
+    sim = Simulation(gremio_pack(), seed=1)
+    sim.run(4)
+    faccion = next(iter(sim.state.facciones.values()))
+    subidas = []
+    for _ in range(4):
+        antes = faccion.prestigio
+        faccion.prestigio += 0.3 * (1.0 - faccion.prestigio)
+        subidas.append(faccion.prestigio - antes)
+    assert subidas == sorted(subidas, reverse=True), "cada hazaña debe pesar menos"
+    assert faccion.prestigio < 1.0, "no hay techo que alcanzar"

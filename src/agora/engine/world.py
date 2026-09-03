@@ -1080,8 +1080,16 @@ class Simulation:
                 for faccion_id in sorted(agent.lealtad):
                     faccion = self.state.facciones.get(faccion_id)
                     if faccion is not None:
-                        faccion.prestigio = min(
-                            1.0, faccion.prestigio + goal.prestigio
+                        # Con rendimiento decreciente, no sumando y recortando
+                        # (D-136). Lo segundo hacía que el décimo héroe contara
+                        # igual que el primero hasta que el apellido tocaba
+                        # techo y dejaba de significar nada -- medido, una casa
+                        # llegó a 1.000 en dos años. Así el primero hace el
+                        # nombre y los siguientes lo sostienen, y no hay techo
+                        # que alcanzar: la misma curva que el motor ya usa para
+                        # todo lo que no tiene tope natural.
+                        faccion.prestigio += goal.prestigio * (
+                            1.0 - faccion.prestigio
                         )
             if logrado:
                 resultado, derivas = GoalStatus.ACHIEVED, goal.on_success

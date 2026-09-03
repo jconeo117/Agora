@@ -1575,9 +1575,15 @@ faction_kinds:
   hereda: true
   # Y el prestigio se enfria (D-133). Que un apellido mantenga su peso entre
   # generaciones tiene que ser trabajo de los hijos: sin desgaste, una sola
-  # hazana sostiene un linaje para siempre. A 0.0000035 por tick, media hazana
-  # (0.25 de prestigio) dura unos dos anyos si nadie hace nada mas.
-  prestigio_por_tick: 0.0000035
+  # hazana sostiene un linaje para siempre.
+  #
+  # 0.000006 y no 0.0000035: con el desgaste flojo una casa llegaba a 1.000 en
+  # dos anyos de corrida y el apellido dejaba de decir nada -- si todos los que
+  # importan estan en el techo, el techo no distingue. A este ritmo pierde 0.21
+  # al anyo, asi que media hazana se evapora en anyo y medio si nadie hace nada
+  # mas. Va junto con el rendimiento decreciente de D-136: uno frena la subida
+  # y el otro tira hacia abajo.
+  prestigio_por_tick: 0.000006
 relations:
 # La pareja deja de ser eterna (D-087). El README decia que una relacion con
 # nombre no se disuelve nunca, y valia mientras las unicas fueran de sangre y de

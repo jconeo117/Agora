@@ -1768,6 +1768,13 @@ class GoalSpec(Spec):
     prestigio: float = Field(default=0.0, ge=0.0, le=1.0)
     """Cuánto prestigio le da a SUS GRUPOS conseguirlo (D-133).
 
+    **Con rendimiento decreciente** (D-136): lo que aporta se aplica sobre lo
+    que le FALTA al grupo, `prestigio += aporte · (1 - prestigio)`. Así el
+    primer héroe hace el nombre y el décimo apenas lo mueve, que es lo que un
+    apellido significa — y no hay techo que alcanzar, así que no puede quedarse
+    clavado arriba y dejar de decir nada. Sumando y recortando, una casa llegó
+    a 1.000 en dos años de corrida.
+
     *«Fue un héroe reconocido, y desde entonces su apellido pesa.»* Es la única
     forma que tiene este motor de decir eso: el prestigio de una casa no se
     declara, se acumula con lo que logran los suyos. Y como decae solo
