@@ -53,6 +53,16 @@ health:
   - velar_por_los_suyos
   - velar_por_los_suyos_padre
   - apadrinar
+  # Los grupos los funda la gente, y fundar uno pide rango 3 de dominio, que en
+  # catorce dias no lo tiene nadie. Todo lo que cuelga de que exista un gremio
+  # queda fuera del panel por construccion: se mide con una corrida larga.
+  - fundar_gremio
+  - fundar_casa
+  - fundar_casa_padre
+  - servir_al_gremio
+  - reclutar_para_el_gremio
+  - disputa_de_gremios
+  - honrar_a_la_casa
 tuning:
   travel_discount: 0.94
   candidate_pool: 3
@@ -1276,6 +1286,181 @@ actions:
       vinculo: 0.2
     acerca: 0.22
     crea_relacion: pareja
+# Fundar un gremio (D-090). Tercera entidad que el motor crea en marcha, y la
+# primera COLECTIVA. Pide rango y dinero, no un rasgo: montar un oficio
+# organizado es algo que se GANA -- quien llego lejos en lo suyo y tiene con que
+# -- y no una etiqueta con la que se nace.
+- id: fundar_gremio
+  label: fundar un gremio
+  duration_ticks: 12
+  requires_affordance: contratos
+  requires_edad: 622080
+  # Quien ya tiene gremio no funda otro (D-127). Sin esta puerta, fundar
+  # competia con unirse en igualdad y ganaba siempre, porque fundar no depende
+  # de que nadie te acepte: medido, 137 gremios para 247 personas y 68 de ellos
+  # de un solo miembro.
+  forbids_faccion: gremio
+  # Rango 4 y no 3 ni 6, y sale de medir el reparto real a 400 dias: con 3 lo
+  # cumple el 54% de la poblacion, con 4 el 17% (35 personas) y con 6 solo el
+  # 1% -- dos personas en todo el mundo, que ademas tenian que tener el dinero,
+  # estar donde hay contratos y ganar la deliberacion. Con 6 salieron CERO
+  # gremios en 400 dias; con 3, ciento treinta y siete.
+  requires_rank:
+    dominio: 4
+  requires:
+    dinero: 0.4
+  satisfies:
+    dominio: 0.6
+    vinculo: 0.5
+  costs:
+    dinero: 0.6
+    descanso: 0.3
+  effects:
+    dinero: -0.35
+    vinculo: 0.1
+    descanso: -0.08
+  funda_faccion: gremio
+  # Alta a proposito: fundar es algo que se hace una vez en la vida, no una
+  # rutina. El hartazgo la aparta durante mucho tiempo despues de intentarlo.
+  saturation_gain: 0.95
+# Fundar una casa: lo mismo con sangre en vez de oficio. Pide tener descendencia
+# -- una casa sin nadie a quien dejarsela es un hombre rico, no una casa.
+- id: fundar_casa
+  label: fundar una casa
+  duration_ticks: 12
+  requires_affordance: quietud
+  requires_edad: 622080
+  requires_relation: madre
+  requires:
+    dinero: 0.5
+  satisfies:
+    vinculo: 0.8
+    dominio: 0.3
+  costs:
+    dinero: 0.7
+    descanso: 0.2
+  effects:
+    dinero: -0.4
+    vinculo: 0.15
+    descanso: -0.05
+  funda_faccion: casa
+  saturation_gain: 0.9
+- id: fundar_casa_padre
+  label: fundar una casa
+  duration_ticks: 12
+  requires_affordance: quietud
+  requires_edad: 622080
+  requires_relation: padre
+  requires:
+    dinero: 0.5
+  satisfies:
+    vinculo: 0.8
+    dominio: 0.3
+  costs:
+    dinero: 0.7
+    descanso: 0.2
+  effects:
+    dinero: -0.4
+    vinculo: 0.15
+    descanso: -0.05
+  funda_faccion: casa
+  saturation_gain: 0.9
+# Lo que sostiene un gremio: trabajar para el. Sube la lealtad, que es lo unico
+# que frena el desgaste -- quien no hace nada por los suyos acaba fuera.
+- id: servir_al_gremio
+  label: servir al gremio
+  duration_ticks: 8
+  requires_affordance: contratos
+  requires_faccion: gremio
+  satisfies:
+    dinero: 0.7
+    dominio: 0.3
+  costs:
+    descanso: 0.35
+  effects:
+    dinero: 0.22
+    dominio: 0.006
+    descanso: -0.09
+  lealtad: 0.06
+  saturation_gain: 0.12
+# Reclutar. Solo un miembro con peso, y a quien ya se aprecia: un gremio no se
+# llena de desconocidos por la calle.
+- id: reclutar_para_el_gremio
+  label: reclutar para el gremio
+  duration_ticks: 6
+  requires_affordance: corrillo
+  requires_company: 1
+  requires_faccion: gremio
+  requires_lealtad: 0.5
+  satisfies:
+    vinculo: 1.0
+    dominio: 0.5
+  costs:
+    descanso: 0.1
+  effects:
+    vinculo: 0.2
+    descanso: -0.03
+  lealtad: 0.04
+  # Baja: reclutar es la rutina de un gremio, no un hito. Con la de fundar alta
+  # y esta baja, el mundo se llena de miembros y no de fundadores.
+  saturation_gain: 0.1
+  target:
+    requires_edad: 622080
+    min_regard: 0.2
+    gives:
+      vinculo: 0.22
+    suma_a_faccion: gremio
+# Y lo que convierte grupos en politica: pegarle a alguien de OTRO gremio
+# enemista a los dos. `otra_faccion` no es la negacion de `misma_faccion` --
+# quien no pertenece a ninguno tampoco vale, porque hacen falta DOS gremios
+# para que haya algo que enemistar.
+- id: disputa_de_gremios
+  label: disputa entre gremios
+  duration_ticks: 4
+  requires_affordance: corrillo
+  requires_company: 1
+  requires_faccion: gremio
+  requires_lealtad: 0.75
+  satisfies:
+    dominio: 0.6
+    vinculo: 0.2
+  costs:
+    salud: 0.2
+    descanso: 0.15
+  effects:
+    dominio: 0.01
+    salud: -0.03
+    descanso: -0.04
+  lealtad: 0.05
+  saturation_gain: 0.85
+  target:
+    otra_faccion: gremio
+    requires_edad: 622080
+    gives:
+      salud: -0.05
+    enemista: true
+
+# Lo que sostiene una casa: honrarla. Sin desgaste de lealtad no hace falta para
+# seguir dentro -- a los tuyos no se deja de pertenecer por no verlos-- pero es
+# lo que da peso dentro de ella, y lo que abre lo que un recien llegado no puede.
+- id: honrar_a_la_casa
+  label: honrar a la casa
+  duration_ticks: 8
+  requires_affordance: quietud
+  requires_faccion: casa
+  requires_edad: 622080
+  satisfies:
+    vinculo: 1.0
+    dominio: 0.2
+  costs:
+    dinero: 0.2
+    descanso: 0.15
+  effects:
+    vinculo: 0.24
+    dinero: -0.04
+    descanso: -0.04
+  lealtad: 0.05
+  saturation_gain: 0.16
 - id: cazar
   label: cazar
   duration_ticks: 16
@@ -1349,6 +1534,29 @@ actions:
       fiebre: 1.2
     requires_condition: herida
     regard_weight: 0.7
+# CLASES de grupo, no grupos (D-090). Este pack no declara ni una faccion: las
+# funda la gente. Es el reparto de siempre -- el pack dice que es un gremio y el
+# mundo dice cuales hay-- y es lo que hace posible que emerjan.
+faction_kinds:
+# Un oficio organizado. No exclusivo: se puede estar en dos gremios, que es
+# distinto de tener dos patrias.
+- id: gremio
+  label: gremio
+  company_multiplier: 1.7
+  lealtad_inicial: 0.45
+  lealtad_minima: 0.12
+  # Hay que sostenerla. Sin esto, entrar una vez es ser de los suyos para
+  # siempre -- el mismo error que las parejas eternas de antes de D-087. A
+  # 0.00012 por tick, quien no hace nada por el gremio tarda unos 80 dias en
+  # caer del 0.45 de entrada al 0.12 que lo deja fuera.
+  lealtad_por_tick: 0.00012
+# Una casa: sangre y patrimonio. Exclusiva, porque no se es de dos casas, y sin
+# desgaste: a los tuyos no se deja de pertenecer por no verlos.
+- id: casa
+  label: casa
+  exclusive: true
+  company_multiplier: 2.0
+  lealtad_inicial: 0.6
 relations:
 # La pareja deja de ser eterna (D-087). El README decia que una relacion con
 # nombre no se disuelve nunca, y valia mientras las unicas fueran de sangre y de
