@@ -57,8 +57,6 @@ health:
   # catorce dias no lo tiene nadie. Todo lo que cuelga de que exista un gremio
   # queda fuera del panel por construccion: se mide con una corrida larga.
   - fundar_gremio
-  - fundar_casa
-  - fundar_casa_padre
   - servir_al_gremio
   - reclutar_para_el_gremio
   - disputa_de_gremios
@@ -1323,48 +1321,6 @@ actions:
   # Alta a proposito: fundar es algo que se hace una vez en la vida, no una
   # rutina. El hartazgo la aparta durante mucho tiempo despues de intentarlo.
   saturation_gain: 0.95
-# Fundar una casa: lo mismo con sangre en vez de oficio. Pide tener descendencia
-# -- una casa sin nadie a quien dejarsela es un hombre rico, no una casa.
-- id: fundar_casa
-  label: fundar una casa
-  duration_ticks: 12
-  requires_affordance: quietud
-  requires_edad: 622080
-  requires_relation: madre
-  requires:
-    dinero: 0.5
-  satisfies:
-    vinculo: 0.8
-    dominio: 0.3
-  costs:
-    dinero: 0.7
-    descanso: 0.2
-  effects:
-    dinero: -0.4
-    vinculo: 0.15
-    descanso: -0.05
-  funda_faccion: casa
-  saturation_gain: 0.9
-- id: fundar_casa_padre
-  label: fundar una casa
-  duration_ticks: 12
-  requires_affordance: quietud
-  requires_edad: 622080
-  requires_relation: padre
-  requires:
-    dinero: 0.5
-  satisfies:
-    vinculo: 0.8
-    dominio: 0.3
-  costs:
-    dinero: 0.7
-    descanso: 0.2
-  effects:
-    dinero: -0.4
-    vinculo: 0.15
-    descanso: -0.05
-  funda_faccion: casa
-  saturation_gain: 0.9
 # Lo que sostiene un gremio: trabajar para el. Sube la lealtad, que es lo unico
 # que frena el desgaste -- quien no hace nada por los suyos acaba fuera.
 - id: servir_al_gremio
@@ -1550,8 +1506,17 @@ faction_kinds:
   # 0.00012 por tick, quien no hace nada por el gremio tarda unos 80 dias en
   # caer del 0.45 de entrada al 0.12 que lo deja fuera.
   lealtad_por_tick: 0.00012
-# Una casa: sangre y patrimonio. Exclusiva, porque no se es de dos casas, y sin
-# desgaste: a los tuyos no se deja de pertenecer por no verlos.
+# Una casa es un APELLIDO, no una nobleza: la linea de sangre a la que
+# perteneces. Exclusiva —no se tienen dos apellidos— y sin desgaste, porque de
+# los tuyos no se deja de ser por no verlos. La nobleza, si llega, sera un
+# titulo ENCIMA de esto y no esto mismo.
+#
+# No hay accion que funde una, y es el punto entero: un apellido no se decide.
+# Empieza cuando hay a quien pasarselo, asi que lo funda el primer parto de una
+# pareja que no tenga ninguno (D-129). Colgarlo de una accion la habria dejado
+# compitiendo con `charlar` por el vinculo, que es la pelea que este mundo lleva
+# cinco mecanismos perdiendo (E-009) -- y de hecho la version por accion salio a
+# CERO casas en 400 dias.
 - id: casa
   label: casa
   exclusive: true
@@ -9742,6 +9707,17 @@ situations:
       # la puerta de edad una y otra vez durante dieciocho anyos.
       deseo: 1.0
       dominio: 0.0
+    # El apellido (D-129). Del padre y, si no lo hay o no tiene, de la madre:
+    # `de` es un orden de preferencia, no una eleccion, y eso es lo que evita
+    # que un hijo de padre desconocido se quede sin casa.
+    hereda_faccion:
+    - tipo: casa
+      de:
+      - causante
+      - portador
+    # Y si ninguno de los dos tiene, esta criatura estrena el linaje, con sus
+    # dos progenitores dentro.
+    funda_faccion: casa
     relacion_con_portador: hijo_de_madre
     relacion_con_causante: hijo_de_padre
     label: cria de
