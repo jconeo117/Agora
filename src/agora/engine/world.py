@@ -1074,6 +1074,15 @@ class Simulation:
                 continue
 
             logrado = self._meta_cumplida(agent, goal)
+            if logrado and goal.prestigio > 0.0:
+                # Lo que da nombre a una casa no es lo que sus miembros hacen
+                # todos los días: es lo que consiguen (D-133).
+                for faccion_id in sorted(agent.lealtad):
+                    faccion = self.state.facciones.get(faccion_id)
+                    if faccion is not None:
+                        faccion.prestigio = min(
+                            1.0, faccion.prestigio + goal.prestigio
+                        )
             if logrado:
                 resultado, derivas = GoalStatus.ACHIEVED, goal.on_success
             elif goal.deadline is not None and self.state.tick >= goal.deadline:
@@ -1689,6 +1698,10 @@ class Simulation:
         """
         if not self.state.facciones:
             return
+        for faccion in sorted(self.state.facciones.values(), key=lambda f: f.id):
+            desgaste = self.pack.faction_kind_by_id[faccion.tipo].prestigio_por_tick
+            if desgaste > 0.0 and faccion.prestigio > 0.0:
+                faccion.prestigio = max(0.0, faccion.prestigio - desgaste)
         con_gente = {f for a in self.state.agents.values() for f in a.lealtad}
         for faccion_id in sorted(set(self.state.facciones) - con_gente):
             faccion = self.state.facciones.pop(faccion_id)
@@ -2093,7 +2106,28 @@ class Simulation:
                 valores = [v for v in (a, b) if v is not None]
                 tastes[objetivo] = sum(valores) / len(valores)
 
+        # El catálogo de metas del mundo, por id: las del pack y las que ya lleve
+        # cualquiera —que pueden venir de un progenitor nacido en marcha—. Un
+        # dict y no una lista filtrada: dos agentes pueden declarar la misma
+        # meta, y quedarse con las N primeras coincidencias repetía unas y
+        # perdía otras.
+        catalogo: dict[str, GoalSpec] = {
+            str(m.id): m
+            for fuente in (
+                [g for a in self.pack.agents for g in a.goals],
+                [m for a in (portador, causante) if a is not None for m in a.metas],
+            )
+            for m in fuente
+        }
         metas = {str(g) for g in birth.goals}
+        if birth.hereda_goals:
+            # Lo que hace que una casa tenga costumbres sin declararlas (D-132):
+            # sus hijos quieren lo que querían sus padres. Las de los DOS, sin
+            # repetir, y con el estado de partida que les tocaría por su cuenta
+            # -- una meta lograda por el padre no nace lograda en el hijo.
+            for progenitor in (portador, causante):
+                if progenitor is not None:
+                    metas |= {str(m.id) for m in progenitor.metas}
         ficha = AgentSpec(
             id=nuevo,
             label=f"{birth.label} {nuevo}".strip() if birth.label else str(nuevo),
@@ -2108,12 +2142,7 @@ class Simulation:
                 for objetivo, valor in sorted(tastes.items())
             ),
             initial_needs=dict(birth.initial_needs),
-            goals=tuple(
-                meta
-                for agente in self.pack.agents
-                for meta in agente.goals
-                if str(meta.id) in metas
-            )[: len(metas)],
+            goals=tuple(catalogo[m] for m in sorted(catalogo) if m in metas),
         )
         self.state.censo[nuevo] = ficha
         criatura = AgentState.from_spec(self.pack, ficha)
@@ -2323,6 +2352,11 @@ class Simulation:
             otro.acercar(agent.spec_id, destino.acerca, self.state.tick)
         if destino.crea_relacion is not None:
             self._anudar(agent, otro, destino.crea_relacion)
+        for trait, delta in sorted(destino.mueve_traits.items()):
+            # Enseñar, marcar, doblegar (D-131). Estrena `drift_trait`, que
+            # llevaba desde F1 esperando justo esto — y recompone lo derivado,
+            # así que cambia CÓMO decide quien aprende y no solo su ficha.
+            otro.drift_trait(self.pack, trait, delta)
         if destino.suma_a_faccion is not None:
             self._reclutar(agent, otro, destino.suma_a_faccion)
         if destino.enemista:

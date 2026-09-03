@@ -254,6 +254,9 @@ class Faccion:
     fundada_en: int
     fundador: AgentId | None = None
     enemigas: set[FactionId] = field(default_factory=set)
+    prestigio: float = 0.0
+    """Cuánto pesa el apellido. Sube con lo que consiguen los suyos y se enfría
+    solo (D-133), así que mantenerlo es trabajo de cada generación."""
 
 
 @dataclass(slots=True)

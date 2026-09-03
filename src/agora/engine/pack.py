@@ -1012,6 +1012,11 @@ class ContentPack(Spec):
                     f"acción {action.id!r} mueve `lealtad` y no declara "
                     f"`requires_faccion`: no hay grupo en el que moverla"
                 )
+            if action.requires_prestigio > 0.0 and action.requires_faccion is None:
+                problems.append(
+                    f"acción {action.id!r} exige `requires_prestigio` y no declara "
+                    f"`requires_faccion`: prestigio ¿de qué grupo?"
+                )
             if action.requires_lealtad > 0.0 and action.requires_faccion is None:
                 problems.append(
                     f"acción {action.id!r} exige `requires_lealtad` y no declara "
@@ -1060,16 +1065,32 @@ class ContentPack(Spec):
                 or destino.cures
                 or destino.inflicts
                 or destino.crea_deuda
+                or destino.mueve_traits
+                or destino.crea_relacion
+                or destino.suma_a_faccion
+                or destino.acerca
             ):
                 problems.append(
                     f"acción {action.id!r} apunta a alguien y no le hace nada: "
-                    f"declara `gives`, `cures`, `inflicts` o `crea_deuda`, o "
-                    f"quita `target`"
+                    f"declara `gives`, `cures`, `inflicts`, `crea_deuda`, "
+                    f"`mueve_traits`, `crea_relacion`, `suma_a_faccion` o "
+                    f"`acerca`, o quita `target`"
                 )
             problems += self._unknown_keys(
                 f"acción {action.id!r}.target.requires_traits", "rasgo",
                 destino.requires_traits, conocidos_rasgos,
             )
+            problems += self._unknown_keys(
+                f"acción {action.id!r}.target.mueve_traits", "rasgo",
+                destino.mueve_traits, conocidos_rasgos,
+            )
+            problems += [
+                f"acción {action.id!r}.target.mueve_traits[{trait!r}] = {delta}, "
+                f"fuera de [-2, 2]: los rasgos viven en [-1, 1], así que un delta "
+                f"de 2 ya lleva de un extremo al otro"
+                for trait, delta in sorted(destino.mueve_traits.items())
+                if not -2.0 <= delta <= 2.0
+            ]
             for campo, tipo in (
                 ("misma_faccion", destino.misma_faccion),
                 ("otra_faccion", destino.otra_faccion),

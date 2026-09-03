@@ -276,6 +276,7 @@ def save(world: WorldState, together: set[tuple[AgentId, AgentId]], path: Path) 
                 "fundada_en": f.fundada_en,
                 "fundador": None if f.fundador is None else str(f.fundador),
                 "enemigas": sorted(str(e) for e in f.enemigas),
+                "prestigio": f.prestigio,
             }
             for f in sorted(world.facciones.values(), key=lambda x: x.id)
         ],
@@ -531,6 +532,7 @@ def load(path: Path, pack: ContentPack) -> tuple[WorldState, set[tuple[AgentId, 
             fundada_en=int(cruda["fundada_en"]),
             fundador=None if cruda["fundador"] is None else AgentId(cruda["fundador"]),
             enemigas={FactionId(e) for e in cruda.get("enemigas", [])},
+            prestigio=float(cruda.get("prestigio", 0.0)),
         )
 
     # `.get` y no `[...]`, a diferencia del resto de campos, y no es descuido:

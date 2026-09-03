@@ -881,6 +881,25 @@ class TargetSpec(Spec):
     quién es lo que la simulación descubre.
     """
 
+    mueve_traits: dict[TraitId, float] = Field(default_factory=dict)
+    """Cuánto mueve cada rasgo DEL DESTINATARIO, en [-2, 2] (D-131).
+
+    Enseñar un oficio, dejar una cicatriz, doblegar a alguien. Es lo que
+    convierte un linaje en una escuela: un asesino que entrena a su hijo le
+    empuja el rasgo, y en tres generaciones la casa entera lo lleva **sin que
+    la sangre lo transmita** — se hereda el temperamento y las afinidades
+    (D-072), no la clase (D-073), así que la única forma de que un oficio pase
+    de padres a hijos es que lo enseñen.
+
+    Estrena `AgentState.drift_trait`, que llevaba desde F1 con el docstring
+    *«todavía no lo llama nadie; es la puerta que este paso existe para abrir:
+    cicatrices, aprendizaje y rampancia entran por aquí»*. Entra el aprendizaje.
+
+    Recompone lo derivado del rasgo movido (pesos, aptitud, temperamento), así
+    que enseñar cambia de verdad cómo decide quien aprende, no solo un número
+    en su ficha.
+    """
+
     suma_a_faccion: FactionKindId | None = None
     """Hacerlo mete al destinatario en TU grupo de esta clase. Reclutar.
 
@@ -1168,6 +1187,14 @@ class ActionSpec(Spec):
     Pregunta por la CLASE, no por un grupo concreto: *un contrato del gremio*
     vale en cualquier gremio, y el motor no puede saber cuáles habrá si los
     funda la gente en marcha.
+    """
+
+    requires_prestigio: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Cuánto prestigio tiene que tener el grupo. Solo con `requires_faccion`.
+
+    Lo que solo puede hacer alguien de una casa con nombre. Es la puerta que
+    evita que el prestigio sea un número decorativo — si no abre nada, no
+    cambia una sola decisión.
     """
 
     requires_lealtad: float = Field(default=0.0, ge=0.0, le=1.0)
@@ -1736,6 +1763,19 @@ class GoalSpec(Spec):
     permanentemente escorado hacia ese eje, y eso lo distorsiona sin que nada
     lo resuelva. El plazo es lo que convierte un empujón indefinido en un arco
     con final, aunque el final sea el malo.
+    """
+
+    prestigio: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Cuánto prestigio le da a SUS GRUPOS conseguirlo (D-133).
+
+    *«Fue un héroe reconocido, y desde entonces su apellido pesa.»* Es la única
+    forma que tiene este motor de decir eso: el prestigio de una casa no se
+    declara, se acumula con lo que logran los suyos. Y como decae solo
+    (`FactionKindSpec.prestigio_por_tick`), mantenerlo es trabajo de cada
+    generación — un apellido no se hereda hecho.
+
+    Va en la meta y no en la acción a propósito: lo que da nombre a una casa no
+    es lo que sus miembros hacen todos los días, es lo que consiguen.
     """
 
     on_success: dict[TraitId, float] = Field(default_factory=dict)
@@ -2419,6 +2459,15 @@ class FactionKindSpec(Spec):
     miembros aparte sería la segunda puerta del mismo mecanismo.
     """
 
+    prestigio_por_tick: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Cuánto prestigio pierde el grupo por tick. 0.0 = no se pierde nunca.
+
+    Que un apellido mantenga su peso entre generaciones tiene que ser trabajo
+    de los hijos, no una propiedad del apellido: sin desgaste, una sola hazaña
+    sostiene un linaje para siempre — el mismo error que las parejas eternas de
+    antes de D-087 y que la lealtad sin enfriar de antes de D-125.
+    """
+
     hereda: bool = False
     """Si un grupo de esta clase recibe lo que un miembro deja sin heredero
     (D-130).
@@ -2790,6 +2839,20 @@ class BirthSpec(Spec):
 
     Se funda en nombre del PORTADOR, que es el único de los dos que seguro
     está: el causante pudo morir durante la espera.
+    """
+
+    hereda_goals: bool = False
+    """Si el nacido hereda las metas de sus progenitores (D-132).
+
+    **Es lo que hace que una casa tenga costumbres sin declararlas.** Un agente
+    no tiene políticas: delibera por utilidad cada tick, y lo único que expresa
+    *«esto es lo que persigo»* es una meta. Así que una casa que transmite su
+    oficio no es una bandera en la facción — es que sus hijos quieren lo que
+    querían sus padres, y los de la casa de al lado no.
+
+    Se heredan las de los DOS, sin repetir, y con el estado de partida que les
+    tocaría por su cuenta: una meta lograda por el padre no nace lograda en el
+    hijo, que sería regalarle una vida.
     """
 
     hereda_tastes: bool = False

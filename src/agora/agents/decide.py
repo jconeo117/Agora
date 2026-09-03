@@ -341,6 +341,7 @@ def is_available(
     edad: int | None = None,
     condiciones: Sequence[SituationId] = (),
     lealtad: Mapping[FactionKindId, float] | None = None,
+    prestigio: Mapping[FactionKindId, float] | None = None,
 ) -> bool:
     """¿Se puede ejecutar esta acción aquí y ahora? Siete puertas duras:
 
@@ -431,6 +432,11 @@ def is_available(
         suya = lealtad.get(action.requires_faccion)
         if suya is None or suya < action.requires_lealtad:
             return False
+        if action.requires_prestigio > 0.0 and (
+            prestigio is None
+            or prestigio.get(action.requires_faccion, 0.0) < action.requires_prestigio
+        ):
+            return False
     # Y su negativa: quien ya es de uno no funda otro.
     if action.forbids_faccion is not None and (
         lealtad is None or action.forbids_faccion in lealtad
@@ -474,6 +480,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
     # de cada clase. Con dos gremios, lo que abre la puerta es el gremio en el
     # que más peso tiene, no el primero por orden alfabético.
     lealtad_por_clase: dict[FactionKindId, float] = {}
+    prestigio_por_clase: dict[FactionKindId, float] = {}
     for faccion_id in sorted(agent.lealtad):
         faccion = world.facciones.get(faccion_id)
         if faccion is None:
@@ -482,6 +489,8 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
         suya = agent.lealtad[faccion_id]
         if tenia is None or suya > tenia:
             lealtad_por_clase[faccion.tipo] = suya
+        antes = prestigio_por_clase.get(faccion.tipo, 0.0)
+        prestigio_por_clase[faccion.tipo] = max(antes, faccion.prestigio)
 
     # Quién tiene delante, de verdad y con su estado. Solo hace falta si algo
     # apunta a alguien, y en un pack sin acciones dirigidas no se paga ni una
@@ -594,7 +603,8 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
         for action in pack.actions:
             if not is_available(
                 action, place, headcount, agent.needs, open_phase, agent.traits, aqui,
-                kin, agent.rango, edad_ahora, lleva_encima, lealtad_por_clase
+                kin, agent.rango, edad_ahora, lleva_encima, lealtad_por_clase,
+                prestigio_por_clase
             ):
                 continue
             # OCTAVA PUERTA: hay a quién hacérselo, y está delante.
