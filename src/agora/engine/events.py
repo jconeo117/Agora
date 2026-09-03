@@ -103,6 +103,25 @@ class EventKind(StrEnum):
     verlo escrito: **una muerte que no le duele a nadie no ocurre socialmente.**
     """
 
+    FACTION_FOUNDED = "faction_founded"
+    """Nace un grupo. `actor` es quien lo funda (D-090)."""
+
+    FACTION_JOINED = "faction_joined"
+    """Alguien entra. `actor` es quien entra; `subject`, quien lo recluta."""
+
+    FACTION_LEFT = "faction_left"
+    """Y alguien sale, porque su lealtad cayó por debajo del mínimo. No hay
+    evento de expulsión aparte: irse y que te echen se ven igual desde fuera, y
+    lo que los distingue —si lo decidió él— es algo que este motor no sabe
+    todavía."""
+
+    FACTION_DISSOLVED = "faction_dissolved"
+    """Un grupo se queda sin nadie y deja de existir. `actor` es quien lo
+    fundó, si sigue vivo — es lo único que queda de él."""
+
+    FACTIONS_AT_ODDS = "factions_at_odds"
+    """Dos grupos pasan a estar enfrentados, por algo que hizo alguien."""
+
     AGENT_BORN = "agent_born"
     """Alguien empieza a estar. `actor` es el recién nacido; `subject`, quien lo
     llevaba encima. `data` lleva al otro progenitor cuando se sabe quién fue.

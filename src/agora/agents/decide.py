@@ -69,6 +69,7 @@ from agora.engine.ontology import (
     ActionId,
     ActionSpec,
     AgentId,
+    FactionKindId,
     NeedId,
     PhaseId,
     PlaceId,
@@ -339,6 +340,7 @@ def is_available(
     rango: Mapping[NeedId, int] | None = None,
     edad: int | None = None,
     condiciones: Sequence[SituationId] = (),
+    lealtad: Mapping[FactionKindId, float] | None = None,
 ) -> bool:
     """¿Se puede ejecutar esta acción aquí y ahora? Siete puertas duras:
 
@@ -350,6 +352,7 @@ def is_available(
     - **alcanzan los recursos** (`requires`)
     - **eres quien hay que ser** (`requires_traits`)
     - **llevas bastante tiempo aquí** (`requires_edad`, D-070)
+    - **eres de los suyos** (`requires_faccion` y `requires_lealtad`, D-090)
     - **no llevas encima el candado** (`forbids_condition`, la única en negativo)
 
     Las dos de gente no son la misma pregunta, y confundirlas sería el error
@@ -417,6 +420,22 @@ def is_available(
     # candado. Todas las demás piden que algo esté; esta pide que no esté.
     if action.forbids_condition is not None and action.forbids_condition in condiciones:
         return False
+    # DUODÉCIMA: ser de los suyos, y bastante (D-090). `lealtad` llega ya
+    # resuelto por clase de grupo —la mayor de las que tenga de esa clase—
+    # porque una acción pregunta por la CLASE: un contrato del gremio vale en
+    # cualquier gremio, y el motor no puede saber cuáles habrá si los funda la
+    # gente. `None` la desactiva, como las demás que piden un agente delante.
+    if action.requires_faccion is not None:
+        if lealtad is None:
+            return False
+        suya = lealtad.get(action.requires_faccion)
+        if suya is None or suya < action.requires_lealtad:
+            return False
+    # Y su negativa: quien ya es de uno no funda otro.
+    if action.forbids_faccion is not None and (
+        lealtad is None or action.forbids_faccion in lealtad
+    ):
+        return False
     return all(needs[need] >= minimum for need, minimum in action.requires.items())
 
 
@@ -451,6 +470,18 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
     # combinación de lugar y acción.
     lleva_encima = tuple(sorted({c.situacion for c in agent.condiciones}))
     edad_ahora = agent.edad(world.tick)
+    # Su lealtad por CLASE de grupo, resuelta una vez: la mayor de las que tenga
+    # de cada clase. Con dos gremios, lo que abre la puerta es el gremio en el
+    # que más peso tiene, no el primero por orden alfabético.
+    lealtad_por_clase: dict[FactionKindId, float] = {}
+    for faccion_id in sorted(agent.lealtad):
+        faccion = world.facciones.get(faccion_id)
+        if faccion is None:
+            continue
+        tenia = lealtad_por_clase.get(faccion.tipo)
+        suya = agent.lealtad[faccion_id]
+        if tenia is None or suya > tenia:
+            lealtad_por_clase[faccion.tipo] = suya
 
     # Quién tiene delante, de verdad y con su estado. Solo hace falta si algo
     # apunta a alguien, y en un pack sin acciones dirigidas no se paga ni una
@@ -550,7 +581,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
             0.0
             if crowd is None
             else agent.effective_company(
-                crowd, world.tick, tuning.bond_weight, temperament.bond_fade, pack
+                crowd, world.tick, tuning.bond_weight, temperament.bond_fade, pack, world
             )
         )
         # Quién de los tuyos cree que estará. `None` cuando no tiene noticia del
@@ -563,7 +594,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
         for action in pack.actions:
             if not is_available(
                 action, place, headcount, agent.needs, open_phase, agent.traits, aqui,
-                kin, agent.rango, edad_ahora, lleva_encima
+                kin, agent.rango, edad_ahora, lleva_encima, lealtad_por_clase
             ):
                 continue
             # OCTAVA PUERTA: hay a quién hacérselo, y está delante.
@@ -580,7 +611,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
                 if place.id != agent.at:
                     continue
                 destinatario = agent.elegir_destinatario(
-                    here, action.target, agravio, deudas, world.tick
+                    here, action.target, agravio, deudas, world.tick, world
                 )
                 if destinatario is None:
                     continue

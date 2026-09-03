@@ -33,6 +33,8 @@ GoalId = NewType("GoalId", str)
 PhaseId = NewType("PhaseId", str)
 SituationId = NewType("SituationId", str)
 RelationId = NewType("RelationId", str)
+FactionId = NewType("FactionId", str)
+FactionKindId = NewType("FactionKindId", str)
 ActionId = NewType("ActionId", str)
 PlaceId = NewType("PlaceId", str)
 AgentId = NewType("AgentId", str)
@@ -851,6 +853,42 @@ class TargetSpec(Spec):
     condición. Lo que no se ve es el valor de sus necesidades.
     """
 
+    misma_faccion: FactionKindId | None = None
+    """Solo sobre quien comparta contigo un grupo de esta clase (D-090)."""
+
+    otra_faccion: FactionKindId | None = None
+    """Solo sobre quien tenga un grupo de esta clase y NO sea el tuyo.
+
+    No es la negación de la anterior: quien no pertenece a ninguno tampoco vale.
+    Un asalto entre gremios pide que haya DOS gremios, no que al otro le falte
+    el tuyo.
+    """
+
+    faccion_enemiga: bool = False
+    """Solo sobre quien pertenezca a un grupo declarado enemigo del tuyo.
+
+    Es lo que convierte grupos en política: la violencia deja de ser personal
+    —`por_agravio` mira lo que TE hicieron— y pasa a ser de bando. Los dos ejes
+    conviven: se puede odiar a alguien del bando propio y respetar a alguien del
+    contrario.
+    """
+
+    enemista: bool = False
+    """Hacerlo enemista a los dos grupos, si son de la misma clase y distintos.
+
+    Las enemistades no se declaran en el pack por lo mismo que las facciones no
+    se declaran: en un mundo donde los grupos los funda la gente, quién odia a
+    quién es lo que la simulación descubre.
+    """
+
+    suma_a_faccion: FactionKindId | None = None
+    """Hacerlo mete al destinatario en TU grupo de esta clase. Reclutar.
+
+    Del actor al destinatario y no al revés: quien recluta es quien ya está
+    dentro. Si quien actúa no pertenece a ninguno de esa clase, no pasa nada —
+    callar y no reventar, como `crea_relacion` con un lazo exclusivo ocupado.
+    """
+
     requires_edad: int = Field(default=0, ge=0)
     """Edad mínima del destinatario, en ticks. 0 = cualquiera.
 
@@ -1117,6 +1155,52 @@ class ActionSpec(Spec):
 
     Separado de `requires` a propósito: aquel mira lo que tienes ahora —y se
     gasta— y esto mira lo que has llegado a ser, que no se pierde.
+    """
+
+    requires_faccion: FactionKindId | None = None
+    """Solo un miembro de un grupo de esta clase puede intentarlo (D-090).
+
+    Duodécima puerta dura, y la primera que pregunta por algo que no es tuyo
+    sino de un grupo. Es lo que separa una facción de una etiqueta: si
+    pertenecer no cierra ni abre una puerta, no cambia una sola decisión y el
+    grupo es decoración.
+
+    Pregunta por la CLASE, no por un grupo concreto: *un contrato del gremio*
+    vale en cualquier gremio, y el motor no puede saber cuáles habrá si los
+    funda la gente en marcha.
+    """
+
+    requires_lealtad: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Con cuánta lealtad al grupo, como mínimo. Solo con `requires_faccion`.
+
+    Es el rango interno sin declarar rangos: lo que un recién llegado no puede
+    hacer y un veterano sí.
+    """
+
+    lealtad: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Cuánta lealtad mueve hacerlo, en el grupo que la puerta pidió.
+
+    Positiva para lo que se hace POR el grupo, negativa para lo que se le hace
+    en contra. Sin esto la lealtad sería un número que solo baja con el tiempo.
+    """
+
+    forbids_faccion: FactionKindId | None = None
+    """No se puede intentar siendo ya de un grupo de esta clase (D-127).
+
+    Negativo de `requires_faccion`, y hace falta por lo que se midió al soltar
+    los gremios: sin él, fundar competía con unirse en igualdad y ganaba
+    siempre, porque fundar no depende de que nadie te acepte. Salieron 137
+    gremios para 247 personas, 68 de ellos de un solo miembro. Quien ya tiene
+    gremio no funda otro, y con eso unirse deja de tener rival.
+    """
+
+    funda_faccion: FactionKindId | None = None
+    """Hacerlo funda un grupo nuevo de esta clase, con quien actúa dentro.
+
+    Tercera entidad que el motor crea en marcha, después de la deuda (D-065) y
+    de la persona (D-071), y con la misma lección: **el id se deriva de quién y
+    cuándo, nunca de un contador**, porque un contador depende del orden en que
+    se resuelvan los agentes y ese orden depende de quién estaba dónde.
     """
 
     requires_edad: int = Field(default=0, ge=0)
@@ -2251,6 +2335,65 @@ class TriggerSpec(Spec):
                 f"mientras la situación todavía está pasando y no separaría nada"
             )
         return self
+
+
+class FactionKindSpec(Spec):
+    """Qué CLASE de grupo es este: un gremio, una casa, un país (D-090).
+
+    El pack declara las clases, no los grupos. Es la diferencia que hace posible
+    que emerjan: un mundo puede empezar sin una sola facción y llenarse de
+    gremios, y el motor sabe qué es un gremio sin que ninguno esté escrito.
+
+    Es el mismo reparto que ya rige en otras dos capas de este motor: el pack
+    dice qué es una `pareja` y el mundo dice quién es pareja de quién; el pack
+    dice qué es una DEUDA y el mundo dice quién le debe a quién. Aquí el pack
+    dice qué es un gremio y el mundo dice cuáles hay.
+
+    **Lo que un grupo NO es**: un rasgo compartido. `enano` y `guerrero` ya
+    reparten a la población y ya gatean acciones, y les falta exactamente lo que
+    hace que un grupo sea un grupo — que tenga identidad propia, que se entre y
+    se salga, que posea cosas y que sus intereses choquen con los de otro. Un
+    número en una ficha no puede tener nada de eso.
+    """
+
+    id: FactionKindId
+    label: str
+
+    exclusive: bool = False
+    """Como mucho una de esta clase por persona. Un país sí, un gremio quizá no.
+
+    Mismo campo y mismo significado que en una relación, y por el mismo motivo:
+    hay pertenencias que se contradicen entre sí y otras que se acumulan.
+    """
+
+    company_multiplier: PositiveFactor = 1.0
+    """Cuánto pesa la presencia de alguien de tu mismo grupo, sobre el aprecio
+    que ya le tengas.
+
+    Espejo exacto de `RelationSpec.company_multiplier`, un escalón más arriba:
+    aquello dice que un hermano no es un desconocido cualquiera, y esto que un
+    hermano de gremio tampoco. Se componen — ser las dos cosas pesa más.
+    """
+
+    lealtad_inicial: float = Field(default=0.5, ge=0.0, le=1.0)
+    """Con cuánta lealtad entra quien entra."""
+
+    lealtad_minima: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Por debajo de esto se le expulsa. 0.0 = no se expulsa a nadie.
+
+    **Pertenecer es tener lealtad**, literalmente: la lealtad de alguien en una
+    facción ES su pertenencia, así que expulsar es borrar ese número y no hay
+    dos sitios que puedan contradecirse sobre quién es miembro. Una lista de
+    miembros aparte sería la segunda puerta del mismo mecanismo.
+    """
+
+    lealtad_por_tick: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Cuánta lealtad se pierde por tick sin hacer nada por el grupo.
+
+    Es lo que hace que la pertenencia haya que sostenerla: sin esto, entrar una
+    vez es ser de los suyos para siempre, que es el mismo error que las parejas
+    eternas de antes de D-087.
+    """
 
 
 class SituationSpec(Spec):

@@ -31,6 +31,8 @@ from agora.engine.ontology import (
     AgentId,
     AgentSpec,
     ClockSpec,
+    FactionKindId,
+    FactionKindSpec,
     GoalId,
     GoalSpec,
     HealthSpec,
@@ -75,6 +77,14 @@ class ContentPack(Spec):
     relations: tuple[RelationSpec, ...] = ()
     """Qué puede ser una persona de otra. Vacío = un mundo de desconocidos, que
     es donde estaba el motor hasta ahora."""
+
+    faction_kinds: tuple[FactionKindSpec, ...] = ()
+    """Qué CLASES de grupo puede haber. Vacío = un mundo sin grupos.
+
+    Clases y no grupos: los grupos los funda la gente en marcha (D-090), así que
+    el pack dice qué es un gremio y el mundo dice cuáles hay — el mismo reparto
+    que ya rige entre `RelationSpec` y quién es pareja de quién.
+    """
 
     properties: tuple[PropertySpec, ...] = ()
     """Quién tiene qué. Vacío = un mundo sin propiedad, donde `home` sigue
@@ -134,6 +144,10 @@ class ContentPack(Spec):
         return {relation.id: relation for relation in self.relations}
 
     @cached_property
+    def faction_kind_by_id(self) -> dict[FactionKindId, FactionKindSpec]:
+        return {kind.id: kind for kind in self.faction_kinds}
+
+    @cached_property
     def property_by_id(self) -> dict[PropertyId, PropertySpec]:
         return {prop.id: prop for prop in self.properties}
 
@@ -189,6 +203,7 @@ class ContentPack(Spec):
             *self._duplicates("situaciones", (s.id for s in self.situations)),
             *self._duplicates("relaciones", (r.id for r in self.relations)),
             *self._duplicates("propiedades", (p.id for p in self.properties)),
+            *self._duplicates("clases de faccion", (k.id for k in self.faction_kinds)),
         ]
 
     def _check_global_id_collisions(self) -> list[str]:
@@ -954,6 +969,28 @@ class ContentPack(Spec):
                 for c in sorted(action.cures)
                 if str(c) not in personales
             ]
+            for campo, tipo in (
+                ("requires_faccion", action.requires_faccion),
+                ("forbids_faccion", action.forbids_faccion),
+                ("funda_faccion", action.funda_faccion),
+            ):
+                if tipo is not None and tipo not in self.faction_kind_by_id:
+                    problems.append(
+                        f"acción {action.id!r}.{campo}: clase de facción "
+                        f"desconocida {tipo!r}"
+                    )
+            # Mover la lealtad de un grupo al que no se exige pertenecer no
+            # significa nada: no hay forma de saber en cuál moverla.
+            if action.lealtad != 0.0 and action.requires_faccion is None:
+                problems.append(
+                    f"acción {action.id!r} mueve `lealtad` y no declara "
+                    f"`requires_faccion`: no hay grupo en el que moverla"
+                )
+            if action.requires_lealtad > 0.0 and action.requires_faccion is None:
+                problems.append(
+                    f"acción {action.id!r} exige `requires_lealtad` y no declara "
+                    f"`requires_faccion`: lealtad ¿a qué?"
+                )
             if action.forbids_condition is not None and (
                 str(action.forbids_condition) not in personales
             ):
@@ -1007,6 +1044,16 @@ class ContentPack(Spec):
                 f"acción {action.id!r}.target.requires_traits", "rasgo",
                 destino.requires_traits, conocidos_rasgos,
             )
+            for campo, tipo in (
+                ("misma_faccion", destino.misma_faccion),
+                ("otra_faccion", destino.otra_faccion),
+                ("suma_a_faccion", destino.suma_a_faccion),
+            ):
+                if tipo is not None and tipo not in self.faction_kind_by_id:
+                    problems.append(
+                        f"acción {action.id!r}.target.{campo}: clase de facción "
+                        f"desconocida {tipo!r}"
+                    )
             if destino.crea_relacion is not None and (
                 str(destino.crea_relacion) not in conocidas_relaciones
             ):
@@ -1058,6 +1105,42 @@ class ContentPack(Spec):
                     f"a la vez: son desempates distintos para la misma elección"
                 )
         return problems
+
+    def _check_faction_kinds_do_something(self) -> list[str]:
+        """Una clase de grupo que nada funda ni nada mira es contenido muerto.
+
+        Y aquí «nada la funda» es la mitad que importa (D-090): en un mundo donde
+        los grupos los funda la gente, una clase sin acción que la funde no puede
+        existir jamás, por muy bien escrita que esté.
+        """
+        fundadas = {a.funda_faccion for a in self.actions if a.funda_faccion}
+        miradas = {a.requires_faccion for a in self.actions if a.requires_faccion}
+        for action in self.actions:
+            if action.target is None:
+                continue
+            miradas |= {
+                t for t in (
+                    action.target.misma_faccion,
+                    action.target.otra_faccion,
+                    action.target.suma_a_faccion,
+                ) if t
+            }
+        return [
+            f"clase de facción {kind.id!r}: "
+            + (
+                "ninguna acción la funda, así que no puede existir nunca"
+                if kind.id not in fundadas
+                else "ninguna acción la mira, así que pertenecer no cambia nada"
+            )
+            for kind in self.faction_kinds
+            if kind.id not in fundadas
+            # Que la compañía de los tuyos pese más YA cambia decisiones, sin
+            # que ninguna acción la nombre: es el mismo argumento por el que los
+            # `effects` de una situación cuentan como hacer algo. Con el
+            # multiplicador a 1.0 no cambia nada y entonces sí hace falta que
+            # alguna acción la mire.
+            or (kind.id not in miradas and kind.company_multiplier == 1.0)
+        ]
 
     def _check_situations_do_something(self) -> list[str]:
         """Una situación que no afecta a nada es contenido muerto.
@@ -1304,6 +1387,7 @@ class ContentPack(Spec):
             *self._check_property_refs(),
             *self._check_situation_refs(),
             *self._check_situations_do_something(),
+            *self._check_faction_kinds_do_something(),
             *self._check_places_are_open_sometime_despite_situations(),
             *self._check_goal_refs(),
             *self._check_goals_are_reachable(),

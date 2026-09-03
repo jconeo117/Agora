@@ -37,6 +37,8 @@ from agora.engine.ontology import (
     ActionId,
     AgentId,
     AgentSpec,
+    FactionId,
+    FactionKindId,
     GoalId,
     GoalStatus,
     NeedId,
@@ -52,6 +54,7 @@ from agora.engine.state import (
     AgentState,
     Bond,
     Condicion,
+    Faccion,
     PerformingAction,
     Propiedad,
     Traveling,
@@ -119,6 +122,9 @@ def _agente_a_dict(agent: AgentState, recuerdos: tuple[Recuerdo, ...]) -> dict[s
         # el mundo a la edad que el pack le dio de partida, y un mundo con
         # puertas de edad se rejuvenece entero al cargar.
         "nacido_en": agent.nacido_en,
+        # A qué grupos pertenece y cuánto. La clave ES la pertenencia (D-090),
+        # así que esto guarda las dos cosas de una vez.
+        "lealtad": {str(f): v for f, v in sorted(agent.lealtad.items())},
         "needs": {str(k): v for k, v in agent.needs.items()},
         "traits": {str(k): v for k, v in agent.traits.items()},
         "tastes": dict(agent.tastes),
@@ -258,6 +264,20 @@ def save(world: WorldState, together: set[tuple[AgentId, AgentId]], path: Path) 
         # nada de ella, así que o se guarda entera o se pierde al reanudar. Es
         # la primera vez que el guardado lleva algo que no es el estado mutable
         # de una entidad declarada, sino la entidad.
+        # LOS GRUPOS ENTEROS. No hay `FactionSpec` en el pack del que
+        # reconstruirlos —el pack solo declara CLASES— así que o se guardan o al
+        # reanudar no existen, igual que quien nació en marcha (D-071).
+        "facciones": [
+            {
+                "id": str(f.id),
+                "tipo": str(f.tipo),
+                "label": f.label,
+                "fundada_en": f.fundada_en,
+                "fundador": None if f.fundador is None else str(f.fundador),
+                "enemigas": sorted(str(e) for e in f.enemigas),
+            }
+            for f in sorted(world.facciones.values(), key=lambda x: x.id)
+        ],
         "propiedades": [
             _propiedad_a_dict(prop, prop.id in world.pack.property_by_id)
             for prop in sorted(world.propiedades.values(), key=lambda p: p.id)
@@ -357,6 +377,9 @@ def _dict_a_agente(
         # lee como un mundo donde todos nacieron en el tick cero, que es lo que
         # era -- no había edad que llevar.
         nacido_en=int(datos.get("nacido_en", 0)),
+        lealtad={
+            FactionId(f): float(v) for f, v in datos.get("lealtad", {}).items()
+        },
         # Las metas salen de la ficha, no del guardado: son catálogo, como los
         # rasgos del pack. La de quien nació en marcha viene en `nacidos`, que
         # es su unica ficha en el mundo.
@@ -495,6 +518,19 @@ def load(path: Path, pack: ContentPack) -> tuple[WorldState, set[tuple[AgentId, 
     world = WorldState.new(pack, seed=datos["seed"])
     world.tick = datos["tick"]
     world.censo.update(nacidos)
+    # Una clase de facción borrada del pack se lleva sus grupos, igual que un
+    # rasgo borrado se cae de las fichas.
+    for cruda in datos.get("facciones", []):
+        if cruda["tipo"] not in pack.faction_kind_by_id:
+            continue
+        world.facciones[FactionId(cruda["id"])] = Faccion(
+            id=FactionId(cruda["id"]),
+            tipo=FactionKindId(cruda["tipo"]),
+            label=str(cruda["label"]),
+            fundada_en=int(cruda["fundada_en"]),
+            fundador=None if cruda["fundador"] is None else AgentId(cruda["fundador"]),
+            enemigas={FactionId(e) for e in cruda.get("enemigas", [])},
+        )
 
     # `.get` y no `[...]`, a diferencia del resto de campos, y no es descuido:
     # un guardado anterior a la memoria episódica se lee perfectamente como

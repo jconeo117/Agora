@@ -34,6 +34,8 @@ from agora.engine.ontology import (
     ActionId,
     AgentId,
     AgentSpec,
+    FactionId,
+    FactionKindId,
     GoalId,
     GoalSpec,
     GoalStatus,
@@ -228,6 +230,30 @@ class Condicion:
     `None` para lo que no tiene sitio: una maldición heredada, una enfermedad
     congénita, algo que se puso por API sin escena.
     """
+
+
+@dataclass(slots=True)
+class Faccion:
+    """Un grupo con identidad propia, fundado por alguien y en algún momento
+    (D-090).
+
+    **No guarda a sus miembros**, y es deliberado: pertenecer ES tener lealtad
+    (`AgentState.lealtad`), así que una lista aquí sería la segunda puerta del
+    mismo mecanismo y el día que las dos discreparan nadie sabría cuál manda. Se
+    pregunta al revés — quién tiene lealtad en esto — y `WorldState.miembros_de`
+    lo resuelve cuando hace falta, que es casi nunca: lo que la deliberación
+    consulta es la ficha del agente, no la del grupo.
+
+    `enemigas` sí vive aquí porque es del grupo y no de nadie: dos gremios están
+    enfrentados aunque sus miembros individuales se caigan bien.
+    """
+
+    id: FactionId
+    tipo: FactionKindId
+    label: str
+    fundada_en: int
+    fundador: AgentId | None = None
+    enemigas: set[FactionId] = field(default_factory=set)
 
 
 @dataclass(slots=True)
@@ -585,6 +611,15 @@ class AgentState:
     permite que esto escale a un mundo poblado.
     """
 
+    lealtad: dict[FactionId, float] = field(default_factory=dict)
+    """A qué grupos pertenece y cuánto. **La clave ES la pertenencia** (D-090).
+
+    Un solo sitio para las dos preguntas —si eres de los suyos, y cuánto— porque
+    son la misma: dejar de ser leal es dejar de pertenecer, y con dos estructuras
+    habría un estado en que una dice que sí y la otra que no. Expulsar es borrar
+    la clave.
+    """
+
     metas: tuple[GoalSpec, ...] = ()
     """El catálogo de metas de su ficha. **Derivado del censo, como los pesos lo
     son de los rasgos** — no es estado propio, es la ficha vista desde aquí.
@@ -812,6 +847,7 @@ class AgentState:
         weight: float,
         fade: float,
         pack: ContentPack | None = None,
+        world: WorldState | None = None,
     ) -> float:
         """Cuánta compañía es esa gente PARA ESTE AGENTE.
 
@@ -840,17 +876,28 @@ class AgentState:
         desconocido de igual aprecio: es la diferencia entre apreciar a alguien y
         que ese alguien sea de los tuyos. Sin `pack` no hay relaciones que mirar
         y se comporta exactamente como antes.
+
+        Con `world`, lo mismo un escalón más arriba: alguien de tu gremio no es
+        un desconocido cualquiera (D-090). Los dos pesos se COMPONEN — ser
+        hermano y además del mismo gremio pesa las dos cosas — y un mundo sin
+        grupos no paga ni una multiplicación, porque la lealtad vacía corta antes.
         """
         if weight <= 0.0:
             return float(len(others))
-        if pack is None or not self.relations:
+        de_grupo = world is not None and bool(self.lealtad)
+        if pack is None or not (self.relations or de_grupo):
             return sum(
                 1.0 + weight * self.regard_for(other, tick, fade) for other in sorted(others)
             )
         total = 0.0
         for other in sorted(others):
             aprecio = self.regard_for(other, tick, fade, self.relation_floor(pack, other))
-            total += (1.0 + weight * aprecio) * self.relation_weight(pack, other)
+            peso = self.relation_weight(pack, other)
+            # Y el grupo, un escalón más arriba, componiéndose con el lazo
+            # (D-090): ser hermano Y del mismo gremio pesa las dos cosas.
+            if de_grupo and world is not None:
+                peso *= world.peso_de_faccion(self, other)
+            total += (1.0 + weight * aprecio) * peso
         return total
 
     def remember_company(
@@ -942,6 +989,7 @@ class AgentState:
         agravio: Mapping[AgentId, float] | None = None,
         deudas: Mapping[AgentId, float] | None = None,
         tick: int | None = None,
+        world: WorldState | None = None,
     ) -> AgentState | None:
         """A quién de los que están aquí. `None` si a ninguno.
 
@@ -1011,6 +1059,12 @@ class AgentState:
                 tick is None or otro.edad(tick) < spec.requires_edad
             ):
                 continue
+            # Y de qué bando es (D-090). Las tres se ven estando delante, igual
+            # que un rasgo o una condición: a quién saluda alguien en la plaza
+            # se nota. `world` a `None` las desactiva, como `tick` desactiva la
+            # de edad.
+            if not self._pasa_las_de_faccion(otro, spec, world):
+                continue
             atraccion = 0.0
             if spec.por_agravio:
                 valor = agravios.get(otro.spec_id, 0.0)
@@ -1079,6 +1133,29 @@ class AgentState:
             if intensidad > 0.0:
                 factor *= 1.0 + (gusto - 1.0) * intensidad
         return factor
+
+    def _pasa_las_de_faccion(
+        self, otro: AgentState, spec: TargetSpec, world: WorldState | None
+    ) -> bool:
+        """Las tres puertas de grupo sobre el destinatario (D-090).
+
+        `otra_faccion` NO es la negación de `misma_faccion`, y confundirlas sería
+        el error fácil: quien no pertenece a ninguno tampoco vale. Un asalto
+        entre gremios pide que haya DOS gremios, no que al otro le falte el tuyo.
+        """
+        if world is None:
+            return not (
+                spec.misma_faccion or spec.otra_faccion or spec.faccion_enemiga
+            )
+        if spec.misma_faccion is not None:
+            mias = set(world.facciones_de(self, spec.misma_faccion))
+            if not mias & set(world.facciones_de(otro, spec.misma_faccion)):
+                return False
+        if spec.otra_faccion is not None:
+            suyas = set(world.facciones_de(otro, spec.otra_faccion))
+            if not suyas or suyas <= set(world.facciones_de(self, spec.otra_faccion)):
+                return False
+        return not (spec.faccion_enemiga and not world.son_enemigas(self, otro))
 
     def disposicion(
         self,
@@ -1741,6 +1818,11 @@ class WorldState:
     manda el pack de hoy. Por eso no ocupa sitio en el guardado.
     """
 
+    facciones: dict[FactionId, Faccion] = field(default_factory=dict)
+    """Qué grupos existen ahora mismo. Vacío = un mundo sin grupos, que es donde
+    estaba el motor hasta D-090 — y donde `confluencia` sigue EMPEZANDO: los
+    suyos los funda la gente."""
+
     propiedades: dict[PropertyId, Propiedad] = field(default_factory=dict)
     """Quién tiene qué, ahora mismo. Vacío = un mundo sin propiedad, donde
     `home` sigue siendo solo una referencia sin efecto mecánico.
@@ -1833,6 +1915,44 @@ class WorldState:
         )
 
     # -- situaciones ----------------------------------------------------------
+
+    def miembros_de(self, faccion: FactionId) -> list[AgentId]:
+        """Quién pertenece, en orden. Se calcula y no se guarda: la autoridad es
+        la lealtad de cada cual, y un índice aparte podría contradecirla."""
+        return sorted(a for a, ag in self.agents.items() if faccion in ag.lealtad)
+
+    def facciones_de(self, agent: AgentState, tipo: FactionKindId) -> list[FactionId]:
+        """Sus grupos de esta clase, en orden. Vacío si no es de ninguno."""
+        return sorted(
+            f for f in agent.lealtad
+            if f in self.facciones and self.facciones[f].tipo == tipo
+        )
+
+    def son_enemigas(self, agent: AgentState, otro: AgentState) -> bool:
+        """Si algún grupo suyo está enfrentado con alguno del otro."""
+        for mia in sorted(agent.lealtad):
+            faccion = self.facciones.get(mia)
+            if faccion is None:
+                continue
+            if any(suya in faccion.enemigas for suya in sorted(otro.lealtad)):
+                return True
+        return False
+
+    def peso_de_faccion(self, agent: AgentState, otro: AgentId) -> float:
+        """Cuánto pesa su presencia por ser de los tuyos, a nivel de grupo.
+
+        Espejo de `AgentState.relation_weight` un escalón más arriba, y se
+        componen: ser hermano Y del mismo gremio pesa las dos cosas.
+        """
+        suyo = self.agents.get(otro)
+        if suyo is None or not agent.lealtad or not suyo.lealtad:
+            return 1.0
+        total = 1.0
+        for compartida in sorted(set(agent.lealtad) & set(suyo.lealtad)):
+            faccion = self.facciones.get(compartida)
+            if faccion is not None:
+                total *= self.pack.faction_kind_by_id[faccion.tipo].company_multiplier
+        return total
 
     def active_situations(self) -> tuple[SituationId, ...]:
         """Lo que le pasa al mundo ahora mismo, **ordenado**.

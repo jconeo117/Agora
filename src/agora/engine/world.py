@@ -36,6 +36,8 @@ from agora.engine.ontology import (
     AflictionSpec,
     AgentId,
     AgentSpec,
+    FactionId,
+    FactionKindId,
     GoalSpec,
     GoalStatus,
     NeedId,
@@ -59,6 +61,7 @@ from agora.engine.state import (
     AgentState,
     Busy,
     Condicion,
+    Faccion,
     PerformingAction,
     Propiedad,
     Traveling,
@@ -192,6 +195,7 @@ class Simulation:
         self._expire_situations()
         self._fire_triggers()
         self._decay_everyone()
+        self._disolver_las_vacias()
         self._aplicar_rentas()
         self._cobrar_muertes()
         for agent in self.state.agents_in_order():
@@ -698,6 +702,8 @@ class Simulation:
             # mismo instante en que os habéis visto.
             if self.se_rompen:
                 self._romper_lo_que_ya_no_es(agent)
+            if agent.lealtad:
+                self._enfriar_lealtades(agent)
 
             # Olvidar va antes de todo lo demás: quien ya no está en tu vida no
             # debería seguir pesando en el alivio de esta misma ronda.
@@ -710,7 +716,7 @@ class Simulation:
                 specs,
                 company=agent.effective_company(
                     others, tick, tuning.bond_weight, agent.temperament.bond_fade,
-                    self.pack
+                    self.pack, self.state
                 ),
                 company_scale=tuning.company_scale,
             )
@@ -1165,7 +1171,8 @@ class Simulation:
 
         others = [other.spec_id for other in self.state.others_at(agent)]
         company = agent.effective_company(
-            others, tick, tuning.bond_weight, agent.temperament.bond_fade, self.pack
+            others, tick, tuning.bond_weight, agent.temperament.bond_fade,
+            self.pack, self.state,
         )
         received = contextual_effects(spec, company, tuning.company_scale)
 
@@ -1304,6 +1311,17 @@ class Simulation:
         # Lo que hacer esto te hace a TI, y al terminar: media faena no cuenta.
         # Un `costs` se paga una vez; esto sigue sangrando hasta que alguien lo
         # cure, que es lo que separa una consecuencia de un precio.
+        if spec.funda_faccion is not None:
+            self._fundar(agent, spec.funda_faccion)
+        if spec.lealtad != 0.0 and spec.requires_faccion is not None:
+            # En el grupo que la puerta pidió, y en el que más peso tenga si
+            # tiene varios de esa clase: es el mismo que le abrió la puerta.
+            suyas = self.state.facciones_de(agent, spec.requires_faccion)
+            if suyas:
+                cual = max(suyas, key=lambda f: (agent.lealtad[f], f))
+                agent.lealtad[cual] = max(
+                    0.0, min(1.0, agent.lealtad[cual] + spec.lealtad)
+                )
         if spec.inflicts is not None:
             # Y con quién lo hiciste, si lo hiciste con alguien (D-071). Una
             # condición que te dejas encima por tu cuenta no tiene más autor que
@@ -1564,6 +1582,167 @@ class Simulation:
             "gravedad", quien.spec_id, aflige.situation, self.state.tick
         )
         return rng.uniform(aflige.gravedad_min, aflige.gravedad_max)
+
+    def _disolver_las_vacias(self) -> None:
+        """Un grupo sin nadie dentro deja de existir (D-127).
+
+        Mismo principio que una deuda saldada (D-067) o que una cuyo deudor ya
+        no está: lo que ha dejado de significar algo no se queda ocupando sitio.
+        Y aquí muerde antes de lo que parece — medido a 400 días, 46 de 137
+        gremios habían perdido a su último miembro por desgaste de lealtad y
+        seguían en el mundo, contando como facciones y pudiendo enemistarse.
+
+        Se recorre entero y no por agente porque la pregunta es del grupo, no de
+        nadie: se disuelve cuando **nadie** le queda, y eso solo se sabe mirando
+        a todos.
+        """
+        if not self.state.facciones:
+            return
+        con_gente = {f for a in self.state.agents.values() for f in a.lealtad}
+        for faccion_id in sorted(set(self.state.facciones) - con_gente):
+            faccion = self.state.facciones.pop(faccion_id)
+            for otra in sorted(faccion.enemigas):
+                if otra in self.state.facciones:
+                    self.state.facciones[otra].enemigas.discard(faccion_id)
+            self.log.emit(
+                tick=self.state.tick,
+                kind=EventKind.FACTION_DISSOLVED,
+                actor=faccion.fundador,
+                data={"faccion": str(faccion_id), "tipo": str(faccion.tipo)},
+            )
+
+    def _fundar(self, agent: AgentState, tipo: FactionKindId) -> FactionId | None:
+        """Nace un grupo. **La tercera entidad que el motor crea en marcha**
+        (D-090), después de la deuda y de la persona.
+
+        El id se deriva de la clase, del fundador y del tick — nunca de un
+        contador, que es la lección que D-065 dejó y D-071 confirmó: un contador
+        depende del orden en que se resuelvan los agentes, y ese orden depende
+        de quién estaba dónde.
+
+        Si la clase es exclusiva y ya tiene uno, no funda: callar y no romper
+        nada, igual que `_anudar` con un lazo exclusivo ocupado. Fundar un
+        segundo país no puede ser el efecto colateral de una acción.
+        """
+        clase = self.pack.faction_kind_by_id.get(tipo)
+        if clase is None:
+            return None
+        if clase.exclusive and self.state.facciones_de(agent, tipo):
+            return None
+        nueva = FactionId(f"{tipo}:{agent.spec_id}:{self.state.tick}")
+        if nueva in self.state.facciones:
+            return None
+        self.state.facciones[nueva] = Faccion(
+            id=nueva,
+            tipo=tipo,
+            label=f"{clase.label} de {agent.spec_id}",
+            fundada_en=self.state.tick,
+            fundador=agent.spec_id,
+        )
+        agent.lealtad[nueva] = clase.lealtad_inicial
+        self.log.emit(
+            tick=self.state.tick,
+            kind=EventKind.FACTION_FOUNDED,
+            actor=agent.spec_id,
+            place=agent.at,
+            data={"faccion": str(nueva), "tipo": str(tipo)},
+        )
+        return nueva
+
+    def _reclutar(
+        self, agent: AgentState, otro: AgentState, tipo: FactionKindId
+    ) -> None:
+        """Mete al destinatario en TU grupo de esta clase.
+
+        Del actor al destinatario y no al revés: quien recluta es quien ya está
+        dentro. Si quien actúa no pertenece a ninguno de esa clase no pasa nada,
+        y si el reclutado ya está tampoco — no se le reinicia la lealtad, que
+        castigaría a un veterano por dejarse invitar otra vez.
+        """
+        clase = self.pack.faction_kind_by_id.get(tipo)
+        if clase is None:
+            return
+        mias = self.state.facciones_de(agent, tipo)
+        if not mias:
+            return
+        if clase.exclusive and self.state.facciones_de(otro, tipo):
+            return
+        cual = mias[0]
+        if cual in otro.lealtad:
+            return
+        otro.lealtad[cual] = clase.lealtad_inicial
+        self.log.emit(
+            tick=self.state.tick,
+            kind=EventKind.FACTION_JOINED,
+            actor=otro.spec_id,
+            place=otro.at,
+            subject=agent.spec_id,
+            data={"faccion": str(cual), "tipo": str(tipo)},
+        )
+
+    def _enemistar(self, agent: AgentState, otro: AgentState) -> None:
+        """Enfrenta a los grupos de los dos, por clase y de dos en dos.
+
+        Las enemistades no se declaran en el pack por lo mismo que las facciones
+        no se declaran: en un mundo donde los grupos los funda la gente, quién
+        odia a quién es lo que la simulación descubre.
+
+        Solo entre grupos de la MISMA clase: un gremio y un país no compiten por
+        lo mismo, así que enfrentarlos sería inventar una política que nadie
+        escribió.
+        """
+        for mia in sorted(agent.lealtad):
+            aqui = self.state.facciones.get(mia)
+            if aqui is None:
+                continue
+            for suya in sorted(otro.lealtad):
+                alli = self.state.facciones.get(suya)
+                if alli is None or alli.tipo != aqui.tipo or alli.id == aqui.id:
+                    continue
+                if alli.id in aqui.enemigas:
+                    continue
+                aqui.enemigas.add(alli.id)
+                alli.enemigas.add(aqui.id)
+                self.log.emit(
+                    tick=self.state.tick,
+                    kind=EventKind.FACTIONS_AT_ODDS,
+                    actor=agent.spec_id,
+                    place=agent.at,
+                    subject=otro.spec_id,
+                    data={"una": str(aqui.id), "otra": str(alli.id)},
+                )
+
+    def _enfriar_lealtades(self, agent: AgentState) -> None:
+        """La pertenencia hay que sostenerla (D-090).
+
+        Sin esto, entrar una vez es ser de los suyos para siempre — el mismo
+        error que las parejas eternas de antes de D-087. Y por debajo del mínimo
+        se le expulsa, que es borrar la clave: **pertenecer es tener lealtad**,
+        así que no hay dos sitios que puedan contradecirse sobre quién es
+        miembro.
+        """
+        fuera: list[FactionId] = []
+        for faccion_id in sorted(agent.lealtad):
+            faccion = self.state.facciones.get(faccion_id)
+            if faccion is None:
+                fuera.append(faccion_id)
+                continue
+            clase = self.pack.faction_kind_by_id[faccion.tipo]
+            if clase.lealtad_por_tick > 0.0:
+                agent.lealtad[faccion_id] = max(
+                    0.0, agent.lealtad[faccion_id] - clase.lealtad_por_tick
+                )
+            if agent.lealtad[faccion_id] < clase.lealtad_minima:
+                fuera.append(faccion_id)
+        for faccion_id in fuera:
+            del agent.lealtad[faccion_id]
+            self.log.emit(
+                tick=self.state.tick,
+                kind=EventKind.FACTION_LEFT,
+                actor=agent.spec_id,
+                place=agent.at,
+                data={"faccion": str(faccion_id)},
+            )
 
     def _romper_lo_que_ya_no_es(self, agent: AgentState) -> None:
         """Deshace los lazos que el pack declara perecederos (D-087).
@@ -2052,6 +2231,10 @@ class Simulation:
             otro.acercar(agent.spec_id, destino.acerca, self.state.tick)
         if destino.crea_relacion is not None:
             self._anudar(agent, otro, destino.crea_relacion)
+        if destino.suma_a_faccion is not None:
+            self._reclutar(agent, otro, destino.suma_a_faccion)
+        if destino.enemista:
+            self._enemistar(agent, otro)
 
         # El otro lo recuerda, y lo recuerda CON NOMBRE: `about` sale del
         # `subject` del evento, que es quien actuó.
