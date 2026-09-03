@@ -2207,7 +2207,12 @@ class PropertySpec(Spec):
     """
 
     dueño_inicial: AgentId | None = None
-    """Quién la tiene al empezar la partida. `None` = nace sin dueño."""
+    """Quién la tiene al empezar la partida. `None` = nace sin dueño.
+
+    Una propiedad de un GRUPO no se declara aquí: los grupos los funda la gente
+    (D-123), así que ninguno existe cuando el pack se carga. Se llega a ella
+    heredando (D-130).
+    """
 
     renta: dict[NeedId, float] = Field(default_factory=dict)
     """Cuánto rinde por tick a quien la tenga, ajeno a lo que haga. Vacío en
@@ -2412,6 +2417,21 @@ class FactionKindSpec(Spec):
     facción ES su pertenencia, así que expulsar es borrar ese número y no hay
     dos sitios que puedan contradecirse sobre quién es miembro. Una lista de
     miembros aparte sería la segunda puerta del mismo mecanismo.
+    """
+
+    hereda: bool = False
+    """Si un grupo de esta clase recibe lo que un miembro deja sin heredero
+    (D-130).
+
+    **Cierra D-057**, que llevaba abierta desde la propiedad: sin una entidad
+    colectiva, lo que alguien dejaba sin nadie que calificara se quedaba sin
+    dueño y se evaporaba. Con esto el patrimonio se acumula en el linaje, que es
+    lo que hace que unas casas sean ricas y otras pobres — y sin eso un título
+    de nobleza no tendría nada que reconocer.
+
+    Va detrás de la herencia por sangre, no delante: primero los tuyos, y la
+    casa solo cuando no queda ninguno. Al revés, un padre con hijos vivos les
+    dejaría todo a los primos.
     """
 
     lealtad_por_tick: float = Field(default=0.0, ge=0.0, le=1.0)

@@ -33,6 +33,7 @@ from agora.engine.ontology import (
     FactionKindId,
     NeedId,
     PlaceId,
+    PropertyId,
 )
 from agora.engine.pack import ContentPack
 from agora.engine.world import Simulation
@@ -524,3 +525,148 @@ def test_inheriting_from_nobody_does_not_load() -> None:
                  "relacion_con_portador": "hijo_de_portadora",
              }},
         ]})
+
+
+# --- lo que la casa posee (D-130) ----------------------------------------------
+#
+# Cierra D-057, que llevaba abierta desde la propiedad: sin una entidad
+# colectiva, lo que alguien dejaba sin nadie que calificara se quedaba sin dueño
+# y se evaporaba. Con la casa, el patrimonio se acumula en el linaje — que es lo
+# que hace que unas casas sean ricas y otras pobres, y sin lo cual un título de
+# nobleza no tendría nada que reconocer.
+#
+# Y una facción NO TIENE NECESIDADES, así que «la casa cobra la renta» no puede
+# significar nada: se reparte entre los suyos.
+
+
+def patrimonio_pack(**overrides: Any) -> ContentPack:
+    data: dict[str, Any] = {
+        "faction_kinds": [
+            {"id": "casa", "label": "casa", "exclusive": True,
+             "company_multiplier": 2.0, "hereda": True},
+        ],
+        "needs": [
+            {"id": "vinculo", "label": "vinculo", "decay_per_tick": 0.02,
+             "initial": 0.2},
+            {"id": "dinero", "label": "dinero", "decay_per_tick": 0.0,
+             "initial": 0.3},
+        ],
+        "actions": [
+            {"id": "fundar", "label": "fundar", "duration_ticks": 1,
+             "requires_affordance": "sitio",
+             "satisfies": {"vinculo": 1.0}, "effects": {"vinculo": 0.30},
+             "funda_faccion": "casa"},
+            {"id": "nada", "label": "nada", "duration_ticks": 1},
+        ],
+        "properties": [
+            {"id": "granja", "label": "granja", "tipo": "objeto",
+             "objeto": "una granja", "dueño_inicial": "uno",
+             "renta": {"dinero": 0.02}},
+        ],
+        "agents": [
+            {"id": "uno", "label": "Uno", "home": "p1", "start_at": "p1"},
+            {"id": "dos", "label": "Dos", "home": "p1", "start_at": "p1"},
+            {"id": "tres", "label": "Tres", "home": "p1", "start_at": "p1"},
+        ],
+    }
+    data.update(copy.deepcopy(overrides))
+    return gremio_pack(**data)
+
+
+def test_what_nobody_of_blood_inherits_goes_to_the_house() -> None:
+    sim = Simulation(patrimonio_pack(), seed=1)
+    sim.run(4)
+    casa = next(iter(sim.state.facciones))
+    for quien in (UNO, DOS, TRES):
+        sim.state.agents[quien].lealtad.setdefault(casa, 0.6)
+    sim.state.propiedades[PropertyId("granja")].dueño = UNO
+
+    sim.morir(UNO)
+
+    granja = sim.state.propiedades[PropertyId("granja")]
+    assert granja.dueño is None
+    assert granja.dueña == casa
+
+
+def test_blood_still_goes_first() -> None:
+    """La casa va DETRÁS y no delante: al revés, un padre con hijos vivos les
+    dejaría todo a los primos."""
+    pack = patrimonio_pack(**{
+        "relations": [
+            # `hereda` en el lado del HEREDERO: es el suyo el que se recorre.
+            {"id": "hijo", "label": "hijo de", "inverse": "padre", "hereda": True},
+            {"id": "padre", "label": "padre de", "inverse": "hijo"},
+        ],
+        "agents": [
+            {"id": "uno", "label": "Uno", "home": "p1", "start_at": "p1",
+             "relations": {"padre": ["dos"]}},
+            {"id": "dos", "label": "Dos", "home": "p1", "start_at": "p1"},
+            {"id": "tres", "label": "Tres", "home": "p1", "start_at": "p1"},
+        ],
+    })
+    sim = Simulation(pack, seed=1)
+    sim.run(4)
+    casa = next(iter(sim.state.facciones))
+    for quien in (UNO, DOS, TRES):
+        sim.state.agents[quien].lealtad.setdefault(casa, 0.6)
+    sim.state.propiedades[PropertyId("granja")].dueño = UNO
+
+    sim.morir(UNO)
+    granja = sim.state.propiedades[PropertyId("granja")]
+    assert granja.dueño == DOS and granja.dueña is None
+
+
+def test_the_rent_of_the_house_is_split_among_its_people() -> None:
+    """Una facción no tiene necesidades: «la casa cobra» no puede significar
+    nada más que esto."""
+    sim = Simulation(patrimonio_pack(), seed=1)
+    sim.run(4)
+    casa = next(iter(sim.state.facciones))
+    for quien in (UNO, DOS, TRES):
+        sim.state.agents[quien].lealtad[casa] = 0.6
+    granja = sim.state.propiedades[PropertyId("granja")]
+    granja.dueño, granja.dueña = None, casa
+    antes = {q: sim.state.agents[q].needs[NeedId("dinero")] for q in (UNO, DOS, TRES)}
+
+    sim.run(1)
+
+    for quien in (UNO, DOS, TRES):
+        ganado = sim.state.agents[quien].needs[NeedId("dinero")] - antes[quien]
+        assert ganado == pytest.approx(0.02 / 3, abs=1e-6)
+
+
+def test_a_house_with_nobody_left_inherits_nothing() -> None:
+    """Heredar a un grupo que se disuelve el mismo tick es la forma cara de
+    perderlo igual."""
+    sim = Simulation(patrimonio_pack(), seed=1)
+    sim.run(4)
+    casa = next(iter(sim.state.facciones))
+    for quien in (DOS, TRES):
+        sim.state.agents[quien].lealtad.pop(casa, None)
+    sim.state.agents[UNO].lealtad[casa] = 0.6
+    sim.state.propiedades[PropertyId("granja")].dueño = UNO
+
+    sim.morir(UNO)
+    granja = sim.state.propiedades[PropertyId("granja")]
+    assert granja.dueña is None, "no queda nadie a quien dejárselo"
+
+
+def test_a_kind_that_inherits_and_nothing_founds_does_not_load() -> None:
+    with pytest.raises(ValidationError, match="nada la funda"):
+        patrimonio_pack(**{"actions": [
+            {"id": "nada", "label": "nada", "duration_ticks": 1},
+        ]})
+
+
+def test_collective_ownership_survives_save_and_resume(tmp_path: Any) -> None:
+    sim = Simulation(patrimonio_pack(), seed=1)
+    sim.run(4)
+    casa = next(iter(sim.state.facciones))
+    sim.state.agents[UNO].lealtad[casa] = 0.6
+    granja = sim.state.propiedades[PropertyId("granja")]
+    granja.dueño, granja.dueña = None, casa
+    sim.save(tmp_path / "s.json")
+
+    otra = Simulation.resume(tmp_path / "s.json", patrimonio_pack())
+    recuperada = otra.state.propiedades[PropertyId("granja")]
+    assert recuperada.dueña == casa and recuperada.dueño is None

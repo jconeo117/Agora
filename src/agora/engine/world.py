@@ -558,9 +558,30 @@ class Simulation:
                 valencia=-1.0,
             )
 
+        # Y si no hay nadie de sangre, la casa (D-130). Va DETRÁS y no delante:
+        # primero los tuyos, y el grupo solo cuando no queda ninguno — al revés,
+        # un padre con hijos vivos les dejaría todo a los primos. Cierra D-057,
+        # que llevaba abierta desde la propiedad: sin una entidad colectiva, lo
+        # que alguien dejaba sin heredero se evaporaba.
+        casa: FactionId | None = None
+        if heredero is None:
+            muerto = self.state.agents.get(quien)
+            for faccion_id in sorted(muerto.lealtad if muerto is not None else ()):
+                faccion = self.state.facciones.get(faccion_id)
+                if faccion is None:
+                    continue
+                if not self.pack.faction_kind_by_id[faccion.tipo].hereda:
+                    continue
+                # Solo si le queda alguien: heredar a un grupo que se disuelve
+                # el mismo tick es la forma cara de perderlo igual.
+                if len(self.state.miembros_de(faccion_id)) > 1:
+                    casa = faccion_id
+                    break
+
         for propiedad in self.state.propiedades.values():
             if propiedad.dueño == quien:
                 propiedad.dueño = heredero
+                propiedad.dueña = casa if heredero is None else None
 
         del self.state.agents[quien]
         # Lo que sabía y no compartió, se va con él.
@@ -904,7 +925,7 @@ class Simulation:
                     # lo que se debe.
                     extintas.append((propiedad.id, "sin_objeto"))
                     continue
-            if propiedad.dueño is None or not propiedad.renta:
+            if (propiedad.dueño is None and propiedad.dueña is None) or not propiedad.renta:
                 continue
             cobro = propiedad.renta
             if propiedad.saldo:
@@ -922,9 +943,22 @@ class Simulation:
                     extintas.append((propiedad.id, "saldada"))
             if not cobro:
                 continue
-            dueño = self.state.agents.get(propiedad.dueño)
-            if dueño is not None:
-                dueño.apply(cobro, self.pack.need_by_id)
+            if propiedad.dueña is not None:
+                # A una persona se le paga; a un grupo hay que repartirlo entre
+                # los suyos, que es la única forma de que poseer signifique algo
+                # cuando el dueño no tiene necesidades que llenar (D-130). A
+                # partes iguales y no por lealtad: la lealtad es lo que sientes
+                # por los tuyos, no tu parte de la herencia, y mezclarlas haría
+                # que dejar de querer a tu casa te empobreciera.
+                miembros = self.state.miembros_de(propiedad.dueña)
+                if miembros:
+                    parte = {n: v / len(miembros) for n, v in cobro.items()}
+                    for quien in miembros:
+                        self.state.agents[quien].apply(parte, self.pack.need_by_id)
+            elif propiedad.dueño is not None:
+                dueño = self.state.agents.get(propiedad.dueño)
+                if dueño is not None:
+                    dueño.apply(cobro, self.pack.need_by_id)
             if deudor is not None:
                 deudor.apply({n: -v for n, v in cobro.items()}, self.pack.need_by_id)
 

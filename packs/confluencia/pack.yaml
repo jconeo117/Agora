@@ -1522,6 +1522,11 @@ faction_kinds:
   exclusive: true
   company_multiplier: 2.0
   lealtad_inicial: 0.6
+  # Y hereda lo que uno de los suyos deja sin nadie de sangre (D-130). Cierra
+  # D-057: hasta ahora eso se quedaba sin dueno y se evaporaba, y sin
+  # patrimonio acumulado no hay casas ricas ni pobres -- ni nada que un titulo
+  # de nobleza pueda reconocer.
+  hereda: true
 relations:
 # La pareja deja de ser eterna (D-087). El README decia que una relacion con
 # nombre no se disuelve nunca, y valia mientras las unicas fueran de sangre y de
@@ -1570,24 +1575,28 @@ relations:
 # Sin `regard_floor`: por lo mismo que `hermano` no lo lleva (D-034). Un padre
 # sin suelo de aprecio modela al padre que nunca reconocio a su hijo, y ese
 # padre tiene que poder existir.
+# `hereda` va en la relación que sostiene EL HEREDERO hacia el difunto, o sea en
+# `hijo_de_*` y no en `madre`/`padre`: es el lado del hijo el que se recorre al
+# buscar herederos. Estuvo al revés y no fallaba nada visible -- solo que las
+# madres heredaban de sus hijos y los hijos no heredaban de nadie.
 - id: hijo_de_madre
   label: hijo de
   inverse: madre
   company_multiplier: 2.2
+  hereda: true
 - id: madre
   label: madre de
   inverse: hijo_de_madre
   company_multiplier: 2.2
-  hereda: true
 - id: hijo_de_padre
   label: hijo de
   inverse: padre
   company_multiplier: 1.9
+  hereda: true
 - id: padre
   label: padre de
   inverse: hijo_de_padre
   company_multiplier: 1.9
-  hereda: true
 # Un lazo que NO es de sangre y nace de algo que alguien hizo (D-082): el
 # adulto que se acerca a un crio que ya aprecia acaba siendo suyo de otra
 # manera. Es el primer lazo de este mundo que no estaba escrito antes del tick

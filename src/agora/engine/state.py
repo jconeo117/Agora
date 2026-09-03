@@ -278,6 +278,16 @@ class Propiedad:
     renta: dict[NeedId, float]
     tributo: dict[NeedId, float]
     dueño: AgentId | None = None
+    dueña: FactionId | None = None
+    """El GRUPO que la tiene, cuando no la tiene una persona (D-130).
+
+    Excluyentes: o es de alguien o es de un grupo, nunca las dos. Un campo
+    aparte y no un `dueño` que admita las dos cosas porque lo que hay que hacer
+    con la renta es distinto — a una persona se le paga, y a un grupo hay que
+    repartírsela entre los suyos, que es la única forma de que signifique algo:
+    una facción no tiene necesidades que llenar.
+    """
+
     saldo: dict[NeedId, float] = field(default_factory=dict)
     """Lo que queda por cobrar antes de extinguirse. Vacío = perpetua."""
 

@@ -191,6 +191,7 @@ def _propiedad_a_dict(prop: Propiedad, del_pack: bool) -> dict[str, Any]:
     datos: dict[str, Any] = {
         "id": str(prop.id),
         "dueño": None if prop.dueño is None else str(prop.dueño),
+        "dueña": None if prop.dueña is None else str(prop.dueña),
         "saldo": sorted([str(n), v] for n, v in prop.saldo.items()),
     }
     if not del_pack:
@@ -605,6 +606,13 @@ def load(path: Path, pack: ContentPack) -> tuple[WorldState, set[tuple[AgentId, 
             )
             world.propiedades[id_prop] = propiedad
         propiedad.dueño = None if fila["dueño"] is None else AgentId(str(fila["dueño"]))
+        # Un grupo borrado del pack no existe, así que su propiedad vuelve a no
+        # ser de nadie -- misma regla que un agente borrado.
+        dueña = fila.get("dueña")
+        propiedad.dueña = (
+            FactionId(str(dueña)) if dueña and FactionId(str(dueña)) in world.facciones
+            else None
+        )
         # Solo si trae algo: un saldo vacío en el guardado significa "esta
         # propiedad era perpetua cuando se guardó", y sobrescribir con él
         # borraría un `saldo` que el pack de hoy acabe de declarar. Una deuda

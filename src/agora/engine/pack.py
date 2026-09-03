@@ -1132,6 +1132,26 @@ class ContentPack(Spec):
                 )
         return problems
 
+    def _check_inheriting_kinds_are_reachable(self) -> list[str]:
+        """Una clase que hereda tiene que poder EXISTIR cuando alguien muera.
+
+        Es la misma comprobación que ya hace falta en todas partes desde que los
+        grupos los funda la gente: declarar que una casa hereda no sirve de nada
+        si nada funda casas.
+        """
+        fundadas = {a.funda_faccion for a in self.actions if a.funda_faccion}
+        fundadas |= {
+            s.al_expirar.funda_faccion
+            for s in self.situations
+            if s.al_expirar is not None and s.al_expirar.funda_faccion
+        }
+        return [
+            f"clase de facción {kind.id!r} declara `hereda` y nada la funda: "
+            f"no habrá ninguna a la que dejarle nada"
+            for kind in self.faction_kinds
+            if kind.hereda and kind.id not in fundadas
+        ]
+
     def _check_faction_kinds_do_something(self) -> list[str]:
         """Una clase de grupo que nada funda ni nada mira es contenido muerto.
 
@@ -1419,6 +1439,7 @@ class ContentPack(Spec):
             *self._check_situation_refs(),
             *self._check_situations_do_something(),
             *self._check_faction_kinds_do_something(),
+            *self._check_inheriting_kinds_are_reachable(),
             *self._check_places_are_open_sometime_despite_situations(),
             *self._check_goal_refs(),
             *self._check_goals_are_reachable(),
