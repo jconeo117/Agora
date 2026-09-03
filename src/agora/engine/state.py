@@ -763,6 +763,7 @@ class AgentState:
             # que es quien ve a los dos lados; desde aquí solo se ve uno.
             relations={rel: set(quienes) for rel, quienes in spec.relations.items()},
             nacido_en=-spec.edad_inicial,
+            rango=dict(spec.initial_rank),
             metas=tuple(spec.goals),
             bonds={
                 other: Bond(regard=regard, encounters=1)

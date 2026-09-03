@@ -1819,6 +1819,23 @@ class AgentSpec(Spec):
     """Rasgo -> intensidad en -1..1. Validado abajo."""
 
     tastes: tuple[TasteSpec, ...] = ()
+    initial_rank: dict[NeedId, int] = Field(default_factory=dict)
+    """Cuántos rangos lleva rotos al empezar la partida (D-135).
+
+    Sin esto, los doscientos de un pack arrancan a rango 0 tengan diecisiete
+    años o sesenta y uno, y eso miente en todo lo que mire el rango. Se vio con
+    la vejez (D-084): los cincuenta que ya pasaban de esa edad recibían la
+    condición con gravedad 1.000 **todos**, porque la ablanda el rango y ninguno
+    tenía ninguno — la diferenciación por biografía solo aparecía en quien
+    cumplía los cincuenta dentro de la corrida.
+
+    Es el hermano de `edad_inicial` y va con él: un pack que declara edades y no
+    rangos está diciendo que sus mayores no han hecho nada con su vida.
+
+    Solo sobre ejes con `rank_slowdown`, y el validador lo comprueba: en un eje
+    sin rangos el número no significaría nada.
+    """
+
     edad_inicial: int = Field(default=0, ge=0)
     """Cuántos ticks lleva en el mundo cuando empieza la partida (D-070).
 

@@ -2768,6 +2768,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 2039040
+  initial_rank:
+    dominio: 2
   goals:
   - id: ser_padre
     label: tener descendencia
@@ -2808,6 +2810,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1175040
+  initial_rank:
+    dominio: 2
   goals:
   - id: ser_madre
     label: tener descendencia
@@ -3008,6 +3012,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1486080
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_viento: 1.0
@@ -3063,6 +3069,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 2108160
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_agua: 0.37
@@ -3152,6 +3160,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 898560
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_agua: 0.45
@@ -3206,6 +3216,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 2039040
+  initial_rank:
+    dominio: 3
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -3302,6 +3314,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1002240
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -3408,6 +3422,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1900800
+  initial_rank:
+    dominio: 3
   goals:
   - id: ser_madre
     label: tener descendencia
@@ -3448,6 +3464,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1969920
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -3528,6 +3546,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1831680
+  initial_rank:
+    dominio: 2
   goals:
   - id: ser_madre
     label: tener descendencia
@@ -3570,6 +3590,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1555200
+  initial_rank:
+    dominio: 3
   traits:
     mujer: 1.0
     afin_fuego: 1.0
@@ -3598,6 +3620,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1244160
+  initial_rank:
+    dominio: 2
   goals:
   - id: ser_madre
     label: tener descendencia
@@ -3669,6 +3693,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 2108160
+  initial_rank:
+    dominio: 3
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -3716,6 +3742,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1555200
+  initial_rank:
+    dominio: 3
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -3772,6 +3800,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 2073600
+  initial_rank:
+    dominio: 3
   goals:
   - id: ser_madre
     label: tener descendencia
@@ -3807,6 +3837,8 @@ agents:
   home: salon_comunal_gigante
   start_at: plaza_gigante
   edad_inicial: 760320
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_agua: 0.5
@@ -3880,6 +3912,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1762560
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -3909,6 +3943,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1555200
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_viento: 1.0
@@ -3957,6 +3993,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1313280
+  initial_rank:
+    dominio: 2
   goals:
   - id: ser_padre
     label: tener descendencia
@@ -3997,6 +4035,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1140480
+  initial_rank:
+    dominio: 1
   goals:
   - id: ser_madre
     label: tener descendencia
@@ -4091,6 +4131,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1036800
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_agua: 1.0
@@ -4175,6 +4217,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1175040
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_fuego: 1.0
@@ -4227,6 +4271,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1313280
+  initial_rank:
+    dominio: 2
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -4272,6 +4318,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1831680
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_viento: 1.0
@@ -4317,6 +4365,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1347840
+  initial_rank:
+    dominio: 2
   goals:
   - id: ser_madre
     label: tener descendencia
@@ -4358,6 +4408,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1969920
+  initial_rank:
+    dominio: 4
   traits:
     varon: 1.0
     afin_fuego: 1.0
@@ -4404,6 +4456,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 2039040
+  initial_rank:
+    dominio: 3
   traits:
     varon: 1.0
     afin_fuego: 1.0
@@ -4432,6 +4486,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1728000
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_agua: 1.0
@@ -4470,6 +4526,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1555200
+  initial_rank:
+    dominio: 3
   traits:
     varon: 1.0
     afin_viento: 1.0
@@ -4592,6 +4650,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1693440
+  initial_rank:
+    dominio: 2
   goals:
   - id: ser_padre
     label: tener descendencia
@@ -4712,6 +4772,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1036800
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_viento: 1.0
@@ -4804,6 +4866,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1693440
+  initial_rank:
+    dominio: 3
   traits:
     varon: 1.0
     afin_fuego: 0.29
@@ -4830,6 +4894,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1555200
+  initial_rank:
+    dominio: 3
   traits:
     varon: 1.0
     afin_fuego: 1.0
@@ -4873,6 +4939,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 587520
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -4912,6 +4980,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1175040
+  initial_rank:
+    dominio: 1
   goals:
   - id: ser_madre
     label: tener descendencia
@@ -5028,6 +5098,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1762560
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -5075,6 +5147,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1002240
+  initial_rank:
+    dominio: 2
   goals:
   - id: ser_madre
     label: tener descendencia
@@ -5153,6 +5227,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1658880
+  initial_rank:
+    dominio: 1
   goals:
   - id: ser_padre
     label: tener descendencia
@@ -5193,6 +5269,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 725760
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -5228,6 +5306,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 2108160
+  initial_rank:
+    dominio: 4
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -5264,6 +5344,8 @@ agents:
   home: salon_comunal_gigante
   start_at: plaza_gigante
   edad_inicial: 2004480
+  initial_rank:
+    dominio: 4
   goals:
   - id: ser_madre
     label: tener descendencia
@@ -5396,6 +5478,8 @@ agents:
   home: salon_comunal_gigante
   start_at: plaza_gigante
   edad_inicial: 1520640
+  initial_rank:
+    dominio: 2
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -5479,6 +5563,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 829440
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -5507,6 +5593,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1969920
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -5537,6 +5625,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 2108160
+  initial_rank:
+    dominio: 4
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -5579,6 +5669,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 587520
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_fuego: 1.0
@@ -5614,6 +5706,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 760320
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_viento: 1.0
@@ -5652,6 +5746,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1175040
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_agua: 0.31
@@ -5769,6 +5865,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1831680
+  initial_rank:
+    dominio: 3
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -5810,6 +5908,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1728000
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_fuego: 0.32
@@ -5938,6 +6038,8 @@ agents:
   home: salon_comunal_gigante
   start_at: plaza_gigante
   edad_inicial: 1140480
+  initial_rank:
+    dominio: 2
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -5963,6 +6065,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1658880
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_viento: 1.0
@@ -6029,6 +6133,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1658880
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -6056,6 +6162,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1900800
+  initial_rank:
+    dominio: 3
   traits:
     varon: 1.0
     afin_agua: 1.0
@@ -6097,6 +6205,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1762560
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -6134,6 +6244,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1416960
+  initial_rank:
+    dominio: 3
   traits:
     varon: 1.0
     afin_agua: 1.0
@@ -6215,6 +6327,8 @@ agents:
   home: salon_comunal_gigante
   start_at: plaza_gigante
   edad_inicial: 829440
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -6241,6 +6355,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1105920
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -6268,6 +6384,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1589760
+  initial_rank:
+    dominio: 2
   traits:
     mujer: 1.0
     afin_viento: 1.0
@@ -6318,6 +6436,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1036800
+  initial_rank:
+    dominio: 2
   traits:
     mujer: 1.0
     afin_fuego: 1.0
@@ -6378,6 +6498,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1624320
+  initial_rank:
+    dominio: 1
   goals:
   - id: ser_madre
     label: tener descendencia
@@ -6445,6 +6567,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1589760
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -6470,6 +6594,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1347840
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -6496,6 +6622,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1175040
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -6553,6 +6681,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 2108160
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_viento: 1.0
@@ -6593,6 +6723,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1382400
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_fuego: 0.48
@@ -6620,6 +6752,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1278720
+  initial_rank:
+    dominio: 2
   traits:
     mujer: 1.0
     afin_viento: 1.0
@@ -6657,6 +6791,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 898560
+  initial_rank:
+    dominio: 1
   goals:
   - id: ser_padre
     label: tener descendencia
@@ -6713,6 +6849,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1728000
+  initial_rank:
+    dominio: 2
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -6756,6 +6894,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1866240
+  initial_rank:
+    dominio: 4
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -6782,6 +6922,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1140480
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -6817,6 +6959,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1520640
+  initial_rank:
+    dominio: 2
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -6855,6 +6999,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1589760
+  initial_rank:
+    dominio: 1
   goals:
   - id: ser_padre
     label: tener descendencia
@@ -6894,6 +7040,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 2108160
+  initial_rank:
+    dominio: 2
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -6919,6 +7067,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1969920
+  initial_rank:
+    dominio: 3
   traits:
     mujer: 1.0
     afin_viento: 1.0
@@ -7000,6 +7150,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1002240
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_fuego: 1.0
@@ -7031,6 +7183,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1520640
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_agua: 1.0
@@ -7083,6 +7237,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1624320
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_viento: 1.0
@@ -7108,6 +7264,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1416960
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_viento: 1.0
@@ -7172,6 +7330,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1624320
+  initial_rank:
+    dominio: 2
   traits:
     mujer: 1.0
     afin_fuego: 0.31
@@ -7210,6 +7370,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 2108160
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -7252,6 +7414,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1416960
+  initial_rank:
+    dominio: 2
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -7318,6 +7482,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1486080
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_viento: 1.0
@@ -7386,6 +7552,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1451520
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_agua: 1.0
@@ -7465,6 +7633,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1555200
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_agua: 1.0
@@ -7509,6 +7679,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1935360
+  initial_rank:
+    dominio: 3
   traits:
     mujer: 1.0
     afin_viento: 1.0
@@ -7551,6 +7723,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1486080
+  initial_rank:
+    dominio: 3
   traits:
     varon: 1.0
     afin_agua: 1.0
@@ -7629,6 +7803,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 2073600
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -7662,6 +7838,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1693440
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -7726,6 +7904,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 656640
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_agua: 0.39
@@ -7754,6 +7934,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1589760
+  initial_rank:
+    dominio: 1
   goals:
   - id: ser_padre
     label: tener descendencia
@@ -7782,6 +7964,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1693440
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_fuego: 1.0
@@ -7809,6 +7993,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1486080
+  initial_rank:
+    dominio: 2
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -7859,6 +8045,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1209600
+  initial_rank:
+    dominio: 2
   traits:
     mujer: 1.0
     afin_viento: 1.0
@@ -7901,6 +8089,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 2039040
+  initial_rank:
+    dominio: 3
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -7942,6 +8132,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 2004480
+  initial_rank:
+    dominio: 4
   goals:
   - id: ser_madre
     label: tener descendencia
@@ -7976,6 +8168,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1831680
+  initial_rank:
+    dominio: 3
   traits:
     mujer: 1.0
     afin_viento: 1.0
@@ -7997,6 +8191,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1140480
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_viento: 1.0
@@ -8040,6 +8236,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1969920
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_agua: 1.0
@@ -8067,6 +8265,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1555200
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -8117,6 +8317,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1762560
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_agua: 1.0
@@ -8188,6 +8390,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1797120
+  initial_rank:
+    dominio: 2
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -8230,6 +8434,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1831680
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_fuego: 1.0
@@ -8269,6 +8475,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 933120
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -8311,6 +8519,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1693440
+  initial_rank:
+    dominio: 3
   traits:
     mujer: 1.0
     afin_viento: 1.0
@@ -8388,6 +8598,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1624320
+  initial_rank:
+    dominio: 3
   traits:
     mujer: 1.0
     afin_viento: 1.0
@@ -8423,6 +8635,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1797120
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -8468,6 +8682,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1762560
+  initial_rank:
+    dominio: 3
   traits:
     varon: 1.0
     afin_agua: 1.0
@@ -8494,6 +8710,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1831680
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_fuego: 1.0
@@ -8535,6 +8753,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1831680
+  initial_rank:
+    dominio: 4
   traits:
     mujer: 1.0
     afin_fuego: 1.0
@@ -8615,6 +8835,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1728000
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -8721,6 +8943,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1693440
+  initial_rank:
+    dominio: 3
   traits:
     mujer: 1.0
     afin_fuego: 1.0
@@ -8747,6 +8971,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1935360
+  initial_rank:
+    dominio: 4
   traits:
     varon: 1.0
     afin_agua: 1.0
@@ -8792,6 +9018,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1624320
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_fuego: 1.0
@@ -8823,6 +9051,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 794880
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_agua: 1.0
@@ -8845,6 +9075,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1693440
+  initial_rank:
+    dominio: 2
   traits:
     mujer: 1.0
     afin_viento: 1.0
@@ -8865,6 +9097,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1693440
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -8908,6 +9142,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1140480
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -8933,6 +9169,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1209600
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_agua: 1.0
@@ -8970,6 +9208,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1416960
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_fuego: 1.0
@@ -9008,6 +9248,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1416960
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_tierra: 0.37
@@ -9034,6 +9276,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 933120
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_fuego: 1.0
@@ -9078,6 +9322,8 @@ agents:
   home: salon_comunal_gigante
   start_at: plaza_gigante
   edad_inicial: 1762560
+  initial_rank:
+    dominio: 3
   goals:
   - id: ser_padre
     label: tener descendencia
@@ -9110,6 +9356,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1797120
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -9133,6 +9381,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1555200
+  initial_rank:
+    dominio: 2
   traits:
     mujer: 1.0
     afin_viento: 1.0
@@ -9204,6 +9454,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1555200
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_viento: 1.0
@@ -9231,6 +9483,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1624320
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_fuego: 1.0
@@ -9269,6 +9523,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1762560
+  initial_rank:
+    dominio: 3
   traits:
     varon: 1.0
     afin_fuego: 1.0
@@ -9300,6 +9556,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1209600
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_viento: 1.0
@@ -9323,6 +9581,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 2039040
+  initial_rank:
+    dominio: 4
   traits:
     mujer: 1.0
     afin_tierra: 0.3
@@ -9362,6 +9622,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 1589760
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -9483,6 +9745,8 @@ agents:
   home: salon_comunal_gigante
   start_at: plaza_gigante
   edad_inicial: 1140480
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_fuego: 1.0
@@ -9531,6 +9795,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 587520
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_fuego: 0.29
@@ -9651,6 +9917,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1175040
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_fuego: 0.42
@@ -9675,6 +9943,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1762560
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -9709,6 +9979,8 @@ agents:
   home: posada_elfica
   start_at: plaza_elfica
   edad_inicial: 1105920
+  initial_rank:
+    dominio: 2
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -9790,6 +10062,8 @@ agents:
   home: posada_marea
   start_at: plaza_portuaria
   edad_inicial: 1071360
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_agua: 1.0
@@ -9835,6 +10109,8 @@ agents:
   home: salon_comunal_gigante
   start_at: plaza_gigante
   edad_inicial: 1658880
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_agua: 1.0
@@ -9896,6 +10172,8 @@ agents:
   home: posada_enana
   start_at: plaza_enana
   edad_inicial: 2108160
+  initial_rank:
+    dominio: 1
   traits:
     varon: 1.0
     afin_fuego: 1.0
@@ -9941,6 +10219,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 1969920
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_agua: 1.0
@@ -10010,6 +10290,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 2004480
+  initial_rank:
+    dominio: 3
   traits:
     varon: 1.0
     afin_tierra: 1.0
@@ -10050,6 +10332,8 @@ agents:
   home: posada_de_la_manada
   start_at: plaza_demihumana
   edad_inicial: 1555200
+  initial_rank:
+    dominio: 1
   traits:
     mujer: 1.0
     afin_tierra: 1.0
@@ -10152,6 +10436,8 @@ agents:
   home: posada_central
   start_at: plaza_mayor
   edad_inicial: 2073600
+  initial_rank:
+    dominio: 2
   traits:
     varon: 1.0
     afin_agua: 1.0

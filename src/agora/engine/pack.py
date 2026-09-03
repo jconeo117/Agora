@@ -343,6 +343,36 @@ class ContentPack(Spec):
                     )
         return problems
 
+    def _check_initial_ranks(self) -> list[str]:
+        """Un rango de partida sobre un eje sin rangos no significa nada, y uno
+        que ya cumple una meta `at_rank` la regala (D-135).
+        """
+        problems: list[str] = []
+        for agent in self.agents:
+            for eje in sorted(agent.initial_rank):
+                spec = self.need_by_id.get(eje)
+                if spec is None:
+                    problems.append(
+                        f"agente {agent.id!r}.initial_rank: necesidad desconocida "
+                        f"{eje!r}"
+                    )
+                elif spec.rank_slowdown <= 0.0:
+                    problems.append(
+                        f"agente {agent.id!r}.initial_rank[{eje!r}]: el eje no "
+                        f"tiene `rank_slowdown`, así que no hay rangos que romper"
+                    )
+            for goal in agent.goals:
+                if goal.at_rank is None:
+                    continue
+                if agent.initial_rank.get(goal.need, 0) >= goal.at_rank:
+                    problems.append(
+                        f"agente {agent.id!r}, meta {goal.id!r}: pide rango "
+                        f"{goal.at_rank} en {goal.need!r} y empieza con "
+                        f"{agent.initial_rank.get(goal.need, 0)}; se cerraría en "
+                        f"el primer tick"
+                    )
+        return problems
+
     def _check_goals_are_reachable(self) -> list[str]:
         """Ninguna meta apunta por encima del techo de su eje.
 
@@ -1464,6 +1494,7 @@ class ContentPack(Spec):
             *self._check_places_are_open_sometime_despite_situations(),
             *self._check_goal_refs(),
             *self._check_goals_are_reachable(),
+            *self._check_initial_ranks(),
             *self._check_elastic_is_coherent(),
             *self._check_gain_refs(),
             *self._check_places_are_open_sometime(),
