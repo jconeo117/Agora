@@ -17,6 +17,9 @@ PLAN.md
 *.json
 !packs/**/*.json
 
-# Documentacion de desarrollo: viva y local mientras se escribe. Se debatira
-# incluirla cuando los seis modulos esten completos.
-docs/
+# Documentacion y registro de proceso. Viven en su propio repositorio, local:
+# `.claude/` tiene su historial aparte y no se publica. `CLAUDE.md`, `docs` y
+# `PLAN.md` son enlaces a archivos de dentro, para que sigan donde se los espera.
+.claude/
+/CLAUDE.md
+/docs
