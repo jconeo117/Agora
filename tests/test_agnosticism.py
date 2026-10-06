@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import ast
 import re
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -36,7 +37,27 @@ FORBIDDEN = [
     "hambre", "sueno", "sueño", "cordura", "oro", "credito", "crédito",
 ]
 
-PATTERN = re.compile(r"\b(" + "|".join(FORBIDDEN) + r")\b", re.IGNORECASE)
+PROHIBIDAS = frozenset(w.lower() for w in FORBIDDEN)
+
+
+def _trozos(texto: str) -> Iterator[str]:
+    """Las palabras de un identificador o de una cadena.
+
+    Antes se buscaba con `\\b`, y `\\b` trata `_` como letra: `need_hambre`,
+    `gold_oro` o `manaPool` pasaban limpios en un motor escrito en snake_case.
+    Se parte por todo lo que no es letra o cifra y por cada cambio a mayúscula.
+    """
+    for parte in re.split(r"[^0-9A-Za-zÀ-ÿ]+", texto):
+        for trozo in re.sub(r"([a-zà-ÿ0-9])([A-ZÀ-Þ])", r"\1 \2", parte).split():
+            yield trozo.lower()
+
+
+def _prohibida(trozo: str) -> str | None:
+    """La palabra prohibida que es este trozo, en singular o en plural."""
+    for raiz in (trozo, trozo.removesuffix("s"), trozo.removesuffix("es")):
+        if raiz in PROHIBIDAS:
+            return raiz
+    return None
 
 
 def _engine_sources() -> list[Path]:
@@ -97,9 +118,10 @@ def test_engine_has_no_setting_vocabulary(source: Path) -> None:
     tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
 
     offenders = [
-        f"  {source.name}:{lineno} -> {match.group(0)!r} en {text!r}"
+        f"  {source.name}:{lineno} -> {palabra!r} en {text!r}"
         for lineno, text in _scannable(tree)
-        if (match := PATTERN.search(text))
+        for trozo in _trozos(text)
+        if (palabra := _prohibida(trozo))
     ]
 
     assert not offenders, (
@@ -108,3 +130,19 @@ def test_engine_has_no_setting_vocabulary(source: Path) -> None:
         + "\n\nEso pertenece a un content pack. El motor solo conoce primitivas "
         "abstractas (Need, Action, Place, Tag)."
     )
+
+
+@pytest.mark.parametrize(
+    "palabra",
+    ["need_hambre", "gold_oro", "manaPool", "espadas", "naves", "Espada"],
+)
+def test_lo_que_se_escapaba_ya_no_se_escapa(palabra: str) -> None:
+    assert any(_prohibida(trozo) for trozo in _trozos(palabra))
+
+
+@pytest.mark.parametrize(
+    "palabra",
+    ["manager", "coronas", "mananas", "oroboros", "nacido_en", "need_weights"],
+)
+def test_lo_que_se_parece_no_es_prohibido(palabra: str) -> None:
+    assert not any(_prohibida(trozo) for trozo in _trozos(palabra))

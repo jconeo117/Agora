@@ -232,7 +232,7 @@ def test_saving_does_not_forgive_what_you_had_not_eaten(tmp_path: Any) -> None:
 
     fichero = tmp_path / "partida.json"
     save(sim.state, set(), fichero)
-    vuelto, _ = load(fichero, pack)
+    vuelto, _, _ = load(fichero, pack)
     assert vuelto.agents[AG1].agonia[HAMBRE] == llevaba
 
 

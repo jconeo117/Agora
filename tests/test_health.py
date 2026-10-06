@@ -324,3 +324,72 @@ def test_a_pack_without_bands_only_faces_the_universal_invariants() -> None:
         }
     )
     assert check(desnudo, measure(pack, days=2, seeds=(7,))) == []
+
+
+def informe(**cambios: object) -> HealthReport:
+    base: dict[str, object] = dict(
+        days=1,
+        seeds=(1,),
+        agents=1,
+        crisis_time=0.2,
+        simultaneous_critical=0.0,
+        abort_ratio=0.1,
+        transit_time=0.1,
+        differentiation=0.5,
+        completed=10,
+    )
+    return HealthReport(**{**base, **cambios})  # type: ignore[arg-type]
+
+
+def con_bandas() -> ContentPack:
+    pack = load_pack(PACKS[0])
+    return pack.model_copy(
+        update={
+            "health": pack.health.model_copy(
+                update={
+                    "min_crisis": 0.1,
+                    "max_crisis": 0.5,
+                    "max_abort_ratio": 0.3,
+                    "max_transit": 0.3,
+                    "min_differentiation": 0.1,
+                    "max_muertes": 3,
+                }
+            )
+        }
+    )
+
+
+def test_un_informe_sano_no_da_problemas() -> None:
+    assert check(con_bandas(), informe()) == []
+
+
+@pytest.mark.parametrize(
+    ("cambios", "esperado"),
+    [
+        ({"stalls": 1}, ("bloqueos",)),
+        ({"out_of_bounds": ("x",)}, ("fuera de [0,1]",)),
+        ({"completed": 0}, ("nadie completó",)),
+        ({"muertes": 4}, ("muertes por encima",)),
+        ({"crisis_time": 0.05}, ("por debajo del mínimo",)),
+        ({"crisis_time": 0.6}, ("crisis", "por encima del máximo")),
+        ({"abort_ratio": 0.4}, ("abandonos",)),
+        ({"transit_time": 0.4}, ("tránsito",)),
+    ],
+    ids=[
+        "stalls",
+        "out_of_bounds",
+        "completed",
+        "muertes",
+        "0.05",
+        "0.6",
+        "abort_ratio",
+        "transit_time",
+    ],
+)
+def test_cada_banda_puede_fallar(
+    cambios: dict[str, object], esperado: tuple[str, ...]
+) -> None:
+    problemas = check(con_bandas(), informe(**cambios))
+    for texto in esperado:
+        assert any(texto in p for p in problemas), f"No apareció {texto!r} en {problemas}"
+

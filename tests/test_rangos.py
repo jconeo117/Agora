@@ -241,5 +241,5 @@ def test_the_rank_survives_a_save(tmp_path: Any) -> None:
 
     fichero = tmp_path / "partida.json"
     save(sim.state, set(), fichero)
-    vuelto, _ = load(fichero, pack)
+    vuelto, _, _ = load(fichero, pack)
     assert vuelto.agents[AG1].rango[DOM] == antes

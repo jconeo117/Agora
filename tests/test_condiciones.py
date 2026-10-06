@@ -309,7 +309,7 @@ def test_a_wound_survives_a_save(tmp_path: Any) -> None:
 
     fichero = tmp_path / "partida.json"
     save(sim.state, set(), fichero)
-    vuelto, _ = load(fichero, pack)
+    vuelto, _, _ = load(fichero, pack)
 
     condiciones = vuelto.agents[AG1].condiciones
     assert len(condiciones) == 2

@@ -144,7 +144,7 @@ def test_it_survives_a_save(tmp_path: Any) -> None:
 
     fichero = tmp_path / "partida.json"
     save(sim.state, set(), fichero)
-    vuelto, _ = load(fichero, pack)
+    vuelto, _, _ = load(fichero, pack)
     assert vuelto.agents[AG1].condiciones[0].donde == MAZMORRA
 
 
@@ -165,7 +165,7 @@ def test_an_old_save_reads_as_a_wound_without_a_place(tmp_path: Any) -> None:
         a["condiciones"] = [fila[:4] for fila in a["condiciones"]]
     fichero.write_text(json.dumps(datos), encoding="utf-8")
 
-    vuelto, _ = save_mod.load(fichero, pack)
+    vuelto, _, _ = save_mod.load(fichero, pack)
     cond = vuelto.agents[AG1].condiciones[0]
     assert cond.situacion == HERIDA and cond.gravedad == 1
     assert cond.donde is None
