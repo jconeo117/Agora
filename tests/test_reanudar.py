@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from agora.engine.events import EventKind
 from agora.engine.memory import Recuerdo
-from agora.engine.ontology import NeedId, PropertyId, PropertyKind
+from agora.engine.ontology import AgentId, NeedId, PropertyId, PropertyKind
 from agora.engine.pack import load_pack
 from agora.engine.persistence import (
     _agente_a_dict,
@@ -58,6 +58,7 @@ def plano(x: Any) -> Any:
 def foto(sim: Simulation) -> dict[str, object]:
     w = sim.state
     salida: dict[str, object] = {
+        "focus": w.focus,
         "tick": w.tick,
         "censo": tuple(sorted(map(str, w.censo))),
         "facciones": plano(w.facciones),
@@ -104,6 +105,37 @@ def test_reanudar_confluencia_es_no_haber_parado(tmp_path: Path) -> None:
         if foto_seg_12[k] != foto_rean_12.get(k)
     }
     assert foto_seg_12 == foto_rean_12, f"Diferencias a 96+12 ticks: {list(diff_12.keys())}"
+
+
+def test_reanudar_con_lod_es_no_haber_parado(tmp_path: Path) -> None:
+    pack = load_pack(Path(__file__).resolve().parents[1] / "packs" / "confluencia" / "pack.yaml")
+    foco = AgentId("eris_cenizal")
+    seguida = Simulation(pack, seed=1312)
+    seguida.state.focus = foco
+    seguida.run(96)
+
+    partida = Simulation(pack, seed=1312)
+    partida.state.focus = foco
+    partida.run(96)
+    fichero = tmp_path / "partida_lod.json"
+    partida.save(fichero)
+    reanudada = Simulation.resume(fichero, pack)
+
+    foto_seg = foto(seguida)
+    foto_rean = foto(reanudada)
+    diff = {k: (foto_seg[k], foto_rean[k]) for k in foto_seg if foto_seg[k] != foto_rean.get(k)}
+    assert foto_seg == foto_rean, f"Diferencias a 96 ticks con LOD: {list(diff.keys())}"
+
+    seguida.run(12)
+    reanudada.run(12)
+    foto_seg_12 = foto(seguida)
+    foto_rean_12 = foto(reanudada)
+    diff_12 = {
+        k: (foto_seg_12[k], foto_rean_12[k])
+        for k in foto_seg_12
+        if foto_seg_12[k] != foto_rean_12.get(k)
+    }
+    assert foto_seg_12 == foto_rean_12, f"Diferencias a 96+12 ticks con LOD: {list(diff_12.keys())}"
 
 
 def test_las_facciones_viajan_enteras(tmp_path: Path) -> None:

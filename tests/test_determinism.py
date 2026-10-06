@@ -65,10 +65,13 @@ def test_a_full_week_runs_fast(pack: ContentPack) -> None:
 HIJO = """
 import hashlib, sys, tempfile
 from pathlib import Path
+from agora.engine.ontology import AgentId
 from agora.engine.pack import load_pack
 from agora.engine.world import Simulation
 pack = load_pack(Path(sys.argv[1]))
 sim = Simulation(pack, seed=1312)
+if len(sys.argv) > 2:
+    sim.state.focus = AgentId(sys.argv[2])
 sim.run(pack.clock.ticks_per_day)
 huella_log = hashlib.md5("\\n".join(sim.log.to_jsonl()).encode()).hexdigest()
 with tempfile.TemporaryDirectory() as d:
@@ -89,6 +92,22 @@ def test_la_misma_semilla_da_el_mismo_mundo_en_otro_proceso() -> None:
     huellas = [
         subprocess.run(
             [sys.executable, "-c", HIJO, str(pack)],
+            env={**os.environ, "PYTHONHASHSEED": semilla},
+            capture_output=True, text=True, check=True,
+        ).stdout
+        for semilla in ("0", "1")
+    ]
+    assert huellas[0] == huellas[1]
+
+
+def test_el_mismo_foco_da_el_mismo_mundo_en_otro_proceso() -> None:
+    """D-141 con foco: misma semilla y mismo foco dan el mismo mundo byte a
+    byte en otro proceso con distinto PYTHONHASHSEED. Corre sobre
+    `confluencia` con foco en `eris_cenizal`."""
+    pack = Path(__file__).resolve().parents[1] / "packs" / "confluencia" / "pack.yaml"
+    huellas = [
+        subprocess.run(
+            [sys.executable, "-c", HIJO, str(pack), "eris_cenizal"],
             env={**os.environ, "PYTHONHASHSEED": semilla},
             capture_output=True, text=True, check=True,
         ).stdout
