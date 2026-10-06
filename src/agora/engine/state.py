@@ -724,7 +724,7 @@ class AgentState:
         needs.update(spec.initial_needs)
 
         strain = compute_strain(pack, needs)
-        return cls(
+        agente = cls(
             spec_id=spec.id,
             at=spec.start_at,
             needs=needs,
@@ -746,19 +746,7 @@ class AgentState:
                 )
                 for goal in spec.goals
             },
-            need_weights=compose_need_weights(pack, spec.traits, spec.goals),
-            phase_shift=compose_phase_shift(pack, spec.traits),
-            # Las dos, y de la misma fuente. `aptitud_base` es la parte que no
-            # cambia con el tick y `gains` la de hoy; una ficha recién nacida no
-            # lleva nada encima, así que arrancan iguales. Dejar la base vacía
-            # aquí hacía que el primer `refresh_state` borrara la aptitud entera
-            # — y eso es la aptitud dejando de existir en el mundo.
-            aptitud_base=(aptitud := compose_gains(pack, spec.traits)),
-            gains=dict(aptitud),
-            costs=compose_costs(pack, spec.traits),
-            caps=compose_caps(pack, spec.traits),
             strain=strain,
-            temperament=compose_temperament(pack, spec.traits, strain),
             # Lo declarado, tal cual. Las simetrías las cierra `WorldState.new`,
             # que es quien ve a los dos lados; desde aquí solo se ve uno.
             relations={rel: set(quienes) for rel, quienes in spec.relations.items()},
@@ -771,6 +759,15 @@ class AgentState:
             },
             busy=None,  # todos deliberan en el tick 0
         )
+        # Todo lo derivado —pesos, aptitud, costes, techos, temperamento— sale de
+        # UNA puerta, la misma que usan la deriva, el cierre de una meta y la
+        # carga de una partida. Antes se componía aquí aparte y con TODAS las
+        # metas, así que quien arrancaba con una bloqueada pesaba ya lo que esa
+        # meta empujaría: 13 de los 200 de `confluencia`, hasta su primera
+        # recomposición. `recompose` llena también `aptitud_base`, que no puede
+        # quedar vacía: el primer `refresh_state` borraría la aptitud entera.
+        agente.recompose(pack)
+        return agente
 
     def observe(self, tick: int, present: frozenset[AgentId]) -> None:
         """Anota a quién ve donde está. Solo su propio sitio: nadie ve el barrio

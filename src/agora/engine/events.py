@@ -321,13 +321,19 @@ class EventLog:
         "_by_place",
         "_desalojados",
         "_events",
+        "_primer_seq",
         "_sin_purgar",
         "_sink",
         "_window",
         "recuento",
     )
 
-    def __init__(self, window: int | None = None, sink: TextIO | None = None) -> None:
+    def __init__(
+        self,
+        window: int | None = None,
+        sink: TextIO | None = None,
+        primer_seq: int = 0,
+    ) -> None:
         self._events: list[Event] = []
         # Deques y no listas: el desalojo va en orden de `seq`, así que el que
         # se va siempre es la cabeza, y `popleft` en un deque es O(1).
@@ -340,6 +346,12 @@ class EventLog:
         """Cuántos se descartaron. Es también el `seq` del primero que queda, y
         con eso se traduce un `seq` a su posición actual en la lista."""
         self._sin_purgar = 0
+        self._primer_seq = primer_seq
+        """El `seq` del primer evento de ESTE log. No es cero al reanudar: la
+        partida ya había numerado hasta ahí, y repetir números hacía que un
+        recuerdo nuevo se confundiera con uno viejo (`sabe` compara por `seq`).
+        Va aparte de `_desalojados` para que `emitidos` y `desalojados` sigan
+        contando solo lo de este proceso."""
 
     def emit(
         self,
@@ -361,7 +373,7 @@ class EventLog:
             # `_desalojados +` y no `len(self._events)` a secas: lo segundo
             # reiniciaría la numeración cada vez que la ventana descarta, y
             # `seq` es la clave con la que F1 referenciará recuerdos.
-            seq=self._desalojados + len(self._events),
+            seq=self.siguiente_seq,
             tick=tick,
             kind=kind,
             actor=actor,
@@ -441,15 +453,21 @@ class EventLog:
     def desalojados(self) -> int:
         return self._desalojados
 
+    @property
+    def siguiente_seq(self) -> int:
+        """El `seq` que llevará el próximo evento. Es lo que hay que guardar
+        para que una partida reanudada siga numerando sin repetir."""
+        return self._primer_seq + self._desalojados + len(self._events)
+
     def __iter__(self) -> Iterator[Event]:
         return iter(self._events)
 
     def __getitem__(self, seq: int) -> Event:
-        posicion = seq - self._desalojados
+        posicion = seq - self._primer_seq - self._desalojados
         if posicion < 0 or posicion >= len(self._events):
             raise EventoDesalojadoError(
                 f"el evento {seq} ya no está: la ventana conserva "
-                f"de {self._desalojados} a {self.emitidos - 1}"
+                f"de {self._primer_seq + self._desalojados} a {self.siguiente_seq - 1}"
             )
         return self._events[posicion]
 

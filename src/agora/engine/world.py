@@ -137,9 +137,13 @@ class Simulation:
         """Vuelca la partida. El LOG NO VA: es historia, no estado.
 
         Un ano de ciento veintisiete agentes son cientos de megas de eventos. Al
-        reanudar, el mundo es el mismo pero nadie recuerda como llego ahi.
+        reanudar, el mundo es el mismo pero nadie recuerda como llego ahi. Lo que
+        sí va es por dónde iba la numeración (`siguiente_seq`): sin ella la
+        partida reanudada repetía `seq`.
         """
-        persistence.save(self.state, self._together, path)
+        persistence.save(
+            self.state, self._together, path, siguiente_seq=self.log.siguiente_seq
+        )
 
     @classmethod
     def resume(
@@ -156,10 +160,10 @@ class Simulation:
         que ningun sorteo depende de cuantos hubo antes. Se decidio en F0 y esta
         es la primera vez que se cobra.
         """
-        state, together = persistence.load(path, pack)
+        state, together, siguiente_seq = persistence.load(path, pack)
         sim = cls.__new__(cls)
         sim.state = state
-        sim.log = EventLog(log_window, log_sink)
+        sim.log = EventLog(log_window, log_sink, primer_seq=siguiente_seq)
         sim._together = together
         return sim
 

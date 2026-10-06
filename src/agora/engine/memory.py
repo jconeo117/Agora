@@ -33,6 +33,7 @@ sobrevive a mucha rutina reciente.
 
 from __future__ import annotations
 
+from bisect import insort
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field, replace
 
@@ -609,8 +610,16 @@ class MemoriaEpisodica:
         if self.capacidad <= 0 or importancia <= 0.0 or self.sabe(owner, rumor.seq):
             return False
         guardados = self._por_duenyo.setdefault(owner, [])
-        guardados.append(
-            replace(rumor, importancia=importancia, de_oidas=rumor.de_oidas + 1)
+        # En su sitio por `seq`, no al final. Un rumor llega DESPUÉS de lo que
+        # cuenta, y añadirlo al final dejaba la lista fuera del orden de
+        # ocurrencia que `_olvidar` y `_ahora` dan por hecho —lo dice `cargar`,
+        # que por eso ordena—. Medido: 19 de 200 agentes de `confluencia` con
+        # la lista desordenada a 1 día, y una partida reanudada que ya no
+        # recordaba lo mismo que la que siguió.
+        insort(
+            guardados,
+            replace(rumor, importancia=importancia, de_oidas=rumor.de_oidas + 1),
+            key=lambda r: r.seq,
         )
         if len(guardados) > self.capacidad:
             self._olvidar(owner, guardados, rumor.tick)

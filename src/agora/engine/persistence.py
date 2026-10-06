@@ -82,13 +82,16 @@ def _bond_a_dict(bond: Bond) -> dict[str, Any]:
 
 def _recuerdo_a_lista(r: Recuerdo) -> list[Any]:
     """Un recuerdo como lista posicional: `[seq, tick, kind, place, action, about,
-    importancia, valencia]`.
+    importancia, valencia, culpable, por_quien, de_oidas]`.
 
     Lista y no diccionario por tamaño, que aquí sí importa. Con ciento veintisiete
     agentes y capacidad de doscientos son veinticinco mil recuerdos, y el volcado
     va con `indent=1`: en forma de diccionario son diez líneas cada uno —un cuarto
     de millón de líneas para el mismo dato—. Sigue siendo diffeable, que es lo que
     el guardado tiene que ser.
+
+    Las dos últimas faltaron hasta el 2026-10-05, y sin ellas reanudar olvidaba
+    de quién venía cada agravio y daba todo rumor por vivido.
     """
     return [
         r.seq,
@@ -100,16 +103,22 @@ def _recuerdo_a_lista(r: Recuerdo) -> list[Any]:
         r.importancia,
         r.valencia,
         None if r.culpable is None else str(r.culpable),
+        None if r.por_quien is None else str(r.por_quien),
+        r.de_oidas,
     ]
 
 
 def _agente_a_dict(agent: AgentState, recuerdos: tuple[Recuerdo, ...]) -> dict[str, Any]:
     """Solo lo que no se puede recalcular.
 
-    Fuera quedan `need_weights`, `gains`, `phase_shift`, `temperament` y
-    `strain`: los cinco salen de los rasgos, las metas y las necesidades, y
-    recomponerlos al cargar es mas barato que arrastrarlos y mas seguro que
-    confiar en que sigan valiendo con el pack de hoy.
+    Fuera queda lo derivado. `need_weights`, `phase_shift`, `aptitud_base`,
+    `gains`, `caps`, `costs` y `temperament` los rehace `recompose` desde los
+    rasgos y las metas; `strain` lo rehace `refresh_state` desde las
+    necesidades; `metas` es la ficha, que está en el pack o en `nacidos`; y
+    `ledger` es un instrumento de `health`, no estado de la partida.
+    Recomponerlos al cargar es más barato que arrastrarlos y más seguro que
+    confiar en que sigan valiendo con el pack de hoy. `test_reanudar.py`
+    falla si aparece un campo que no está ni aquí ni en el guardado.
     """
     busy: dict[str, Any] | None = None
     if agent.busy is not None:
@@ -201,7 +210,12 @@ def _propiedad_a_dict(prop: Propiedad, del_pack: bool) -> dict[str, Any]:
     return datos
 
 
-def save(world: WorldState, together: set[tuple[AgentId, AgentId]], path: Path) -> None:
+def save(
+    world: WorldState,
+    together: set[tuple[AgentId, AgentId]],
+    path: Path,
+    siguiente_seq: int = 0,
+) -> None:
     """Vuelca la partida. El pack NO va dentro: se pasa al cargar.
 
     Dejarlo fuera es lo que permite reanudar sobre un pack retocado, que es el
@@ -213,6 +227,9 @@ def save(world: WorldState, together: set[tuple[AgentId, AgentId]], path: Path) 
         "pack": world.pack.id,
         "tick": world.tick,
         "seed": world.rng.seed,
+        # Por dónde va la numeración de los sucesos. Sin esto, la partida
+        # reanudada numeraba desde cero y sus recuerdos nuevos repetían `seq`.
+        "seq": siguiente_seq,
         # Sin esto, al reanudar se emitiria un encuentro por cada par que ya
         # estaba junto: el mundo cargado se saludaria entero de golpe.
         "together": sorted([str(a), str(b)] for a, b in together),
@@ -339,6 +356,11 @@ def _lista_a_recuerdo(
     culpable = (
         SituationId(crudo_culpable) if crudo_culpable in situaciones else None
     )
+    # Quién lo hizo y de cuántas bocas llegó. Misma tolerancia: una fila corta
+    # es de un guardado anterior, y se lee como de nadie y de primera mano.
+    crudo_por_quien = fila[9] if len(fila) > 9 else None
+    por_quien = AgentId(crudo_por_quien) if crudo_por_quien in agentes else None
+    de_oidas = int(fila[10]) if len(fila) > 10 else 0
     return Recuerdo(
         seq=int(seq),
         tick=int(tick),
@@ -349,6 +371,8 @@ def _lista_a_recuerdo(
         importancia=float(importancia),
         valencia=valencia,
         culpable=culpable,
+        por_quien=por_quien,
+        de_oidas=de_oidas,
     )
 
 
@@ -474,7 +498,9 @@ def _dict_a_agente(
     return agent
 
 
-def load(path: Path, pack: ContentPack) -> tuple[WorldState, set[tuple[AgentId, AgentId]]]:
+def load(
+    path: Path, pack: ContentPack
+) -> tuple[WorldState, set[tuple[AgentId, AgentId]], int]:
     """Recupera la partida sobre el pack dado.
 
     El pack puede no ser exactamente el que se guardo, y ese es el caso normal:
@@ -648,4 +674,4 @@ def load(path: Path, pack: ContentPack) -> tuple[WorldState, set[tuple[AgentId, 
         world.agents.pop(AgentId(difunto), None)
 
     together = {(AgentId(a), AgentId(b)) for a, b in datos["together"]}
-    return world, together
+    return world, together, int(datos.get("seq", 0))
