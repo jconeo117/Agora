@@ -266,6 +266,41 @@ class Fidelidad:
         }
 
 
+def comparar(real: Simulation, aproximado: Simulation) -> Fidelidad:
+    """Cuánto se aparta un mundo aproximado del simulado entero: medias de eje
+    y recuento de sucesos. La comparten el salto y el LOD, y es una sola a
+    propósito: dos instrumentos que midieran «desviarse» con criterios
+    distintos no se podrían comparar entre sí."""
+    salida: dict[NeedId, float] = {}
+    poblacion = len(real.state.agents)
+    for need in real.pack.needs:
+        media_real = sum(a.needs[need.id] for a in real.state.agents_in_order()) / poblacion
+        media_aprox = sum(
+            a.needs[need.id] for a in aproximado.state.agents_in_order()
+        ) / max(len(aproximado.state.agents), 1)
+        salida[need.id] = abs(media_real - media_aprox)
+
+    def cuenta(sim: Simulation, kind: EventKind, relacion: bool = False) -> int:
+        eventos = sim.log.of_kind(kind)
+        if not relacion:
+            # Una muerte se emite una vez por superviviente que la sufre, asi
+            # que lo que se cuenta es a cuanta gente distinta le paso.
+            return len({e.subject for e in eventos})
+        return len(eventos)
+
+    return Fidelidad(
+        ejes=salida,
+        muertes=(cuenta(real, EventKind.AGENT_DIED), cuenta(aproximado, EventKind.AGENT_DIED)),
+        partos=(len(real.log.of_kind(EventKind.AGENT_BORN)),
+                len(aproximado.log.of_kind(EventKind.AGENT_BORN))),
+        lazos_rotos=(cuenta(real, EventKind.RELATION_ENDED, True),
+                     cuenta(aproximado, EventKind.RELATION_ENDED, True)),
+        lazos_nuevos=(cuenta(real, EventKind.RELATION_BEGAN, True),
+                      cuenta(aproximado, EventKind.RELATION_BEGAN, True)),
+        poblacion=(len(real.state.agents), len(aproximado.state.agents)),
+    )
+
+
 def error_de_salto(sim_base: Simulation, dias: int, factor: int = 7) -> Fidelidad:
     """Cuanto miente el salto: medias de eje Y RECUENTO DE SUCESOS.
 
@@ -291,31 +326,4 @@ def error_de_salto(sim_base: Simulation, dias: int, factor: int = 7) -> Fidelida
     real = deepcopy(sim_base)
     real.run(dias * real.pack.clock.ticks_per_day)
 
-    salida: dict[NeedId, float] = {}
-    poblacion = len(real.state.agents)
-    for need in real.pack.needs:
-        media_real = sum(a.needs[need.id] for a in real.state.agents_in_order()) / poblacion
-        media_salto = sum(
-            a.needs[need.id] for a in saltado.state.agents_in_order()
-        ) / max(len(saltado.state.agents), 1)
-        salida[need.id] = abs(media_real - media_salto)
-
-    def cuenta(sim: Simulation, kind: EventKind, relacion: bool = False) -> int:
-        eventos = sim.log.of_kind(kind)
-        if not relacion:
-            # Una muerte se emite una vez por superviviente que la sufre, asi
-            # que lo que se cuenta es a cuanta gente distinta le paso.
-            return len({e.subject for e in eventos})
-        return len(eventos)
-
-    return Fidelidad(
-        ejes=salida,
-        muertes=(cuenta(real, EventKind.AGENT_DIED), cuenta(saltado, EventKind.AGENT_DIED)),
-        partos=(len(real.log.of_kind(EventKind.AGENT_BORN)),
-                len(saltado.log.of_kind(EventKind.AGENT_BORN))),
-        lazos_rotos=(cuenta(real, EventKind.RELATION_ENDED, True),
-                     cuenta(saltado, EventKind.RELATION_ENDED, True)),
-        lazos_nuevos=(cuenta(real, EventKind.RELATION_BEGAN, True),
-                      cuenta(saltado, EventKind.RELATION_BEGAN, True)),
-        poblacion=(len(real.state.agents), len(saltado.state.agents)),
-    )
+    return comparar(real, saltado)

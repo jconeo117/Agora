@@ -73,6 +73,8 @@ tuning:
   duration_discount: 0.995
   critical_need_threshold: 0.15
   sighting_horizon: 96
+  lod_focus_radius: 3
+  lod_menu_radius: 3
   learning_rate: 0.1
   bond_scale: 0.04
   bond_rate: 0.15

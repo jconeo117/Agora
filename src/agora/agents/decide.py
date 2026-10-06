@@ -564,7 +564,9 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
                 deudas[deudor] = deudas.get(deudor, 0.0) + sum(propiedad.renta.values())
 
     found: list[Decision] = []
-    for place in pack.places:
+    # Qué lugares mira lo decide el LOD (D-152), y solo él: quien está lejos
+    # del foco delibera sobre un menú corto. Sin foco o sin radio, son todos.
+    for place in world.places_to_consider(agent):
         travel = world.travel.distance(agent.at, place.id)
         if travel >= INFINITE:
             continue  # imposible con un pack validado, pero el motor no asume

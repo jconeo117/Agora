@@ -19,6 +19,8 @@ from contextlib import ExitStack
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from agora.engine.lod import error_de_lod
+from agora.engine.ontology import AgentId
 from agora.engine.pack import ContentPack, describe_pack, load_pack
 from agora.engine.render import render_activity_summary, render_log, render_state
 from agora.engine.timeskip import saltar
@@ -81,6 +83,16 @@ def main() -> None:
         "empieza a pesar tanto como el carácter, ninguna conducta se explica. "
         "No corre la simulación normal",
     )
+    parser.add_argument(
+        "--foco", default=None, metavar="AGENTE",
+        help="simula fino alrededor de este agente (D-152). Sin lod_focus_radius "
+        "en el tuning del pack, no cambia nada",
+    )
+    parser.add_argument(
+        "--error-lod", action="store_true",
+        help="con --foco: corre --days entero y con LOD desde el mismo arranque y "
+        "dice cuánto se aparta. No corre la simulación normal",
+    )
     args = parser.parse_args()
 
     pack = load_pack(args.pack)
@@ -90,6 +102,11 @@ def main() -> None:
         return
     if args.divergence:
         _report_divergence(pack, args.divergence, args.seed, args.days)
+        return
+    if args.error_lod:
+        if args.foco is None:
+            parser.error("--error-lod necesita --foco")
+        _report_error_lod(pack, args)
         return
     ventana = args.window * pack.clock.ticks_per_day if args.window > 0 else None
     # El fichero se abre ANTES de correr y se cierra después: el log se vierte
@@ -115,6 +132,8 @@ def _correr(
         print(f"# reanudado desde {args.load}  (tick {sim.state.tick})")
     else:
         sim = Simulation(pack, seed=args.seed, log_window=ventana, log_sink=sink)
+    if args.foco is not None:
+        _fijar_foco(sim, args.foco)
     ticks = args.days * pack.clock.ticks_per_day
 
     print(f"# pack   {pack.label}  {dict(describe_pack(pack))}")
@@ -156,6 +175,26 @@ def _correr(
 
     if args.jsonl is not None:
         print(f"# log crudo -> {args.jsonl}  ({sim.log.emitidos} lineas)")
+
+
+def _fijar_foco(sim: Simulation, foco: str) -> None:
+    if AgentId(foco) not in sim.state.agents:
+        raise SystemExit(f"--foco: {foco!r} no está vivo en esta partida")
+    sim.state.focus = AgentId(foco)
+    if sim.pack.tuning.lod_focus_radius is None:
+        print("# aviso: el pack no declara lod_focus_radius; el foco no cambia nada")
+
+
+def _report_error_lod(pack: ContentPack, args: argparse.Namespace) -> None:
+    """Cuánto miente el LOD sobre este mundo, antes de fiarse de él."""
+    sim = (
+        Simulation.resume(args.load, pack) if args.load is not None
+        else Simulation(pack, seed=args.seed)
+    )
+    _fijar_foco(sim, args.foco)
+    print(f"# error del LOD en {pack.label}, {args.days} días, foco {args.foco}")
+    for line in error_de_lod(sim, args.days, AgentId(args.foco)).lines():
+        print(line)
 
 
 def _report_health(pack: ContentPack) -> None:

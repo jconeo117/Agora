@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -1791,6 +1792,17 @@ def _close_relations(pack: ContentPack, agents: dict[AgentId, AgentState]) -> No
 # -----------------------------------------------------------------------------
 
 
+class DetailLevel(StrEnum):
+    """Con cuánto detalle se simula a un agente (D-152).
+
+    No se guarda: se deriva de dónde está el foco cada vez que se pregunta. Así
+    reanudar no puede desincronizarlo, y el foco es lo único que viaja.
+    """
+
+    FINE = "fino"
+    MEDIUM = "medio"
+
+
 @dataclass(slots=True)
 class WorldState:
     pack: ContentPack
@@ -1883,11 +1895,43 @@ class WorldState:
 
     Apagada mientras `memory_capacity` valga 0, que es el defecto."""
 
+    focus: AgentId | None = None
+    """Alrededor de quién se simula fino (D-152). `None` = nadie, y entonces el
+    mundo entero se simula como siempre. Es estado y viaja en el guardado:
+    D-141 hace del recorrido del foco parte de lo que define el mundo."""
+
     @property
     def seed(self) -> int:
         """Se escribe en la primera línea del log. Un bug se reproduce corriendo
         el mismo seed; sin esto, un fallo raro en el día 5 no se investiga."""
         return self.rng.seed
+
+    def detail_level(self, agent: AgentState) -> DetailLevel:
+        """La única puerta del LOD. La lee la deliberación y la lee
+        `error_de_lod`: si cada una decidiera el nivel por su cuenta, el
+        instrumento mediría un LOD que no es el que corre."""
+        radio = self.pack.tuning.lod_focus_radius
+        foco = None if self.focus is None else self.agents.get(self.focus)
+        if radio is None or foco is None:
+            return DetailLevel.FINE
+        if self.travel.distance(foco.at, agent.at) <= radio:
+            return DetailLevel.FINE
+        return DetailLevel.MEDIUM
+
+    def places_to_consider(self, agent: AgentState) -> tuple[PlaceSpec, ...]:
+        """Los lugares sobre los que delibera. En fino, todos, y es el MISMO
+        objeto `pack.places`, de modo que sin LOD no cambia ni un byte. En medio,
+        los cercanos más su casa, en el orden del pack: el orden de `candidates`
+        es parte del desempate."""
+        if self.detail_level(agent) is DetailLevel.FINE:
+            return self.pack.places
+        radio = self.pack.tuning.lod_menu_radius
+        casa = self.censo[agent.spec_id].home
+        return tuple(
+            place
+            for place in self.pack.places
+            if place.id == casa or self.travel.distance(agent.at, place.id) <= radio
+        )
 
     @classmethod
     def new(cls, pack: ContentPack, seed: int) -> WorldState:

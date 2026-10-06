@@ -230,6 +230,9 @@ def save(
         # Por dónde va la numeración de los sucesos. Sin esto, la partida
         # reanudada numeraba desde cero y sus recuerdos nuevos repetían `seq`.
         "seq": siguiente_seq,
+        # Alrededor de quién se simula fino (D-152). Sin esto, reanudar con LOD
+        # daría otro mundo: D-141 hace del foco parte de lo que define la partida.
+        "focus": None if world.focus is None else str(world.focus),
         # Sin esto, al reanudar se emitiria un encuentro por cada par que ya
         # estaba junto: el mundo cargado se saludaria entero de golpe.
         "together": sorted([str(a), str(b)] for a, b in together),
@@ -672,6 +675,13 @@ def load(
     # sigue sabiendo quien fue.
     for difunto in datos.get("muertos", ()):
         world.agents.pop(AgentId(difunto), None)
+
+    # El foco, si sigue vivo. Un guardado anterior al LOD, o uno cuyo foco ya
+    # murió, se lee sin foco: el mundo entero en fino, que es lo que era.
+    foco = datos.get("focus")
+    world.focus = (
+        AgentId(foco) if foco is not None and AgentId(foco) in world.agents else None
+    )
 
     together = {(AgentId(a), AgentId(b)) for a, b in datos["together"]}
     return world, together, int(datos.get("seq", 0))

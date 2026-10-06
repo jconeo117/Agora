@@ -3069,6 +3069,26 @@ class TuningSpec(Spec):
     0 desactiva el mecanismo y devuelve la omnisciencia.
     """
 
+    lod_focus_radius: int | None = Field(default=None, ge=0)
+    """Hasta cuántos ticks de viaje del foco se simula fino (D-152). `None`
+    apaga el LOD, y es el defecto: un mundo que no lo pide se simula entero,
+    como siempre, haya foco o no.
+
+    Quien queda más lejos delibera sobre un menú corto (`lod_menu_radius`). Es
+    la percepción limitada aplicada a la simulación: el motor sabe con detalle
+    lo que pasa cerca de quien mira, y el resto lo resuelve más barato.
+    """
+
+    lod_menu_radius: int = Field(default=3, ge=0)
+    """Cuántos ticks de viaje abarca el menú de quien está lejos del foco. A su
+    menú se añade siempre su casa, aunque quede más lejos.
+
+    Medido en `confluencia` (D-151): con solo el lugar actual, quien está en un
+    sitio sin comida ni cama no puede irse y las muertes se multiplican por
+    cinco. Con 3 ticks más la casa, el tiempo baja un 38 % y las muertes pasan
+    de 2 a 4 en una semana. Sin `lod_focus_radius` no se lee.
+    """
+
     bond_rate: float = Field(default=0.0, ge=0.0, le=1.0)
     """Cuánto mueve un rato compartido el aprecio hacia quien estaba delante.
 
