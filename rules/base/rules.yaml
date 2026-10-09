@@ -1,0 +1,62 @@
+# El sistema de rol de la mesa: el borrador 1 de la «Especificación mecánica
+# del TTRPG» (2026-10-09), en modo progresivo (D-156). Aquí solo va lo que
+# cambia con la mesa; armas, estados con nombre y técnicas son del pack (D-153).
+id: base
+label: Borrador 1, modo progresivo
+
+attributes:
+  - {id: fuerza, label: Fuerza}
+  - {id: agilidad, label: Agilidad}
+  - {id: ingenio, label: Ingenio}
+  - {id: instinto, label: Instinto}
+  - {id: voluntad, label: Voluntad}
+  - {id: presencia, label: Presencia}
+  - {id: resonancia, label: Resonancia, minimum: 0}
+
+# Valor 1-3 grado 1, 4-6 grado 2, 7-10 grado 3, 11-15 grado 4, 16-21 grado 5,
+# 22-30 grado 6 (§5.2). Los tramos se alargan: cada grado cuesta más.
+grades:
+  - {grade: 1, min_value: 1}
+  - {grade: 2, min_value: 4}
+  - {grade: 3, min_value: 7}
+  - {grade: 4, min_value: 11}
+  - {grade: 5, min_value: 16}
+  - {grade: 6, min_value: 22}
+
+tiers:
+  - {tier: 1, label: Novato, min_level: 1, max_level: 4, attribute_cap: 10}
+  - {tier: 2, label: Veterano, min_level: 5, max_level: 8, attribute_cap: 15}
+  - {tier: 3, label: Héroe, min_level: 9, max_level: 12, attribute_cap: 20}
+  - {tier: 4, label: Leyenda, min_level: 13, max_level: 16, attribute_cap: 25}
+  - {tier: 5, label: Mito, min_level: 17, max_level: 20, attribute_cap: 30}
+
+skill_max_level: 4
+
+skills:
+  - {id: armas_cuerpo_a_cuerpo, label: Armas cuerpo a cuerpo, attribute: fuerza, approaches: [agilidad, instinto]}
+  - {id: armas_a_distancia, label: Armas a distancia, attribute: agilidad, approaches: [instinto]}
+  - {id: combate_sin_armas, label: Combate sin armas, attribute: fuerza, approaches: [agilidad]}
+  - {id: defensa, label: Defensa, attribute: agilidad, approaches: [fuerza, instinto]}
+  - {id: atletismo, label: Atletismo, attribute: fuerza, approaches: [agilidad]}
+  - {id: acrobacia, label: Acrobacia, attribute: agilidad}
+  - {id: sigilo, label: Sigilo, attribute: agilidad, approaches: [instinto]}
+  - {id: aguante, label: Aguante, attribute: fuerza, approaches: [voluntad]}
+  - {id: alerta, label: Alerta, attribute: instinto}
+  - {id: rastreo, label: Rastreo, attribute: instinto, approaches: [ingenio]}
+  - {id: supervivencia, label: Supervivencia, attribute: instinto, approaches: [ingenio]}
+  - {id: artesania, label: Artesanía, attribute: ingenio, approaches: [agilidad]}
+  - {id: medicina, label: Medicina, attribute: ingenio, approaches: [agilidad]}
+  - {id: prestidigitacion, label: Prestidigitación, attribute: agilidad}
+  - {id: doma, label: Doma, attribute: presencia, approaches: [instinto]}
+  - {id: canalizacion, label: Canalización, attribute: resonancia, approaches: [voluntad]}
+  - {id: formulacion, label: Formulación, attribute: ingenio, approaches: [resonancia]}
+  - {id: porte, label: Porte, attribute: presencia, approaches: [voluntad]}
+
+pool:
+  cap: 6
+  overflow_cap: 2      # a calibrar (§25.1 del borrador)
+  resist_stress: 3     # a calibrar (§25.2)
+
+vitality:
+  wounded_below: 50    # a calibrar (§25.2)
+  grave_below: 25

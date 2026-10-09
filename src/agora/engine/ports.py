@@ -10,10 +10,11 @@ una clase la cumple sin que esta herede de nada.
 
 from __future__ import annotations
 
-from enum import StrEnum
+from dataclasses import dataclass
+from enum import IntEnum, StrEnum
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from agora.engine.ontology import ActionId, AgentId
+from agora.engine.ontology import AgentId
 
 if TYPE_CHECKING:
     # Solo para tipar. En runtime un `Protocol` marcado como `runtime_checkable`
@@ -28,24 +29,102 @@ class Outcome(StrEnum):
 
     Todo sistema de rol sabe expresar estos cuatro estados. Si añadimos un
     quinto porque "d20 lo necesita", el motor deja de ser agnóstico.
+
+    El cuarto fue `GRAVE_FAILURE` hasta la unidad 08 (D-153). Con el primer
+    sistema de verdad resultó que la gravedad de un fallo no es un resultado: la
+    pone la posición desde la que se tira. Lo que el resultado sí tiene que
+    distinguir es el acierto que sube el efecto. Nadie lo usaba.
     """
 
-    SUCCESS = "success"
-    SUCCESS_AT_COST = "success_at_cost"
     FAILURE = "failure"
-    GRAVE_FAILURE = "grave_failure"
+    SUCCESS_AT_COST = "success_at_cost"
+    SUCCESS = "success"
+    CRITICAL = "critical"
+
+
+class Effect(IntEnum):
+    """Cuánto se logra al acertar, en pasos enteros (unidad 08).
+
+    Entero y abierto por arriba a propósito. El multiplicador de daño de cada
+    paso es exactamente `pasos / 2` (nulo, medio, uno, uno y medio, dos, y medio
+    más por cada paso), así que el daño se calcula sin coma flotante; y un
+    efecto puede pasar de `EXTREME`, cosa que un enumerado cerrado no sabría
+    decir. Estos son los escalones con nombre; un efecto es cualquier entero
+    desde cero.
+    """
+
+    NONE = 0
+    LIMITED = 1
+    STANDARD = 2
+    GREAT = 3
+    EXTREME = 4
+
+
+@dataclass(frozen=True, slots=True)
+class Challenge:
+    """Una tirada ya montada: el contexto está sumado, falta tirar.
+
+    No lleva atributo ni competencia: cómo se suma una reserva lo decide el
+    sistema de la mesa, y el puerto solo ve el resultado de esa suma.
+    """
+
+    pool: int
+    """Dados de quien actúa, con las penalizaciones ya restadas y SIN tope: lo
+    que pasa del tope es excedente, y el tope lo pone el sistema."""
+
+    effect: int = Effect.STANDARD
+    """Pasos de efecto del contexto (preparación, enfoque), antes de tirar."""
+
+    tier_gap: int = 0
+    """Tier del rival menos el propio. Positivo: el rival está por encima."""
+
+    opposing_pool: int | None = None
+    """Dados de quien se opone. `None` es una tirada simple."""
+
+
+@dataclass(frozen=True, slots=True)
+class Resolution:
+    """Lo que salió, con los dados a la vista: un DM tiene que poder leerlo."""
+
+    outcome: Outcome
+    dice: tuple[int, ...]
+    opposing_dice: tuple[int, ...]
+    successes: int
+    opposing_successes: int
+    sixes: int
+    overflow: int
+    """Pasos de excedente que trajo la reserva, ya con su tope."""
+    effect: int
+    """Pasos finales si acertó; `Effect.NONE` si falló."""
+
+
+@runtime_checkable
+class Dice(Protocol):
+    """De dónde salen los dados. El motor da uno derivado por clave; un test,
+    uno con los dados escritos."""
+
+    def roll(self, n: int) -> tuple[int, ...]:
+        """`n` dados de seis caras, en el orden en que salen."""
+        ...
 
 
 @runtime_checkable
 class RuleSystem(Protocol):
-    """Resolución de acciones con oposición dramática. Entra en F4.
+    """Resolución de acciones con oposición dramática (unidad 08, F4).
 
     Clave: la simulación NO usa esto. Los NPCs viviendo sus vidas resuelven
     por utilidad determinista, sin dados. Las reglas solo importan cuando hay
-    un jugador empujando contra el mundo.
+    un jugador empujando contra el mundo. Que la violencia entre NPCs pase
+    también por aquí es un destino aplazado, que se mide con `--divergence`
+    (D-155).
+
+    La firma reservada en F0 era `resolve(actor, action, difficulty: float)`, y
+    se equivocó como la de `MemoryStore`: no llevaba ni la reserva ni el efecto,
+    y una dificultad en coma flotante no se compara con dados sin redondear en
+    algún sitio que nadie ve (D-153).
     """
 
-    def resolve(self, actor: AgentId, action: ActionId, difficulty: float) -> Outcome: ...
+    def resolve(self, challenge: Challenge, dice: Dice) -> Resolution: ...
 
 
 @runtime_checkable

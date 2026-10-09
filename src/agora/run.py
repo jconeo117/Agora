@@ -29,6 +29,9 @@ from agora.engine.render import render_activity_summary, render_log, render_stat
 from agora.engine.timeskip import saltar
 from agora.engine.world import Simulation
 from agora.health import check, divergence, measure
+from agora.rules.montecarlo import pool_table
+from agora.rules.pool import PoolResolver
+from agora.rules.system import Ruleset, load_ruleset
 
 if TYPE_CHECKING:
     from typing import TextIO
@@ -36,6 +39,9 @@ if TYPE_CHECKING:
 DEFAULT_PACK = Path("packs/barrio/pack.yaml")
 """El mundo de trabajo. `dark_fantasy` existe para probar el agnosticismo del
 motor, no para jugarse, así que hay que pedirlo explícitamente."""
+
+DEFAULT_RULES = Path("rules/base/rules.yaml")
+"""El sistema de rol de la mesa (D-153). Hoy hay uno: el borrador 1."""
 
 
 def main() -> None:
@@ -112,7 +118,20 @@ def main() -> None:
                         help="con --hablar: no llamar al modelo, solo el respaldo")
     parser.add_argument("--modelo", default="llama3.2:latest")
     parser.add_argument("--llm-url", default="http://localhost:11434")
+    parser.add_argument(
+        "--reglas", type=Path, default=DEFAULT_RULES, metavar="SISTEMA",
+        help="el sistema de rol de la mesa (rules/<sistema>/rules.yaml)",
+    )
+    parser.add_argument(
+        "--montecarlo", type=int, default=0, metavar="N",
+        help="tira N veces cada reserva de 0 a 6 con el sistema de --reglas y "
+        "compara lo medido con la probabilidad exacta. No corre la simulación",
+    )
     args = parser.parse_args()
+
+    if args.montecarlo:
+        _report_montecarlo(load_ruleset(args.reglas), args.montecarlo, args.seed)
+        return
 
     pack = load_pack(args.pack)
 
@@ -277,6 +296,13 @@ def _report_divergence(pack: ContentPack, cuantas: int, seed: int, days: int) ->
     print()
     for line in report.lines():
         print(line)
+
+
+def _report_montecarlo(ruleset: Ruleset, tiradas: int, seed: int) -> None:
+    print(f"# {ruleset.label}: {tiradas} tiradas simples por reserva, semilla {seed}")
+    print("  reserva    ≥1 éxito medido/exacto   pleno medido/exacto   crítico medido/exacto")
+    for fila in pool_table(PoolResolver.from_ruleset(ruleset), tiradas, seed):
+        print(fila.line())
 
 
 if __name__ == "__main__":
