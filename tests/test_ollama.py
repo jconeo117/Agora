@@ -9,9 +9,17 @@ import time
 from http.server import BaseHTTPRequestHandler
 from typing import Any, ClassVar
 
+import pytest
+
 from agora.cognition.ollama import OllamaProvider
 from agora.cognition.voz import Habla
 from agora.engine.ontology import Tone
+
+
+@pytest.fixture(autouse=True)
+def _aislar_red(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("no_proxy", "*")
+    monkeypatch.setenv("NO_PROXY", "*")
 
 
 class ServidorOllamaSimulado(BaseHTTPRequestHandler):
