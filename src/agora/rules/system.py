@@ -70,6 +70,62 @@ class VitalitySpec(Spec):
 
     wounded_below: int = Field(default=50, gt=0, lt=100)
     grave_below: int = Field(default=25, gt=0, lt=100)
+    wounded_penalty: int = Field(default=1, ge=0)
+    """Dados de menos en acciones físicas por estar herido (unidad 09)."""
+    grave_penalty: int = Field(default=2, ge=0)
+    """Ídem por estar grave, que además empeora un paso la posición."""
+
+
+class CombatSpec(Spec):
+    """Lo que un encuentro necesita saber del sistema (unidad 09).
+
+    Los papeles (con qué se defiende, con qué se aguanta, qué atributo da la
+    perforación) se nombran por id porque el código de las reglas no puede
+    saber qué es la fuerza de nadie: lo dice la mesa. El resto son los números
+    que el borrador marca «a calibrar».
+    """
+
+    initiative: tuple[str, ...]
+    """Atributos cuyos VALORES se suman a 1d6 para la iniciativa (§9.1)."""
+    initiative_tiebreak: str
+    """Atributo que desempata la iniciativa; después, el id."""
+    defense_skill: str
+    resist_skill: str
+    """La competencia con la que se resiste el daño y se aguanta caído; se tira
+    con su atributo por defecto."""
+    first_aid_skill: str
+    break_attribute: str
+    """Con qué se tira al quebrarse por estrés (§11.3)."""
+    strength_attribute: str
+    """Atacar con este atributo da +1 de perforación (§10.3)."""
+    agile_attribute: str
+    """Atacar con este atributo exige un arma ágil (§14.1)."""
+    defense_step: int = Field(default=1, ge=0)
+    total_defense_bonus: int = Field(default=2, ge=0)
+    force_fatigue: int = Field(default=2, ge=0)
+    recover_fatigue: int = Field(default=2, ge=1)
+    long_fight_every: int = Field(default=4, ge=1)
+    death_clock: int = Field(default=4, ge=1)
+    tired_at: int = Field(default=50, gt=0, lt=100)
+    exhausted_at: int = Field(default=75, gt=0, lt=100)
+    tired_penalty: int = Field(default=1, ge=0)
+    exhausted_penalty: int = Field(default=2, ge=0)
+    max_rounds: int = Field(default=30, ge=1)
+    """Tope de rondas: un encuentro que no acaba es un empate, no un bucle."""
+
+
+class CalibrationTarget(Spec):
+    """Una promesa medible del sistema (§24.4), como el contrato de salud de un
+    pack: el simulador la comprueba y dice CUMPLE o NO CUMPLE."""
+
+    scenario: str
+    """El escenario, por nombre de archivo en `escenarios/` junto al sistema."""
+    side: str
+    win_min: int = Field(ge=0, le=100)
+    win_max: int = Field(ge=0, le=100)
+    rounds_min: int | None = Field(default=None, ge=1)
+    rounds_max: int | None = Field(default=None, ge=1)
+    """Banda de la MEDIANA de rondas; sin ella no se mira la duración."""
 
 
 class Ruleset(Spec):
@@ -84,6 +140,9 @@ class Ruleset(Spec):
     skill_max_level: int = Field(default=4, ge=1)
     pool: PoolSpec = Field(default_factory=PoolSpec)
     vitality: VitalitySpec = Field(default_factory=VitalitySpec)
+    combat: CombatSpec | None = None
+    """Sin esta sección el sistema tira dados pero no sabe pelear."""
+    calibration: tuple[CalibrationTarget, ...] = ()
 
     def grade(self, value: int) -> int:
         """El grado es lo único del atributo que entra en una tirada; el valor
@@ -99,6 +158,8 @@ class Ruleset(Spec):
             *self._check_grades(),
             *self._check_tiers(),
             *self._check_skills(),
+            *self._check_combat(),
+            *self._check_calibration(),
         ]
         if self.vitality.grave_below >= self.vitality.wounded_below:
             problems.append(
@@ -161,6 +222,39 @@ class Ruleset(Spec):
                 problems.append(
                     f"skills.{s.id}: {s.attribute!r} es a la vez el atributo y un enfoque"
                 )
+        return problems
+
+    def _check_combat(self) -> list[str]:
+        """Un papel con una errata no rompe nada visible: nadie se defendería
+        con nada y los combates durarían la mitad."""
+        c = self.combat
+        if c is None:
+            return []
+        atributos = frozenset(a.id for a in self.attributes)
+        competencias = frozenset(s.id for s in self.skills)
+        problems = [
+            f"combat: atributo desconocido {a!r}"
+            for a in (*c.initiative, c.initiative_tiebreak, c.break_attribute,
+                      c.strength_attribute, c.agile_attribute)
+            if a not in atributos
+        ]
+        problems += [
+            f"combat: competencia desconocida {s!r}"
+            for s in (c.defense_skill, c.resist_skill, c.first_aid_skill)
+            if s not in competencias
+        ]
+        if c.tired_at >= c.exhausted_at:
+            problems.append("combat: tired_at tiene que quedar por debajo de exhausted_at")
+        return problems
+
+    def _check_calibration(self) -> list[str]:
+        problems = [
+            f"calibration.{t.scenario}: win_min ({t.win_min}) por encima de win_max ({t.win_max})"
+            for t in self.calibration
+            if t.win_min > t.win_max
+        ]
+        if self.calibration and self.combat is None:
+            problems.append("calibration: prometer combates exige la sección combat")
         return problems
 
 

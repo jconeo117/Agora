@@ -1,0 +1,41 @@
+id: tres_tiers
+label: Aria contra un campeón
+weapons:
+  - {id: espada_corta, label: espada corta, base: 4, agile: true}
+  - {id: espadon, label: espadón, base: 7, piercing: 1}
+armors:
+  - {id: cuero, label: cuero, protection: 1}
+  - {id: placas, label: placas, protection: 4, resist_dice: 2}
+sides:
+  - id: novata
+    label: Aria
+    combatants:
+      - id: aria
+        label: Aria
+        tier: 1
+        attributes: {fuerza: 6, agilidad: 8, ingenio: 4, instinto: 7, voluntad: 5, presencia: 4, resonancia: 0}
+        skills: {armas_cuerpo_a_cuerpo: 2, defensa: 1, aguante: 1}
+        attack_skill: armas_cuerpo_a_cuerpo
+        weapon: espada_corta
+        armor: cuero
+        vitality: 18
+        fatigue: 7
+        stress: 8
+        impetus: 5
+        style: {aggression: 50, flee_below: 0, target: mas_debil, finish_off: nunca, whim: 0}
+  - id: campeon
+    label: el campeón
+    combatants:
+      - id: campeon
+        label: campeón
+        tier: 4
+        attributes: {fuerza: 18, agilidad: 18, ingenio: 10, instinto: 16, voluntad: 16, presencia: 12, resonancia: 0}
+        skills: {armas_cuerpo_a_cuerpo: 3, defensa: 3, aguante: 3}
+        attack_skill: armas_cuerpo_a_cuerpo
+        weapon: espadon
+        armor: placas
+        vitality: 36
+        fatigue: 12
+        stress: 11
+        impetus: 8
+        style: {aggression: 50, flee_below: 0, target: mas_debil, finish_off: nunca, whim: 0}

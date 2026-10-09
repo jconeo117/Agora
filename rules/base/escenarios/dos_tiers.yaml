@@ -1,0 +1,41 @@
+id: dos_tiers
+label: Aria contra un guerrero de élite
+weapons:
+  - {id: espada_corta, label: espada corta, base: 4, agile: true}
+  - {id: espada_larga, label: espada larga, base: 5, agile: true, defensive: true}
+armors:
+  - {id: cuero, label: cuero, protection: 1}
+  - {id: cota_de_malla, label: cota de malla, protection: 2, resist_dice: 1}
+sides:
+  - id: novata
+    label: Aria
+    combatants:
+      - id: aria
+        label: Aria
+        tier: 1
+        attributes: {fuerza: 6, agilidad: 8, ingenio: 4, instinto: 7, voluntad: 5, presencia: 4, resonancia: 0}
+        skills: {armas_cuerpo_a_cuerpo: 2, defensa: 1, aguante: 1}
+        attack_skill: armas_cuerpo_a_cuerpo
+        weapon: espada_corta
+        armor: cuero
+        vitality: 18
+        fatigue: 7
+        stress: 8
+        impetus: 5
+        style: {aggression: 50, flee_below: 0, target: mas_debil, finish_off: nunca, whim: 0}
+  - id: elite
+    label: la élite
+    combatants:
+      - id: elite
+        label: guerrero de élite
+        tier: 3
+        attributes: {fuerza: 14, agilidad: 14, ingenio: 8, instinto: 12, voluntad: 12, presencia: 8, resonancia: 0}
+        skills: {armas_cuerpo_a_cuerpo: 3, defensa: 3, aguante: 2}
+        attack_skill: armas_cuerpo_a_cuerpo
+        weapon: espada_larga
+        armor: cota_de_malla
+        vitality: 30
+        fatigue: 10
+        stress: 10
+        impetus: 7
+        style: {aggression: 50, flee_below: 0, target: mas_debil, finish_off: nunca, whim: 0}

@@ -1,0 +1,39 @@
+id: espejo
+label: dos fichas iguales
+weapons:
+  - {id: espada_corta, label: espada corta, base: 4, agile: true}
+armors:
+  - {id: cuero, label: cuero, protection: 1}
+sides:
+  - id: a
+    label: A
+    combatants:
+      - id: aria_a
+        label: Aria A
+        tier: 1
+        attributes: {fuerza: 6, agilidad: 8, ingenio: 4, instinto: 7, voluntad: 5, presencia: 4, resonancia: 0}
+        skills: {armas_cuerpo_a_cuerpo: 2, defensa: 1, aguante: 1}
+        attack_skill: armas_cuerpo_a_cuerpo
+        weapon: espada_corta
+        armor: cuero
+        vitality: 18
+        fatigue: 7
+        stress: 8
+        impetus: 5
+        style: {aggression: 50, flee_below: 0, target: mas_debil, finish_off: nunca, whim: 0}
+  - id: b
+    label: B
+    combatants:
+      - id: aria_b
+        label: Aria B
+        tier: 1
+        attributes: {fuerza: 6, agilidad: 8, ingenio: 4, instinto: 7, voluntad: 5, presencia: 4, resonancia: 0}
+        skills: {armas_cuerpo_a_cuerpo: 2, defensa: 1, aguante: 1}
+        attack_skill: armas_cuerpo_a_cuerpo
+        weapon: espada_corta
+        armor: cuero
+        vitality: 18
+        fatigue: 7
+        stress: 8
+        impetus: 5
+        style: {aggression: 50, flee_below: 0, target: mas_debil, finish_off: nunca, whim: 0}

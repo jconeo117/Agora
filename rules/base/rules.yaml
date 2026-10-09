@@ -60,3 +60,33 @@ pool:
 vitality:
   wounded_below: 50    # a calibrar (§25.2)
   grave_below: 25
+
+# Lo que un encuentro necesita saber del sistema (unidad 09). Los papeles se
+# nombran por id: el código de las reglas no sabe qué es la fuerza de nadie.
+combat:
+  initiative: [agilidad, instinto]      # §9.1: valores + 1d6
+  initiative_tiebreak: instinto
+  defense_skill: defensa
+  resist_skill: aguante
+  first_aid_skill: medicina
+  break_attribute: voluntad
+  strength_attribute: fuerza            # +1 de perforación (§10.3)
+  agile_attribute: agilidad             # exige arma ágil (§14.1)
+  defense_step: 1                       # a calibrar (§25.2)
+  total_defense_bonus: 2
+  force_fatigue: 2                      # a calibrar (§25.2)
+  recover_fatigue: 2
+  long_fight_every: 4
+  death_clock: 4
+  tired_at: 50
+  exhausted_at: 75
+  max_rounds: 30
+
+# Las promesas del sistema (§24.4), cada una sobre un escenario de
+# `escenarios/`. El simulador las comprueba como --health las de un pack.
+calibration:
+  - {scenario: espejo, side: a, win_min: 45, win_max: 55, rounds_min: 3, rounds_max: 6}
+  - {scenario: un_tier, side: novata, win_min: 15, win_max: 30}
+  - {scenario: un_tier_preparado, side: novata, win_min: 40, win_max: 60}
+  - {scenario: dos_tiers, side: novata, win_min: 0, win_max: 10}
+  - {scenario: tres_tiers, side: novata, win_min: 0, win_max: 0}

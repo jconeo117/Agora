@@ -31,6 +31,8 @@ from agora.engine.world import Simulation
 from agora.health import check, divergence, measure
 from agora.rules.montecarlo import pool_table
 from agora.rules.pool import PoolResolver
+from agora.rules.scene import load_scenario
+from agora.rules.simulator import account, check_calibration, fight, simulate
 from agora.rules.system import Ruleset, load_ruleset
 
 if TYPE_CHECKING:
@@ -127,10 +129,24 @@ def main() -> None:
         help="tira N veces cada reserva de 0 a 6 con el sistema de --reglas y "
         "compara lo medido con la probabilidad exacta. No corre la simulación",
     )
+    parser.add_argument(
+        "--combates", type=int, default=0, metavar="N",
+        help="simula N encuentros de cada escenario que el sistema de --reglas "
+        "promete en su calibration y dice si CUMPLE. Con --escenario, solo ese",
+    )
+    parser.add_argument("--escenario", type=Path, default=None, metavar="F",
+                        help="con --combates: simula este escenario y da su informe")
+    parser.add_argument(
+        "--relato", type=int, default=None, metavar="I",
+        help="con --escenario: cuenta el encuentro número I, hecho a hecho",
+    )
     args = parser.parse_args()
 
     if args.montecarlo:
         _report_montecarlo(load_ruleset(args.reglas), args.montecarlo, args.seed)
+        return
+    if args.combates or args.relato is not None:
+        _report_combates(args)
         return
 
     pack = load_pack(args.pack)
@@ -303,6 +319,29 @@ def _report_montecarlo(ruleset: Ruleset, tiradas: int, seed: int) -> None:
     print("  reserva    ≥1 éxito medido/exacto   pleno medido/exacto   crítico medido/exacto")
     for fila in pool_table(PoolResolver.from_ruleset(ruleset), tiradas, seed):
         print(fila.line())
+
+
+def _report_combates(args: argparse.Namespace) -> None:
+    ruleset = load_ruleset(args.reglas)
+    if args.escenario is not None:
+        escenario = load_scenario(args.escenario, ruleset)
+        if args.relato is not None:
+            print(f"# {escenario.label}, encuentro {args.relato}, semilla {args.seed}")
+            for line in account(escenario, fight(escenario, ruleset, args.seed, args.relato)):
+                print(line)
+            return
+        for line in simulate(escenario, ruleset, args.combates, args.seed).lines():
+            print(line)
+        return
+    if args.relato is not None:
+        raise SystemExit("--relato necesita --escenario")
+    comprobaciones = check_calibration(
+        ruleset, args.reglas.parent / "escenarios", args.combates, args.seed
+    )
+    print(f"# {ruleset.label}: {args.combates} encuentros por escenario, semilla {args.seed}")
+    for c in comprobaciones:
+        print(c.line())
+    print(f"  contrato: {'CUMPLE' if all(c.ok for c in comprobaciones) else 'NO CUMPLE'}")
 
 
 if __name__ == "__main__":

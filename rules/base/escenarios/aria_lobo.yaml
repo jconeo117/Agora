@@ -1,0 +1,39 @@
+id: aria_lobo
+label: Aria contra un lobo (§21.1)
+weapons:
+  - {id: espada_corta, label: espada corta, base: 4, agile: true}
+  - {id: mordisco, label: mordisco, base: 3, agile: true}
+armors:
+  - {id: cuero, label: cuero, protection: 1}
+sides:
+  - id: novata
+    label: Aria
+    combatants:
+      - id: aria
+        label: Aria
+        tier: 1
+        attributes: {fuerza: 6, agilidad: 8, ingenio: 4, instinto: 7, voluntad: 5, presencia: 4, resonancia: 0}
+        skills: {armas_cuerpo_a_cuerpo: 2, defensa: 1, aguante: 1}
+        attack_skill: armas_cuerpo_a_cuerpo
+        weapon: espada_corta
+        armor: cuero
+        vitality: 18
+        fatigue: 7
+        stress: 8
+        impetus: 5
+        style: {aggression: 50, flee_below: 0, target: mas_debil, finish_off: nunca, whim: 0}
+  - id: lobo
+    label: el lobo
+    combatants:
+      - id: lobo
+        label: lobo
+        tier: 1
+        attributes: {fuerza: 5, agilidad: 9, ingenio: 2, instinto: 8, voluntad: 4, presencia: 3, resonancia: 0}
+        skills: {combate_sin_armas: 2, defensa: 1}
+        attack_skill: combate_sin_armas
+        weapon: mordisco
+        vitality: 17
+        fatigue: 6
+        stress: 8
+        impetus: 5
+        style: {aggression: 60, flee_below: 25, target: mas_debil, finish_off: nunca, whim: 10}

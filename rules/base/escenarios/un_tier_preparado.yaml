@@ -1,0 +1,42 @@
+id: un_tier_preparado
+label: Aria, preparada, contra un oso
+weapons:
+  - {id: espada_corta, label: espada corta, base: 4, agile: true}
+  - {id: garra, label: garra, base: 5}
+armors:
+  - {id: cuero, label: cuero, protection: 1}
+  - {id: piel_gruesa, label: piel gruesa, protection: 2}
+sides:
+  - id: novata
+    label: Aria
+    effect: 3   # preparación: un paso más de efecto
+    combatants:
+      - id: aria
+        label: Aria
+        tier: 1
+        attributes: {fuerza: 6, agilidad: 8, ingenio: 4, instinto: 7, voluntad: 5, presencia: 4, resonancia: 0}
+        skills: {armas_cuerpo_a_cuerpo: 2, defensa: 1, aguante: 1}
+        attack_skill: armas_cuerpo_a_cuerpo
+        weapon: espada_corta
+        armor: cuero
+        vitality: 18
+        fatigue: 7
+        stress: 8
+        impetus: 5
+        style: {aggression: 50, flee_below: 0, target: mas_debil, finish_off: nunca, whim: 0}
+  - id: oso
+    label: el oso
+    combatants:
+      - id: oso
+        label: oso
+        tier: 2
+        attributes: {fuerza: 12, agilidad: 6, ingenio: 2, instinto: 8, voluntad: 7, presencia: 3, resonancia: 0}
+        skills: {combate_sin_armas: 2, defensa: 1, aguante: 2}
+        attack_skill: combate_sin_armas
+        weapon: garra
+        armor: piel_gruesa
+        vitality: 25
+        fatigue: 10
+        stress: 9
+        impetus: 6
+        style: {aggression: 60, flee_below: 25, target: mas_debil, finish_off: nunca, whim: 10}
