@@ -11066,3 +11066,16 @@ situations:
   gain_multipliers:
     dinero: 0.6
     mana: 1.6
+
+voice:
+  identity_traits: [varon, mujer, humano, enano, gigante, elfo, demihumano,
+                    guerrero, mago, asesino, montaraz, invocador]
+  character_traits: [audacia, impulsividad, calculo, arraigo, sociabilidad,
+                     curiosidad, constancia, docilidad, apego, ambicion, codicia,
+                     gula, pereza, devocion, aprension]
+  fallback:
+    amable: ["Bien, dentro de lo que cabe.", "No me quejo, la verdad."]
+    seco: ["Ahora no.", "Tengo cosas que hacer."]
+    hostil: ["No tengo nada que hablar contigo.", "Déjame en paz."]
+    triste: ["No es un buen día.", "Mejor no preguntes."]
+    asustado: ["No es buen momento... de verdad.", "Aquí no, ahora no."]

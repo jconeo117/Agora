@@ -51,6 +51,7 @@ from agora.engine.ontology import (
     TraitId,
     TraitSpec,
     TuningSpec,
+    VoiceSpec,
 )
 from agora.engine.topology import is_strongly_connected
 
@@ -105,6 +106,10 @@ class ContentPack(Spec):
     instancias es una fuente clásica de estado cruzado. Pydantic lo trata bien,
     pero la fábrica hace explícito que cada pack tiene el suyo.
     """
+
+    voice: VoiceSpec | None = None
+    """Cómo habla este mundo (unidad 07). `None` = un mundo que no habla sin
+    modelo. No lo lee la simulación."""
 
     # -------------------------------------------------------------------------
     # Índices.
@@ -270,6 +275,27 @@ class ContentPack(Spec):
                 f"agente {agent.id!r}.initial_needs", "necesidad", agent.initial_needs, known
             )
 
+        return problems
+
+    def _check_voice(self) -> list[str]:
+        """Una errata aquí no rompe nada visible: el rasgo simplemente nunca se
+        nombra y el NPC habla como si no lo tuviera."""
+        if self.voice is None:
+            return []
+        known = frozenset(str(t.id) for t in self.traits)
+        problems = [
+            *self._unknown_keys(
+                "voice.identity_traits", "rasgo", self.voice.identity_traits, known
+            ),
+            *self._unknown_keys(
+                "voice.character_traits", "rasgo", self.voice.character_traits, known
+            ),
+        ]
+        problems += [
+            f"voice.fallback.{tono}: sin frases"
+            for tono, frases in sorted(self.voice.fallback.items())
+            if not frases
+        ]
         return problems
 
     def _check_trait_refs(self) -> list[str]:
@@ -1482,6 +1508,7 @@ class ContentPack(Spec):
             *self._check_need_refs(),
             *self._check_company_relief_is_a_brake(),
             *self._check_trait_refs(),
+            *self._check_voice(),
             *self._check_place_refs(),
             *self._check_phase_refs(),
             *self._check_relation_refs(),

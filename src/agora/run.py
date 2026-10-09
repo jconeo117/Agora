@@ -19,6 +19,9 @@ from contextlib import ExitStack
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from agora.cognition.ollama import OllamaProvider
+from agora.cognition.voz import hablar
+from agora.engine.consulta import ficha
 from agora.engine.lod import error_de_lod
 from agora.engine.ontology import AgentId
 from agora.engine.pack import ContentPack, describe_pack, load_pack
@@ -93,6 +96,22 @@ def main() -> None:
         help="con --foco: corre --days entero y con LOD desde el mismo arranque y "
         "dice cuánto se aparta. No corre la simulación normal",
     )
+    parser.add_argument(
+        "--consultar", default=None, metavar="AGENTE",
+        help="al terminar, la ficha de este agente: lo que se puede saber de él "
+        "ahora mismo. No usa ningún modelo",
+    )
+    parser.add_argument(
+        "--hablar", default=None, metavar="AGENTE",
+        help="al terminar, este agente contesta a «qué tal te va». Con un LLM "
+        "local (Ollama) si responde; si no, con las frases del pack",
+    )
+    parser.add_argument("--con", default=None, metavar="AGENTE",
+                        help="con --hablar: quién le habla. Sin esto, un desconocido")
+    parser.add_argument("--sin-llm", action="store_true",
+                        help="con --hablar: no llamar al modelo, solo el respaldo")
+    parser.add_argument("--modelo", default="llama3.2:latest")
+    parser.add_argument("--llm-url", default="http://localhost:11434")
     args = parser.parse_args()
 
     pack = load_pack(args.pack)
@@ -176,6 +195,11 @@ def _correr(
     if args.jsonl is not None:
         print(f"# log crudo -> {args.jsonl}  ({sim.log.emitidos} lineas)")
 
+    if args.consultar is not None:
+        _consultar(sim, args.consultar)
+    if args.hablar is not None:
+        _hablar(sim, args)
+
 
 def _fijar_foco(sim: Simulation, foco: str) -> None:
     if AgentId(foco) not in sim.state.agents:
@@ -195,6 +219,29 @@ def _report_error_lod(pack: ContentPack, args: argparse.Namespace) -> None:
     print(f"# error del LOD en {pack.label}, {args.days} días, foco {args.foco}")
     for line in error_de_lod(sim, args.days, AgentId(args.foco)).lines():
         print(line)
+
+
+def _vivo(sim: Simulation, quien: str, opcion: str) -> AgentId:
+    if AgentId(quien) not in sim.state.agents:
+        raise SystemExit(f"{opcion}: {quien!r} no está vivo en esta partida")
+    return AgentId(quien)
+
+
+def _consultar(sim: Simulation, quien: str) -> None:
+    print(f"\n# ficha de {quien}  (tick {sim.state.tick})")
+    for line in ficha(sim.state, _vivo(sim, quien, "--consultar")).lines():
+        print(line)
+
+
+def _hablar(sim: Simulation, args: argparse.Namespace) -> None:
+    agente = _vivo(sim, args.hablar, "--hablar")
+    otro = None if args.con is None else _vivo(sim, args.con, "--con")
+    proveedor = None if args.sin_llm else OllamaProvider(url=args.llm_url, modelo=args.modelo)
+    habla, del_modelo, texto = hablar(sim.state, agente, otro, proveedor)
+    print(f"\n# {args.hablar} habla  (tick {sim.state.tick})")
+    if not args.quiet:
+        print(texto)
+    print(f"  » {habla.dice}  [{habla.tono}]  ({'modelo' if del_modelo else 'respaldo'})")
 
 
 def _report_health(pack: ContentPack) -> None:

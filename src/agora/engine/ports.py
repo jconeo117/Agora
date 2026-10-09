@@ -61,9 +61,13 @@ class CognitionProvider(Protocol):
     cambiar la calidad de la prosa, jamás la coherencia del mundo.
     """
 
-    def think(self, briefing: str, schema: type) -> object | None:
+    def think(self, briefing: str, schema: type, semilla: int) -> object | None:
         """Devuelve None si el modelo falló. None NO es un error: es la señal
-        de que el motor debe seguir por su cuenta."""
+        de que el motor debe seguir por su cuenta.
+
+        `semilla` la deriva el motor por clave, como todo su azar: misma partida
+        y mismo modelo, mismas palabras. Un proveedor que no sepa sembrar la
+        ignora; lo que no puede hacer es inventarse una."""
         ...
 
 

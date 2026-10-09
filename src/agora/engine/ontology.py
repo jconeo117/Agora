@@ -3517,3 +3517,37 @@ class TuningSpec(Spec):
     Así que esto es una **lente**: mide lo que hay, para el panel de salud y para
     el narrador de F5, sin decidir por nadie.
     """
+
+
+class Tone(StrEnum):
+    """Cómo suena una réplica. Deliberadamente pobre, como `Outcome`: la regla
+    del respaldo tiene que saber qué significa cada uno, y un tono que el pack
+    inventara no lo sabría elegir nadie. El matiz lo pone la prosa."""
+
+    FRIENDLY = "amable"
+    CURT = "seco"
+    HOSTILE = "hostil"
+    SAD = "triste"
+    AFRAID = "asustado"
+
+
+class VoiceSpec(Spec):
+    """Lo que un mundo dice de su gente cuando habla (unidad 07).
+
+    Solo lo lee la capa de voz: la simulación no sabe que existe. Sin esta
+    sección un pack corre igual; lo único que no puede hacer es hablar sin
+    modelo, porque no tiene con qué.
+    """
+
+    identity_traits: tuple[TraitId, ...] = ()
+    """Los rasgos que dicen QUIÉN es (pueblo, oficio, género). Se nombran si los
+    tiene. Van aparte de los de carácter porque ningún campo del rasgo los
+    distingue, y en castellano además deciden la concordancia."""
+
+    character_traits: tuple[TraitId, ...] = ()
+    """Los rasgos que dicen CÓMO es. Se nombran los tres más marcados de los que
+    tenga a 0.3 o más."""
+
+    fallback: dict[Tone, tuple[str, ...]] = Field(default_factory=dict)
+    """Frases neutras por tono, para cuando el modelo falla o no se usa. El
+    motor elige el tono; el mundo pone las palabras."""
