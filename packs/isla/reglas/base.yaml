@@ -1,0 +1,107 @@
+# Cómo se lee la isla en el sistema `base`. Copia del enlace de confluencia
+# (unidad 11) con la experiencia en `combate` y el equipo según los suministros.
+# Ni el pack sabe de reglas ni el sistema de mundos: esto los une.
+#
+# Cada número es una forma lineal: base + Σ peso · señal, con señales
+# `rasgo:x`, `rango:eje`, `eje:x` y `temperamento:perilla` (1 = lo normal del
+# pack). La mecánica NO lee las clases (guerrero, mago...): el rol es una
+# salida. Primera versión, escrita a ojo; se calibra rompiéndola.
+system: base
+
+# El potencial (§7.3): el techo de talento que fija el genoma. Los rasgos
+# viven en [0, 1] y 0.5 es lo normal: con 4 + 16·t sale 12 de media, élite
+# en 0.75 y héroe en 1.0. La resonancia puede ser 0, como en el borrador.
+potentials:
+  fuerza:     {base: 4, terms: {"rasgo:fuerza": 16}}
+  agilidad:   {base: 4, terms: {"rasgo:agilidad": 16}}
+  ingenio:    {base: 4, terms: {"rasgo:ingenio": 16}}
+  instinto:   {base: 4, terms: {"rasgo:instinto": 16}}
+  voluntad:   {base: 4, terms: {"rasgo:voluntad": 16}}
+  presencia:  {base: 4, terms: {"rasgo:presencia": 16}}
+  resonancia: {base: -4, terms: {"rasgo:resonancia": 24}}
+
+# Del potencial al valor: la experiencia es el rango de dominio. Con 4 rangos
+# se recorre la mitad del camino entre un adulto común (4) y el techo.
+growth: {rank_of: combate, start: 4, half: 4}
+
+level: {base: 1, terms: {"rango:combate": 1}}
+
+# Competencias: de la experiencia y del talento, sin clases.
+skills:
+  armas_cuerpo_a_cuerpo: {terms: {"rango:combate": 0.3, "rasgo:fuerza": 1.0, "rasgo:agilidad": 1.0}}
+  combate_sin_armas:     {terms: {"rango:combate": 0.25, "rasgo:fuerza": 1.5}}
+  defensa:               {terms: {"rango:combate": 0.3, "rasgo:agilidad": 1.0, "rasgo:instinto": 0.5}}
+  aguante:               {terms: {"rango:combate": 0.25, "rasgo:fuerza": 1.0, "rasgo:voluntad": 0.5}}
+  atletismo:             {terms: {"rango:combate": 0.2, "rasgo:fuerza": 1.0, "rasgo:agilidad": 0.5}}
+  sigilo:                {terms: {"rasgo:agilidad": 1.0, "rasgo:instinto": 1.0}}
+  alerta:                {terms: {"rango:combate": 0.2, "rasgo:instinto": 1.5}}
+  medicina:              {terms: {"rasgo:ingenio": 1.5}}
+  canalizacion:          {terms: {"rango:combate": 0.2, "rasgo:resonancia": 2.0}}
+  artesania:             {terms: {"rasgo:ingenio": 0.5}}
+  porte:                 {terms: {"rasgo:presencia": 1.5, "rasgo:voluntad": 0.5}}
+
+# Lo que hay a mano (§14.2). Cada uno coge lo que mejor le rinde de lo que
+# alcanza y puede llevar; nadie va con un arma «de su clase».
+weapons:
+  - {id: sin_armas, label: sin armas, base: 1, agile: true, skill: combate_sin_armas}
+  - {id: baston, label: bastón, base: 3, defensive: true, skill: armas_cuerpo_a_cuerpo}
+  - {id: daga, label: daga, base: 3, agile: true, skill: armas_cuerpo_a_cuerpo,
+     access: {signal: "eje:suministros", at_least: 0.15}}
+  - {id: espada_corta, label: espada corta, base: 4, agile: true, skill: armas_cuerpo_a_cuerpo,
+     access: {signal: "eje:suministros", at_least: 0.4}}
+  - {id: maza, label: maza, base: 5, piercing: 2, skill: armas_cuerpo_a_cuerpo,
+     access: {signal: "eje:suministros", at_least: 0.5}}
+  - {id: espada_larga, label: espada larga, base: 5, agile: true, defensive: true,
+     skill: armas_cuerpo_a_cuerpo, access: {signal: "eje:suministros", at_least: 0.5}}
+  - {id: hacha, label: hacha de batalla, base: 6, piercing: 1, requires: {fuerza: 3},
+     skill: armas_cuerpo_a_cuerpo, access: {signal: "eje:suministros", at_least: 0.6}}
+  - {id: espadon, label: espadón, base: 7, piercing: 1, requires: {fuerza: 3},
+     skill: armas_cuerpo_a_cuerpo, access: {signal: "eje:suministros", at_least: 0.7}}
+armors:
+  - {id: cuero, label: cuero, protection: 1, access: {signal: "eje:suministros", at_least: 0.2}}
+  - {id: cota_de_malla, label: cota de malla, protection: 2, resist_dice: 1,
+     access: {signal: "eje:suministros", at_least: 0.6}}
+  - {id: placas, label: placas, protection: 4, resist_dice: 2, requires: {fuerza: 3},
+     access: {signal: "rango:combate", at_least: 6}}
+
+resources: {vitality: salud, fatigue: descanso}
+
+# El estilo (D-158, D-160): de quién es cada uno.
+style:
+  # Centrado en 50: el arrojo es denso y su media es 0.5, así que su peso se
+  # descuenta de la base (50 - 30 * 0.5).
+  aggression: {base: 35, terms: {"rasgo:audacia": 25, "rasgo:impulsividad": 15,
+                                 "rasgo:aprension": -20, "rasgo:crueldad": 20,
+                                 "rasgo:arrojo": 30}}
+  # El pánico del temperamento y el arrojo: quien tiene arrojo aguanta más.
+  # Solo el temperamento daba 25 a 186 de 200 (la audacia es escasa).
+  flee_below: {base: 15, terms: {"temperamento:critical_need_threshold": 25, "rasgo:arrojo": -30}}
+  whim: {terms: {"temperamento:temperature": 10}}
+  target: "rasgo:arrojo"
+  finish: "rasgo:piedad"
+  low: 0.35
+  high: 0.65
+
+# El rol es una salida: el nombre de la pareja de atributos más altos.
+roles:
+  - {attributes: [fuerza, agilidad], label: luchador}
+  - {attributes: [fuerza, ingenio], label: maestro de armas}
+  - {attributes: [fuerza, instinto], label: cazador}
+  - {attributes: [fuerza, voluntad], label: coloso}
+  - {attributes: [fuerza, presencia], label: caudillo}
+  - {attributes: [fuerza, resonancia], label: rompedor de líneas}
+  - {attributes: [agilidad, ingenio], label: embaucador}
+  - {attributes: [agilidad, instinto], label: acechador}
+  - {attributes: [agilidad, voluntad], label: danzante de filo}
+  - {attributes: [agilidad, presencia], label: duelista}
+  - {attributes: [agilidad, resonancia], label: tirador arcano}
+  - {attributes: [ingenio, instinto], label: rastreador}
+  - {attributes: [ingenio, voluntad], label: erudito}
+  - {attributes: [ingenio, presencia], label: diplomático}
+  - {attributes: [ingenio, resonancia], label: arcanista}
+  - {attributes: [instinto, voluntad], label: centinela}
+  - {attributes: [instinto, presencia], label: guía}
+  - {attributes: [instinto, resonancia], label: vidente}
+  - {attributes: [voluntad, presencia], label: líder}
+  - {attributes: [voluntad, resonancia], label: canalizador}
+  - {attributes: [presencia, resonancia], label: invocador}
