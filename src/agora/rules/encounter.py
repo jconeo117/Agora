@@ -23,6 +23,7 @@ dados de nadie.
 from __future__ import annotations
 
 import random
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol
@@ -33,6 +34,30 @@ from agora.rules.damage import VitalityBand, damage, vitality_band
 from agora.rules.pool import KeyedDice, PoolResolver
 from agora.rules.scene import ArmorSpec, CombatantSpec, ScenarioError, ScenarioSpec, WeaponSpec
 from agora.rules.system import CombatSpec, Ruleset
+
+
+def best_attribute(
+    ruleset: Ruleset, attributes: Mapping[str, int], skill: str,
+    allowed: frozenset[str] | None = None,
+) -> str:
+    """El atributo con más grado entre el de la competencia y sus enfoques;
+    a igualdad, el de por defecto y luego el orden en que el sistema los
+    declara. Vive fuera del encuentro porque quien elige equipo (unidad 11)
+    tiene que hacer la misma cuenta que quien pelea: una sola puerta."""
+    spec = next(s for s in ruleset.skills if s.id == skill)
+    candidatos = [a for a in (spec.attribute, *spec.approaches)
+                  if allowed is None or a in allowed]
+    return max(candidatos, key=lambda a: (ruleset.grade(attributes[a]), -candidatos.index(a)))
+
+
+def attack_approach(
+    ruleset: Ruleset, attributes: Mapping[str, int], skill: str, weapon: WeaponSpec
+) -> str:
+    """Con qué atributo ataca: el ágil solo con arma ágil (§14.1)."""
+    assert ruleset.combat is not None
+    todos = frozenset(a.id for a in ruleset.attributes)
+    permitidos = todos if weapon.agile else todos - {ruleset.combat.agile_attribute}
+    return best_attribute(ruleset, attributes, skill, permitidos)
 
 
 class Status(StrEnum):
@@ -166,7 +191,10 @@ class Encounter:
         self.fighters: dict[str, Fighter] = {
             c.id: Fighter(
                 spec=c, side=side.id, weapon=armas[c.weapon],
-                armor=None if c.armor is None else armaduras[c.armor], vitality=c.vitality,
+                armor=None if c.armor is None else armaduras[c.armor],
+                vitality=c.vitality if c.start_vitality is None else c.start_vitality,
+                fatigue=c.start_fatigue or 0,
+                stress=c.start_stress or 0,
             )
             for side in scenario.sides
             for c in side.combatants
@@ -233,19 +261,10 @@ class Encounter:
         return f.spec.skills.get(skill, 0) + int(skill in f.spec.specialties)
 
     def _best_attribute(self, f: Fighter, skill: str, allowed: frozenset[str] | None = None) -> str:
-        """El atributo con más grado entre el de la competencia y sus enfoques;
-        a igualdad, el de por defecto y luego el orden en que el sistema los
-        declara."""
-        spec = next(s for s in self.ruleset.skills if s.id == skill)
-        candidatos = [a for a in (spec.attribute, *spec.approaches)
-                      if allowed is None or a in allowed]
-        return max(candidatos, key=lambda a: (self.grade(f, a), -candidatos.index(a)))
+        return best_attribute(self.ruleset, f.spec.attributes, skill, allowed)
 
     def approach(self, f: Fighter) -> str:
-        """Con qué atributo ataca: el ágil solo con arma ágil (§14.1)."""
-        todos = frozenset(a.id for a in self.ruleset.attributes)
-        permitidos = todos if f.weapon.agile else todos - {self.combat.agile_attribute}
-        return self._best_attribute(f, f.spec.attack_skill, permitidos)
+        return attack_approach(self.ruleset, f.spec.attributes, f.spec.attack_skill, f.weapon)
 
     def attack_pool(self, f: Fighter, target: Fighter, force: bool) -> int:
         return (self.grade(f, self.approach(f)) + self._skill(f, f.spec.attack_skill)

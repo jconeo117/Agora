@@ -32,6 +32,8 @@ from agora.engine.timeskip import saltar
 from agora.engine.world import Simulation
 from agora.health import check, divergence, measure
 from agora.play import Recorder, Script, Terminal, play
+from agora.rules.binding import BindingSpec, load_binding
+from agora.rules.derive import census, derive, duel
 from agora.rules.montecarlo import pool_table
 from agora.rules.pool import PoolResolver
 from agora.rules.scene import load_scenario
@@ -110,6 +112,20 @@ def main() -> None:
         "dice cuánto se aparta. No corre la simulación normal",
     )
     parser.add_argument(
+        "--ficha-mecanica", default=None, metavar="AGENTE",
+        help="al terminar, la ficha mecánica de este agente en el sistema de --reglas, "
+        "derivada de quién es (unidad 11). Con --contra, también lo que siente por él",
+    )
+    parser.add_argument("--contra", default=None, metavar="AGENTE",
+                        help="con --ficha-mecanica o --duelo: el rival")
+    parser.add_argument("--fichas", action="store_true",
+                        help="al terminar, cómo se reparten las fichas de todos los vivos")
+    parser.add_argument(
+        "--duelo", default=None, metavar="AGENTE",
+        help="al terminar, enfrenta a este agente con --contra en el simulador, "
+        "--combates veces (100 si no se dice)",
+    )
+    parser.add_argument(
         "--consultar", default=None, metavar="AGENTE",
         help="al terminar, la ficha de este agente: lo que se puede saber de él "
         "ahora mismo. No usa ningún modelo",
@@ -164,7 +180,8 @@ def main() -> None:
     if args.montecarlo:
         _report_montecarlo(load_ruleset(args.reglas), args.montecarlo, args.seed)
         return
-    if args.combates or args.relato is not None:
+    # Con --duelo, --combates cuenta los combates del duelo, no los de la calibración.
+    if (args.combates or args.relato is not None) and args.duelo is None:
         _report_combates(args)
         return
 
@@ -259,6 +276,8 @@ def _correr(
     if args.jsonl is not None:
         print(f"# log crudo -> {args.jsonl}  ({sim.log.emitidos} lineas)")
 
+    if args.ficha_mecanica is not None or args.fichas or args.duelo is not None:
+        _mecanica(sim, args)
     if args.consultar is not None:
         _consultar(sim, args.consultar)
     if args.hablar is not None:
@@ -305,6 +324,38 @@ def _vivo(sim: Simulation, quien: str, opcion: str) -> AgentId:
     if AgentId(quien) not in sim.state.agents:
         raise SystemExit(f"{opcion}: {quien!r} no está vivo en esta partida")
     return AgentId(quien)
+
+
+def _enlace(sim: Simulation, args: argparse.Namespace) -> tuple[Ruleset, BindingSpec]:
+    """El enlace del pack con el sistema de --reglas vive junto al pack, en
+    `reglas/<sistema>.yaml` (D-159)."""
+    sistema = load_ruleset(args.reglas)
+    ruta = args.pack.parent / "reglas" / f"{sistema.id}.yaml"
+    if not ruta.exists():
+        raise SystemExit(f"este mundo no tiene enlace con el sistema {sistema.id!r}: falta {ruta}")
+    return sistema, load_binding(ruta, sim.state.pack, sistema)
+
+
+def _mecanica(sim: Simulation, args: argparse.Namespace) -> None:
+    sistema, enlace = _enlace(sim, args)
+    rival = None if args.contra is None else _vivo(sim, args.contra, "--contra")
+    if args.ficha_mecanica is not None:
+        quien = _vivo(sim, args.ficha_mecanica, "--ficha-mecanica")
+        hoja = derive(sim.state, quien, sistema, enlace, () if rival is None else (rival,))
+        print(f"\n# ficha mecánica de {quien}  (tick {sim.state.tick})")
+        for line in hoja.lines(sistema):
+            print(line)
+    if args.fichas:
+        print()
+        for line in census(sim.state, sistema, enlace):
+            print(line)
+    if args.duelo is not None:
+        if rival is None:
+            raise SystemExit("--duelo necesita --contra")
+        escenario = duel(sim.state, _vivo(sim, args.duelo, "--duelo"), rival, sistema, enlace)
+        print()
+        for line in simulate(escenario, sistema, args.combates or 100, args.seed).lines():
+            print(line)
 
 
 def _consultar(sim: Simulation, quien: str) -> None:

@@ -8,7 +8,8 @@ el código, porque la calibración cambia con la mesa y no con el motor.
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
+from enum import StrEnum
 from itertools import pairwise
 from pathlib import Path
 
@@ -128,6 +129,38 @@ class CalibrationTarget(Spec):
     """Banda de la MEDIANA de rondas; sin ella no se mira la duración."""
 
 
+class TermSource(StrEnum):
+    VALUE = "valor"
+    GRADE = "grado"
+    SKILL = "competencia"
+
+
+class TermSpec(Spec):
+    """Un sumando de una fórmula: `num * x // den`, con x el valor o el grado de
+    un atributo, o el nivel de una competencia. El suelo va por término, que es
+    como redondea el borrador (`⌊Voluntad / 2⌋` en la Vitalidad)."""
+
+    source: TermSource
+    id: str
+    num: int = Field(default=1, ge=1)
+    den: int = Field(default=1, ge=1)
+
+
+class FormulaSpec(Spec):
+    base: int = 0
+    terms: tuple[TermSpec, ...] = ()
+
+
+class ResourcesSpec(Spec):
+    """Las capacidades de §5.3 (unidad 11). Las fórmulas son del sistema; qué
+    necesidad del mundo dice cuánto queda es del enlace con cada mundo (D-154)."""
+
+    vitality: FormulaSpec
+    fatigue: FormulaSpec
+    stress: FormulaSpec
+    impetus: FormulaSpec
+
+
 class Ruleset(Spec):
     """Un sistema de rol entero, en datos. Las reglas no conocen ningún otro."""
 
@@ -143,12 +176,30 @@ class Ruleset(Spec):
     combat: CombatSpec | None = None
     """Sin esta sección el sistema tira dados pero no sabe pelear."""
     calibration: tuple[CalibrationTarget, ...] = ()
+    resources: ResourcesSpec | None = None
+    """Sin esta sección el sistema no sabe cuánto aguanta nadie: las fichas de
+    escena tienen que escribirlo a mano."""
 
     def grade(self, value: int) -> int:
         """El grado es lo único del atributo que entra en una tirada; el valor
         alimenta los recursos. Por debajo del primer grado, 0: un atributo a 0
         no aporta dados."""
         return max((g.grade for g in self.grades if g.min_value <= value), default=0)
+
+    def evaluate(
+        self, formula: FormulaSpec, values: Mapping[str, int], skills: Mapping[str, int]
+    ) -> int:
+        total = formula.base
+        for t in formula.terms:
+            match t.source:
+                case TermSource.VALUE:
+                    x = values[t.id]
+                case TermSource.GRADE:
+                    x = self.grade(values[t.id])
+                case TermSource.SKILL:
+                    x = skills.get(t.id, 0)
+            total += t.num * x // t.den
+        return total
 
     @model_validator(mode="after")
     def _validate(self) -> Ruleset:
@@ -160,6 +211,7 @@ class Ruleset(Spec):
             *self._check_skills(),
             *self._check_combat(),
             *self._check_calibration(),
+            *self._check_resources(),
         ]
         if self.vitality.grave_below >= self.vitality.wounded_below:
             problems.append(
@@ -245,6 +297,20 @@ class Ruleset(Spec):
         ]
         if c.tired_at >= c.exhausted_at:
             problems.append("combat: tired_at tiene que quedar por debajo de exhausted_at")
+        return problems
+
+    def _check_resources(self) -> list[str]:
+        if self.resources is None:
+            return []
+        atributos = frozenset(a.id for a in self.attributes)
+        competencias = frozenset(s.id for s in self.skills)
+        problems = []
+        for nombre in ("vitality", "fatigue", "stress", "impetus"):
+            formula: FormulaSpec = getattr(self.resources, nombre)
+            for t in formula.terms:
+                conocidos = competencias if t.source is TermSource.SKILL else atributos
+                if t.id not in conocidos:
+                    problems.append(f"resources.{nombre}: {t.source.value} desconocido {t.id!r}")
         return problems
 
     def _check_calibration(self) -> list[str]:

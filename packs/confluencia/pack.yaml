@@ -402,6 +402,24 @@ traits:
   label: de nombre conocido
   gain_multipliers:
     vinculo: 1.15
+- id: fuerza
+  label: potencial de fuerza
+- id: agilidad
+  label: potencial de agilidad
+- id: ingenio
+  label: potencial de ingenio
+- id: instinto
+  label: potencial de instinto
+- id: voluntad
+  label: potencial de voluntad
+- id: presencia
+  label: potencial de presencia
+- id: resonancia
+  label: potencial de resonancia
+- id: piedad
+  label: piedad
+- id: arrojo
+  label: arrojo
 actions:
 - id: dormir
   label: dormir
@@ -2787,6 +2805,15 @@ agents:
       padre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.29
+    agilidad: 0.77
+    ingenio: 0.42
+    instinto: 0.62
+    voluntad: 0.43
+    presencia: 0.62
+    resonancia: 0.57
+    piedad: 0.49
+    arrojo: 0.22
     varon: 1.0
     afin_fuego: 1.0
     codicia: 0.89
@@ -2829,6 +2856,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.4
+    agilidad: 0.52
+    ingenio: 0.43
+    instinto: 0.16
+    voluntad: 0.45
+    presencia: 0.87
+    resonancia: 0.82
+    piedad: 0.22
+    arrojo: 0.41
     mujer: 1.0
     afin_agua: 1.0
     elfo: 1.0
@@ -2869,6 +2905,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.49
+    agilidad: 0.36
+    ingenio: 0.44
+    instinto: 0.26
+    voluntad: 0.51
+    presencia: 0.52
+    resonancia: 0.64
+    piedad: 0.52
+    arrojo: 0.27
     mujer: 1.0
     afin_tierra: 1.0
     ambicion: 0.47
@@ -2902,6 +2947,15 @@ agents:
   start_at: plaza_demihumana
   edad_inicial: 933120
   traits:
+    fuerza: 0.68
+    agilidad: 0.77
+    ingenio: 0.68
+    instinto: 0.46
+    voluntad: 0.02
+    presencia: 0.4
+    resonancia: 0.76
+    piedad: 0.36
+    arrojo: 0.4
     mujer: 1.0
     afin_tierra: 1.0
     curiosidad: 0.47
@@ -2936,6 +2990,15 @@ agents:
   start_at: plaza_enana
   edad_inicial: 725760
   traits:
+    fuerza: 0.45
+    agilidad: 0.45
+    ingenio: 0.1
+    instinto: 0.37
+    voluntad: 0.63
+    presencia: 0.52
+    resonancia: 0.16
+    piedad: 0.76
+    arrojo: 0.83
     varon: 1.0
     afin_fuego: 1.0
     constancia: 0.71
@@ -2990,6 +3053,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.66
+    agilidad: 0.58
+    ingenio: 0.54
+    instinto: 0.57
+    voluntad: 0.3
+    presencia: 0.53
+    resonancia: 0.19
+    piedad: 0.58
+    arrojo: 0.39
     mujer: 1.0
     afin_tierra: 1.0
     aprension: -0.48
@@ -3023,6 +3095,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.34
+    agilidad: 0.56
+    ingenio: 0.31
+    instinto: 0.3
+    voluntad: 0.5
+    presencia: 0.48
+    resonancia: 0.33
+    piedad: 0.72
+    arrojo: 0.86
     varon: 1.0
     afin_viento: 1.0
     devocion: -0.52
@@ -3080,6 +3161,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.64
+    agilidad: 0.57
+    ingenio: 0.36
+    instinto: 0.2
+    voluntad: 0.32
+    presencia: 0.31
+    resonancia: 0.69
+    piedad: 0.88
+    arrojo: 0.83
     varon: 1.0
     afin_agua: 0.37
     afin_viento: 1.0
@@ -3130,6 +3220,15 @@ agents:
   start_at: plaza_mayor
   edad_inicial: 794880
   traits:
+    fuerza: 0.55
+    agilidad: 0.51
+    ingenio: 0.25
+    instinto: 0.33
+    voluntad: 0.42
+    presencia: 0.57
+    resonancia: 0.95
+    piedad: 0.47
+    arrojo: 0.76
     mujer: 1.0
     afin_tierra: 1.0
     asesino: 0.77
@@ -3171,6 +3270,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.63
+    agilidad: 0.53
+    ingenio: 0.76
+    instinto: 0.84
+    voluntad: 0.57
+    presencia: 0.34
+    resonancia: 0.69
+    piedad: 0.64
+    arrojo: 0.52
     varon: 1.0
     afin_agua: 0.45
     afin_viento: 1.0
@@ -3227,6 +3335,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.46
+    agilidad: 0.47
+    ingenio: 0.56
+    instinto: 0.39
+    voluntad: 0.5
+    presencia: 0.51
+    resonancia: 0.33
+    piedad: 0.41
+    arrojo: 0.37
     mujer: 1.0
     afin_agua: 1.0
     constancia: -0.42
@@ -3286,6 +3403,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.41
+    agilidad: 0.58
+    ingenio: 0.48
+    instinto: 0.71
+    voluntad: 0.37
+    presencia: 0.58
+    resonancia: 0.5
+    piedad: 0.72
+    arrojo: 0.46
     mujer: 1.0
     afin_agua: 0.42
     afin_tierra: 1.0
@@ -3325,6 +3451,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.36
+    agilidad: 0.43
+    ingenio: 0.34
+    instinto: 0.65
+    voluntad: 0.79
+    presencia: 0.52
+    resonancia: 0.11
+    piedad: 0.45
+    arrojo: 0.31
     mujer: 1.0
     afin_agua: 1.0
     arraigo: -0.99
@@ -3381,6 +3516,15 @@ agents:
   start_at: plaza_mayor
   edad_inicial: 1002240
   traits:
+    fuerza: 0.54
+    agilidad: 0.27
+    ingenio: 0.86
+    instinto: 0.23
+    voluntad: 0.76
+    presencia: 0.5
+    resonancia: 0.52
+    piedad: 0.95
+    arrojo: 0.19
     varon: 1.0
     afin_tierra: 1.0
     curiosidad: -0.81
@@ -3441,6 +3585,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.37
+    agilidad: 0.5
+    ingenio: 0.53
+    instinto: 0.67
+    voluntad: 0.57
+    presencia: 0.33
+    resonancia: 0.34
+    piedad: 0.48
+    arrojo: 0.53
     mujer: 1.0
     afin_fuego: 1.0
     docilidad: -0.46
@@ -3475,6 +3628,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.24
+    agilidad: 0.38
+    ingenio: 0.68
+    instinto: 0.85
+    voluntad: 0.93
+    presencia: 0.34
+    resonancia: 0.39
+    piedad: 0.53
+    arrojo: 0.68
     varon: 1.0
     afin_tierra: 1.0
     constancia: 0.88
@@ -3507,6 +3669,15 @@ agents:
   start_at: plaza_mayor
   edad_inicial: 864000
   traits:
+    fuerza: 0.35
+    agilidad: 0.38
+    ingenio: 0.81
+    instinto: 0.34
+    voluntad: 0.09
+    presencia: 0.53
+    resonancia: 0.42
+    piedad: 0.44
+    arrojo: 0.43
     varon: 1.0
     afin_fuego: 1.0
     codicia: -0.6
@@ -3565,6 +3736,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.22
+    agilidad: 0.57
+    ingenio: 0.33
+    instinto: 0.7
+    voluntad: 0.55
+    presencia: 0.39
+    resonancia: 0.76
+    piedad: 0.19
+    arrojo: 0.48
     mujer: 1.0
     afin_fuego: 1.0
     arraigo: 0.53
@@ -3601,6 +3781,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.4
+    agilidad: 0.53
+    ingenio: 0.84
+    instinto: 0.51
+    voluntad: 0.43
+    presencia: 0.63
+    resonancia: 0.44
+    piedad: 0.57
+    arrojo: 0.81
     mujer: 1.0
     afin_fuego: 1.0
     curiosidad: 0.5
@@ -3639,6 +3828,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.27
+    agilidad: 0.42
+    ingenio: 0.4
+    instinto: 0.73
+    voluntad: 0.6
+    presencia: 0.6
+    resonancia: 0.49
+    piedad: 0.35
+    arrojo: 0.33
     mujer: 1.0
     afin_tierra: 1.0
     ambicion: 0.41
@@ -3670,6 +3868,15 @@ agents:
   start_at: plaza_demihumana
   edad_inicial: 933120
   traits:
+    fuerza: 0.19
+    agilidad: 0.78
+    ingenio: 0.43
+    instinto: 0.56
+    voluntad: 0.22
+    presencia: 0.47
+    resonancia: 0.64
+    piedad: 0.55
+    arrojo: 0.65
     varon: 1.0
     afin_tierra: 1.0
     audacia: 0.91
@@ -3704,6 +3911,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.11
+    agilidad: 0.49
+    ingenio: 0.71
+    instinto: 0.46
+    voluntad: 0.22
+    presencia: 0.53
+    resonancia: 0.47
+    piedad: 0.76
+    arrojo: 0.71
     mujer: 1.0
     afin_tierra: 1.0
     docilidad: 0.9
@@ -3753,6 +3969,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.71
+    agilidad: 0.68
+    ingenio: 0.7
+    instinto: 0.53
+    voluntad: 0.64
+    presencia: 0.34
+    resonancia: 0.39
+    piedad: 0.54
+    arrojo: 0.33
     varon: 1.0
     afin_tierra: 1.0
     audacia: 0.8
@@ -3819,6 +4044,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.57
+    agilidad: 0.45
+    ingenio: 0.55
+    instinto: 0.85
+    voluntad: 0.47
+    presencia: 0.32
+    resonancia: 0.0
+    piedad: 0.66
+    arrojo: 0.77
     mujer: 1.0
     afin_tierra: 1.0
     codicia: 0.61
@@ -3848,6 +4082,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.44
+    agilidad: 0.68
+    ingenio: 0.64
+    instinto: 0.72
+    voluntad: 0.41
+    presencia: 0.43
+    resonancia: 0.0
+    piedad: 0.69
+    arrojo: 0.82
     varon: 1.0
     afin_agua: 0.5
     afin_viento: 1.0
@@ -3923,6 +4166,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.72
+    agilidad: 0.92
+    ingenio: 0.33
+    instinto: 0.51
+    voluntad: 0.57
+    presencia: 0.5
+    resonancia: 0.56
+    piedad: 0.09
+    arrojo: 0.7
     mujer: 1.0
     afin_tierra: 1.0
     ambicion: -0.42
@@ -3954,6 +4206,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.88
+    agilidad: 0.33
+    ingenio: 0.3
+    instinto: 0.74
+    voluntad: 0.25
+    presencia: 0.47
+    resonancia: 0.43
+    piedad: 0.68
+    arrojo: 0.75
     mujer: 1.0
     afin_viento: 1.0
     arraigo: 0.58
@@ -4012,6 +4273,15 @@ agents:
       padre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.49
+    agilidad: 0.78
+    ingenio: 0.35
+    instinto: 0.33
+    voluntad: 0.48
+    presencia: 0.8
+    resonancia: 0.81
+    piedad: 0.84
+    arrojo: 0.63
     varon: 1.0
     afin_agua: 1.0
     afin_viento: 0.4
@@ -4054,6 +4324,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.42
+    agilidad: 0.24
+    ingenio: 0.83
+    instinto: 0.73
+    voluntad: 0.66
+    presencia: 0.2
+    resonancia: 0.54
+    piedad: 0.32
+    arrojo: 0.31
     mujer: 1.0
     afin_fuego: 0.44
     afin_tierra: 1.0
@@ -4091,6 +4370,15 @@ agents:
   start_at: plaza_enana
   edad_inicial: 794880
   traits:
+    fuerza: 0.4
+    agilidad: 0.17
+    ingenio: 0.66
+    instinto: 0.28
+    voluntad: 0.81
+    presencia: 1.0
+    resonancia: 0.45
+    piedad: 0.41
+    arrojo: 0.11
     mujer: 1.0
     afin_fuego: 1.0
     afin_viento: 0.3
@@ -4142,6 +4430,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.61
+    agilidad: 0.52
+    ingenio: 0.53
+    instinto: 0.43
+    voluntad: 0.78
+    presencia: 0.55
+    resonancia: 0.75
+    piedad: 0.31
+    arrojo: 0.14
     varon: 1.0
     afin_agua: 1.0
     elfo: 1.0
@@ -4184,6 +4481,15 @@ agents:
   start_at: plaza_mayor
   edad_inicial: 794880
   traits:
+    fuerza: 0.77
+    agilidad: 0.28
+    ingenio: 0.62
+    instinto: 0.37
+    voluntad: 0.61
+    presencia: 0.32
+    resonancia: 0.52
+    piedad: 0.24
+    arrojo: 0.27
     mujer: 1.0
     afin_fuego: 1.0
     ambicion: -0.47
@@ -4228,6 +4534,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.52
+    agilidad: 0.77
+    ingenio: 0.69
+    instinto: 0.43
+    voluntad: 0.42
+    presencia: 0.32
+    resonancia: 0.29
+    piedad: 0.29
+    arrojo: 0.28
     varon: 1.0
     afin_fuego: 1.0
     docilidad: 0.72
@@ -4282,6 +4597,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.4
+    agilidad: 0.62
+    ingenio: 0.55
+    instinto: 0.56
+    voluntad: 0.3
+    presencia: 0.54
+    resonancia: 0.35
+    piedad: 0.4
+    arrojo: 0.53
     mujer: 1.0
     afin_agua: 1.0
     codicia: -0.67
@@ -4329,6 +4653,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.47
+    agilidad: 0.27
+    ingenio: 0.61
+    instinto: 0.71
+    voluntad: 0.37
+    presencia: 0.64
+    resonancia: 0.93
+    piedad: 0.74
+    arrojo: 0.08
     varon: 1.0
     afin_viento: 1.0
     apego: -0.82
@@ -4384,6 +4717,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.47
+    agilidad: 0.44
+    ingenio: 0.28
+    instinto: 0.86
+    voluntad: 0.67
+    presencia: 0.27
+    resonancia: 0.73
+    piedad: 0.36
+    arrojo: 0.46
     mujer: 1.0
     afin_agua: 0.36
     afin_tierra: 1.0
@@ -4419,6 +4761,15 @@ agents:
   initial_rank:
     dominio: 4
   traits:
+    fuerza: 0.47
+    agilidad: 0.54
+    ingenio: 0.44
+    instinto: 0.7
+    voluntad: 0.32
+    presencia: 0.37
+    resonancia: 0.02
+    piedad: 0.43
+    arrojo: 0.31
     varon: 1.0
     afin_fuego: 1.0
     calculo: -0.54
@@ -4467,6 +4818,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.58
+    agilidad: 0.38
+    ingenio: 0.53
+    instinto: 0.68
+    voluntad: 0.23
+    presencia: 0.69
+    resonancia: 0.35
+    piedad: 0.56
+    arrojo: 0.66
     varon: 1.0
     afin_fuego: 1.0
     apego: 0.85
@@ -4497,6 +4857,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.69
+    agilidad: 0.81
+    ingenio: 0.71
+    instinto: 0.67
+    voluntad: 0.85
+    presencia: 0.64
+    resonancia: 0.8
+    piedad: 0.73
+    arrojo: 0.32
     varon: 1.0
     afin_agua: 1.0
     apego: 0.84
@@ -4537,6 +4906,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.53
+    agilidad: 0.7
+    ingenio: 0.66
+    instinto: 0.74
+    voluntad: 0.37
+    presencia: 0.67
+    resonancia: 0.55
+    piedad: 0.74
+    arrojo: 0.38
     varon: 1.0
     afin_viento: 1.0
     aprension: -0.41
@@ -4586,6 +4964,15 @@ agents:
   start_at: plaza_enana
   edad_inicial: 1175040
   traits:
+    fuerza: 0.63
+    agilidad: 0.7
+    ingenio: 0.26
+    instinto: 0.71
+    voluntad: 0.71
+    presencia: 0.22
+    resonancia: 0.19
+    piedad: 0.79
+    arrojo: 0.57
     varon: 1.0
     afin_tierra: 0.39
     afin_viento: 1.0
@@ -4622,6 +5009,15 @@ agents:
   start_at: plaza_enana
   edad_inicial: 725760
   traits:
+    fuerza: 0.59
+    agilidad: 0.25
+    ingenio: 0.6
+    instinto: 0.69
+    voluntad: 0.52
+    presencia: 0.76
+    resonancia: 0.42
+    piedad: 0.69
+    arrojo: 0.55
     mujer: 1.0
     afin_tierra: 1.0
     codicia: -0.74
@@ -4669,6 +5065,15 @@ agents:
       padre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.49
+    agilidad: 0.56
+    ingenio: 0.49
+    instinto: 0.61
+    voluntad: 0.82
+    presencia: 0.36
+    resonancia: 0.36
+    piedad: 0.67
+    arrojo: 0.3
     varon: 1.0
     afin_tierra: 1.0
     arraigo: -0.95
@@ -4697,6 +5102,15 @@ agents:
   start_at: plaza_gigante
   edad_inicial: 898560
   traits:
+    fuerza: 0.8
+    agilidad: 0.46
+    ingenio: 0.59
+    instinto: 0.62
+    voluntad: 0.68
+    presencia: 0.43
+    resonancia: 0.66
+    piedad: 0.51
+    arrojo: 0.44
     mujer: 1.0
     afin_tierra: 1.0
     devocion: -0.86
@@ -4742,6 +5156,15 @@ agents:
   start_at: plaza_demihumana
   edad_inicial: 898560
   traits:
+    fuerza: 0.63
+    agilidad: 0.44
+    ingenio: 0.52
+    instinto: 0.43
+    voluntad: 0.66
+    presencia: 0.22
+    resonancia: 0.64
+    piedad: 0.41
+    arrojo: 0.54
     mujer: 1.0
     afin_agua: 1.0
     asesino: 0.81
@@ -4783,6 +5206,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.43
+    agilidad: 0.49
+    ingenio: 0.29
+    instinto: 0.62
+    voluntad: 0.58
+    presencia: 0.36
+    resonancia: 0.25
+    piedad: 0.22
+    arrojo: 0.54
     varon: 1.0
     afin_viento: 1.0
     codicia: -0.58
@@ -4831,6 +5263,15 @@ agents:
   start_at: plaza_mayor
   edad_inicial: 933120
   traits:
+    fuerza: 0.49
+    agilidad: 0.41
+    ingenio: 0.46
+    instinto: 0.83
+    voluntad: 0.28
+    presencia: 0.49
+    resonancia: 0.49
+    piedad: 0.9
+    arrojo: 0.93
     mujer: 1.0
     afin_fuego: 1.0
     humano: 1.0
@@ -4877,6 +5318,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.55
+    agilidad: 0.11
+    ingenio: 0.58
+    instinto: 0.64
+    voluntad: 0.42
+    presencia: 0.5
+    resonancia: 0.47
+    piedad: 0.77
+    arrojo: 0.58
     varon: 1.0
     afin_fuego: 0.29
     afin_tierra: 1.0
@@ -4905,6 +5355,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.4
+    agilidad: 0.51
+    ingenio: 0.23
+    instinto: 0.5
+    voluntad: 0.82
+    presencia: 0.32
+    resonancia: 0.26
+    piedad: 0.78
+    arrojo: 0.42
     varon: 1.0
     afin_fuego: 1.0
     apego: 0.56
@@ -4950,6 +5409,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.28
+    agilidad: 0.61
+    ingenio: 0.53
+    instinto: 1.0
+    voluntad: 0.28
+    presencia: 0.46
+    resonancia: 0.75
+    piedad: 0.88
+    arrojo: 0.56
     varon: 1.0
     afin_tierra: 1.0
     codicia: -0.48
@@ -4999,6 +5467,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.68
+    agilidad: 0.33
+    ingenio: 0.42
+    instinto: 0.26
+    voluntad: 0.68
+    presencia: 0.49
+    resonancia: 0.29
+    piedad: 0.5
+    arrojo: 0.13
     mujer: 1.0
     afin_agua: 1.0
     afin_fuego: 0.4
@@ -5028,6 +5505,15 @@ agents:
   start_at: plaza_gigante
   edad_inicial: 1036800
   traits:
+    fuerza: 0.66
+    agilidad: 0.4
+    ingenio: 0.07
+    instinto: 0.48
+    voluntad: 0.7
+    presencia: 0.48
+    resonancia: 0.48
+    piedad: 0.3
+    arrojo: 0.86
     mujer: 1.0
     afin_agua: 1.0
     gigante: 1.0
@@ -5076,6 +5562,15 @@ agents:
   start_at: plaza_elfica
   edad_inicial: 933120
   traits:
+    fuerza: 0.26
+    agilidad: 0.88
+    ingenio: 0.47
+    instinto: 0.65
+    voluntad: 0.46
+    presencia: 0.57
+    resonancia: 0.83
+    piedad: 0.52
+    arrojo: 0.52
     varon: 1.0
     afin_agua: 1.0
     ambicion: -0.74
@@ -5109,6 +5604,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.74
+    agilidad: 0.57
+    ingenio: 0.69
+    instinto: 0.57
+    voluntad: 0.59
+    presencia: 0.48
+    resonancia: 0.92
+    piedad: 0.61
+    arrojo: 0.37
     mujer: 1.0
     afin_tierra: 1.0
     aprension: 1.0
@@ -5166,6 +5670,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.34
+    agilidad: 0.7
+    ingenio: 0.43
+    instinto: 0.73
+    voluntad: 0.6
+    presencia: 0.21
+    resonancia: 0.49
+    piedad: 0.31
+    arrojo: 0.6
     mujer: 1.0
     afin_fuego: 1.0
     afin_viento: 0.27
@@ -5205,6 +5718,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.83
+    agilidad: 0.47
+    ingenio: 0.45
+    instinto: 0.56
+    voluntad: 0.3
+    presencia: 0.67
+    resonancia: 0.66
+    piedad: 0.54
+    arrojo: 0.75
     mujer: 1.0
     afin_tierra: 1.0
     aprension: -0.71
@@ -5246,6 +5768,15 @@ agents:
       padre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.75
+    agilidad: 0.41
+    ingenio: 0.44
+    instinto: 0.17
+    voluntad: 0.29
+    presencia: 0.73
+    resonancia: 0.64
+    piedad: 0.31
+    arrojo: 0.55
     varon: 1.0
     afin_tierra: 0.49
     afin_viento: 1.0
@@ -5280,6 +5811,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.51
+    agilidad: 0.58
+    ingenio: 0.34
+    instinto: 0.56
+    voluntad: 0.61
+    presencia: 0.52
+    resonancia: 0.42
+    piedad: 0.58
+    arrojo: 0.19
     mujer: 1.0
     afin_tierra: 1.0
     audacia: 0.51
@@ -5317,6 +5857,15 @@ agents:
   initial_rank:
     dominio: 4
   traits:
+    fuerza: 0.78
+    agilidad: 0.9
+    ingenio: 0.56
+    instinto: 0.31
+    voluntad: 0.27
+    presencia: 0.22
+    resonancia: 0.42
+    piedad: 0.67
+    arrojo: 0.72
     varon: 1.0
     afin_tierra: 1.0
     devocion: 0.44
@@ -5363,6 +5912,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.86
+    agilidad: 0.35
+    ingenio: 0.53
+    instinto: 0.44
+    voluntad: 0.75
+    presencia: 0.57
+    resonancia: 0.31
+    piedad: 0.35
+    arrojo: 0.14
     mujer: 1.0
     afin_tierra: 1.0
     aprension: -0.69
@@ -5399,6 +5957,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.59
+    agilidad: 0.4
+    ingenio: 0.62
+    instinto: 1.0
+    voluntad: 0.65
+    presencia: 0.54
+    resonancia: 0.56
+    piedad: 0.74
+    arrojo: 0.4
     mujer: 1.0
     afin_agua: 1.0
     asesino: 0.94
@@ -5429,6 +5996,15 @@ agents:
   start_at: plaza_elfica
   edad_inicial: 760320
   traits:
+    fuerza: 0.6
+    agilidad: 0.67
+    ingenio: 0.71
+    instinto: 0.21
+    voluntad: 0.49
+    presencia: 0.59
+    resonancia: 0.62
+    piedad: 0.55
+    arrojo: 0.42
     mujer: 1.0
     afin_viento: 1.0
     apego: 0.42
@@ -5458,6 +6034,15 @@ agents:
   start_at: plaza_enana
   edad_inicial: 1244160
   traits:
+    fuerza: 0.43
+    agilidad: 0.4
+    ingenio: 0.98
+    instinto: 0.7
+    voluntad: 0.51
+    presencia: 0.69
+    resonancia: 0.25
+    piedad: 0.76
+    arrojo: 0.39
     mujer: 1.0
     afin_fuego: 0.43
     afin_viento: 1.0
@@ -5489,6 +6074,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.93
+    agilidad: 0.64
+    ingenio: 0.37
+    instinto: 0.82
+    voluntad: 0.19
+    presencia: 0.71
+    resonancia: 0.62
+    piedad: 0.78
+    arrojo: 0.63
     mujer: 1.0
     afin_tierra: 1.0
     gigante: 1.0
@@ -5525,6 +6119,15 @@ agents:
   start_at: plaza_elfica
   edad_inicial: 725760
   traits:
+    fuerza: 0.4
+    agilidad: 0.4
+    ingenio: 0.73
+    instinto: 0.52
+    voluntad: 0.53
+    presencia: 0.55
+    resonancia: 0.8
+    piedad: 0.33
+    arrojo: 0.65
     mujer: 1.0
     afin_agua: 1.0
     elfo: 1.0
@@ -5574,6 +6177,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.59
+    agilidad: 0.33
+    ingenio: 0.45
+    instinto: 0.41
+    voluntad: 0.24
+    presencia: 0.56
+    resonancia: 0.63
+    piedad: 0.74
+    arrojo: 0.67
     varon: 1.0
     afin_tierra: 1.0
     calculo: 0.55
@@ -5604,6 +6216,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.3
+    agilidad: 0.67
+    ingenio: 0.5
+    instinto: 0.33
+    voluntad: 0.57
+    presencia: 0.58
+    resonancia: 0.53
+    piedad: 0.56
+    arrojo: 0.45
     mujer: 1.0
     afin_agua: 1.0
     afin_fuego: 0.32
@@ -5636,6 +6257,15 @@ agents:
   initial_rank:
     dominio: 4
   traits:
+    fuerza: 0.8
+    agilidad: 0.64
+    ingenio: 0.38
+    instinto: 0.5
+    voluntad: 0.94
+    presencia: 0.8
+    resonancia: 0.8
+    piedad: 0.58
+    arrojo: 0.5
     varon: 1.0
     afin_tierra: 1.0
     constancia: 0.68
@@ -5680,6 +6310,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.47
+    agilidad: 0.45
+    ingenio: 0.31
+    instinto: 0.8
+    voluntad: 0.78
+    presencia: 0.6
+    resonancia: 0.42
+    piedad: 0.49
+    arrojo: 0.68
     varon: 1.0
     afin_fuego: 1.0
     apego: -0.65
@@ -5717,6 +6356,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.82
+    agilidad: 0.62
+    ingenio: 0.38
+    instinto: 0.7
+    voluntad: 0.73
+    presencia: 0.51
+    resonancia: 0.46
+    piedad: 0.65
+    arrojo: 0.6
     mujer: 1.0
     afin_viento: 1.0
     humano: 1.0
@@ -5757,6 +6405,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.56
+    agilidad: 0.31
+    ingenio: 0.72
+    instinto: 0.5
+    voluntad: 0.41
+    presencia: 0.4
+    resonancia: 0.7
+    piedad: 0.39
+    arrojo: 0.54
     mujer: 1.0
     afin_agua: 0.31
     afin_viento: 1.0
@@ -5801,6 +6458,15 @@ agents:
   start_at: plaza_mayor
   edad_inicial: 1175040
   traits:
+    fuerza: 0.62
+    agilidad: 0.43
+    ingenio: 0.55
+    instinto: 0.54
+    voluntad: 0.17
+    presencia: 0.7
+    resonancia: 0.59
+    piedad: 0.57
+    arrojo: 0.32
     varon: 1.0
     afin_tierra: 0.3
     afin_viento: 1.0
@@ -5836,6 +6502,15 @@ agents:
   start_at: plaza_mayor
   edad_inicial: 656640
   traits:
+    fuerza: 0.56
+    agilidad: 0.54
+    ingenio: 0.51
+    instinto: 0.47
+    voluntad: 0.29
+    presencia: 0.88
+    resonancia: 0.31
+    piedad: 0.63
+    arrojo: 0.34
     mujer: 1.0
     afin_fuego: 1.0
     guerrero: 0.95
@@ -5876,6 +6551,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.72
+    agilidad: 0.34
+    ingenio: 0.63
+    instinto: 0.45
+    voluntad: 0.41
+    presencia: 0.74
+    resonancia: 0.19
+    piedad: 0.62
+    arrojo: 0.43
     mujer: 1.0
     afin_agua: 1.0
     asesino: 0.74
@@ -5919,6 +6603,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.51
+    agilidad: 0.65
+    ingenio: 0.71
+    instinto: 0.35
+    voluntad: 0.66
+    presencia: 0.15
+    resonancia: 0.67
+    piedad: 0.47
+    arrojo: 0.7
     varon: 1.0
     afin_fuego: 0.32
     afin_viento: 1.0
@@ -5973,6 +6666,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.54
+    agilidad: 0.81
+    ingenio: 0.7
+    instinto: 0.4
+    voluntad: 0.41
+    presencia: 0.64
+    resonancia: 0.48
+    piedad: 0.56
+    arrojo: 0.44
     mujer: 1.0
     afin_agua: 1.0
     apego: -0.76
@@ -6004,6 +6706,15 @@ agents:
   start_at: plaza_gigante
   edad_inicial: 656640
   traits:
+    fuerza: 0.72
+    agilidad: 0.47
+    ingenio: 0.36
+    instinto: 0.61
+    voluntad: 0.15
+    presencia: 0.45
+    resonancia: 0.49
+    piedad: 0.6
+    arrojo: 0.56
     mujer: 1.0
     afin_fuego: 0.28
     afin_tierra: 1.0
@@ -6049,6 +6760,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.78
+    agilidad: 0.24
+    ingenio: 0.61
+    instinto: 0.58
+    voluntad: 0.73
+    presencia: 0.52
+    resonancia: 0.45
+    piedad: 0.64
+    arrojo: 0.36
     mujer: 1.0
     afin_tierra: 1.0
     codicia: 0.88
@@ -6076,6 +6796,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.86
+    agilidad: 0.53
+    ingenio: 0.37
+    instinto: 0.55
+    voluntad: 0.32
+    presencia: 0.52
+    resonancia: 0.57
+    piedad: 0.36
+    arrojo: 0.15
     varon: 1.0
     afin_viento: 1.0
     arraigo: 0.57
@@ -6107,6 +6836,15 @@ agents:
   start_at: plaza_enana
   edad_inicial: 587520
   traits:
+    fuerza: 0.72
+    agilidad: 0.54
+    ingenio: 0.65
+    instinto: 0.45
+    voluntad: 0.4
+    presencia: 0.33
+    resonancia: 0.32
+    piedad: 0.54
+    arrojo: 0.53
     mujer: 1.0
     afin_tierra: 1.0
     ambicion: -0.62
@@ -6144,6 +6882,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.67
+    agilidad: 0.57
+    ingenio: 0.65
+    instinto: 0.43
+    voluntad: 0.69
+    presencia: 0.25
+    resonancia: 0.51
+    piedad: 0.94
+    arrojo: 0.26
     varon: 1.0
     afin_tierra: 1.0
     ambicion: 0.42
@@ -6173,6 +6920,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.88
+    agilidad: 0.48
+    ingenio: 0.48
+    instinto: 0.64
+    voluntad: 1.0
+    presencia: 0.67
+    resonancia: 0.28
+    piedad: 0.29
+    arrojo: 0.41
     varon: 1.0
     afin_agua: 1.0
     enano: 1.0
@@ -6216,6 +6972,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.63
+    agilidad: 0.76
+    ingenio: 0.39
+    instinto: 0.31
+    voluntad: 0.73
+    presencia: 0.63
+    resonancia: 0.54
+    piedad: 0.04
+    arrojo: 0.35
     varon: 1.0
     afin_tierra: 1.0
     afin_viento: 0.48
@@ -6255,6 +7020,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.42
+    agilidad: 0.5
+    ingenio: 0.33
+    instinto: 0.54
+    voluntad: 0.88
+    presencia: 0.54
+    resonancia: 0.24
+    piedad: 0.45
+    arrojo: 0.58
     varon: 1.0
     afin_agua: 1.0
     asesino: 0.96
@@ -6293,6 +7067,15 @@ agents:
   start_at: plaza_demihumana
   edad_inicial: 829440
   traits:
+    fuerza: 0.52
+    agilidad: 0.69
+    ingenio: 0.45
+    instinto: 0.91
+    voluntad: 0.35
+    presencia: 0.24
+    resonancia: 0.51
+    piedad: 0.62
+    arrojo: 0.52
     varon: 1.0
     afin_viento: 1.0
     asesino: 0.94
@@ -6338,6 +7121,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.71
+    agilidad: 0.48
+    ingenio: 0.36
+    instinto: 0.22
+    voluntad: 0.54
+    presencia: 0.32
+    resonancia: 0.4
+    piedad: 0.32
+    arrojo: 0.27
     varon: 1.0
     afin_tierra: 1.0
     arraigo: -0.59
@@ -6366,6 +7158,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.74
+    agilidad: 0.43
+    ingenio: 0.42
+    instinto: 0.66
+    voluntad: 0.52
+    presencia: 0.46
+    resonancia: 0.48
+    piedad: 0.53
+    arrojo: 0.1
     mujer: 1.0
     afin_agua: 1.0
     humano: 1.0
@@ -6395,6 +7196,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.35
+    agilidad: 0.42
+    ingenio: 0.67
+    instinto: 0.56
+    voluntad: 0.85
+    presencia: 0.45
+    resonancia: 0.84
+    piedad: 0.52
+    arrojo: 0.65
     mujer: 1.0
     afin_viento: 1.0
     dureza: -0.93
@@ -6447,6 +7257,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.4
+    agilidad: 0.4
+    ingenio: 0.68
+    instinto: 0.11
+    voluntad: 0.45
+    presencia: 0.42
+    resonancia: 0.47
+    piedad: 0.57
+    arrojo: 0.54
     mujer: 1.0
     afin_fuego: 1.0
     afin_viento: 0.38
@@ -6473,6 +7292,15 @@ agents:
   start_at: plaza_demihumana
   edad_inicial: 587520
   traits:
+    fuerza: 0.55
+    agilidad: 0.38
+    ingenio: 0.32
+    instinto: 0.96
+    voluntad: 0.49
+    presencia: 0.25
+    resonancia: 0.59
+    piedad: 0.19
+    arrojo: 0.46
     varon: 1.0
     afin_viento: 1.0
     codicia: -0.79
@@ -6517,6 +7345,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.61
+    agilidad: 0.52
+    ingenio: 0.6
+    instinto: 0.53
+    voluntad: 0.55
+    presencia: 0.68
+    resonancia: 0.82
+    piedad: 0.62
+    arrojo: 0.44
     mujer: 1.0
     afin_agua: 1.0
     afin_viento: 0.49
@@ -6551,6 +7388,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 1.0
+    agilidad: 0.37
+    ingenio: 0.23
+    instinto: 0.67
+    voluntad: 0.53
+    presencia: 0.5
+    resonancia: 0.4
+    piedad: 0.55
+    arrojo: 0.57
     mujer: 1.0
     afin_fuego: 1.0
     codicia: 0.59
@@ -6578,6 +7424,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.59
+    agilidad: 0.65
+    ingenio: 0.53
+    instinto: 0.18
+    voluntad: 0.31
+    presencia: 0.41
+    resonancia: 0.81
+    piedad: 0.7
+    arrojo: 0.81
     mujer: 1.0
     afin_tierra: 1.0
     afin_viento: 0.38
@@ -6605,6 +7460,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.94
+    agilidad: 0.56
+    ingenio: 0.85
+    instinto: 0.26
+    voluntad: 0.3
+    presencia: 0.79
+    resonancia: 0.27
+    piedad: 0.19
+    arrojo: 0.44
     mujer: 1.0
     afin_tierra: 1.0
     constancia: 0.67
@@ -6633,6 +7497,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.34
+    agilidad: 0.5
+    ingenio: 0.6
+    instinto: 0.59
+    voluntad: 0.38
+    presencia: 0.68
+    resonancia: 0.66
+    piedad: 0.29
+    arrojo: 0.68
     varon: 1.0
     afin_tierra: 1.0
     asesino: 0.9
@@ -6669,6 +7542,15 @@ agents:
   start_at: plaza_mayor
   edad_inicial: 656640
   traits:
+    fuerza: 0.49
+    agilidad: 0.68
+    ingenio: 0.34
+    instinto: 0.26
+    voluntad: 0.57
+    presencia: 0.8
+    resonancia: 0.73
+    piedad: 0.61
+    arrojo: 0.33
     mujer: 1.0
     afin_agua: 1.0
     afin_viento: 0.34
@@ -6692,6 +7574,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.69
+    agilidad: 0.58
+    ingenio: 0.59
+    instinto: 0.63
+    voluntad: 0.43
+    presencia: 0.65
+    resonancia: 0.65
+    piedad: 0.35
+    arrojo: 0.62
     varon: 1.0
     afin_viento: 1.0
     calculo: 0.73
@@ -6734,6 +7625,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.72
+    agilidad: 0.56
+    ingenio: 0.65
+    instinto: 0.31
+    voluntad: 0.82
+    presencia: 0.54
+    resonancia: 0.52
+    piedad: 0.01
+    arrojo: 0.44
     mujer: 1.0
     afin_fuego: 0.48
     afin_tierra: 1.0
@@ -6763,6 +7663,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.59
+    agilidad: 0.55
+    ingenio: 0.52
+    instinto: 0.01
+    voluntad: 0.56
+    presencia: 0.63
+    resonancia: 0.43
+    piedad: 0.7
+    arrojo: 0.71
     mujer: 1.0
     afin_viento: 1.0
     guerrero: 0.95
@@ -6810,6 +7719,15 @@ agents:
       padre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.58
+    agilidad: 0.75
+    ingenio: 0.33
+    instinto: 0.7
+    voluntad: 0.49
+    presencia: 0.63
+    resonancia: 0.41
+    piedad: 0.42
+    arrojo: 0.57
     varon: 1.0
     afin_fuego: 1.0
     apego: 0.63
@@ -6834,6 +7752,15 @@ agents:
   start_at: plaza_enana
   edad_inicial: 898560
   traits:
+    fuerza: 1.0
+    agilidad: 0.48
+    ingenio: 0.33
+    instinto: 0.24
+    voluntad: 0.75
+    presencia: 0.57
+    resonancia: 0.8
+    piedad: 1.0
+    arrojo: 0.34
     mujer: 1.0
     afin_tierra: 1.0
     enano: 1.0
@@ -6860,6 +7787,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.42
+    agilidad: 0.32
+    ingenio: 0.23
+    instinto: 0.79
+    voluntad: 0.86
+    presencia: 0.93
+    resonancia: 0.35
+    piedad: 0.69
+    arrojo: 0.63
     mujer: 1.0
     afin_agua: 1.0
     demihumano: 1.0
@@ -6905,6 +7841,15 @@ agents:
   initial_rank:
     dominio: 4
   traits:
+    fuerza: 0.69
+    agilidad: 0.55
+    ingenio: 0.39
+    instinto: 0.76
+    voluntad: 0.41
+    presencia: 0.57
+    resonancia: 0.39
+    piedad: 0.56
+    arrojo: 0.27
     varon: 1.0
     afin_tierra: 1.0
     codicia: -0.48
@@ -6933,6 +7878,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.55
+    agilidad: 0.61
+    ingenio: 0.45
+    instinto: 0.49
+    voluntad: 0.6
+    presencia: 0.21
+    resonancia: 0.57
+    piedad: 0.48
+    arrojo: 0.48
     mujer: 1.0
     afin_tierra: 1.0
     enano: 1.0
@@ -6970,6 +7924,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.61
+    agilidad: 0.71
+    ingenio: 0.07
+    instinto: 0.66
+    voluntad: 0.41
+    presencia: 0.91
+    resonancia: 0.66
+    piedad: 0.5
+    arrojo: 0.66
     mujer: 1.0
     afin_tierra: 1.0
     afin_viento: 0.49
@@ -7018,6 +7981,15 @@ agents:
       padre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.63
+    agilidad: 0.75
+    ingenio: 0.32
+    instinto: 0.64
+    voluntad: 0.5
+    presencia: 0.61
+    resonancia: 0.77
+    piedad: 0.42
+    arrojo: 0.43
     varon: 1.0
     afin_agua: 0.29
     afin_tierra: 1.0
@@ -7051,6 +8023,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.32
+    agilidad: 0.71
+    ingenio: 0.41
+    instinto: 0.65
+    voluntad: 0.36
+    presencia: 0.16
+    resonancia: 0.84
+    piedad: 0.45
+    arrojo: 0.7
     mujer: 1.0
     afin_agua: 1.0
     elfo: 1.0
@@ -7078,6 +8059,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.29
+    agilidad: 0.69
+    ingenio: 0.46
+    instinto: 0.53
+    voluntad: 0.28
+    presencia: 0.35
+    resonancia: 0.64
+    piedad: 0.16
+    arrojo: 0.55
     mujer: 1.0
     afin_viento: 1.0
     arraigo: -0.48
@@ -7117,6 +8107,15 @@ agents:
   start_at: plaza_demihumana
   edad_inicial: 1209600
   traits:
+    fuerza: 0.34
+    agilidad: 0.56
+    ingenio: 0.28
+    instinto: 0.85
+    voluntad: 0.67
+    presencia: 0.25
+    resonancia: 0.54
+    piedad: 0.35
+    arrojo: 0.63
     mujer: 1.0
     afin_tierra: 1.0
     demihumano: 1.0
@@ -7161,6 +8160,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.64
+    agilidad: 0.74
+    ingenio: 0.51
+    instinto: 0.47
+    voluntad: 0.33
+    presencia: 0.6
+    resonancia: 0.46
+    piedad: 0.66
+    arrojo: 0.36
     varon: 1.0
     afin_fuego: 1.0
     docilidad: 0.73
@@ -7194,6 +8202,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.3
+    agilidad: 0.5
+    ingenio: 0.25
+    instinto: 0.5
+    voluntad: 0.33
+    presencia: 0.32
+    resonancia: 0.62
+    piedad: 0.54
+    arrojo: 0.53
     varon: 1.0
     afin_agua: 1.0
     afin_tierra: 0.32
@@ -7222,6 +8239,15 @@ agents:
   start_at: plaza_elfica
   edad_inicial: 691200
   traits:
+    fuerza: 0.35
+    agilidad: 0.58
+    ingenio: 0.44
+    instinto: 0.44
+    voluntad: 1.0
+    presencia: 0.55
+    resonancia: 0.8
+    piedad: 0.28
+    arrojo: 0.3
     mujer: 1.0
     afin_viento: 1.0
     elfo: 1.0
@@ -7248,6 +8274,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.28
+    agilidad: 0.63
+    ingenio: 0.64
+    instinto: 0.81
+    voluntad: 0.8
+    presencia: 0.62
+    resonancia: 0.35
+    piedad: 0.67
+    arrojo: 0.07
     varon: 1.0
     afin_viento: 1.0
     aprension: 0.61
@@ -7275,6 +8310,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.5
+    agilidad: 0.09
+    ingenio: 0.53
+    instinto: 0.64
+    voluntad: 0.77
+    presencia: 0.84
+    resonancia: 0.66
+    piedad: 0.5
+    arrojo: 0.41
     varon: 1.0
     afin_viento: 1.0
     asesino: 0.85
@@ -7317,6 +8361,15 @@ agents:
   start_at: plaza_mayor
   edad_inicial: 691200
   traits:
+    fuerza: 0.42
+    agilidad: 0.25
+    ingenio: 0.69
+    instinto: 0.37
+    voluntad: 0.63
+    presencia: 0.43
+    resonancia: 0.89
+    piedad: 0.31
+    arrojo: 0.28
     varon: 1.0
     afin_agua: 1.0
     aprension: -0.64
@@ -7341,6 +8394,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.55
+    agilidad: 0.71
+    ingenio: 0.4
+    instinto: 0.67
+    voluntad: 0.65
+    presencia: 0.35
+    resonancia: 0.5
+    piedad: 0.66
+    arrojo: 0.29
     mujer: 1.0
     afin_fuego: 0.31
     afin_viento: 1.0
@@ -7381,6 +8443,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.65
+    agilidad: 0.57
+    ingenio: 0.24
+    instinto: 0.77
+    voluntad: 0.38
+    presencia: 0.5
+    resonancia: 0.24
+    piedad: 0.71
+    arrojo: 0.62
     varon: 1.0
     afin_tierra: 1.0
     audacia: -0.56
@@ -7425,6 +8496,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.18
+    agilidad: 0.71
+    ingenio: 0.26
+    instinto: 0.27
+    voluntad: 0.23
+    presencia: 0.58
+    resonancia: 0.65
+    piedad: 0.64
+    arrojo: 0.36
     mujer: 1.0
     afin_tierra: 1.0
     guerrero: 0.82
@@ -7456,6 +8536,15 @@ agents:
   start_at: plaza_demihumana
   edad_inicial: 1036800
   traits:
+    fuerza: 0.14
+    agilidad: 0.36
+    ingenio: 0.87
+    instinto: 0.49
+    voluntad: 0.32
+    presencia: 0.55
+    resonancia: 0.78
+    piedad: 0.37
+    arrojo: 0.42
     varon: 1.0
     afin_viento: 1.0
     curiosidad: 0.79
@@ -7493,6 +8582,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.39
+    agilidad: 0.36
+    ingenio: 0.5
+    instinto: 1.0
+    voluntad: 0.41
+    presencia: 0.18
+    resonancia: 0.57
+    piedad: 0.43
+    arrojo: 0.64
     varon: 1.0
     afin_viento: 1.0
     constancia: 0.99
@@ -7518,6 +8616,15 @@ agents:
   start_at: plaza_elfica
   edad_inicial: 1002240
   traits:
+    fuerza: 0.47
+    agilidad: 0.55
+    ingenio: 0.47
+    instinto: 0.52
+    voluntad: 0.87
+    presencia: 0.19
+    resonancia: 0.67
+    piedad: 0.31
+    arrojo: 0.14
     varon: 1.0
     afin_tierra: 1.0
     afin_viento: 0.28
@@ -7563,6 +8670,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.61
+    agilidad: 0.66
+    ingenio: 0.63
+    instinto: 0.45
+    voluntad: 0.63
+    presencia: 0.83
+    resonancia: 0.45
+    piedad: 0.41
+    arrojo: 0.59
     varon: 1.0
     afin_agua: 1.0
     afin_viento: 0.37
@@ -7604,6 +8720,15 @@ agents:
   start_at: plaza_mayor
   edad_inicial: 898560
   traits:
+    fuerza: 0.54
+    agilidad: 0.48
+    ingenio: 0.55
+    instinto: 0.42
+    voluntad: 0.45
+    presencia: 0.31
+    resonancia: 0.63
+    piedad: 0.57
+    arrojo: 0.5
     mujer: 1.0
     afin_fuego: 0.3
     afin_tierra: 1.0
@@ -7644,6 +8769,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.45
+    agilidad: 0.73
+    ingenio: 0.35
+    instinto: 0.55
+    voluntad: 0.56
+    presencia: 0.75
+    resonancia: 0.83
+    piedad: 0.09
+    arrojo: 0.42
     varon: 1.0
     afin_agua: 1.0
     afin_fuego: 0.29
@@ -7690,6 +8824,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.42
+    agilidad: 0.96
+    ingenio: 0.07
+    instinto: 0.7
+    voluntad: 0.5
+    presencia: 0.76
+    resonancia: 0.51
+    piedad: 0.57
+    arrojo: 0.41
     mujer: 1.0
     afin_viento: 1.0
     demihumano: 1.0
@@ -7734,6 +8877,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.42
+    agilidad: 0.72
+    ingenio: 0.68
+    instinto: 0.69
+    voluntad: 0.44
+    presencia: 0.72
+    resonancia: 0.41
+    piedad: 0.51
+    arrojo: 0.64
     varon: 1.0
     afin_agua: 1.0
     asesino: 0.86
@@ -7765,6 +8917,15 @@ agents:
   start_at: plaza_gigante
   edad_inicial: 898560
   traits:
+    fuerza: 0.85
+    agilidad: 0.41
+    ingenio: 0.55
+    instinto: 0.52
+    voluntad: 0.42
+    presencia: 0.31
+    resonancia: 0.49
+    piedad: 0.17
+    arrojo: 0.41
     varon: 1.0
     afin_tierra: 1.0
     constancia: -0.98
@@ -7814,6 +8975,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.58
+    agilidad: 0.12
+    ingenio: 1.0
+    instinto: 0.5
+    voluntad: 0.78
+    presencia: 0.46
+    resonancia: 0.69
+    piedad: 0.5
+    arrojo: 0.54
     varon: 1.0
     afin_tierra: 1.0
     arraigo: -0.94
@@ -7849,6 +9019,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.5
+    agilidad: 0.41
+    ingenio: 0.68
+    instinto: 0.74
+    voluntad: 0.51
+    presencia: 0.62
+    resonancia: 0.6
+    piedad: 0.72
+    arrojo: 1.0
     varon: 1.0
     afin_tierra: 1.0
     apego: -0.42
@@ -7870,6 +9049,15 @@ agents:
   start_at: plaza_demihumana
   edad_inicial: 1175040
   traits:
+    fuerza: 0.34
+    agilidad: 1.0
+    ingenio: 0.43
+    instinto: 1.0
+    voluntad: 0.61
+    presencia: 0.56
+    resonancia: 0.24
+    piedad: 0.37
+    arrojo: 0.62
     mujer: 1.0
     afin_agua: 1.0
     asesino: 0.74
@@ -7915,6 +9103,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.58
+    agilidad: 0.33
+    ingenio: 0.24
+    instinto: 0.51
+    voluntad: 0.57
+    presencia: 0.57
+    resonancia: 0.51
+    piedad: 0.63
+    arrojo: 0.49
     mujer: 1.0
     afin_agua: 0.39
     afin_fuego: 1.0
@@ -7953,6 +9150,15 @@ agents:
       padre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.59
+    agilidad: 0.36
+    ingenio: 0.49
+    instinto: 0.21
+    voluntad: 0.94
+    presencia: 0.31
+    resonancia: 0.56
+    piedad: 0.5
+    arrojo: 0.54
     varon: 1.0
     afin_viento: 1.0
     asesino: 0.74
@@ -7975,6 +9181,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.39
+    agilidad: 0.54
+    ingenio: 0.37
+    instinto: 0.39
+    voluntad: 0.4
+    presencia: 0.58
+    resonancia: 0.47
+    piedad: 0.23
+    arrojo: 0.55
     mujer: 1.0
     afin_fuego: 1.0
     afin_tierra: 0.45
@@ -8004,6 +9219,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.31
+    agilidad: 0.74
+    ingenio: 0.31
+    instinto: 0.3
+    voluntad: 0.48
+    presencia: 0.69
+    resonancia: 0.69
+    piedad: 0.84
+    arrojo: 0.59
     mujer: 1.0
     afin_agua: 1.0
     afin_viento: 0.31
@@ -8029,6 +9253,15 @@ agents:
   start_at: plaza_elfica
   edad_inicial: 587520
   traits:
+    fuerza: 0.2
+    agilidad: 0.82
+    ingenio: 0.6
+    instinto: 0.73
+    voluntad: 0.39
+    presencia: 0.53
+    resonancia: 0.79
+    piedad: 0.6
+    arrojo: 0.44
     mujer: 1.0
     afin_viento: 1.0
     devocion: 0.72
@@ -8056,6 +9289,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.61
+    agilidad: 0.28
+    ingenio: 0.47
+    instinto: 0.6
+    voluntad: 0.77
+    presencia: 0.72
+    resonancia: 0.51
+    piedad: 0.41
+    arrojo: 0.38
     mujer: 1.0
     afin_viento: 1.0
     audacia: 0.68
@@ -8100,6 +9342,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.22
+    agilidad: 0.68
+    ingenio: 0.59
+    instinto: 0.35
+    voluntad: 0.57
+    presencia: 0.36
+    resonancia: 0.6
+    piedad: 0.53
+    arrojo: 0.49
     mujer: 1.0
     afin_tierra: 1.0
     elfo: 1.0
@@ -8151,6 +9402,15 @@ agents:
       madre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.78
+    agilidad: 0.5
+    ingenio: 0.33
+    instinto: 0.72
+    voluntad: 0.24
+    presencia: 0.56
+    resonancia: 0.37
+    piedad: 0.5
+    arrojo: 0.36
     mujer: 1.0
     afin_fuego: 1.0
     demihumano: 1.0
@@ -8179,6 +9439,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.28
+    agilidad: 0.48
+    ingenio: 0.27
+    instinto: 0.66
+    voluntad: 0.65
+    presencia: 0.37
+    resonancia: 0.58
+    piedad: 0.46
+    arrojo: 0.51
     mujer: 1.0
     afin_viento: 1.0
     humano: 1.0
@@ -8202,6 +9471,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.54
+    agilidad: 0.43
+    ingenio: 0.54
+    instinto: 0.25
+    voluntad: 0.36
+    presencia: 0.57
+    resonancia: 0.09
+    piedad: 0.51
+    arrojo: 0.64
     varon: 1.0
     afin_viento: 1.0
     curiosidad: -0.66
@@ -8247,6 +9525,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.36
+    agilidad: 0.71
+    ingenio: 0.67
+    instinto: 0.41
+    voluntad: 0.64
+    presencia: 0.68
+    resonancia: 0.68
+    piedad: 0.2
+    arrojo: 0.57
     varon: 1.0
     afin_agua: 1.0
     ambicion: 0.92
@@ -8276,6 +9563,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.62
+    agilidad: 0.59
+    ingenio: 0.51
+    instinto: 0.7
+    voluntad: 0.57
+    presencia: 0.15
+    resonancia: 0.66
+    piedad: 0.61
+    arrojo: 0.51
     mujer: 1.0
     afin_agua: 1.0
     asesino: 1.0
@@ -8328,6 +9624,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.17
+    agilidad: 0.38
+    ingenio: 0.69
+    instinto: 0.12
+    voluntad: 0.49
+    presencia: 0.29
+    resonancia: 0.57
+    piedad: 0.37
+    arrojo: 0.64
     varon: 1.0
     afin_agua: 1.0
     asesino: 0.73
@@ -8354,6 +9659,15 @@ agents:
   start_at: plaza_elfica
   edad_inicial: 725760
   traits:
+    fuerza: 0.45
+    agilidad: 0.81
+    ingenio: 0.37
+    instinto: 0.61
+    voluntad: 0.36
+    presencia: 0.84
+    resonancia: 0.81
+    piedad: 0.4
+    arrojo: 0.74
     mujer: 1.0
     afin_agua: 1.0
     afin_viento: 0.36
@@ -8401,6 +9715,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.7
+    agilidad: 0.22
+    ingenio: 0.76
+    instinto: 0.63
+    voluntad: 0.4
+    presencia: 0.46
+    resonancia: 0.51
+    piedad: 0.62
+    arrojo: 0.0
     mujer: 1.0
     afin_agua: 1.0
     docilidad: -0.71
@@ -8445,6 +9768,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.79
+    agilidad: 0.42
+    ingenio: 0.76
+    instinto: 0.55
+    voluntad: 0.73
+    presencia: 0.46
+    resonancia: 0.6
+    piedad: 0.45
+    arrojo: 0.71
     varon: 1.0
     afin_fuego: 1.0
     asesino: 0.75
@@ -8486,6 +9818,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.51
+    agilidad: 0.64
+    ingenio: 0.51
+    instinto: 1.0
+    voluntad: 0.41
+    presencia: 0.66
+    resonancia: 0.43
+    piedad: 0.55
+    arrojo: 0.63
     varon: 1.0
     afin_tierra: 1.0
     apego: -0.9
@@ -8530,6 +9871,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.23
+    agilidad: 0.58
+    ingenio: 0.58
+    instinto: 1.0
+    voluntad: 0.45
+    presencia: 0.44
+    resonancia: 0.61
+    piedad: 0.43
+    arrojo: 0.6
     mujer: 1.0
     afin_viento: 1.0
     demihumano: 1.0
@@ -8572,6 +9922,15 @@ agents:
   start_at: plaza_mayor
   edad_inicial: 1175040
   traits:
+    fuerza: 0.6
+    agilidad: 0.46
+    ingenio: 0.41
+    instinto: 0.38
+    voluntad: 0.45
+    presencia: 0.35
+    resonancia: 0.74
+    piedad: 0.75
+    arrojo: 0.72
     varon: 1.0
     afin_agua: 0.26
     afin_tierra: 1.0
@@ -8609,6 +9968,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.51
+    agilidad: 0.21
+    ingenio: 0.0
+    instinto: 0.82
+    voluntad: 0.29
+    presencia: 0.17
+    resonancia: 0.63
+    piedad: 0.53
+    arrojo: 0.35
     mujer: 1.0
     afin_viento: 1.0
     demihumano: 1.0
@@ -8646,6 +10014,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.57
+    agilidad: 0.55
+    ingenio: 0.4
+    instinto: 0.62
+    voluntad: 0.29
+    presencia: 0.64
+    resonancia: 0.64
+    piedad: 0.15
+    arrojo: 0.68
     mujer: 1.0
     afin_agua: 1.0
     aprension: -0.98
@@ -8693,6 +10070,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.55
+    agilidad: 0.74
+    ingenio: 0.18
+    instinto: 0.2
+    voluntad: 0.5
+    presencia: 0.38
+    resonancia: 0.44
+    piedad: 0.17
+    arrojo: 0.19
     varon: 1.0
     afin_agua: 1.0
     ambicion: -0.47
@@ -8721,6 +10107,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.43
+    agilidad: 0.36
+    ingenio: 0.61
+    instinto: 0.73
+    voluntad: 0.65
+    presencia: 0.53
+    resonancia: 0.57
+    piedad: 0.57
+    arrojo: 0.41
     mujer: 1.0
     afin_fuego: 1.0
     codicia: -0.96
@@ -8764,6 +10159,15 @@ agents:
   initial_rank:
     dominio: 4
   traits:
+    fuerza: 0.77
+    agilidad: 0.4
+    ingenio: 0.86
+    instinto: 0.33
+    voluntad: 0.28
+    presencia: 0.66
+    resonancia: 0.44
+    piedad: 0.33
+    arrojo: 0.33
     mujer: 1.0
     afin_fuego: 1.0
     apego: -0.92
@@ -8799,6 +10203,15 @@ agents:
   start_at: plaza_elfica
   edad_inicial: 1071360
   traits:
+    fuerza: 0.37
+    agilidad: 0.24
+    ingenio: 0.65
+    instinto: 0.69
+    voluntad: 0.4
+    presencia: 1.0
+    resonancia: 0.52
+    piedad: 0.43
+    arrojo: 0.41
     varon: 1.0
     afin_tierra: 1.0
     afin_viento: 0.34
@@ -8846,6 +10259,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.36
+    agilidad: 0.64
+    ingenio: 0.56
+    instinto: 0.32
+    voluntad: 0.56
+    presencia: 0.69
+    resonancia: 0.97
+    piedad: 0.43
+    arrojo: 0.72
     mujer: 1.0
     afin_agua: 1.0
     asesino: 0.76
@@ -8888,6 +10310,15 @@ agents:
   start_at: plaza_elfica
   edad_inicial: 1002240
   traits:
+    fuerza: 0.15
+    agilidad: 0.69
+    ingenio: 0.19
+    instinto: 0.43
+    voluntad: 0.56
+    presencia: 0.64
+    resonancia: 0.46
+    piedad: 0.31
+    arrojo: 0.77
     mujer: 1.0
     afin_fuego: 1.0
     afin_tierra: 0.48
@@ -8927,6 +10358,15 @@ agents:
   start_at: plaza_enana
   edad_inicial: 1036800
   traits:
+    fuerza: 0.78
+    agilidad: 0.48
+    ingenio: 0.68
+    instinto: 0.59
+    voluntad: 0.66
+    presencia: 0.51
+    resonancia: 0.79
+    piedad: 0.45
+    arrojo: 0.44
     mujer: 1.0
     afin_fuego: 1.0
     afin_tierra: 0.44
@@ -8954,6 +10394,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.62
+    agilidad: 0.63
+    ingenio: 0.47
+    instinto: 0.29
+    voluntad: 0.37
+    presencia: 0.53
+    resonancia: 0.33
+    piedad: 0.61
+    arrojo: 0.32
     mujer: 1.0
     afin_fuego: 1.0
     audacia: 0.83
@@ -8982,6 +10431,15 @@ agents:
   initial_rank:
     dominio: 4
   traits:
+    fuerza: 0.82
+    agilidad: 0.66
+    ingenio: 0.48
+    instinto: 0.54
+    voluntad: 0.59
+    presencia: 0.36
+    resonancia: 0.53
+    piedad: 0.43
+    arrojo: 0.58
     varon: 1.0
     afin_agua: 1.0
     elfo: 1.0
@@ -9029,6 +10487,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.38
+    agilidad: 0.74
+    ingenio: 0.41
+    instinto: 0.41
+    voluntad: 0.25
+    presencia: 0.85
+    resonancia: 0.45
+    piedad: 0.67
+    arrojo: 0.61
     varon: 1.0
     afin_fuego: 1.0
     aprension: -0.79
@@ -9062,6 +10529,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.47
+    agilidad: 0.42
+    ingenio: 0.58
+    instinto: 0.67
+    voluntad: 0.47
+    presencia: 0.21
+    resonancia: 0.35
+    piedad: 0.7
+    arrojo: 0.71
     varon: 1.0
     afin_agua: 1.0
     codicia: 0.78
@@ -9086,6 +10562,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.49
+    agilidad: 0.3
+    ingenio: 0.56
+    instinto: 0.54
+    voluntad: 0.65
+    presencia: 0.64
+    resonancia: 0.6
+    piedad: 0.44
+    arrojo: 0.5
     mujer: 1.0
     afin_viento: 1.0
     humano: 1.0
@@ -9108,6 +10593,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.57
+    agilidad: 0.52
+    ingenio: 0.6
+    instinto: 0.33
+    voluntad: 0.1
+    presencia: 0.73
+    resonancia: 0.46
+    piedad: 0.63
+    arrojo: 0.54
     varon: 1.0
     afin_tierra: 1.0
     curiosidad: -0.79
@@ -9153,6 +10647,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.54
+    agilidad: 0.53
+    ingenio: 0.53
+    instinto: 0.46
+    voluntad: 0.43
+    presencia: 0.37
+    resonancia: 0.21
+    piedad: 0.24
+    arrojo: 0.58
     varon: 1.0
     afin_tierra: 1.0
     calculo: -0.59
@@ -9180,6 +10683,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.1
+    agilidad: 0.59
+    ingenio: 0.68
+    instinto: 0.91
+    voluntad: 0.66
+    presencia: 0.84
+    resonancia: 0.48
+    piedad: 0.61
+    arrojo: 0.22
     varon: 1.0
     afin_agua: 1.0
     afin_viento: 0.26
@@ -9219,6 +10731,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.56
+    agilidad: 0.61
+    ingenio: 0.65
+    instinto: 0.4
+    voluntad: 0.64
+    presencia: 0.71
+    resonancia: 0.49
+    piedad: 0.28
+    arrojo: 0.7
     varon: 1.0
     afin_fuego: 1.0
     aprension: -0.61
@@ -9259,6 +10780,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.55
+    agilidad: 0.12
+    ingenio: 0.21
+    instinto: 0.75
+    voluntad: 0.6
+    presencia: 0.25
+    resonancia: 0.56
+    piedad: 0.63
+    arrojo: 0.08
     varon: 1.0
     afin_tierra: 0.37
     afin_viento: 1.0
@@ -9287,6 +10817,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.57
+    agilidad: 0.27
+    ingenio: 0.36
+    instinto: 0.22
+    voluntad: 0.73
+    presencia: 0.22
+    resonancia: 0.59
+    piedad: 0.51
+    arrojo: 0.28
     mujer: 1.0
     afin_fuego: 1.0
     docilidad: 0.59
@@ -9341,6 +10880,15 @@ agents:
       padre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.86
+    agilidad: 0.47
+    ingenio: 0.01
+    instinto: 0.35
+    voluntad: 0.51
+    presencia: 0.34
+    resonancia: 0.61
+    piedad: 0.34
+    arrojo: 0.19
     varon: 1.0
     afin_fuego: 1.0
     codicia: 0.9
@@ -9367,6 +10915,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.64
+    agilidad: 0.77
+    ingenio: 0.67
+    instinto: 0.66
+    voluntad: 0.37
+    presencia: 0.9
+    resonancia: 0.55
+    piedad: 0.55
+    arrojo: 0.08
     varon: 1.0
     afin_tierra: 1.0
     ambicion: -0.47
@@ -9392,6 +10949,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.16
+    agilidad: 0.33
+    ingenio: 0.74
+    instinto: 0.15
+    voluntad: 0.75
+    presencia: 0.69
+    resonancia: 0.71
+    piedad: 0.44
+    arrojo: 0.67
     mujer: 1.0
     afin_viento: 1.0
     apego: 0.77
@@ -9436,6 +11002,15 @@ agents:
       padre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.44
+    agilidad: 0.58
+    ingenio: 0.78
+    instinto: 0.48
+    voluntad: 0.55
+    presencia: 0.91
+    resonancia: 0.49
+    piedad: 0.61
+    arrojo: 0.35
     varon: 1.0
     afin_tierra: 1.0
     guerrero: 0.74
@@ -9465,6 +11040,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.13
+    agilidad: 0.65
+    ingenio: 0.64
+    instinto: 0.34
+    voluntad: 0.39
+    presencia: 0.52
+    resonancia: 0.45
+    piedad: 0.06
+    arrojo: 1.0
     mujer: 1.0
     afin_viento: 1.0
     constancia: 0.53
@@ -9494,6 +11078,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.66
+    agilidad: 0.39
+    ingenio: 0.7
+    instinto: 0.36
+    voluntad: 0.79
+    presencia: 0.75
+    resonancia: 0.5
+    piedad: 0.8
+    arrojo: 0.45
     varon: 1.0
     afin_fuego: 1.0
     aprension: -0.88
@@ -9534,6 +11127,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.88
+    agilidad: 0.98
+    ingenio: 0.52
+    instinto: 0.36
+    voluntad: 0.25
+    presencia: 0.33
+    resonancia: 0.34
+    piedad: 0.37
+    arrojo: 0.75
     varon: 1.0
     afin_fuego: 1.0
     guerrero: 0.7
@@ -9567,6 +11169,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.22
+    agilidad: 0.72
+    ingenio: 0.48
+    instinto: 0.3
+    voluntad: 0.53
+    presencia: 0.3
+    resonancia: 0.64
+    piedad: 0.56
+    arrojo: 0.48
     mujer: 1.0
     afin_viento: 1.0
     codicia: -0.51
@@ -9592,6 +11203,15 @@ agents:
   initial_rank:
     dominio: 4
   traits:
+    fuerza: 0.3
+    agilidad: 0.56
+    ingenio: 0.62
+    instinto: 0.41
+    voluntad: 0.64
+    presencia: 0.3
+    resonancia: 0.67
+    piedad: 0.43
+    arrojo: 0.44
     mujer: 1.0
     afin_tierra: 0.3
     afin_viento: 1.0
@@ -9633,6 +11253,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 1.0
+    agilidad: 0.43
+    ingenio: 0.27
+    instinto: 0.53
+    voluntad: 0.69
+    presencia: 0.43
+    resonancia: 0.41
+    piedad: 0.77
+    arrojo: 0.77
     varon: 1.0
     afin_tierra: 1.0
     docilidad: -0.6
@@ -9677,6 +11306,15 @@ agents:
   start_at: plaza_portuaria
   edad_inicial: 1175040
   traits:
+    fuerza: 0.48
+    agilidad: 0.3
+    ingenio: 0.59
+    instinto: 0.45
+    voluntad: 0.72
+    presencia: 1.0
+    resonancia: 0.79
+    piedad: 1.0
+    arrojo: 0.82
     mujer: 1.0
     afin_agua: 1.0
     afin_viento: 0.5
@@ -9716,6 +11354,15 @@ agents:
   start_at: plaza_demihumana
   edad_inicial: 1347840
   traits:
+    fuerza: 0.5
+    agilidad: 0.07
+    ingenio: 0.43
+    instinto: 0.99
+    voluntad: 0.76
+    presencia: 0.51
+    resonancia: 0.56
+    piedad: 0.53
+    arrojo: 0.5
     varon: 1.0
     afin_fuego: 1.0
     demihumano: 1.0
@@ -9756,6 +11403,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.52
+    agilidad: 0.22
+    ingenio: 0.31
+    instinto: 0.81
+    voluntad: 0.54
+    presencia: 0.53
+    resonancia: 0.42
+    piedad: 0.56
+    arrojo: 0.67
     mujer: 1.0
     afin_fuego: 1.0
     arraigo: -0.47
@@ -9806,6 +11462,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.47
+    agilidad: 0.56
+    ingenio: 0.19
+    instinto: 0.78
+    voluntad: 0.71
+    presencia: 0.31
+    resonancia: 0.38
+    piedad: 0.62
+    arrojo: 0.22
     varon: 1.0
     afin_fuego: 0.29
     afin_viento: 1.0
@@ -9854,6 +11519,15 @@ agents:
   start_at: plaza_mayor
   edad_inicial: 829440
   traits:
+    fuerza: 0.43
+    agilidad: 0.35
+    ingenio: 0.53
+    instinto: 0.58
+    voluntad: 0.34
+    presencia: 0.39
+    resonancia: 0.25
+    piedad: 0.37
+    arrojo: 0.42
     mujer: 1.0
     afin_agua: 1.0
     afin_viento: 0.38
@@ -9888,6 +11562,15 @@ agents:
   start_at: plaza_enana
   edad_inicial: 1036800
   traits:
+    fuerza: 0.55
+    agilidad: 0.59
+    ingenio: 0.31
+    instinto: 0.4
+    voluntad: 0.61
+    presencia: 0.35
+    resonancia: 0.43
+    piedad: 0.23
+    arrojo: 0.81
     mujer: 1.0
     afin_agua: 1.0
     apego: -0.9
@@ -9928,6 +11611,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.29
+    agilidad: 0.63
+    ingenio: 0.64
+    instinto: 0.27
+    voluntad: 0.68
+    presencia: 0.47
+    resonancia: 0.36
+    piedad: 0.92
+    arrojo: 0.51
     mujer: 1.0
     afin_fuego: 0.42
     afin_viento: 1.0
@@ -9954,6 +11646,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.39
+    agilidad: 0.57
+    ingenio: 0.73
+    instinto: 0.5
+    voluntad: 0.6
+    presencia: 0.8
+    resonancia: 0.74
+    piedad: 0.29
+    arrojo: 0.6
     mujer: 1.0
     afin_tierra: 1.0
     arraigo: -0.74
@@ -9990,6 +11691,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.11
+    agilidad: 0.51
+    ingenio: 0.62
+    instinto: 0.44
+    voluntad: 0.51
+    presencia: 0.46
+    resonancia: 0.77
+    piedad: 0.53
+    arrojo: 0.52
     mujer: 1.0
     afin_agua: 1.0
     devocion: -0.7
@@ -10028,6 +11738,15 @@ agents:
   start_at: plaza_gigante
   edad_inicial: 933120
   traits:
+    fuerza: 0.93
+    agilidad: 0.61
+    ingenio: 0.86
+    instinto: 0.6
+    voluntad: 0.59
+    presencia: 0.27
+    resonancia: 0.46
+    piedad: 0.76
+    arrojo: 0.73
     mujer: 1.0
     afin_viento: 1.0
     constancia: -0.9
@@ -10073,6 +11792,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.2
+    agilidad: 0.56
+    ingenio: 0.23
+    instinto: 0.66
+    voluntad: 0.24
+    presencia: 0.78
+    resonancia: 0.32
+    piedad: 0.36
+    arrojo: 0.71
     varon: 1.0
     afin_agua: 1.0
     afin_fuego: 0.48
@@ -10120,6 +11848,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.73
+    agilidad: 0.03
+    ingenio: 0.27
+    instinto: 0.56
+    voluntad: 0.54
+    presencia: 0.71
+    resonancia: 0.46
+    piedad: 0.45
+    arrojo: 0.01
     varon: 1.0
     afin_agua: 1.0
     ambicion: 0.56
@@ -10154,6 +11891,15 @@ agents:
   start_at: plaza_enana
   edad_inicial: 1036800
   traits:
+    fuerza: 0.52
+    agilidad: 0.34
+    ingenio: 0.48
+    instinto: 0.57
+    voluntad: 0.79
+    presencia: 0.57
+    resonancia: 0.39
+    piedad: 0.0
+    arrojo: 0.2
     mujer: 1.0
     afin_fuego: 1.0
     afin_tierra: 0.33
@@ -10183,6 +11929,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.73
+    agilidad: 0.43
+    ingenio: 0.65
+    instinto: 0.38
+    voluntad: 0.73
+    presencia: 0.45
+    resonancia: 0.32
+    piedad: 0.61
+    arrojo: 0.73
     varon: 1.0
     afin_fuego: 1.0
     curiosidad: 0.52
@@ -10230,6 +11985,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.4
+    agilidad: 0.45
+    ingenio: 0.61
+    instinto: 0.24
+    voluntad: 0.77
+    presencia: 0.65
+    resonancia: 0.51
+    piedad: 0.56
+    arrojo: 0.38
     mujer: 1.0
     afin_agua: 1.0
     apego: 0.93
@@ -10272,6 +12036,15 @@ agents:
   start_at: plaza_portuaria
   edad_inicial: 794880
   traits:
+    fuerza: 0.51
+    agilidad: 0.53
+    ingenio: 0.5
+    instinto: 0.47
+    voluntad: 0.46
+    presencia: 0.88
+    resonancia: 0.23
+    piedad: 0.64
+    arrojo: 0.17
     varon: 1.0
     afin_agua: 1.0
     humano: 1.0
@@ -10301,6 +12074,15 @@ agents:
   initial_rank:
     dominio: 3
   traits:
+    fuerza: 0.52
+    agilidad: 0.71
+    ingenio: 0.9
+    instinto: 0.48
+    voluntad: 0.21
+    presencia: 0.49
+    resonancia: 0.44
+    piedad: 0.69
+    arrojo: 0.74
     varon: 1.0
     afin_tierra: 1.0
     apego: 0.69
@@ -10343,6 +12125,15 @@ agents:
   initial_rank:
     dominio: 1
   traits:
+    fuerza: 0.53
+    agilidad: 0.53
+    ingenio: 0.41
+    instinto: 0.72
+    voluntad: 0.74
+    presencia: 0.03
+    resonancia: 0.76
+    piedad: 0.38
+    arrojo: 0.41
     mujer: 1.0
     afin_tierra: 1.0
     arraigo: 0.87
@@ -10395,6 +12186,15 @@ agents:
       padre: 1
     weight_multiplier: 1.0
   traits:
+    fuerza: 0.51
+    agilidad: 0.37
+    ingenio: 0.32
+    instinto: 0.5
+    voluntad: 0.26
+    presencia: 0.76
+    resonancia: 0.45
+    piedad: 0.46
+    arrojo: 0.48
     varon: 1.0
     afin_tierra: 1.0
     asesino: 0.7
@@ -10417,6 +12217,15 @@ agents:
   start_at: plaza_demihumana
   edad_inicial: 1382400
   traits:
+    fuerza: 0.25
+    agilidad: 0.74
+    ingenio: 0.58
+    instinto: 0.89
+    voluntad: 0.55
+    presencia: 0.66
+    resonancia: 0.18
+    piedad: 0.8
+    arrojo: 0.35
     mujer: 1.0
     afin_agua: 1.0
     afin_tierra: 0.31
@@ -10447,6 +12256,15 @@ agents:
   initial_rank:
     dominio: 2
   traits:
+    fuerza: 0.48
+    agilidad: 0.68
+    ingenio: 0.46
+    instinto: 0.59
+    voluntad: 0.48
+    presencia: 0.55
+    resonancia: 0.5
+    piedad: 0.64
+    arrojo: 0.55
     varon: 1.0
     afin_agua: 1.0
     afin_fuego: 0.35
@@ -10546,6 +12364,15 @@ situations:
     # "mestizo" sino "medio enano y medio elfo a la vez", y eso son dos cosas
     # distintas que el motor no sabe distinguir. Queda anotado.
     hereda_traits:
+    - fuerza
+    - agilidad
+    - ingenio
+    - instinto
+    - voluntad
+    - presencia
+    - resonancia
+    - piedad
+    - arrojo
     - audacia
     - impulsividad
     - calculo

@@ -90,3 +90,19 @@ calibration:
   - {scenario: un_tier_preparado, side: novata, win_min: 40, win_max: 60}
   - {scenario: dos_tiers, side: novata, win_min: 0, win_max: 10}
   - {scenario: tres_tiers, side: novata, win_min: 0, win_max: 0}
+
+# Las capacidades de §5.3 (unidad 11). Cuánto queda de cada una lo dice el
+# enlace de cada mundo con este sistema, no el sistema.
+resources:
+  vitality:                 # 10 + Fuerza + ⌊Voluntad / 2⌋
+    base: 10
+    terms: [{source: valor, id: fuerza}, {source: valor, id: voluntad, den: 2}]
+  fatigue:                  # 4 + grado de Fuerza + Aguante
+    base: 4
+    terms: [{source: grado, id: fuerza}, {source: competencia, id: aguante}]
+  stress:                   # 6 + grado de Voluntad
+    base: 6
+    terms: [{source: grado, id: voluntad}]
+  impetus:                  # 3 + grado de Voluntad
+    base: 3
+    terms: [{source: grado, id: voluntad}]

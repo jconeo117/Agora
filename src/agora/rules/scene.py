@@ -33,6 +33,9 @@ class WeaponSpec(Spec):
     """Permite atacar con el atributo ágil del sistema."""
     defensive: bool = False
     """Un dado más al defenderse mientras se empuña."""
+    requires: dict[str, int] = Field(default_factory=dict)
+    """Grado mínimo por atributo para empuñarla (§14.1, «Pesada (Fuerza N)»).
+    Lo comprueba `check_scenario`, y lo respeta quien elige equipo (unidad 11)."""
 
 
 class ArmorSpec(Spec):
@@ -41,6 +44,8 @@ class ArmorSpec(Spec):
     protection: int = Field(default=0, ge=0)
     resist_dice: int = Field(default=0, ge=0)
     """Dados de más al resistir el daño."""
+    requires: dict[str, int] = Field(default_factory=dict)
+    """Grado mínimo por atributo para llevarla (§14.3, las placas piden Fuerza 3)."""
 
 
 class TargetChoice(StrEnum):
@@ -97,6 +102,11 @@ class CombatantSpec(Spec):
     regard: dict[str, int] = Field(default_factory=dict)
     """Lo que siente por los demás de la escena, de -100 a 100. Lo leen
     `peor_le_cae` y `si_le_odia`; sin entrada, 0."""
+    start_vitality: int | None = Field(default=None, ge=1)
+    """Con cuánta Vitalidad entra en la escena; `None`, entera. Una ficha
+    derivada del mundo (unidad 11) entra como está: herido, si lo está."""
+    start_fatigue: int | None = Field(default=None, ge=0)
+    start_stress: int | None = Field(default=None, ge=0)
 
 
 class SideSpec(Spec):
@@ -148,6 +158,22 @@ def check_scenario(scenario: ScenarioSpec, ruleset: Ruleset) -> list[str]:
             problems.append(f"{c.id}: arma desconocida {c.weapon!r}")
         if c.armor is not None and c.armor not in armaduras:
             problems.append(f"{c.id}: armadura desconocida {c.armor!r}")
+        equipo: list[WeaponSpec | ArmorSpec] = [
+            *(w for w in scenario.weapons if w.id == c.weapon),
+            *(a for a in scenario.armors if a.id == c.armor),
+        ]
+        problems += [
+            f"{c.id}: {pieza.id} pide {a} de grado {n}"
+            for pieza in equipo
+            for a, n in sorted(pieza.requires.items())
+            if a in c.attributes and ruleset.grade(c.attributes[a]) < n
+        ]
+        if c.start_vitality is not None and c.start_vitality > c.vitality:
+            problems.append(f"{c.id}: start_vitality por encima de su máximo")
+        if c.start_fatigue is not None and c.start_fatigue > c.fatigue:
+            problems.append(f"{c.id}: start_fatigue por encima de su capacidad")
+        if c.start_stress is not None and c.start_stress >= c.stress:
+            problems.append(f"{c.id}: start_stress al tope: entraría quebrado")
         if c.tier not in techos:
             problems.append(f"{c.id}: tier {c.tier} que el sistema no tiene")
         else:
