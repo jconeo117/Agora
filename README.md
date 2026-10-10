@@ -36,7 +36,7 @@ después**. Cuando una métrica no se mueve, sospecha de la métrica.
 | Eje | Dónde vive | Cambia con |
 |-----|------------|------------|
 | Ambientación | `packs/*/pack.yaml` | la campaña |
-| Sistema de rol | `rules/` (desde F4) | la mesa |
+| Sistema de rol | `rules/<sistema>/rules.yaml`, leído por `src/agora/rules/` (D-153) | la mesa |
 | Motor de simulación | `src/agora/engine/` | nunca |
 
 ## Cómo se ejecuta
@@ -350,13 +350,17 @@ src/agora/
     ports.py        costuras reservadas, vacías a propósito
   agents/
     decide.py       deliberación por utilidad
+  rules/            el sistema de rol: tirada, efecto, daño (sin mundo, D-153)
+  cognition/        la voz: ficha, briefing y proveedor LLM (F2)
   health.py         mide un mundo y comprueba lo que promete
   run.py            CLI
 ```
 
-**Costuras reservadas** en `engine/ports.py`, vacías a propósito:
-`CognitionProvider` (F2) y `RuleSystem` (F4). Se definieron antes de
-necesitarlas para que el motor se construya contra ellas.
+**Costuras** en `engine/ports.py`: `CognitionProvider` (F2, implementado por
+`cognition/ollama.py`) y `RuleSystem` (implementado por `rules/pool.py` en la
+unidad 08). Se definieron antes de necesitarlas para que el motor se construya
+contra ellas. La de `RuleSystem` también se equivocó en los tipos: recibía una
+dificultad `float` y su cuarto resultado era el fallo grave, no el crítico.
 
 `MemoryStore` era la tercera y ya está implementada — y la firma reservada
 resultó **equivocada en tres cosas**, todas anotadas en el puerto: guardaba un
