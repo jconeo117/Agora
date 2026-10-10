@@ -128,11 +128,13 @@ traits:
 - id: fuerza
   label: potencial de fuerza
   gain_multipliers:
-    combate: 1.5
+    combate: 4.0
   cost_multipliers:
-    salud: 0.75
+    salud: 0.55
 - id: agilidad
   label: potencial de agilidad
+  gain_multipliers:
+    combate: 1.6
   cost_multipliers:
     descanso: 0.85
     seguridad: 0.85
@@ -333,8 +335,9 @@ actions:
   target:
     por_desconocido: true
     max_regard: 0.05
+    quita_por_pericia: combate
     gives:
-      salud: -0.3
+      salud: -0.2
     inflicts:
       situation: herida
       marca: cuerpo
@@ -359,8 +362,9 @@ actions:
   target:
     por_desconocido: true
     max_regard: 0.05
+    quita_por_pericia: combate
     gives:
-      salud: -0.5
+      salud: -0.32
     inflicts:
       situation: herida
       marca: cuerpo
@@ -383,8 +387,9 @@ actions:
     por_desconocido: true
     max_regard: 0.0
     requires_condition: herida
+    quita_por_pericia: combate
     gives:
-      salud: -0.6
+      salud: -0.4
 - id: saquear
   label: saquear a un herido
   duration_ticks: 3

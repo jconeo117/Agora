@@ -2421,6 +2421,11 @@ class Simulation:
             # dotado rinde más que cualquiera de los dos por separado.
             pericia = agent.gains.get(destino.gives_por_pericia, 1.0)
             recibe = {n: v * pericia for n, v in recibe.items()}
+        if sufre and destino.quita_por_pericia is not None:
+            # I-008: lo mismo para lo que se quita. Un golpe del robusto duele
+            # más, y el temple del que lo recibe lo vuelve a escalar en `endure`.
+            fuerza = agent.gains.get(destino.quita_por_pericia, 1.0)
+            sufre = {n: v * fuerza for n, v in sufre.items()}
         if recibe:
             otro.apply(recibe, self.pack.need_by_id)
         if sufre:

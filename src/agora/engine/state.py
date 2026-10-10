@@ -12,6 +12,7 @@ ya nadie vuelve a comprobar.
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -400,6 +401,15 @@ class Ledger:
 # -----------------------------------------------------------------------------
 # Estado de un agente
 # -----------------------------------------------------------------------------
+
+
+def _sorteo_de_destinatario(seed: int, quien: AgentId, tick: int | None, otro: AgentId) -> int:
+    """Un entero por (partida, quien elige, cuándo, a quién). Desempata a
+    quien vale lo mismo sin preferir a nadie por su nombre (I-007). Es un hash
+    y no un generador: no se consume, así que elegir en un orden u otro da lo
+    mismo, igual que `RngSource.stream`."""
+    material = "\x1f".join((str(seed), str(quien), str(tick), str(otro))).encode("utf-8")
+    return int.from_bytes(hashlib.blake2b(material, digest_size=8).digest(), "big")
 
 
 @dataclass(slots=True)
@@ -1040,12 +1050,17 @@ class AgentState:
         de edad, para poder preguntar sin un reloj delante — igual que
         `traits=None` desactiva la suya en `is_available`.
 
-        Desempate por id, como en todas partes: sin él, dos procesos con la misma
-        semilla curarían a personas distintas.
+        El desempate es un sorteo por clave (`_sorteo_de_destinatario`), no el
+        id. Por id era determinista y no era neutral: entre desconocidos, todos
+        a aprecio cero, ganaba siempre el id mayor, y en la isla sobrevivían
+        siempre los nombres que empiezan por «bel» (I-007). El sorteo sigue
+        siendo función pura de la partida, así que dos procesos con la misma
+        semilla siguen eligiendo igual.
         """
         mejor: AgentState | None = None
         mejor_valor = 0.0
         mejor_atraccion = 0.0
+        mejor_sorteo = 0
         agravios = agravio or {}
         deudas_reales = deudas or {}
         for otro in presentes:
@@ -1102,10 +1117,15 @@ class AgentState:
                 # desconocidos, los dos a cero— que es exactamente donde empieza
                 # todo.
                 atraccion = self.afinidad(otro)
+            sorteo = _sorteo_de_destinatario(
+                world.rng.seed if world is not None else 0, self.spec_id, tick, otro.spec_id
+            )
             if (mejor is None
-                    or (valor, atraccion, otro.spec_id)
-                    > (mejor_valor, mejor_atraccion, mejor.spec_id)):
-                mejor, mejor_valor, mejor_atraccion = otro, valor, atraccion
+                    or (valor, atraccion, sorteo, otro.spec_id)
+                    > (mejor_valor, mejor_atraccion, mejor_sorteo, mejor.spec_id)):
+                mejor, mejor_valor, mejor_atraccion, mejor_sorteo = (
+                    otro, valor, atraccion, sorteo
+                )
         return mejor
 
     def afinidad(self, otro: AgentState) -> float:

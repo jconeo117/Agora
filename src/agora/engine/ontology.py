@@ -804,6 +804,18 @@ class TargetSpec(Spec):
     sangre a alguien es lo mismo que darle de comer, con el signo cambiado.
     """
 
+    quita_por_pericia: NeedId | None = None
+    """Qué aptitud de QUIEN ACTÚA escala la parte NEGATIVA de `gives` (I-008).
+
+    El gemelo de `gives_por_pericia`, que solo escala lo que se da (D-059). Sin
+    él, cuando dos agentes pelean sin el jugador delante, un golpe hace el mismo
+    daño lo dé quien lo dé, y un flaco gana a un robusto tan a menudo como al
+    revés. Con él, el daño se multiplica por la aptitud de quien golpea en ese
+    eje (`AgentState.gains`), y después el temple de quien lo recibe
+    (`cost_multipliers`) lo reduce en `endure`: las dos se componen, como en la
+    ayuda. Las stats pesan sin dados y sin iniciativa.
+    """
+
     gives_por_pericia: NeedId | None = None
     """Qué aptitud de QUIEN ACTÚA escala la parte POSITIVA de `gives` (D-059).
 

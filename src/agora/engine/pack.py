@@ -265,15 +265,14 @@ class ContentPack(Spec):
                 problems += self._unknown_keys(
                     f"acción {action.id!r}.{field}", "necesidad", mapping, known
                 )
-            if (
-                action.target is not None
-                and action.target.gives_por_pericia is not None
-                and str(action.target.gives_por_pericia) not in known
-            ):
-                problems.append(
-                    f"acción {action.id!r}.target.gives_por_pericia: necesidad "
-                    f"desconocida {action.target.gives_por_pericia!r}"
-                )
+            if action.target is not None:
+                for campo in ("gives_por_pericia", "quita_por_pericia"):
+                    pericia = getattr(action.target, campo)
+                    if pericia is not None and str(pericia) not in known:
+                        problems.append(
+                            f"acción {action.id!r}.target.{campo}: necesidad "
+                            f"desconocida {pericia!r}"
+                        )
 
         for agent in self.agents:
             problems += self._unknown_keys(
