@@ -233,6 +233,8 @@ def save(
         # Alrededor de quién se simula fino (D-152). Sin esto, reanudar con LOD
         # daría otro mundo: D-141 hace del foco parte de lo que define la partida.
         "focus": None if world.focus is None else str(world.focus),
+        # Quién decide desde fuera (unidad 10): por lo mismo que el foco.
+        "player": None if world.player is None else str(world.player),
         # Sin esto, al reanudar se emitiria un encuentro por cada par que ya
         # estaba junto: el mundo cargado se saludaria entero de golpe.
         "together": sorted([str(a), str(b)] for a, b in together),
@@ -681,6 +683,11 @@ def load(
     foco = datos.get("focus")
     world.focus = (
         AgentId(foco) if foco is not None and AgentId(foco) in world.agents else None
+    )
+    # El jugador, si sigue vivo. Un guardado anterior a la unidad 10 no lo trae.
+    jugador = datos.get("player")
+    world.player = (
+        AgentId(jugador) if jugador is not None and AgentId(jugador) in world.agents else None
     )
 
     together = {(AgentId(a), AgentId(b)) for a, b in datos["together"]}

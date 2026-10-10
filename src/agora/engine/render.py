@@ -12,10 +12,10 @@ salir del content pack.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 
 from agora.engine.events import Event, EventKind, EventLog
-from agora.engine.ontology import ClockSpec, PlaceId
+from agora.engine.ontology import AgentId, AgentSpec, ClockSpec, PlaceId
 from agora.engine.pack import ContentPack
 from agora.engine.state import PerformingAction, Traveling, WorldState
 
@@ -46,8 +46,24 @@ def _label_of_place(pack: ContentPack, place: str | None) -> str:
     return spec.label if spec is not None else place
 
 
-def render_event(pack: ContentPack, event: Event) -> str:
-    actor = pack.agent_by_id[event.actor].label if event.actor is not None else "-"
+def _label_of_agent(
+    pack: ContentPack, agent: AgentId | None, censo: Mapping[AgentId, AgentSpec] | None
+) -> str:
+    """El censo antes que el pack: quien nació o llegó en marcha no está en el
+    pack, y buscarlo solo ahí reventaba el log de cualquier corrida con un
+    nacimiento (unidad 10). Sin censo, el id."""
+    if agent is None:
+        return "?"
+    if censo is not None and agent in censo:
+        return censo[agent].label
+    spec = pack.agent_by_id.get(agent)
+    return spec.label if spec is not None else str(agent)
+
+
+def render_event(
+    pack: ContentPack, event: Event, censo: Mapping[AgentId, AgentSpec] | None = None
+) -> str:
+    actor = _label_of_agent(pack, event.actor, censo) if event.actor is not None else "-"
     when = format_time(event.tick, pack.clock)
     here = _label_of_place(pack, event.place)
 
@@ -75,7 +91,7 @@ def render_event(pack: ContentPack, event: Event) -> str:
         case EventKind.TRAVEL_ARRIVED:
             body = f"llega     {here}"
         case EventKind.ENCOUNTER:
-            other = pack.agent_by_id[event.subject].label if event.subject else "?"
+            other = _label_of_agent(pack, event.subject, censo)
             body = f"coincide  con {other}  ({here})"
         case EventKind.NEED_CRITICAL:
             body = f"!!        {event.data.get('need')} = {event.data.get('value')}"
@@ -84,10 +100,10 @@ def render_event(pack: ContentPack, event: Event) -> str:
         case EventKind.GOAL_FAILED:
             body = f"PIERDE    {event.data.get('goal')}   <- se acabo el plazo"
         case EventKind.RELATION_BEGAN:
-            otro = pack.agent_by_id[event.subject].label if event.subject else "?"
+            otro = _label_of_agent(pack, event.subject, censo)
             body = f"AHORA ES  {event.data.get('relation')} de {otro}"
         case EventKind.RELATION_ENDED:
-            otro = pack.agent_by_id[event.subject].label if event.subject else "?"
+            otro = _label_of_agent(pack, event.subject, censo)
             body = f"YA NO ES  {event.data.get('relation')} de {otro}"
         case EventKind.SITUATION_BEGAN:
             ticks = event.data.get("ticks")
@@ -102,15 +118,27 @@ def render_event(pack: ContentPack, event: Event) -> str:
             body = f"ACABA     {event.data.get('situation')}"
         case EventKind.IDLE_STALLED:
             body = f"BLOQUEADO sin opciones válidas  ({here})"
-
-    # Sin `case _`: mypy comprueba que el match cubre todos los EventKind, y al
-    # añadir uno nuevo señalará este punto en vez de dejarlo caer al genérico.
+        case EventKind.AGENT_ARRIVED:
+            body = f"LLEGA     al mundo  ({here})"
+        case EventKind.AGENT_DIED:
+            muerto = _label_of_agent(pack, event.subject, censo)
+            body = f"PIERDE    a {muerto}   <- {event.data.get('porque')}"
+        case _:
+            # Hubo aquí un comentario que decía que mypy comprobaba que el match
+            # cubría todos los tipos. No lo hace sin `assert_never`, y once
+            # tipos sin caso dejaban `body` sin valor: `agora` sin `--quiet`
+            # reventaba en cuanto alguien rompía un rango (unidad 10). Lo que
+            # no tiene línea propia se dice con su tipo y su carga, tal cual.
+            datos = "  ".join(f"{k}={v}" for k, v in sorted(event.data.items()))
+            body = f"{event.kind.value:<9} {datos}"
     return f"{when}  {actor:<7} {body}"
 
 
-def render_log(pack: ContentPack, log: EventLog) -> Iterator[str]:
+def render_log(
+    pack: ContentPack, log: EventLog, censo: Mapping[AgentId, AgentSpec] | None = None
+) -> Iterator[str]:
     for event in log:
-        yield render_event(pack, event)
+        yield render_event(pack, event, censo)
 
 
 def render_state(world: WorldState) -> Iterator[str]:
@@ -139,7 +167,9 @@ def render_state(world: WorldState) -> Iterator[str]:
         yield f"  {spec.label:<7} {place:<24} {doing:<22} {needs}"
 
 
-def render_activity_summary(pack: ContentPack, log: EventLog) -> Iterator[str]:
+def render_activity_summary(
+    pack: ContentPack, log: EventLog, censo: Mapping[AgentId, AgentSpec] | None = None
+) -> Iterator[str]:
     """Cuántas veces completó cada agente cada acción.
 
     Es el resumen que más rápido delata una mala calibración: si un agente comió
@@ -149,7 +179,7 @@ def render_activity_summary(pack: ContentPack, log: EventLog) -> Iterator[str]:
     corrida ENTERA aunque el log solo conserve los últimos días.
     """
     tally = {
-        (pack.agent_by_id[agent].label, pack.action_by_id[action].label): count
+        (_label_of_agent(pack, agent, censo), pack.action_by_id[action].label): count
         for agent, acciones in log.recuento.por_agente_accion.items()
         for action, count in acciones.items()
     }

@@ -11079,3 +11079,14 @@ voice:
     hostil: ["No tengo nada que hablar contigo.", "Déjame en paz."]
     triste: ["No es un buen día.", "Mejor no preguntes."]
     asustado: ["No es buen momento... de verdad.", "Aquí no, ahora no."]
+
+# Con qué llega quien viene de fuera: el forastero que crea un jugador
+# (unidad 10). Entra por la puerta norte, duerme en la posada central, trae
+# poco dinero y no conoce a nadie. Lo que su ficha diga gana a esto.
+newcomer:
+  home: posada_central
+  start_at: puerta_norte
+  edad_inicial: 864000       # veinticinco años
+  initial_needs:
+    dinero: 0.25
+    vinculo: 0.2

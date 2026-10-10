@@ -689,6 +689,27 @@ def _rank(decision: Decision) -> tuple[float, int, str, str]:
     return (-decision.utility, decision.travel_ticks, str(decision.action), str(decision.place))
 
 
+def options(
+    world: WorldState, agent: AgentState, must_address: NeedId | None = None
+) -> list[Decision]:
+    """Lo que este agente podría hacer ahora, de mejor a peor (unidad 10).
+
+    Es el menú que delibera un NPC y el que ve el jugador: una sola puerta, para
+    que el jugador no pueda elegir nada que el motor no le habría ofrecido a un
+    NPC en su lugar. Por eso sale de `candidates`, con su percepción limitada:
+    el jugador tampoco sabe lo que no ha visto.
+    """
+    pool = candidates(world, agent)
+    if must_address is not None:
+        pool = [
+            option
+            for option in pool
+            if world.pack.action_by_id[option.action].satisfies.get(must_address, 0.0) > 0.0
+        ]
+    pool.sort(key=_rank)
+    return pool
+
+
 def decide(
     world: WorldState, agent: AgentState, must_address: NeedId | None = None
 ) -> Decision | None:
@@ -713,17 +734,10 @@ def decide(
     como "no merece la pena interrumpir"; un agente ocioso vuelve a preguntar
     sin restricción.
     """
-    pool = candidates(world, agent)
-    if must_address is not None:
-        pool = [
-            option
-            for option in pool
-            if world.pack.action_by_id[option.action].satisfies.get(must_address, 0.0) > 0.0
-        ]
+    pool = options(world, agent, must_address)
     if not pool:
         return None
 
-    pool.sort(key=_rank)
     finalists = pool[: world.pack.tuning.candidate_pool]
     if len(finalists) == 1:
         return finalists[0]

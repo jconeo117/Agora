@@ -1900,6 +1900,11 @@ class WorldState:
     mundo entero se simula como siempre. Es estado y viaja en el guardado:
     D-141 hace del recorrido del foco parte de lo que define el mundo."""
 
+    player: AgentId | None = None
+    """Quién decide desde fuera (unidad 10). Es estado y viaja en el guardado:
+    una partida reanudada sin saber quién era el jugador lo pondría a decidir
+    por `decide()`, y sería otro mundo sin que nadie lo notara."""
+
     @property
     def seed(self) -> int:
         """Se escribe en la primera línea del log. Un bug se reproduce corriendo

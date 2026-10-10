@@ -38,6 +38,7 @@ from agora.engine.ontology import (
     HealthSpec,
     NeedId,
     NeedSpec,
+    NewcomerSpec,
     PlaceId,
     PlaceSpec,
     PropertyId,
@@ -110,6 +111,10 @@ class ContentPack(Spec):
     voice: VoiceSpec | None = None
     """Cómo habla este mundo (unidad 07). `None` = un mundo que no habla sin
     modelo. No lo lee la simulación."""
+
+    newcomer: NewcomerSpec | None = None
+    """Con qué llega quien viene de fuera (unidad 10). `None` = la ficha del
+    jugador tiene que decirlo todo. No lo lee la simulación."""
 
     # -------------------------------------------------------------------------
     # Índices.
@@ -276,6 +281,24 @@ class ContentPack(Spec):
             )
 
         return problems
+
+    def _check_newcomer(self) -> list[str]:
+        """Como en `voice`, una errata aquí no rompería nada hasta el día que
+        alguien llegase al mundo, y entonces rompería en mitad de la partida."""
+        nuevo = self.newcomer
+        if nuevo is None:
+            return []
+        lugares = frozenset(str(p.id) for p in self.places)
+        necesidades = frozenset(str(n.id) for n in self.needs)
+        rasgos = frozenset(str(t.id) for t in self.traits)
+        donde = [str(p) for p in (nuevo.home, nuevo.start_at) if p is not None]
+        return [
+            *self._unknown_keys("newcomer", "lugar", donde, lugares),
+            *self._unknown_keys(
+                "newcomer.initial_needs", "necesidad", nuevo.initial_needs, necesidades
+            ),
+            *self._unknown_keys("newcomer.traits", "rasgo", nuevo.traits, rasgos),
+        ]
 
     def _check_voice(self) -> list[str]:
         """Una errata aquí no rompe nada visible: el rasgo simplemente nunca se
@@ -1509,6 +1532,7 @@ class ContentPack(Spec):
             *self._check_company_relief_is_a_brake(),
             *self._check_trait_refs(),
             *self._check_voice(),
+            *self._check_newcomer(),
             *self._check_place_refs(),
             *self._check_phase_refs(),
             *self._check_relation_refs(),

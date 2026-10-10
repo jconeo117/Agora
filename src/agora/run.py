@@ -15,6 +15,7 @@ funciona es leer texto y comparar corridas con `diff`.
 from __future__ import annotations
 
 import argparse
+import sys
 from contextlib import ExitStack
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -23,12 +24,14 @@ from agora.cognition.ollama import OllamaProvider
 from agora.cognition.voz import hablar
 from agora.engine.consulta import ficha
 from agora.engine.lod import error_de_lod
+from agora.engine.newcomer import load_sheet, newcomer_spec
 from agora.engine.ontology import AgentId
 from agora.engine.pack import ContentPack, describe_pack, load_pack
 from agora.engine.render import render_activity_summary, render_log, render_state
 from agora.engine.timeskip import saltar
 from agora.engine.world import Simulation
 from agora.health import check, divergence, measure
+from agora.play import Recorder, Script, Terminal, play
 from agora.rules.montecarlo import pool_table
 from agora.rules.pool import PoolResolver
 from agora.rules.scene import load_scenario
@@ -37,6 +40,8 @@ from agora.rules.system import Ruleset, load_ruleset
 
 if TYPE_CHECKING:
     from typing import TextIO
+
+    from agora.engine.ports import DecisionSource
 
 DEFAULT_PACK = Path("packs/barrio/pack.yaml")
 """El mundo de trabajo. `dark_fantasy` existe para probar el agnosticismo del
@@ -118,6 +123,20 @@ def main() -> None:
                         help="con --hablar: quién le habla. Sin esto, un desconocido")
     parser.add_argument("--sin-llm", action="store_true",
                         help="con --hablar: no llamar al modelo, solo el respaldo")
+    parser.add_argument(
+        "--jugar", default=None, metavar="AGENTE",
+        help="juegas tú con este agente: el mundo se para cuando queda ocioso y "
+        "eliges entre lo que él podría hacer. Es también el foco",
+    )
+    parser.add_argument(
+        "--jugar-ficha", type=Path, default=None, metavar="F",
+        help="juegas con un forastero nuevo, descrito en esta ficha; lo que no "
+        "diga lo pone la sección newcomer del pack",
+    )
+    parser.add_argument("--guion", type=Path, default=None, metavar="F",
+                        help="las decisiones del jugador salen de este archivo, no del teclado")
+    parser.add_argument("--grabar", type=Path, default=None, metavar="F",
+                        help="graba las decisiones del jugador como guion")
     parser.add_argument("--modelo", default="llama3.2:latest")
     parser.add_argument("--llm-url", default="http://localhost:11434")
     parser.add_argument(
@@ -188,6 +207,12 @@ def _correr(
         sim = Simulation(pack, seed=args.seed, log_window=ventana, log_sink=sink)
     if args.foco is not None:
         _fijar_foco(sim, args.foco)
+    if args.jugar_ficha is not None:
+        recien = newcomer_spec(pack, load_sheet(args.jugar_ficha), sim.state.censo)
+        sim.arrive(recien)
+        sim.set_player(recien.id)
+    elif args.jugar is not None:
+        sim.set_player(_vivo(sim, args.jugar, "--jugar"))
     ticks = args.days * pack.clock.ticks_per_day
 
     print(f"# pack   {pack.label}  {dict(describe_pack(pack))}")
@@ -198,7 +223,11 @@ def _correr(
         print(line)
     print()
 
-    if args.skip > 1:
+    if sim.state.player is not None:
+        if args.skip > 1:
+            raise SystemExit("--skip no se puede jugar: el salto decidiría por el jugador")
+        _jugar(sim, args, ticks)
+    elif args.skip > 1:
         salto = saltar(sim, args.days, args.skip)
         print(f"# salto x{salto.factor}: {salto.dias_simulados} dias simulados "
               f"de {salto.dias_pedidos}  ({salto.ahorro:.1f}x)")
@@ -206,14 +235,14 @@ def _correr(
         sim.run(ticks)
 
     if not args.quiet:
-        for line in render_log(pack, sim.log):
+        for line in render_log(pack, sim.log, sim.state.censo):
             print(line)
         print()
 
     for line in render_state(sim.state):
         print(line)
     print()
-    for line in render_activity_summary(pack, sim.log):
+    for line in render_activity_summary(pack, sim.log, sim.state.censo):
         print(line)
     # Si la ventana descarto algo hay que decirlo: un log recortado en silencio
     # se lee igual que uno completo, y no lo es.
@@ -234,6 +263,22 @@ def _correr(
         _consultar(sim, args.consultar)
     if args.hablar is not None:
         _hablar(sim, args)
+
+
+def _jugar(sim: Simulation, args: argparse.Namespace, ticks: int) -> None:
+    """Si la partida tiene jugador, se juega: también al reanudarla."""
+    terminal: Terminal | None = None
+    if args.guion is not None:
+        fuente: DecisionSource = Script(args.guion.read_text(encoding="utf-8").splitlines())
+    else:
+        proveedor = None if args.sin_llm else OllamaProvider(url=args.llm_url, modelo=args.modelo)
+        terminal = Terminal(sim, sys.stdin, sys.stdout, proveedor)
+        fuente = terminal
+    with ExitStack() as stack:
+        if args.grabar is not None:
+            fuente = Recorder(fuente, stack.enter_context(args.grabar.open("a", encoding="utf-8")))
+        resultado = play(sim, fuente, ticks, terminal)
+    print(f"\n# fin de la partida: {resultado.reason}, {resultado.ticks} ticks jugados")
 
 
 def _fijar_foco(sim: Simulation, foco: str) -> None:

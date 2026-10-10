@@ -14,14 +14,16 @@ from dataclasses import dataclass
 from enum import IntEnum, StrEnum
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from agora.engine.ontology import AgentId
+from agora.engine.ontology import AgentId, NeedId
 
 if TYPE_CHECKING:
     # Solo para tipar. En runtime un `Protocol` marcado como `runtime_checkable`
     # comprueba nombres de método, no firmas, así que importar de verdad aquí
     # solo serviría para acoplar el puerto a su implementación.
+    from agora.agents.decide import Decision
     from agora.engine.events import Event
     from agora.engine.memory import Cue, Recuerdo
+    from agora.engine.state import AgentState, WorldState
 
 
 class Outcome(StrEnum):
@@ -187,4 +189,28 @@ class MemoryStore(Protocol):
         """Devuelve recuerdos, ordenados por `relevancia * valor`, donde el valor
         es la importancia desdibujada por el tiempo. Los dos factores multiplican:
         lo que no viene a cuento no sale por muy grabado que esté."""
+        ...
+
+
+@runtime_checkable
+class DecisionSource(Protocol):
+    """De dónde salen las decisiones del jugador (unidad 10, paso 5 de D-149).
+
+    El mundo se para en `World._begin` cuando el jugador queda ocioso y le
+    pregunta aquí, en vez de llamar a `decide()`. Detrás puede haber una
+    terminal o un guion: para el motor son lo mismo, y por eso misma semilla,
+    mismo foco y mismas decisiones dan el mismo mundo (amplía D-141).
+    """
+
+    def choose(
+        self, world: WorldState, agent: AgentState, options: tuple[Decision, ...]
+    ) -> Decision | None:
+        """Una de `options`, o `None` para esperar un tick. Esperar no es un
+        hecho del mundo: no se emite nada."""
+        ...
+
+    def interrupt(self, world: WorldState, agent: AgentState, need: NeedId) -> bool:
+        """Si deja lo que hace porque `need` cruzó su umbral crítico. A un NPC
+        no se le pregunta; al jugador sí, porque decidir por él es justo lo que
+        no se puede hacer."""
         ...

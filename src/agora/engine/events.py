@@ -122,6 +122,10 @@ class EventKind(StrEnum):
     FACTIONS_AT_ODDS = "factions_at_odds"
     """Dos grupos pasan a estar enfrentados, por algo que hizo alguien."""
 
+    AGENT_ARRIVED = "agent_arrived"
+    """Alguien llega al mundo de fuera, sin haber nacido en él: el forastero
+    que crea el jugador (unidad 10). Nadie lo conoce y no trae relaciones."""
+
     AGENT_BORN = "agent_born"
     """Alguien empieza a estar. `actor` es el recién nacido; `subject`, quien lo
     llevaba encima. `data` lleva al otro progenitor cuando se sabe quién fue.

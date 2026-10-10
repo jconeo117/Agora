@@ -3551,3 +3551,20 @@ class VoiceSpec(Spec):
     fallback: dict[Tone, tuple[str, ...]] = Field(default_factory=dict)
     """Frases neutras por tono, para cuando el modelo falla o no se usa. El
     motor elige el tono; el mundo pone las palabras."""
+
+
+class NewcomerSpec(Spec):
+    """Con qué llega al mundo quien viene de fuera: el forastero que crea el
+    jugador (unidad 10).
+
+    Lo declara el pack y no el motor porque cuánto dinero trae un recién
+    llegado, o dónde duerme la primera noche, es ambientación. La ficha del
+    jugador gana a esto campo a campo; lo que la ficha no diga, lo pone el
+    pack, y lo que tampoco diga el pack, el `initial` de cada necesidad.
+    """
+
+    home: PlaceId | None = None
+    start_at: PlaceId | None = None
+    initial_needs: dict[NeedId, float] = Field(default_factory=dict)
+    traits: dict[TraitId, float] = Field(default_factory=dict)
+    edad_inicial: int = Field(default=0, ge=0)

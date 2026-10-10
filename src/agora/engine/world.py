@@ -23,6 +23,7 @@ from agora.agents.decide import (
     current_intent,
     decide,
     is_available,
+    options,
     planned_duration,
     recovery_rate,
 )
@@ -73,11 +74,13 @@ from agora.engine.state import (
 if TYPE_CHECKING:
     from typing import TextIO
 
+    from agora.engine.ports import DecisionSource
+
 
 class Simulation:
     """Un mundo corriendo. Estado mutable + su registro de eventos."""
 
-    __slots__ = ("_together", "log", "state")
+    __slots__ = ("_together", "log", "player_source", "state")
 
     def __init__(
         self,
@@ -100,6 +103,10 @@ class Simulation:
         """Quién estaba con quién el tick pasado. Sirve para emitir un
         encuentro cuando se produce y no en cada uno de los ticks que dos
         agentes pasan en la misma sala."""
+        self.player_source: DecisionSource | None = None
+        """De dónde salen las decisiones del jugador (unidad 10). No es estado:
+        es el teclado o el guion, y no viaja en el guardado. Quién es el
+        jugador, sí (`WorldState.player`)."""
 
     @property
     def pack(self) -> ContentPack:
@@ -165,6 +172,7 @@ class Simulation:
         sim.state = state
         sim.log = EventLog(log_window, log_sink, primer_seq=siguiente_seq)
         sim._together = together
+        sim.player_source = None
         return sim
 
     # -------------------------------------------------------------------------
@@ -1161,7 +1169,11 @@ class Simulation:
             # que no tiene, y trabajar —que es justo lo que hay que hacer— no la
             # atiende. Interrumpir para hacer algo que no puedes hacer solo
             # destruye el plan que sí resolvía el problema.
-            if urgent is not None and decide(self.state, agent, urgent) is not None:
+            if (
+                urgent is not None
+                and decide(self.state, agent, urgent) is not None
+                and self._lo_deja(agent, urgent)
+            ):
                 self._abort(agent, urgent)
                 forced = urgent
 
@@ -1484,7 +1496,25 @@ class Simulation:
         )
         agent.busy = None
 
+    def _lo_deja(self, agent: AgentState, urgent: NeedId) -> bool:
+        """Un NPC deja lo que hace en cuanto hay remedio para su urgencia. Al
+        jugador se le pregunta: decidir por él es lo único que no se puede."""
+        if agent.spec_id != self.state.player:
+            return True
+        return self._fuente_del_jugador().interrupt(self.state, agent, urgent)
+
+    def _fuente_del_jugador(self) -> DecisionSource:
+        if self.player_source is None:
+            raise RuntimeError(
+                f"la partida tiene jugador ({self.state.player}) y nadie decide por él: "
+                "hace falta una terminal o un guion"
+            )
+        return self.player_source
+
     def _begin(self, agent: AgentState, must_address: NeedId | None = None) -> None:
+        if agent.spec_id == self.state.player:
+            self._begin_player(agent, must_address)
+            return
         choice = decide(self.state, agent, must_address)
         if choice is None and must_address is not None:
             # El mundo pudo cambiar entre comprobar que había remedio y llegar
@@ -1493,6 +1523,23 @@ class Simulation:
         if choice is None:  # pragma: no cover - un pack validado lo impide
             self._emit(EventKind.IDLE_STALLED, agent)
             return
+        self._carry_out(agent, choice)
+
+    def _begin_player(self, agent: AgentState, must_address: NeedId | None) -> None:
+        """El mismo menú que deliberaría un NPC (`options`), y la misma puerta
+        para comprobarlo: lo que no está en el menú no se hace. Esperar
+        (`None`) no emite nada, porque no cambia nada."""
+        menu = tuple(options(self.state, agent, must_address))
+        if not menu and must_address is not None:
+            menu = tuple(options(self.state, agent))
+        choice = self._fuente_del_jugador().choose(self.state, agent, menu)
+        if choice is None:
+            return
+        if choice not in menu:
+            raise ValueError(f"{agent.spec_id}: {choice} no está entre sus opciones")
+        self._carry_out(agent, choice)
+
+    def _carry_out(self, agent: AgentState, choice: Decision) -> None:
         if choice.travel_ticks == 0:
             self._start_action(agent, choice.action, choice.utility, choice.target)
         else:
@@ -2047,6 +2094,38 @@ class Simulation:
         for need, cuanto in sorted(deuda.saldo.items()):
             propiedad.saldo[need] = propiedad.saldo.get(need, 0.0) + cuanto
 
+    def admit(self, spec: AgentSpec) -> AgentState:
+        """Que alguien entre en el reparto con la partida en marcha. Una sola
+        puerta para nacer (D-071) y para llegar de fuera (unidad 10): las dos
+        cosas son una ficha que pasa al censo y un estado que empieza a vivir,
+        y si cada una lo hiciera a su manera acabarían en dos agentes que no se
+        comportan igual. `nacido_en` sale de la edad que la ficha declara, que
+        para quien nace es 0."""
+        self.state.censo[spec.id] = spec
+        agente = AgentState.from_spec(self.pack, spec)
+        agente.nacido_en = self.state.tick - spec.edad_inicial
+        self.state.agents[spec.id] = agente
+        return agente
+
+    def arrive(self, spec: AgentSpec) -> AgentState:
+        """Llega un forastero: entra por `admit` y deja constancia en el log.
+        Sin relaciones ni vínculos; nadie lo conoce todavía."""
+        if spec.id in self.state.censo:
+            raise ValueError(f"{spec.id!r} ya está en el censo")
+        agente = self.admit(spec)
+        self.log.emit(
+            tick=self.state.tick, kind=EventKind.AGENT_ARRIVED, actor=spec.id, place=agente.at
+        )
+        return agente
+
+    def set_player(self, quien: AgentId) -> None:
+        """El jugador es también el foco del LOD (D-152): donde se juega se
+        simula fino."""
+        if quien not in self.state.agents:
+            raise KeyError(f"{quien!r} no está vivo en esta partida")
+        self.state.player = quien
+        self.state.focus = quien
+
     def _nacer(self, portador: AgentState, cond: Condicion) -> AgentId | None:
         """Nace alguien. **La segunda entidad que el motor crea en marcha, y la
         primera que decide por sí misma** (D-071).
@@ -2156,10 +2235,7 @@ class Simulation:
             initial_needs=dict(birth.initial_needs),
             goals=tuple(catalogo[m] for m in sorted(catalogo) if m in metas),
         )
-        self.state.censo[nuevo] = ficha
-        criatura = AgentState.from_spec(self.pack, ficha)
-        criatura.nacido_en = self.state.tick
-        self.state.agents[nuevo] = criatura
+        criatura = self.admit(ficha)
 
         # Y las relaciones, con la API de siempre: `begin_relation` ya pone el
         # otro lado (`inverse`), así que el pack declara una sola dirección.

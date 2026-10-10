@@ -1,0 +1,5 @@
+# Ficha de ejemplo para --jugar-ficha. Solo lo que el jugador quiere decir;
+# el resto lo pone la sección `newcomer` del pack.
+id: forastero
+label: el forastero
+traits: {humano: 1.0, varon: 1.0, audacia: 0.6, curiosidad: 0.7}
