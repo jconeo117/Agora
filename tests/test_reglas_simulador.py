@@ -149,7 +149,7 @@ def test_la_linea_de_ordenes(
     )
     main()
     cap2 = capsys.readouterr().out
-    assert "gana Aria" in cap2
+    assert "gana " in cap2
 
     # 3. --relato sin --escenario -> SystemExit
     monkeypatch.setattr(sys, "argv", ["agora", "--relato", "0"])

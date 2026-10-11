@@ -123,7 +123,7 @@ def test_un_guion_imposible_se_para() -> None:
     sim.arrive(spec)
     sim.set_player(spec.id)
 
-    with pytest.raises(ScriptError, match="línea 1: ni «decidir» ni «interrumpir»"):
+    with pytest.raises(ScriptError, match="línea 1: ni «decidir», ni «interrumpir», ni de combate"):
         Script(['{"tick": 0, "algo_invalido": true}'])
 
     guion = Script([

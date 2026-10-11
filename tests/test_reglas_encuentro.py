@@ -44,6 +44,9 @@ class DummyPolicy:
     def finishes(self, encounter: Encounter, me: Fighter, fallen: Fighter) -> bool:
         return False
 
+    def pursues(self, encounter: Encounter, me: Fighter, fleeing: Fighter) -> bool:
+        return False
+
 
 def test_las_reservas_de_aria_y_el_lobo() -> None:
     ruleset = load_ruleset(BASE_RULES)
@@ -408,6 +411,9 @@ class CoverPolicy:
         return False
 
     def finishes(self, encounter: Encounter, me: Fighter, fallen: Fighter) -> bool:
+        return False
+
+    def pursues(self, encounter: Encounter, me: Fighter, fleeing: Fighter) -> bool:
         return False
 
 
