@@ -204,6 +204,7 @@ actions:
   label: dormir a cubierto
   duration_ticks: 32
   interruptible: true
+  vulnerable: true
   requires_affordance: refugio
   elastic:
     min_ticks: 12
@@ -221,6 +222,7 @@ actions:
   label: dormir al raso
   duration_ticks: 16
   interruptible: true
+  vulnerable: true
   satisfies:
     descanso: 0.5
   effects:
@@ -333,6 +335,7 @@ actions:
   costs:
     descanso: 0.2
   target:
+    combate: true
     por_desconocido: true
     max_regard: 0.05
     quita_por_pericia: combate
@@ -360,6 +363,7 @@ actions:
   costs:
     descanso: 0.25
   target:
+    combate: true
     por_desconocido: true
     max_regard: 0.05
     quita_por_pericia: combate
@@ -384,6 +388,7 @@ actions:
     combate: 0.08
     seguridad: 0.1
   target:
+    combate: true
     por_desconocido: true
     max_regard: 0.0
     requires_condition: herida

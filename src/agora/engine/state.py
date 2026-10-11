@@ -1612,6 +1612,16 @@ class AgentState:
             self.debt[need_id] = min(max_debt, self.debt.get(need_id, 0.0) - raw)
         self.needs[need_id] = self._clamp(need_id, raw)
 
+    def adopt(self, need_id: NeedId, value: float, max_debt: float) -> None:
+        """Lo que deja una escena de combate (unidad 13): la necesidad pasa a
+        valer `value`. Por `restore` y `_spend` y no asignando, para que la
+        deuda se cobre y se anote igual que en cualquier otro cambio."""
+        delta = value - self.needs[need_id]
+        if delta > 0.0:
+            self.restore(need_id, delta)
+        elif delta < 0.0:
+            self._spend(need_id, -delta, max_debt)
+
     def ritmo_de_rango(self, spec: NeedSpec) -> float:
         """Cuánto le cunde este eje **en el rango en que va**. 1.0 si no tiene.
 

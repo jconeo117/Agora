@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from enum import IntEnum, StrEnum
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from agora.engine.ontology import AgentId, NeedId
+from agora.engine.ontology import AflictionSpec, AgentId, NeedId
 
 if TYPE_CHECKING:
     # Solo para tipar. En runtime un `Protocol` marcado como `runtime_checkable`
@@ -214,3 +214,50 @@ class DecisionSource(Protocol):
         no se le pregunta; al jugador sí, porque decidir por él es justo lo que
         no se puede hacer."""
         ...
+
+
+class Fate(StrEnum):
+    """Cómo sale alguien de una escena de combate. Pobre a propósito, como
+    `Outcome`: es lo que el mundo necesita saber, no lo que pasó en cada ronda."""
+
+    STANDING = "en_pie"
+    DOWN = "caido"
+    DEAD = "muerto"
+    FLED = "huido"
+    SURRENDERED = "rendido"
+
+
+@dataclass(frozen=True, slots=True)
+class CombatantOutcome:
+    agent: AgentId
+    fate: Fate
+    needs: tuple[tuple[NeedId, float], ...] = ()
+    """El valor que el mundo adopta para cada necesidad al acabar (la salud que
+    queda, el descanso que queda). Lo traduce quien resuelve, que sabe qué
+    necesidad es qué recurso (el enlace de D-159)."""
+    inflicts: AflictionSpec | None = None
+    """Lo que se lleva puesto al mundo: la herida grave de quien cae."""
+
+
+@dataclass(frozen=True, slots=True)
+class EncounterOutcome:
+    combatants: tuple[CombatantOutcome, ...]
+    rounds: int
+    lines: tuple[str, ...] = ()
+    """El relato, para quien juega y para el narrador. El mundo no lo lee."""
+
+
+@runtime_checkable
+class EncounterResolver(Protocol):
+    """Una pelea en la que participa el jugador (unidad 13, D-161).
+
+    El motor no conoce las reglas de la mesa (D-153), así que pregunta por aquí,
+    como pregunta a `CognitionProvider` por la voz. Devuelve cómo acaba cada uno
+    y el motor lo aplica por una sola puerta (`World._aplicar_desenlace`).
+    `None` es «no sé resolverlo»: el motor sigue por utilidad, como sin jugador.
+    """
+
+    def resolve(
+        self, world: WorldState, attacker: AgentId, defender: AgentId,
+        surprised: frozenset[AgentId],
+    ) -> EncounterOutcome | None: ...

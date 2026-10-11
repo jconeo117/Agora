@@ -113,6 +113,12 @@ class CombatSpec(Spec):
     exhausted_penalty: int = Field(default=2, ge=0)
     max_rounds: int = Field(default=30, ge=1)
     """Tope de rondas: un encuentro que no acaba es un empate, no un bucle."""
+    chase_skill: str | None = None
+    """Con qué se huye y se persigue (D-165, unidad 13). `None` deja la huida
+    como en la 09: gratis y siempre sale, que es lo que este campo viene a
+    corregir."""
+    chase_clock: int = Field(default=3, ge=1)
+    """Segmentos de los dos relojes de una persecución: escapar y alcanzar."""
 
 
 class CalibrationTarget(Spec):
@@ -292,7 +298,8 @@ class Ruleset(Spec):
         ]
         problems += [
             f"combat: competencia desconocida {s!r}"
-            for s in (c.defense_skill, c.resist_skill, c.first_aid_skill)
+            for s in (c.defense_skill, c.resist_skill, c.first_aid_skill,
+                      *(() if c.chase_skill is None else (c.chase_skill,)))
             if s not in competencias
         ]
         if c.tired_at >= c.exhausted_at:

@@ -114,6 +114,12 @@ class Fighter:
     """Dados de más contra cada rival, ganados por la posición (§10.2). Se
     gastan en la siguiente acción contra él."""
     trauma: bool = False
+    escape: int = 0
+    """Segmentos de su reloj de escapar (D-165)."""
+    caught: int = 0
+    """Segmentos del reloj de alcanzarle. Lleno, ya no puede huir."""
+    refused: bool = False
+    """Si ya le rechazaron la rendición en esta escena."""
 
     @property
     def id(self) -> str:
@@ -164,7 +170,14 @@ class Policy(Protocol):
         """Si gasta estrés en resistir un golpe que ya sabe cuánto le hace."""
         ...
 
-    def finishes(self, encounter: Encounter, me: Fighter, fallen: Fighter) -> bool: ...
+    def finishes(self, encounter: Encounter, me: Fighter, fallen: Fighter) -> bool:
+        """Si remata a un caído. También decide si acepta la rendición de
+        alguien: quien remataría no acepta (D-165)."""
+        ...
+
+    def pursues(self, encounter: Encounter, me: Fighter, fleer: Fighter) -> bool:
+        """Si persigue a quien huye. Si nadie persigue, la huida sale sola."""
+        ...
 
 
 HIT = frozenset({Outcome.SUCCESS_AT_COST, Outcome.SUCCESS, Outcome.CRITICAL})
@@ -174,7 +187,8 @@ KILL = frozenset({Outcome.SUCCESS, Outcome.CRITICAL})
 
 class Encounter:
     def __init__(
-        self, scenario: ScenarioSpec, ruleset: Ruleset, source: RngSource, encounter_id: str
+        self, scenario: ScenarioSpec, ruleset: Ruleset, source: RngSource, encounter_id: str,
+        surprised: frozenset[str] = frozenset(),
     ) -> None:
         if ruleset.combat is None:
             raise ScenarioError(f"el sistema {ruleset.id!r} no tiene sección combat")
@@ -200,6 +214,9 @@ class Encounter:
             for c in side.combatants
         }
         self.side_effect = {side.id: side.effect for side in scenario.sides}
+        self.surprised = surprised
+        """Quien actúa al final de la primera ronda (§9.1): le pillaron
+        desprevenido. Solo la primera ronda; después, su iniciativa."""
         self.order = self._initiative()
 
     # -- lo que se puede preguntar ------------------------------------------
@@ -240,8 +257,10 @@ class Encounter:
             Action(ActionKind.FIRST_AID, o.id) for o in self.allies(f)
             if o.status is Status.DOWN and not o.stabilized
         ]
-        acciones += [Action(k) for k in (ActionKind.TOTAL_DEFENSE, ActionKind.RECOVER,
-                                         ActionKind.FLEE, ActionKind.SURRENDER)]
+        acciones += [Action(k) for k in (ActionKind.TOTAL_DEFENSE, ActionKind.RECOVER)]
+        if f.caught < self.combat.chase_clock:
+            acciones.append(Action(ActionKind.FLEE))
+        acciones.append(Action(ActionKind.SURRENDER))
         return tuple(acciones)
 
     def style_rng(self, f: Fighter) -> random.Random:
@@ -314,7 +333,11 @@ class Encounter:
     def run(self, policy: Policy) -> EncounterResult:
         while not self.over() and self.round < self.combat.max_rounds:
             self.round += 1
-            for fid in self.order:
+            turnos = self.order
+            if self.round == 1 and self.surprised:
+                turnos = (*(i for i in self.order if i not in self.surprised),
+                          *(i for i in self.order if i in self.surprised))
+            for fid in turnos:
                 f = self.fighters[fid]
                 if f.status in GONE:
                     continue
@@ -368,17 +391,15 @@ class Encounter:
                 assert accion.target is not None
                 self._finish(f, self.fighters[accion.target], dice)
             case ActionKind.FLEE:
-                f.status = Status.FLED
-                self._beat(f, accion.kind)
+                self._flee(f, dice, policy)
             case ActionKind.SURRENDER:
-                f.status = Status.SURRENDERED
-                self._beat(f, accion.kind)
+                self._surrender(f, policy)
 
     # -- lo que pasa al actuar -------------------------------------------------
 
     def _attack(
         self, f: Fighter, target: Fighter, force: bool, dice: Dice, policy: Policy,
-        consequences: bool,
+        consequences: bool, why: str = "contraataque",
     ) -> None:
         """Atacar (§10). `consequences` es falso en el contraataque inmediato
         de una posición desesperada: si no, cada contraataque fallido abriría
@@ -400,7 +421,7 @@ class Encounter:
         if force:
             notas.append("forzándose")
         if not consequences:
-            notas.append("contraataque")
+            notas.append(why)
         if res.outcome in HIT:
             atributo = self.approach(f)
             perfora = f.weapon.piercing + int(atributo == self.combat.strength_attribute)
@@ -425,6 +446,57 @@ class Encounter:
                     self._attack(target, f, False, dice, policy, False)
             else:
                 target.edge[f.id] = target.edge.get(f.id, 0) + 1
+
+    def chase_pool(self, f: Fighter) -> int:
+        skill = self.combat.chase_skill
+        assert skill is not None
+        return (self.grade(f, self._best_attribute(f, skill)) + self._skill(f, skill)
+                - self.physical_penalty(f))
+
+    def _flee(self, f: Fighter, dice: Dice, policy: Policy) -> None:
+        """Una persecución con dos relojes (D-165). Sin competencia de
+        persecución en el sistema, huir sale siempre, como en la 09."""
+        reloj = self.combat.chase_clock
+        perseguidores = [
+            o for o in self.enemies(f)
+            if o.status is Status.ACTIVE and not self.collapsed(o) and policy.pursues(self, o, f)
+        ]
+        if self.combat.chase_skill is None or not perseguidores:
+            f.status = Status.FLED
+            self._beat(f, ActionKind.FLEE, note="nadie le persigue")
+            return
+        cazador = max(perseguidores, key=lambda o: (self.chase_pool(o), o.id))
+        res = self.resolver.resolve(
+            Challenge(pool=self.chase_pool(f), opposing_pool=self.chase_pool(cazador)), dice
+        )
+        golpe = False
+        match res.outcome:
+            case Outcome.SUCCESS | Outcome.CRITICAL:
+                f.escape += 2
+            case Outcome.SUCCESS_AT_COST:
+                f.escape += 1
+                f.caught += 1
+                golpe = True
+            case Outcome.FAILURE:
+                f.caught += 2
+                golpe = True
+        relojes = f"escapar {min(f.escape, reloj)}/{reloj}, alcanzar {min(f.caught, reloj)}/{reloj}"
+        self._beat(f, ActionKind.FLEE, cazador.id, res.outcome, note=relojes)
+        if golpe:
+            self._attack(cazador, f, False, dice, policy, False, "golpe de oportunidad")
+        if f.escape >= reloj and f.status is Status.ACTIVE:
+            f.status = Status.FLED
+
+    def _surrender(self, f: Fighter, policy: Policy) -> None:
+        """Rendirse exige que lo acepten todos los rivales en pie (D-165)."""
+        rechazan = [o.id for o in self.enemies(f)
+                    if o.status is Status.ACTIVE and policy.finishes(self, o, f)]
+        if rechazan:
+            f.refused = True
+            self._beat(f, ActionKind.SURRENDER, note=f"rechazada por {', '.join(rechazan)}")
+            return
+        f.status = Status.SURRENDERED
+        self._beat(f, ActionKind.SURRENDER)
 
     def _hurt(self, f: Fighter, golpe: int, dice: Dice) -> None:
         antes = self.band(f)

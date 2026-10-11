@@ -64,7 +64,12 @@ armors:
   - {id: placas, label: placas, protection: 4, resist_dice: 2, requires: {fuerza: 3},
      access: {signal: "rango:combate", at_least: 6}}
 
-resources: {vitality: salud, fatigue: descanso}
+# Quien cae en una escena se lleva una herida grave al mundo: con salud a 0 y
+# `lethal_after` de 2 horas, o le curan o muere (unidad 13).
+resources:
+  vitality: salud
+  fatigue: descanso
+  down: {situation: herida, marca: cuerpo, gravedad_min: 1.4, gravedad_max: 1.4, lasts: 192}
 
 # El estilo (D-158, D-160): de quién es cada uno.
 style:

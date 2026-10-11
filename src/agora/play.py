@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, TextIO
 
@@ -27,9 +27,11 @@ from agora.cognition.voz import hablar
 from agora.engine.consulta import ficha
 from agora.engine.events import EventKind
 from agora.engine.ontology import AgentId, NeedId
+from agora.engine.ports import Outcome
 from agora.engine.render import render_event
 from agora.engine.state import AgentState, PerformingAction, Traveling, WorldState
 from agora.engine.world import Simulation
+from agora.rules.encounter import Action, ActionKind, Encounter, Fighter, Policy
 
 if TYPE_CHECKING:
     from agora.engine.ports import CognitionProvider, DecisionSource
@@ -42,6 +44,11 @@ class ScriptError(ValueError):
 
 def _clave(d: Decision) -> tuple[str, str, str | None]:
     return (str(d.action), str(d.place), None if d.target is None else str(d.target))
+
+
+COMBATE = ("combate", "resistir", "rematar", "perseguir")
+"""Lo que el jugador decide dentro de una escena (unidad 13), en el mismo
+guion. Cada clase se consume en orden dentro de su tick."""
 
 
 class Script:
@@ -58,8 +65,8 @@ class Script:
                 self.decisiones[tick] = (d["accion"], d["lugar"], d.get("destinatario"))
             elif "interrumpir" in dato:
                 self.interrupciones[tick] = bool(dato["interrumpir"])
-            else:
-                raise ScriptError(f"línea {n}: ni «decidir» ni «interrumpir»")
+            elif not any(k in dato for k in COMBATE):
+                raise ScriptError(f"línea {n}: ni «decidir», ni «interrumpir», ni de combate")
 
     def choose(
         self, world: WorldState, agent: AgentState, options: tuple[Decision, ...]
@@ -305,3 +312,168 @@ def play(sim: Simulation, source: DecisionSource, max_ticks: int,
     if sim.state.player not in sim.state.agents:
         return PlayResult(max_ticks, "muerte")
     return PlayResult(max_ticks, "fin")
+
+
+# --- La escena de combate (unidad 13) ---------------------------------------------
+
+
+def _accion(a: Action) -> dict[str, object]:
+    d: dict[str, object] = {"accion": a.kind.value}
+    if a.target is not None:
+        d["objetivo"] = a.target
+    if a.force:
+        d["forzar"] = True
+    return d
+
+
+class ScriptCombat:
+    """Las decisiones del jugador en una escena, leídas del guion. Por
+    contenido (acción, objetivo) y nunca por número de opción."""
+
+    def __init__(self, lines: Iterable[str], tick: Callable[[], int]) -> None:
+        self.tick = tick
+        self.colas: dict[tuple[int, str], list[object]] = {}
+        for linea in lines:
+            if not linea.strip():
+                continue
+            dato = json.loads(linea)
+            for clase in COMBATE:
+                if clase in dato:
+                    self.colas.setdefault((int(dato["tick"]), clase), []).append(dato[clase])
+
+    def _siguiente(self, clase: str) -> object:
+        cola = self.colas.get((self.tick(), clase))
+        if not cola:
+            raise ScriptError(f"tick {self.tick()}: el guion no dice qué hacer ({clase})")
+        return cola.pop(0)
+
+    def choose(self, encounter: Encounter, me: Fighter) -> Action:
+        d = self._siguiente("combate")
+        assert isinstance(d, dict)
+        return Action(ActionKind(d["accion"]), d.get("objetivo"), bool(d.get("forzar", False)))
+
+    def resists(self, encounter: Encounter, me: Fighter, hit: int, outcome: Outcome) -> bool:
+        return bool(self._siguiente("resistir"))
+
+    def finishes(self, encounter: Encounter, me: Fighter, fallen: Fighter) -> bool:
+        return bool(self._siguiente("rematar"))
+
+    def pursues(self, encounter: Encounter, me: Fighter, fleer: Fighter) -> bool:
+        return bool(self._siguiente("perseguir"))
+
+
+class CombatRecorder:
+    """Graba lo que decide otra política de combate, en el formato del guion."""
+
+    def __init__(self, policy: Policy, out: TextIO, tick: Callable[[], int]) -> None:
+        self.policy = policy
+        self.out = out
+        self.tick = tick
+
+    def _grabar(self, clase: str, valor: object) -> None:
+        self.out.write(json.dumps({"tick": self.tick(), clase: valor}) + "\n")
+        self.out.flush()
+
+    def choose(self, encounter: Encounter, me: Fighter) -> Action:
+        a: Action = self.policy.choose(encounter, me)
+        self._grabar("combate", _accion(a))
+        return a
+
+    def resists(self, encounter: Encounter, me: Fighter, hit: int, outcome: Outcome) -> bool:
+        si: bool = self.policy.resists(encounter, me, hit, outcome)
+        self._grabar("resistir", si)
+        return si
+
+    def finishes(self, encounter: Encounter, me: Fighter, fallen: Fighter) -> bool:
+        si: bool = self.policy.finishes(encounter, me, fallen)
+        self._grabar("rematar", si)
+        return si
+
+    def pursues(self, encounter: Encounter, me: Fighter, fleer: Fighter) -> bool:
+        si: bool = self.policy.pursues(encounter, me, fleer)
+        self._grabar("perseguir", si)
+        return si
+
+
+ETIQUETAS = {
+    ActionKind.ATTACK: "atacar a {}",
+    ActionKind.TOTAL_DEFENSE: "cubrirte (defensa total)",
+    ActionKind.RECOVER: "recuperar el aliento",
+    ActionKind.FIRST_AID: "socorrer a {}",
+    ActionKind.FINISH: "rematar a {}",
+    ActionKind.FLEE: "huir",
+    ActionKind.SURRENDER: "rendirte",
+}
+
+
+class TerminalCombat:
+    """El jugador dentro de una escena: ve cómo va, elige por número y contesta
+    a las preguntas que la escena le hace (resistir, rematar, perseguir)."""
+
+    def __init__(self, inp: TextIO, out: TextIO) -> None:
+        self.inp = inp
+        self.out = out
+        self._visto: dict[str, int] = {}
+
+    def _decir(self, texto: str) -> None:
+        self.out.write(texto + "\n")
+        self.out.flush()
+
+    def _si(self, pregunta: str, defecto: bool) -> bool:
+        self.out.write(pregunta + (" [S/n] " if defecto else " [s/N] "))
+        self.out.flush()
+        linea = self.inp.readline().strip().lower()
+        return defecto if not linea else linea.startswith("s")
+
+    def _nombre(self, encounter: Encounter, quien: str | None) -> str:
+        return "?" if quien is None else encounter.fighters[quien].spec.label
+
+    def _novedades(self, encounter: Encounter) -> None:
+        visto = self._visto.get(encounter.id, 0)
+        for b in encounter.beats[visto:]:
+            a_quien = f" a {self._nombre(encounter, b.target)}" if b.target else ""
+            que = f" → {b.outcome.value}" if b.outcome else ""
+            dano = f", {b.damage} de daño" if b.damage else ""
+            nota = f" ({b.note})" if b.note else ""
+            quien = self._nombre(encounter, b.actor)
+            self._decir(f"  r{b.round} {quien}: {b.kind}{a_quien}{que}{dano}{nota}")
+        self._visto[encounter.id] = len(encounter.beats)
+
+    def report(self, lines: tuple[str, ...]) -> None:
+        if lines:
+            self._decir(lines[-1])
+
+    def choose(self, encounter: Encounter, me: Fighter) -> Action:
+        self._novedades(encounter)
+        for f in encounter.fighters.values():
+            self._decir(f"    {f.spec.label:<24} {f.vitality:>3}/{f.spec.vitality} PV"
+                        f"  fatiga {f.fatigue}/{f.spec.fatigue}  estrés {f.stress}/{f.spec.stress}"
+                        f"  {f.status.value}")
+        legales = list(encounter.legal_actions(me))
+        if not encounter.exhausted(me):
+            legales += [Action(a.kind, a.target, True) for a in legales
+                        if a.kind is ActionKind.ATTACK]
+        for n, a in enumerate(legales, start=1):
+            texto = ETIQUETAS[a.kind].format(self._nombre(encounter, a.target))
+            self._decir(f"  {n:>3}. {texto}{' forzándote' if a.force else ''}")
+        while True:
+            self.out.write("combate> ")
+            self.out.flush()
+            linea = self.inp.readline()
+            if not linea:
+                return legales[0]
+            if linea.strip().isdigit() and 1 <= int(linea) <= len(legales):
+                return legales[int(linea) - 1]
+            self._decir("  elige un número de la lista")
+
+    def resists(self, encounter: Encounter, me: Fighter, hit: int, outcome: Outcome) -> bool:
+        self._novedades(encounter)
+        return self._si(f"  te alcanza un golpe de {hit}. ¿Lo resistes (cuesta estrés)?", False)
+
+    def finishes(self, encounter: Encounter, me: Fighter, fallen: Fighter) -> bool:
+        self._novedades(encounter)
+        return self._si(f"  {fallen.spec.label} está en el suelo. ¿Le rematas?", False)
+
+    def pursues(self, encounter: Encounter, me: Fighter, fleer: Fighter) -> bool:
+        self._novedades(encounter)
+        return self._si(f"  {fleer.spec.label} intenta huir. ¿Le persigues?", True)

@@ -257,11 +257,13 @@ def pack() -> dict:
 def acciones() -> list[dict]:
     herida = {"situation": "herida", "marca": "cuerpo", "gravedad_min": 0.4, "gravedad_max": 1.0, "lasts": 2 * DIA}
     return [
-        {"id": "dormir", "label": "dormir a cubierto", "duration_ticks": 32, "interruptible": True,
+        # Dormir deja desprevenido: quien te ataca dormido te pilla por sorpresa
+        # (D-165, unidad 13).
+        {"id": "dormir", "label": "dormir a cubierto", "duration_ticks": 32, "interruptible": True, "vulnerable": True,
          "requires_affordance": "refugio", "elastic": {"min_ticks": 12, "need": "descanso", "per_tick": 0.03},
          "phase_multipliers": {"noche": 1.9, "manana": 0.5, "tarde": 0.4}, "satisfies": {"descanso": 1.0},
          "effects": {"seguridad": 0.05}},
-        {"id": "dormir_al_raso", "label": "dormir al raso", "duration_ticks": 16, "interruptible": True,
+        {"id": "dormir_al_raso", "label": "dormir al raso", "duration_ticks": 16, "interruptible": True, "vulnerable": True,
          "satisfies": {"descanso": 0.5}, "effects": {"descanso": 0.2, "seguridad": -0.08}, "costs": {"seguridad": 0.3}},
         {"id": "beber", "label": "beber", "duration_ticks": 2, "requires_affordance": "agua",
          "satisfies": {"agua": 1.0}, "effects": {"agua": 0.6}},
@@ -285,17 +287,17 @@ def acciones() -> list[dict]:
         {"id": "atacar", "label": "atacar", "duration_ticks": 3, "requires_company": 1,
          "satisfies": {"seguridad": 0.2, "combate": 1.0}, "effects": {"combate": 0.06, "seguridad": 0.15, "descanso": -0.05},
          "costs": {"descanso": 0.2},
-         "target": {"por_desconocido": True, "max_regard": 0.05, "quita_por_pericia": "combate", "gives": {"salud": -0.2}, "inflicts": herida}},
+         "target": {"combate": True, "por_desconocido": True, "max_regard": 0.05, "quita_por_pericia": "combate", "gives": {"salud": -0.2}, "inflicts": herida}},
         {"id": "atacar_con_sana", "label": "atacar con saña", "duration_ticks": 3, "requires_company": 1,
          "requires_rank": {"combate": 3},
          "satisfies": {"seguridad": 0.25, "combate": 1.0}, "effects": {"combate": 0.06, "seguridad": 0.2, "descanso": -0.06},
          "costs": {"descanso": 0.25},
-         "target": {"por_desconocido": True, "max_regard": 0.05, "quita_por_pericia": "combate", "gives": {"salud": -0.32},
+         "target": {"combate": True, "por_desconocido": True, "max_regard": 0.05, "quita_por_pericia": "combate", "gives": {"salud": -0.32},
                     "inflicts": {**herida, "gravedad_max": 1.4}}},
         {"id": "golpe_mortal", "label": "rematar a un herido", "duration_ticks": 2, "requires_company": 1,
          "requires_rank": {"combate": 1},
          "satisfies": {"combate": 1.0, "seguridad": 0.5}, "effects": {"combate": 0.08, "seguridad": 0.1},
-         "target": {"por_desconocido": True, "max_regard": 0.0, "requires_condition": "herida", "quita_por_pericia": "combate", "gives": {"salud": -0.4}}},
+         "target": {"combate": True, "por_desconocido": True, "max_regard": 0.0, "requires_condition": "herida", "quita_por_pericia": "combate", "gives": {"salud": -0.4}}},
         {"id": "saquear", "label": "saquear a un herido", "duration_ticks": 3, "requires_company": 1,
          "satisfies": {"suministros": 1.0}, "effects": {"suministros": 0.3},
          "target": {"por_desconocido": True, "max_regard": 0.05, "requires_condition": "herida", "gives": {"suministros": -0.3}}},

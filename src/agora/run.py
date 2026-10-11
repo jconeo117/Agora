@@ -31,14 +31,24 @@ from agora.engine.render import render_activity_summary, render_log, render_stat
 from agora.engine.timeskip import saltar
 from agora.engine.world import Simulation
 from agora.health import check, divergence, measure
-from agora.play import Recorder, Script, Terminal, play
+from agora.play import (
+    CombatRecorder,
+    Recorder,
+    Script,
+    ScriptCombat,
+    Terminal,
+    TerminalCombat,
+    play,
+)
 from agora.rules.binding import BindingSpec, load_binding
 from agora.rules.derive import census, derive, duel
+from agora.rules.encounter import Policy
 from agora.rules.montecarlo import pool_table
 from agora.rules.pool import PoolResolver
 from agora.rules.scene import load_scenario
 from agora.rules.simulator import account, check_calibration, fight, simulate
 from agora.rules.system import Ruleset, load_ruleset
+from agora.rules.world_combat import WorldCombat
 
 if TYPE_CHECKING:
     from typing import TextIO
@@ -287,17 +297,43 @@ def _correr(
 def _jugar(sim: Simulation, args: argparse.Namespace, ticks: int) -> None:
     """Si la partida tiene jugador, se juega: también al reanudarla."""
     terminal: Terminal | None = None
+    escena: TerminalCombat | None = None
+
+    def ahora() -> int:
+        return sim.state.tick
+
     if args.guion is not None:
-        fuente: DecisionSource = Script(args.guion.read_text(encoding="utf-8").splitlines())
+        lineas = args.guion.read_text(encoding="utf-8").splitlines()
+        fuente: DecisionSource = Script(lineas)
+        combate: Policy = ScriptCombat(lineas, ahora)
     else:
         proveedor = None if args.sin_llm else OllamaProvider(url=args.llm_url, modelo=args.modelo)
         terminal = Terminal(sim, sys.stdin, sys.stdout, proveedor)
         fuente = terminal
+        escena = TerminalCombat(sys.stdin, sys.stdout)
+        combate = escena
     with ExitStack() as stack:
         if args.grabar is not None:
-            fuente = Recorder(fuente, stack.enter_context(args.grabar.open("a", encoding="utf-8")))
+            grabacion = stack.enter_context(args.grabar.open("a", encoding="utf-8"))
+            fuente = Recorder(fuente, grabacion)
+            combate = CombatRecorder(combate, grabacion, ahora)
+        sim.encounter_resolver = _resolutor(sim, args, combate, escena)
         resultado = play(sim, fuente, ticks, terminal)
     print(f"\n# fin de la partida: {resultado.reason}, {resultado.ticks} ticks jugados")
+
+
+def _resolutor(
+    sim: Simulation, args: argparse.Namespace, combate: Policy, escena: TerminalCombat | None
+) -> WorldCombat | None:
+    """Las peleas del jugador con las reglas de la mesa (unidad 13). Sin enlace
+    entre este mundo y el sistema, se resuelven por utilidad, como antes."""
+    sistema = load_ruleset(args.reglas)
+    ruta = args.pack.parent / "reglas" / f"{sistema.id}.yaml"
+    if not ruta.exists():
+        print(f"# sin {ruta}: tus peleas se resuelven por utilidad, sin escena")
+        return None
+    return WorldCombat(sistema, load_binding(ruta, sim.state.pack, sistema), combate,
+                       None if escena is None else escena.report)
 
 
 def _fijar_foco(sim: Simulation, foco: str) -> None:

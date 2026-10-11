@@ -5,7 +5,8 @@ Un NPC no pelea con una táctica: pelea como es. Las cinco perillas de
 que quien mire el relato pueda decir por qué hizo lo que hizo. El orden es el
 contrato:
 
-1. Por debajo de su umbral, se va: huye, o se rinde si está exhausto.
+1. Por debajo de su umbral, se va: huye si puede correr y no le han
+   alcanzado; si no, se rinde; si ya le rechazaron la rendición, sigue.
 2. El capricho: con probabilidad `whim`, cualquier acción legal.
 3. Remata a quien quiera rematar.
 4. Si no es agresivo (menos de 50): socorre a un aliado caído, recupera el
@@ -41,7 +42,12 @@ class StylePolicy:
         if len(legales) == 1:
             return legales[0]
         if me.vitality * 100 < me.spec.vitality * estilo.flee_below:
-            return Action(ActionKind.SURRENDER if encounter.exhausted(me) else ActionKind.FLEE)
+            # Huye si puede correr y aún no le han alcanzado; si no, se rinde;
+            # y si ya le rechazaron la rendición, pelea por su vida (D-165).
+            if not encounter.exhausted(me) and Action(ActionKind.FLEE) in legales:
+                return Action(ActionKind.FLEE)
+            if not me.refused:
+                return Action(ActionKind.SURRENDER)
         if estilo.whim:
             azar = encounter.style_rng(me)
             if azar.randint(1, 100) <= estilo.whim:
@@ -83,6 +89,13 @@ class StylePolicy:
             return False
         despues = vitality_band(me.vitality - hit, me.spec.vitality, encounter.ruleset.vitality)
         return outcome is Outcome.CRITICAL or despues in (VitalityBand.GRAVE, VitalityBand.DOWN)
+
+    def pursues(self, encounter: Encounter, me: Fighter, fleer: Fighter) -> bool:
+        """Persigue quien es agresivo, quien remataría, o quien le odia: el
+        mismo que no le dejaría irse sin más."""
+        estilo = me.spec.style
+        return (estilo.aggression >= AGGRESSIVE or estilo.finish_off is FinishOff.ALWAYS
+                or me.spec.regard.get(fleer.id, 0) < 0)
 
     def finishes(self, encounter: Encounter, me: Fighter, fallen: Fighter) -> bool:
         match me.spec.style.finish_off:

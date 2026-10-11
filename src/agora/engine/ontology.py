@@ -804,6 +804,11 @@ class TargetSpec(Spec):
     sangre a alguien es lo mismo que darle de comer, con el signo cambiado.
     """
 
+    combate: bool = False
+    """Si el jugador está en uno de los dos lados, esto se resuelve como una
+    escena con las reglas de la mesa (unidad 13, D-161), y no con `gives`.
+    Entre NPCs no cambia nada: la utilidad, como siempre."""
+
     quita_por_pericia: NeedId | None = None
     """Qué aptitud de QUIEN ACTÚA escala la parte NEGATIVA de `gives` (I-008).
 
@@ -1451,6 +1456,10 @@ class ActionSpec(Spec):
     La recuperación es global (`TuningSpec.saturation_recovery`), así que este
     valor gobierna a la vez cuánto sube el hastío y cuánto tarda en pasarse.
     """
+
+    vulnerable: bool = False
+    """Quien lo está haciendo está desprevenido: si le atacan en una escena,
+    actúa al final de la primera ronda (§9.1, D-165). Dormir, por ejemplo."""
 
     tags: frozenset[Tag] = Field(default_factory=frozenset)
     """Válvula de escape para lo que el motor no modela: "violenta", "ilegal",

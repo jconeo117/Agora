@@ -81,6 +81,8 @@ combat:
   tired_at: 50
   exhausted_at: 75
   max_rounds: 30
+  chase_skill: atletismo                # D-165: huir es una persecución
+  chase_clock: 3
 
 # Las promesas del sistema (§24.4), cada una sobre un escenario de
 # `escenarios/`. El simulador las comprueba como --health las de un pack.

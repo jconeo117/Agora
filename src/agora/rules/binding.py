@@ -27,7 +27,7 @@ import yaml
 from pydantic import Field, ValidationError
 
 from agora.engine.disposition import Temperament
-from agora.engine.ontology import Spec
+from agora.engine.ontology import AflictionSpec, Spec
 from agora.engine.pack import ContentPack
 from agora.rules.scene import ArmorSpec, WeaponSpec
 from agora.rules.system import Ruleset
@@ -90,6 +90,9 @@ class ResourceNeeds(Spec):
 
     vitality: str
     fatigue: str | None = None
+    down: AflictionSpec | None = None
+    """Lo que se lleva al mundo quien cae en una escena (unidad 13): la herida
+    grave que, con el `lethal_after` del mundo, decide si sobrevive."""
 
 
 class StyleBinding(Spec):
@@ -189,6 +192,11 @@ def check_binding(binding: BindingSpec, pack: ContentPack, ruleset: Ruleset) -> 
     for eje in (binding.resources.vitality, binding.resources.fatigue):
         if eje is not None and eje not in ejes:
             problems.append(f"resources: eje desconocido {eje!r}")
+    caida = binding.resources.down
+    if caida is not None:
+        personales = frozenset(str(s.id) for s in pack.situations if s.personal)
+        if caida.situation not in personales:
+            problems.append(f"resources.down: {caida.situation!r} no es una condición personal")
     for nombre, spec in (("aggression", binding.style.aggression),
                          ("flee_below", binding.style.flee_below),
                          ("whim", binding.style.whim)):

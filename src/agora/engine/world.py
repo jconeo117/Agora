@@ -14,6 +14,7 @@ Dos invariantes que sostienen el determinismo:
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import TYPE_CHECKING, assert_never
 
@@ -50,6 +51,7 @@ from agora.engine.ontology import (
     RelationId,
     SituationId,
     SituationSpec,
+    TargetSpec,
     TasteSpec,
     TraitId,
 )
@@ -60,6 +62,7 @@ from agora.engine.outcome import (
     signed_saturation,
 )
 from agora.engine.pack import ContentPack
+from agora.engine.ports import Fate
 from agora.engine.state import (
     AgentState,
     Busy,
@@ -74,13 +77,13 @@ from agora.engine.state import (
 if TYPE_CHECKING:
     from typing import TextIO
 
-    from agora.engine.ports import DecisionSource
+    from agora.engine.ports import DecisionSource, EncounterOutcome, EncounterResolver
 
 
 class Simulation:
     """Un mundo corriendo. Estado mutable + su registro de eventos."""
 
-    __slots__ = ("_together", "log", "player_source", "state")
+    __slots__ = ("_together", "encounter_resolver", "log", "player_source", "state")
 
     def __init__(
         self,
@@ -103,6 +106,9 @@ class Simulation:
         """Quién estaba con quién el tick pasado. Sirve para emitir un
         encuentro cuando se produce y no en cada uno de los ticks que dos
         agentes pasan en la misma sala."""
+        self.encounter_resolver: EncounterResolver | None = None
+        """Quién resuelve una pelea con el jugador dentro (unidad 13). Como la
+        fuente de decisiones, no es estado: son las reglas de la mesa."""
         self.player_source: DecisionSource | None = None
         """De dónde salen las decisiones del jugador (unidad 10). No es estado:
         es el teclado o el guion, y no viaja en el guardado. Quién es el
@@ -173,6 +179,7 @@ class Simulation:
         sim.log = EventLog(log_window, log_sink, primer_seq=siguiente_seq)
         sim._together = together
         sim.player_source = None
+        sim.encounter_resolver = None
         return sim
 
     # -------------------------------------------------------------------------
@@ -2412,8 +2419,16 @@ class Simulation:
         destino = spec.target
         assert destino is not None
 
-        recibe = {n: v for n, v in destino.gives.items() if v > 0.0}
-        sufre = {n: v for n, v in destino.gives.items() if v < 0.0}
+        # Con el jugador dentro, una acción de combate es una escena con las
+        # reglas de la mesa, y su desenlace sustituye a `gives`, `cures` e
+        # `inflicts` (unidad 13, D-161). Lo demás (enemistad, memoria) sigue.
+        desenlace = self._escena(agent, otro, destino)
+        if desenlace is not None:
+            self._aplicar_desenlace(desenlace, agent, otro)
+            if agent.spec_id not in self.state.agents or a_quien not in self.state.agents:
+                return
+        recibe = {n: v for n, v in destino.gives.items() if v > 0.0 and desenlace is None}
+        sufre = {n: v for n, v in destino.gives.items() if v < 0.0 and desenlace is None}
         if recibe and destino.gives_por_pericia is not None:
             # D-059: la pericia de quien ACTÚA escala lo que el otro recibe,
             # antes de que `apply` lo vuelva a escalar por la aptitud de quien
@@ -2430,9 +2445,9 @@ class Simulation:
             otro.apply(recibe, self.pack.need_by_id)
         if sufre:
             otro.endure(sufre, self.pack.need_by_id)
-        for curada, cuanto in sorted(destino.cures.items()):
+        for curada, cuanto in sorted(destino.cures.items() if desenlace is None else ()):
             otro.aliviar(curada, cuanto)
-        if destino.inflicts is not None:
+        if destino.inflicts is not None and desenlace is None:
             self._infligir(
                 otro, destino.inflicts, porque=str(spec.id), por_quien=agent.spec_id
             )
@@ -2490,6 +2505,67 @@ class Simulation:
             por_quien=agent.spec_id,
         )
         _ = event
+
+    def _escena(
+        self, agent: AgentState, otro: AgentState, destino: TargetSpec
+    ) -> EncounterOutcome | None:
+        """Solo si la acción es de combate, el jugador está en un lado y hay
+        quien sepa resolverla. Si no, `None`, y la acción sigue por utilidad."""
+        jugador = self.state.player
+        if (not destino.combate or self.encounter_resolver is None
+                or jugador not in (agent.spec_id, otro.spec_id)):
+            return None
+        desprevenidos = frozenset(q.spec_id for q in (otro,) if self._desprevenido(q))
+        return self.encounter_resolver.resolve(
+            self.state, agent.spec_id, otro.spec_id, desprevenidos
+        )
+
+    def _desprevenido(self, quien: AgentState) -> bool:
+        busy = quien.busy
+        return isinstance(busy, PerformingAction) and self.pack.action_by_id[busy.action].vulnerable
+
+    def _aplicar_desenlace(
+        self, desenlace: EncounterOutcome, agent: AgentState, otro: AgentState
+    ) -> None:
+        """La única puerta por la que una escena de combate cambia el mundo
+        (regla 1): las necesidades, la herida, la muerte por `morir`, la huida y
+        el fin de lo que estaba haciendo quien recibió el ataque."""
+        rival = {agent.spec_id: otro.spec_id, otro.spec_id: agent.spec_id}
+        for c in desenlace.combatants:
+            quien = self.state.agents.get(c.agent)
+            if quien is None:
+                continue
+            for need, valor in c.needs:
+                quien.adopt(need, valor, self.pack.need_by_id[need].max_debt)
+            if c.inflicts is not None:
+                self._infligir(quien, c.inflicts, porque="combate", por_quien=rival.get(c.agent))
+            if c.fate is Fate.DEAD:
+                self.morir(c.agent, porque="combate")
+                continue
+            if quien is otro and c.fate is not Fate.STANDING and otro.busy is not None:
+                self._emit(EventKind.ACTION_ABORTED, otro, action=current_intent(otro),
+                           data={"reason": "combate"})
+                otro.busy = None
+            if c.fate is Fate.FLED:
+                self._huir(quien)
+
+    def _huir(self, quien: AgentState) -> None:
+        """Quien escapa acaba en un lugar vecino: la persecución ya cubrió la
+        distancia. Cuál, lo decide un hash por clave, neutral como el desempate
+        de I-007."""
+        vecinos = sorted(self.pack.place_by_id[quien.at].neighbors)
+        if not vecinos:  # pragma: no cover - un pack validado es conexo
+            return
+        material = "\x1f".join(
+            (str(self.state.rng.seed), "huida", str(quien.spec_id), str(self.state.tick))
+        ).encode("utf-8")
+        indice = int.from_bytes(hashlib.blake2b(material, digest_size=8).digest(), "big")
+        if quien.busy is not None:
+            self._emit(EventKind.ACTION_ABORTED, quien, action=current_intent(quien),
+                       data={"reason": "huida"})
+            quien.busy = None
+        quien.at = vecinos[indice % len(vecinos)]
+        self._emit(EventKind.TRAVEL_ARRIVED, quien, data={"huida": True})
 
     def _contar(
         self, narrador: AgentState, oyentes: list[AgentId], tick: int
