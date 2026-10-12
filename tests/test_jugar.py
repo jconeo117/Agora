@@ -239,10 +239,12 @@ def test_la_terminal_elige_y_consulta() -> None:
     assert len(opts) >= 2
 
     # Entrada con consultas y elección final de la opción 2
+    # (hablar abre conversación; una línea vacía la cierra sin actos)
     comandos = [
         "mirar",
         "ficha",
         f"hablar {otro_aqui.spec_id}",
+        "",
         f"hablar {ausente.spec_id}",
         "2",
     ]
@@ -256,7 +258,7 @@ def test_la_terminal_elige_y_consulta() -> None:
     texto_salida = out.getvalue()
     assert f"en {pack.place_by_id[presente.at].label}:" in texto_salida
     assert otro_aqui.spec_id in texto_salida
-    assert "(respaldo)" in texto_salida
+    assert f"hablas con {sim.state.censo[otro_aqui.spec_id].label}" in texto_salida
     assert "no hay nadie así aquí con quien hablar" in texto_salida
 
 

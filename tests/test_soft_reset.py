@@ -55,10 +55,20 @@ def test_los_doscientos_tienen_los_nueve() -> None:
             assert r in heredados, f"rasgo {r} falta en hereda_traits de gestación"
 
 
+def _post_reset_yaml() -> bytes:
+    res = subprocess.run(
+        ["git", "show", "50771fc:packs/confluencia/pack.yaml"],
+        capture_output=True,
+        check=True,
+    )
+    return res.stdout
+
+
 def test_el_reset_es_reproducible_e_idempotente(tmp_path: Path) -> None:
-    # Correr reiniciar.py sobre una copia del pack.yaml previo da el actual byte a byte
+    # Correr reiniciar.py sobre una copia del pack.yaml previo da el resultado de la 11 byte a byte
     copia = tmp_path / "pack.yaml"
     copia.write_text(_pre_reset_yaml(), encoding="utf-8")
+    esperado = _post_reset_yaml()
 
     # Primera corrida: añade los rasgos
     res1 = subprocess.run(
@@ -68,7 +78,7 @@ def test_el_reset_es_reproducible_e_idempotente(tmp_path: Path) -> None:
         check=True,
     )
     assert "200 agentes reiniciados" in res1.stdout
-    assert copia.read_bytes() == CONFLUENCIA_PACK.read_bytes()
+    assert copia.read_bytes() == esperado
 
     # Segunda corrida: idempotente, no hace nada
     res2 = subprocess.run(
@@ -78,7 +88,7 @@ def test_el_reset_es_reproducible_e_idempotente(tmp_path: Path) -> None:
         check=True,
     )
     assert "ya tiene los rasgos; no hago nada" in res2.stdout
-    assert copia.read_bytes() == CONFLUENCIA_PACK.read_bytes()
+    assert copia.read_bytes() == esperado
 
 
 def test_el_sesgo_por_raza(tmp_path: Path) -> None:
