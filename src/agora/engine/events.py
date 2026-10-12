@@ -168,6 +168,13 @@ class EventKind(StrEnum):
     debería aparecer nunca; si aparece en el log, hay un bug de diseño en el
     pack (falta la acción de red de seguridad) o en la deliberación."""
 
+    SOCIAL_ACT = "social_act"
+    """Alguien le dijo algo a otro (unidad 15, D-164). `actor` habla y `subject`
+    escucha; `data` lleva `act` (un `SocialAct`), `regard` (cuánto movió el
+    aprecio de quien escucha) y `about` si hablaba de un tercero. Solo lo emite
+    `Simulation.apply_social`, la única puerta por la que lo dicho cambia el
+    mundo."""
+
 
 @dataclass(frozen=True, slots=True)
 class Event:

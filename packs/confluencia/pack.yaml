@@ -12917,3 +12917,10 @@ newcomer:
   initial_needs:
     dinero: 0.25
     vinculo: 0.2
+
+# Cómo se habla en este mundo (unidad 15). Lo único que hace falta decir es qué
+# acción es conversar: al cerrar una conversación, el jugador la hace aquí
+# mismo y hablar cuesta tiempo. Sin esto, hablar sería gratis. El peso de cada
+# acto y los umbrales usan los valores por defecto del motor.
+social:
+  action: charlar

@@ -20,7 +20,14 @@ from contextlib import ExitStack
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from agora.banco import load_bank, load_moments, run_bank, run_tell_bank
+from agora.banco import (
+    load_acts_bank,
+    load_bank,
+    load_moments,
+    run_acts_bank,
+    run_bank,
+    run_tell_bank,
+)
 from agora.cognition.narrador import Narrator, Table, load_table
 from agora.cognition.ollama import OllamaProvider
 from agora.cognition.openai_compat import OpenAICompatibleProvider
@@ -202,6 +209,11 @@ def main() -> None:
     )
     parser.add_argument("--muestras", type=Path, default=None, metavar="F")
     parser.add_argument(
+        "--banco-actos", type=Path, default=None, metavar="F",
+        help="mide qué acto entiende el intérprete de lo que le dices a un NPC "
+        "(unidad 15); con --sin-interprete, el léxico",
+    )
+    parser.add_argument(
         "--banco-intenciones", type=Path, default=None, metavar="F",
         help="mide el intérprete contra los casos de este archivo (unidad 14); "
         "con --sin-interprete, el léxico",
@@ -248,6 +260,10 @@ def main() -> None:
         print("\n".join(relato.lines()))
         if args.muestras is not None:
             args.muestras.write_text("\n".join(relato.muestras), encoding="utf-8")
+        return
+    if args.banco_actos is not None:
+        actos = run_acts_bank(load_acts_bank(args.banco_actos), _interprete(args))
+        print("\n".join(actos.lines()))
         return
     if args.banco_intenciones is not None:
         informe = run_bank(pack, load_ruleset(args.reglas),
@@ -358,7 +374,7 @@ def _jugar(sim: Simulation, args: argparse.Namespace, ticks: int) -> None:
 
     if args.guion is not None:
         lineas = args.guion.read_text(encoding="utf-8").splitlines()
-        fuente: DecisionSource = Script(lineas)
+        fuente: DecisionSource = Script(lineas, sim)
         combate: Policy = ScriptCombat(lineas, ahora)
     else:
         proveedor = None if args.sin_llm else OllamaProvider(url=args.llm_url, modelo=args.modelo)
@@ -372,7 +388,7 @@ def _jugar(sim: Simulation, args: argparse.Namespace, ticks: int) -> None:
     with ExitStack() as stack:
         if args.grabar is not None:
             grabacion = stack.enter_context(args.grabar.open("a", encoding="utf-8"))
-            fuente = Recorder(fuente, grabacion)
+            fuente = Recorder(fuente, grabacion, sim)
             combate = CombatRecorder(combate, grabacion, ahora)
         sim.encounter_resolver = _resolutor(sim, args, combate, escena)
         resultado = play(sim, fuente, ticks, terminal)

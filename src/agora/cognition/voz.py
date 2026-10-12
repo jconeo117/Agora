@@ -9,6 +9,7 @@ escribe en ningún sitio, y por eso encender el modelo no cambia el mundo
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -30,7 +31,22 @@ class Habla(BaseModel):
     tono: Tone
 
 
-def briefing(f: Ficha) -> str:
+@dataclass(frozen=True, slots=True)
+class Heard:
+    """Lo que el interlocutor acaba de decir, ya interpretado y recibido
+    (unidad 15): la frase, qué acto oyó el NPC y el tono que el motor decidió
+    que tiene la respuesta. El modelo pone las palabras, no el tono."""
+
+    phrase: str
+    act: str
+    tone: Tone
+    leaves: bool
+    turn: int
+    """Cuántos actos lleva la conversación: dos réplicas del mismo tick no
+    comparten semilla."""
+
+
+def briefing(f: Ficha, heard: Heard | None = None) -> str:
     def lista(xs: tuple[str, ...]) -> str:
         return ", ".join(xs)
 
@@ -50,13 +66,19 @@ def briefing(f: Ficha) -> str:
     )
     aprecio = f.aprecio_al_interlocutor or 0
     trato = "aprecio" if aprecio > 0 else "inquina" if aprecio < 0 else "indiferencia"
+    dicho = (
+        " Te pregunta qué tal te va." if heard is None
+        else f" Te acaba de decir: «{heard.phrase[:200]}» ({heard.act})."
+        f" Contestas en tono {heard.tone.value}{', y te vas' if heard.leaves else ''}."
+    )
     interlocutor = (
         f"Te habla {f.interlocutor}"
         + (f" ({lista(f.relaciones_con_interlocutor)})" if f.relaciones_con_interlocutor else "")
         + (f"; le tienes {trato}." if f.aprecio_al_interlocutor is not None else ".")
-        + " Te pregunta qué tal te va."
+        + dicho
         if f.interlocutor is not None
-        else "Un desconocido se te acerca y te pregunta qué tal te va."
+        else ("Un desconocido se te acerca y te pregunta qué tal te va." if heard is None
+              else "Un desconocido se te acerca." + dicho)
     )
     return PLANTILLA.format(
         nombre=f.nombre,
@@ -94,13 +116,14 @@ def tono_de_respaldo(f: Ficha) -> Tone:
     return Tone.FRIENDLY
 
 
-def respaldo(world: WorldState, f: Ficha) -> Habla:
-    tono = tono_de_respaldo(f)
+def respaldo(world: WorldState, f: Ficha, heard: Heard | None = None) -> Habla:
+    tono = tono_de_respaldo(f) if heard is None else heard.tone
     voz = world.pack.voice
     frases = (voz.fallback.get(tono) or voz.fallback.get(Tone.FRIENDLY) or ()) if voz else ()
     if not frases:
         return Habla(dice=SIN_VOZ, tono=tono)
-    elegida = world.rng.stream("voz-respaldo", f.agente, world.tick).choice(frases)
+    clave = ("voz-respaldo", f.agente, world.tick) + (() if heard is None else (heard.turn,))
+    elegida = world.rng.stream(*clave).choice(frases)
     return Habla(dice=elegida, tono=tono)
 
 
@@ -109,13 +132,20 @@ def hablar(
     agente: AgentId,
     interlocutor: AgentId | None = None,
     proveedor: CognitionProvider | None = None,
+    heard: Heard | None = None,
 ) -> tuple[Habla, bool, str]:
-    """(lo que dice, si lo dijo el modelo, el briefing). No escribe nada."""
+    """(lo que dice, si lo dijo el modelo, el briefing). No escribe nada.
+
+    Con `heard`, el tono ya lo decidió el motor: si el modelo devuelve otro, se
+    queda con sus palabras y se corrige el tono."""
     f = ficha(world, agente, interlocutor)
-    texto = briefing(f)
+    texto = briefing(f, heard)
     if proveedor is not None:
-        semilla = world.rng.stream("voz-semilla", agente, world.tick).randrange(2**31)
+        clave = ("voz-semilla", agente, world.tick) + (() if heard is None else (heard.turn,))
+        semilla = world.rng.stream(*clave).randrange(2**31)
         salida = proveedor.think(texto, Habla, semilla)
         if isinstance(salida, Habla):
+            if heard is not None and salida.tono is not heard.tone:
+                salida = Habla(dice=salida.dice, tono=heard.tone)
             return salida, True, texto
-    return respaldo(world, f), False, texto
+    return respaldo(world, f, heard), False, texto

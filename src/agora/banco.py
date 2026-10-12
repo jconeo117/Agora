@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from agora.agents.decide import options
+from agora.cognition.conversa import CONVERSA, talk_menu
 from agora.cognition.intencion import Kind, Menu, Reading, interpret, same_place
 from agora.cognition.narrador import Moment, moment_from_json, narrate
 from agora.engine.ontology import AgentId
@@ -212,4 +213,51 @@ def run_tell_bank(moments: Sequence[Moment], providers: Sequence[CognitionProvid
         quien = "plantilla" if told.by is None else f"modelo {told.by}"
         informe.muestras.append(f"## {i} · {m.kind.value} · {m.place} · {quien}\n{hechos}\n\n"
                                 f"> {told.text}\n")
+    return informe
+
+
+# --- El banco de actos (unidad 15) -----------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class ActCase:
+    prosa: str
+    acto: tuple[str, ...]
+    oyente: str
+    gente: tuple[tuple[str, str], ...]
+    sobre: str | None = None
+
+
+def load_acts_bank(path: Path) -> list[ActCase]:
+    casos = []
+    for linea in path.read_text(encoding="utf-8").splitlines():
+        if not linea.strip():
+            continue
+        d: dict[str, Any] = json.loads(linea)
+        casos.append(ActCase(
+            prosa=d["prosa"], acto=tuple(d["acto"]), oyente=d["oyente"],
+            gente=tuple((p, e) for p, e in d["gente"]), sobre=d.get("sobre"),
+        ))
+    return casos
+
+
+def run_acts_bank(casos: Sequence[ActCase], provider: CognitionProvider | None) -> BankReport:
+    """Mide qué acto entiende el intérprete de lo que se le dice a un NPC. Cada
+    caso trae su gente: no necesita simular un mundo."""
+    informe = BankReport()
+    for i, c in enumerate(casos):
+        menu = talk_menu(c.gente, c.oyente)
+        t0 = time.perf_counter()
+        r = interpret(menu, c.prosa, provider, 100 + i, CONVERSA)
+        informe.latencias.append(time.perf_counter() - t0)
+        bien = False
+        if r.kind is Kind.ACTION and r.entry is not None:
+            e = menu.entries[r.entry]
+            bien = e.action in c.acto and (c.sobre is None or e.target == c.sobre)
+        informe.casos += 1
+        informe.aciertos += bien
+        informe.sin_modelo += provider is not None and not r.by_model
+        if not bien:
+            informe.falsos_si += r.kind is Kind.ACTION
+            informe.fallos.append(f"  ✗ «{c.prosa}» → {_describe(menu, r)}")
     return informe

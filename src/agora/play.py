@@ -24,14 +24,16 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, TextIO
 
 from agora.agents.decide import Decision
+from agora.cognition.conversa import ACT_HELP, CONVERSA, FAREWELL, heard_as, talk_menu
 from agora.cognition.intencion import Entry, Kind, Menu, Order, interpret
 from agora.cognition.narrador import BeatView, Fact, Narrator, Table, Told, round_facts
-from agora.cognition.voz import hablar
+from agora.cognition.voz import Heard, hablar
 from agora.engine.consulta import ficha
 from agora.engine.events import EventKind
-from agora.engine.ontology import AgentId, NeedId, PlaceId
+from agora.engine.ontology import AgentId, NeedId, PlaceId, SocialAct
 from agora.engine.ports import Outcome
 from agora.engine.render import render_event
+from agora.engine.social import Conversation
 from agora.engine.state import AgentState, PerformingAction, Traveling, WorldState
 from agora.engine.world import Simulation
 from agora.rules.encounter import Action, ActionKind, Beat, Encounter, Fighter, Policy
@@ -53,11 +55,17 @@ COMBATE = ("combate", "resistir", "rematar", "perseguir")
 """Lo que el jugador decide dentro de una escena (unidad 13), en el mismo
 guion. Cada clase se consume en orden dentro de su tick."""
 
+HABLAR = "hablar"
+"""Lo que el jugador le dice a alguien (unidad 15): el acto resuelto y a quién,
+nunca la frase. `{"tick": t, "hablar": {"con": id, "acto": valor, "sobre": id?}}`."""
+
 
 class Script:
-    def __init__(self, lines: Iterable[str]) -> None:
+    def __init__(self, lines: Iterable[str], sim: Simulation | None = None) -> None:
+        self.sim = sim
         self.decisiones: dict[int, tuple[str, str, str | None]] = {}
         self.interrupciones: dict[int, bool] = {}
+        self.charlas: dict[int, list[tuple[str, str, str | None]]] = {}
         for n, linea in enumerate(lines, start=1):
             if not linea.strip():
                 continue
@@ -68,12 +76,25 @@ class Script:
                 self.decisiones[tick] = (d["accion"], d["lugar"], d.get("destinatario"))
             elif "interrumpir" in dato:
                 self.interrupciones[tick] = bool(dato["interrumpir"])
+            elif HABLAR in dato:
+                h = dato[HABLAR]
+                self.charlas.setdefault(tick, []).append((h["con"], h["acto"], h.get("sobre")))
             elif not any(k in dato for k in COMBATE):
                 raise ScriptError(f"línea {n}: ni «decidir», ni «interrumpir», ni de combate")
+        if self.charlas and sim is None:
+            raise ScriptError("el guion tiene líneas «hablar» y no se le dio la simulación")
 
     def choose(
         self, world: WorldState, agent: AgentState, options: tuple[Decision, ...]
     ) -> Decision | None:
+        if self.sim is not None:
+            # Antes de buscar la decisión: lo dicho cambia el aprecio, como cuando
+            # se jugó, y la decisión se tomó después de decirlo.
+            conversaciones: dict[str, Conversation] = {}
+            for con, acto, sobre in self.charlas.get(world.tick, ()):
+                charla = conversaciones.setdefault(con, Conversation(AgentId(con)))
+                self.sim.apply_social(agent.spec_id, AgentId(con), SocialAct(acto),
+                                      None if sobre is None else AgentId(sobre), charla)
         pedida = self.decisiones.get(world.tick)
         if pedida is None:
             return None
@@ -90,14 +111,27 @@ class Recorder:
     """Graba lo que decide otra fuente, en el formato del guion. Lo que se
     graba y se vuelve a jugar con `Script` da el mismo mundo."""
 
-    def __init__(self, source: DecisionSource, out: TextIO) -> None:
+    def __init__(self, source: DecisionSource, out: TextIO, sim: Simulation | None = None) -> None:
         self.source = source
         self.out = out
+        self.sim = sim
 
     def choose(
         self, world: WorldState, agent: AgentState, options: tuple[Decision, ...]
     ) -> Decision | None:
+        desde = self.sim.log.siguiente_seq if self.sim is not None else 0
         elegida = self.source.choose(world, agent, options)
+        if self.sim is not None:
+            # Lo dicho sale del log y no de la terminal: lo que se graba es lo que
+            # el mundo recibió, y va antes de la decisión, que se tomó después.
+            for e in self.sim.log:
+                if (e.seq >= desde and e.kind is EventKind.SOCIAL_ACT
+                        and e.actor == agent.spec_id and e.subject is not None):
+                    h: dict[str, str] = {"con": str(e.subject), "acto": str(e.data["act"])}
+                    if "about" in e.data:
+                        h["sobre"] = str(e.data["about"])
+                    self.out.write(json.dumps({"tick": world.tick, HABLAR: h}) + "\n")
+            self.out.flush()
         if elegida is not None:
             accion, lugar, destinatario = _clave(elegida)
             d: dict[str, str] = {"accion": accion, "lugar": lugar}
@@ -347,13 +381,15 @@ class Terminal:
                     self._esperar = int(cuantos) - 1
                     return None
                 case ["ficha"]:
-                    self._orden(world, agent, Order.SHEET, None)
+                    self._orden(world, agent, Order.SHEET, None, options)
                 case ["ficha", otro] if AgentId(otro) in world.agents:
-                    self._orden(world, agent, Order.SHEET, otro)
+                    self._orden(world, agent, Order.SHEET, otro, options)
                 case ["mirar"]:
-                    self._orden(world, agent, Order.LOOK, None)
+                    self._orden(world, agent, Order.LOOK, None, options)
                 case ["hablar", otro] if AgentId(otro) in world.agents:
-                    self._orden(world, agent, Order.TALK, otro)
+                    hecho, elegida = self._orden(world, agent, Order.TALK, otro, options)
+                    if hecho:
+                        return elegida
                 case ["salir"]:
                     self.quit = True
                     return None
@@ -364,9 +400,13 @@ class Terminal:
                     if hecho:
                         return elegida
 
-    def _orden(self, world: WorldState, agent: AgentState, orden: Order, sobre: str | None) -> bool:
-        """Lo que la terminal hace sin decidir nada, se escriba como orden o en
-        prosa. Devuelve si el jugador ha decidido esperar."""
+    def _orden(
+        self, world: WorldState, agent: AgentState, orden: Order, sobre: str | None,
+        options: tuple[Decision, ...],
+    ) -> tuple[bool, Decision | None]:
+        """Lo que la terminal hace, se escriba como orden o en prosa. Devuelve
+        (si ya hay decisión, cuál): esperar es `(True, None)`, y una
+        conversación puede acabar en la acción que el pack declara para hablar."""
         otro = AgentId(sobre) if sobre is not None and AgentId(sobre) in world.agents else None
         match orden:
             case Order.SHEET:
@@ -377,15 +417,67 @@ class Terminal:
             case Order.LOOK:
                 self._mirar(world, agent)
             case Order.TALK if otro is not None and world.agents[otro].at == agent.at:
-                quien = world.censo[otro].label
-                habla, del_modelo, _ = hablar(world, otro, agent.spec_id, self.provider)
-                self._decir(f"  {quien}: «{habla.dice}»  [{habla.tono}]"
-                            + ("" if del_modelo else "  (respaldo)"))
+                return self._conversar(world, agent, otro, options)
             case Order.TALK:
                 self._decir("  no hay nadie así aquí con quien hablar")
             case Order.WAIT:
-                return True
-        return False
+                return True, None
+        return False, None
+
+    def _conversar(
+        self, world: WorldState, agent: AgentState, otro: AgentId,
+        options: tuple[Decision, ...],
+    ) -> tuple[bool, Decision | None]:
+        """Una conversación con el mundo parado (unidad 15, D-164): cada frase
+        se interpreta como un acto y entra por `apply_social`; la voz pone las
+        palabras al tono que decidió la recepción. Al cerrarla, si el pack dice
+        qué acción es conversar y se puede hacer aquí mismo, es la decisión."""
+        quien = world.censo[otro].label
+        presentes = [(str(o.spec_id), world.censo[o.spec_id].label)
+                     for o in world.agents_in_order() if o.at == agent.at and o is not agent]
+        menu = talk_menu(presentes, str(otro))
+        etiquetas = {pid: label for pid, label in presentes}
+        talk = Conversation(otro)
+        self._decir(f"  hablas con {quien} («adiós» para terminar)")
+        while not talk.over:
+            frase = self._leer("tú> ")
+            if not frase or self.quit:
+                break
+            semilla = world.rng.stream(
+                "conversa", agent.spec_id, world.tick, talk.count).randrange(2**31)
+            lectura = interpret(menu, frase, self.interpreter, semilla, CONVERSA)
+            if self.interpreter is not None and not lectura.by_model:
+                self._decir(SIN_MODELO)
+            entrada = None
+            if lectura.kind is Kind.ACTION and lectura.entry is not None:
+                entrada = menu.entries[lectura.entry]
+            elif lectura.kind in (Kind.AMBIGUOUS, Kind.NO_FIT) and lectura.candidates:
+                cual = picks(self.inp, self.out, "  ¿qué le dices?", [
+                    ACT_HELP[menu.entries[i].action][0]
+                    + (f" ({etiquetas[t]})" if (t := menu.entries[i].target) else "")
+                    for i in lectura.candidates])
+                if cual is not None:
+                    entrada = menu.entries[lectura.candidates[cual]]
+            if entrada is None:
+                self._decir("  no sé qué le dices; prueba de otra forma, o «adiós»")
+                continue
+            if entrada.action == FAREWELL:
+                break
+            acto = SocialAct(entrada.action)
+            sobre = None if entrada.target is None else AgentId(entrada.target)
+            r = self.sim.apply_social(agent.spec_id, otro, acto, sobre, talk)
+            oido = Heard(frase, heard_as(acto, None if sobre is None else etiquetas[str(sobre)]),
+                         r.tone, r.leaves, talk.count)
+            habla, del_modelo, _ = hablar(world, otro, agent.spec_id, self.provider, oido)
+            self._decir(f"  {quien}: «{habla.dice}»  [{habla.tono}]"
+                        + ("" if del_modelo else "  (respaldo)"))
+            if r.leaves:
+                self._decir(f"  ({quien} da la conversación por terminada)")
+        accion = world.pack.social.action
+        if talk.count == 0 or accion is None:
+            return False, None
+        aqui = next((d for d in options if d.action == accion and d.travel_ticks == 0), None)
+        return (True, aqui) if aqui is not None else (False, None)
 
     def _interpretar(
         self, world: WorldState, agent: AgentState, options: tuple[Decision, ...],
@@ -405,7 +497,7 @@ class Terminal:
                     return True, d
                 return (True, d) if confirms(self.inp, self.out, descrita) else (False, None)
             case Kind.ORDER if lectura.order is not None:
-                return self._orden(world, agent, lectura.order, lectura.about), None
+                return self._orden(world, agent, lectura.order, lectura.about, options)
             case Kind.AMBIGUOUS | Kind.NO_FIT if lectura.candidates:
                 pregunta = ("  ¿cuál de estas?" if lectura.kind is Kind.AMBIGUOUS
                             else "  eso no se puede ahora; lo más parecido:")

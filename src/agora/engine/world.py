@@ -51,6 +51,7 @@ from agora.engine.ontology import (
     RelationId,
     SituationId,
     SituationSpec,
+    SocialAct,
     TargetSpec,
     TasteSpec,
     TraitId,
@@ -63,6 +64,7 @@ from agora.engine.outcome import (
 )
 from agora.engine.pack import ContentPack
 from agora.engine.ports import Fate
+from agora.engine.social import Conversation, Reaction, react
 from agora.engine.state import (
     AgentState,
     Busy,
@@ -2132,6 +2134,47 @@ class Simulation:
             raise KeyError(f"{quien!r} no está vivo en esta partida")
         self.state.player = quien
         self.state.focus = quien
+
+    def apply_social(
+        self, speaker: AgentId, listener: AgentId, act: SocialAct,
+        about: AgentId | None, talk: Conversation,
+    ) -> Reaction:
+        """Alguien le dice algo a otro (unidad 15, D-164). **La única puerta por
+        la que lo dicho cambia el mundo**, y solo por tres sitios que ya
+        existían: el aprecio (`acercar`), la memoria del que escucha (con quien
+        habló como culpable si fue a peor, que es lo que lee `agravio`) y el
+        log. De ahí sale el resto sin código nuevo: los rumores cuentan el
+        recuerdo, la deliberación lee el aprecio y la venganza el agravio.
+
+        Revienta con `ValueError` si no están en el mismo sitio o si la
+        conversación ya acabó: el que llama tenía que haberlo comprobado, y
+        aplicarlo igual sería hablar a través de las paredes."""
+        quien = self.state.agents.get(speaker)
+        oyente = self.state.agents.get(listener)
+        if quien is None or oyente is None or quien.at != oyente.at or talk.over:
+            raise ValueError(f"{speaker} no puede hablar con {listener} ahora")
+        r = react(self.state, listener, speaker, act, about, talk)
+        tick = self.state.tick
+        evento = self.log.emit(
+            tick=tick,
+            kind=EventKind.SOCIAL_ACT,
+            actor=speaker,
+            place=oyente.at,
+            subject=listener,
+            data={"act": act.value, "regard": round(r.regard, 4),
+                  **({"about": str(about)} if about is not None else {})},
+        )
+        if r.regard != 0.0:
+            oyente.acercar(speaker, r.regard, tick)
+        if r.importance > 0.0:
+            self.state.memoria.remember(
+                listener, evento, r.importance, r.valence,
+                por_quien=speaker if r.valence < 0.0 else None,
+            )
+        talk.said[act] = talk.said.get(act, 0) + 1
+        talk.count += 1
+        talk.over = r.leaves
+        return r
 
     def _nacer(self, portador: AgentState, cond: Condicion) -> AgentId | None:
         """Nace alguien. **La segunda entidad que el motor crea en marcha, y la

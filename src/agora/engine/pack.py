@@ -48,6 +48,7 @@ from agora.engine.ontology import (
     RelationSpec,
     SituationId,
     SituationSpec,
+    SocialSpec,
     Spec,
     TraitId,
     TraitSpec,
@@ -115,6 +116,10 @@ class ContentPack(Spec):
     newcomer: NewcomerSpec | None = None
     """Con qué llega quien viene de fuera (unidad 10). `None` = la ficha del
     jugador tiene que decirlo todo. No lo lee la simulación."""
+
+    social: SocialSpec = Field(default_factory=SocialSpec)
+    """Cómo se habla en este mundo (unidad 15). Omitirlo usa los valores por
+    defecto. No lo lee la simulación: solo `Simulation.apply_social`."""
 
     # -------------------------------------------------------------------------
     # Índices.
@@ -298,6 +303,14 @@ class ContentPack(Spec):
             ),
             *self._unknown_keys("newcomer.traits", "rasgo", nuevo.traits, rasgos),
         ]
+
+    def _check_social(self) -> list[str]:
+        """Una errata aquí no rompería nada hasta que alguien cerrara una
+        conversación, y entonces rompería en mitad de la partida."""
+        accion = self.social.action
+        if accion is None or accion in {a.id for a in self.actions}:
+            return []
+        return [f"social.action: la acción «{accion}» no existe"]
 
     def _check_voice(self) -> list[str]:
         """Una errata aquí no rompe nada visible: el rasgo simplemente nunca se
@@ -1532,6 +1545,7 @@ class ContentPack(Spec):
             *self._check_trait_refs(),
             *self._check_voice(),
             *self._check_newcomer(),
+            *self._check_social(),
             *self._check_place_refs(),
             *self._check_phase_refs(),
             *self._check_relation_refs(),

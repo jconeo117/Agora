@@ -3604,6 +3604,89 @@ class Tone(StrEnum):
     AFRAID = "asustado"
 
 
+class SocialAct(StrEnum):
+    """Lo que alguien le hace a otro hablándole (unidad 15, D-164). Cerrado y
+    del motor, como `Tone`: la recepción tiene que saber qué es cada uno, y un
+    acto que inventara el pack no lo sabría recibir nadie. Lo que se dijo
+    exactamente lo pone la voz, y no se guarda.
+
+    `ASK`, `AFFIRM` y `LIE` se reconocen ya, pero no mueven nada hasta la 15b:
+    hace falta comparar lo afirmado con lo que el otro recuerda."""
+
+    GREET = "saludar"
+    CHAT = "charlar"
+    FLATTER = "halagar"
+    JOKE = "bromear"
+    COURT = "cortejar"
+    APOLOGIZE = "disculparse"
+    CONFESS = "confesar"
+    INSULT = "insultar"
+    THREATEN = "amenazar"
+    ASK = "preguntar"
+    AFFIRM = "afirmar"
+    LIE = "mentir"
+
+
+class SocialActSpec(Spec):
+    """Cuánto pesa un acto, antes de quién lo recibe. Calibración del mundo,
+    no del motor: en una corte un insulto pesa más que en un cuartel."""
+
+    regard: float = Field(ge=-1.0, le=1.0)
+    """Cuánto mueve el aprecio de quien lo recibe hacia quien habla, sobre la
+    escala de cada mundo (en `confluencia`, el p90 del aprecio es 0.10)."""
+    valence: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Cómo le sienta, para su memoria: lo negativo con nombre es agravio."""
+    importance: float = Field(default=0.0, ge=0.0, lt=1.0)
+    """Cuánto se le queda grabado. A cero, no lo recuerda."""
+
+
+def _default_social_acts() -> dict[SocialAct, SocialActSpec]:
+    """Medidos contra el aprecio de `confluencia` (p90 0.10, máximo 0.78) y el
+    umbral del tono hostil de la voz (-0.2): dos insultos seguidos lo cruzan,
+    un halago solo no hace amigos."""
+    return {
+        SocialAct.GREET: SocialActSpec(regard=0.01, valence=0.1, importance=0.05),
+        SocialAct.CHAT: SocialActSpec(regard=0.02, valence=0.2, importance=0.1),
+        SocialAct.FLATTER: SocialActSpec(regard=0.04, valence=0.3, importance=0.2),
+        SocialAct.JOKE: SocialActSpec(regard=0.03, valence=0.3, importance=0.15),
+        SocialAct.COURT: SocialActSpec(regard=0.05, valence=0.4, importance=0.3),
+        SocialAct.APOLOGIZE: SocialActSpec(regard=0.03, valence=0.2, importance=0.2),
+        SocialAct.CONFESS: SocialActSpec(regard=0.03, valence=0.2, importance=0.3),
+        SocialAct.INSULT: SocialActSpec(regard=-0.08, valence=-0.5, importance=0.4),
+        SocialAct.THREATEN: SocialActSpec(regard=-0.12, valence=-0.7, importance=0.6),
+        SocialAct.ASK: SocialActSpec(regard=0.0),
+        SocialAct.AFFIRM: SocialActSpec(regard=0.0),
+        SocialAct.LIE: SocialActSpec(regard=0.0),
+    }
+
+
+class SocialSpec(Spec):
+    """Cómo se habla en este mundo (unidad 15). Omitir la sección usa los
+    valores por defecto; lo único que el pack tiene que decir para que hablar
+    cueste tiempo es `action`."""
+
+    action: ActionId | None = None
+    """La acción que ocupa a quien conversa al cerrar la conversación («charlar»).
+    Sin ella, hablar es gratis: el mundo no sabe qué es conversar."""
+    max_acts: int = Field(default=6, ge=1)
+    """Tope de actos por conversación: después, el otro se despide."""
+    repeat_decay: float = Field(default=0.5, gt=0.0, le=1.0)
+    """Lo que vale repetir el mismo acto en la misma conversación, por vez:
+    el tercer halago seguido pesa un cuarto del primero."""
+    leave_below: float = Field(default=-0.3, ge=-1.0, le=0.0)
+    """Por debajo de este aprecio hacia quien le habla, el otro se va."""
+    acts: dict[SocialAct, SocialActSpec] = Field(default_factory=_default_social_acts)
+
+    @model_validator(mode="after")
+    def _all_acts(self) -> SocialSpec:
+        # Un pack que calibra solo los insultos no puede dejar sin peso el
+        # resto: se completa con los valores por defecto.
+        faltan = {k: v for k, v in _default_social_acts().items() if k not in self.acts}
+        if faltan:
+            object.__setattr__(self, "acts", {**faltan, **self.acts})
+        return self
+
+
 class VoiceSpec(Spec):
     """Lo que un mundo dice de su gente cuando habla (unidad 07).
 

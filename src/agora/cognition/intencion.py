@@ -269,7 +269,7 @@ def _representatives(menu: Menu) -> dict[str, tuple[int, str]]:
     return out
 
 
-def briefing(menu: Menu, prose: str) -> str:
+def briefing(menu: Menu, prose: str, template: str = PLANTILLA) -> str:
     lines = ["ACCIONES (id: etiqueta; cómo se pide):"]
     for aid, label, examples in menu.actions:
         lines.append(f"  {aid}: {label}" + (f"; {' / '.join(examples)}" if examples else ""))
@@ -297,15 +297,16 @@ def briefing(menu: Menu, prose: str) -> str:
     if menu.orders:
         lines.append("ÓRDENES: "
                      + "; ".join(f"{o.value} ({ORDER_HELP[o][0]})" for o in menu.orders))
-    return PLANTILLA.format(menu="\n".join(lines), prosa=prose)
+    return template.format(menu="\n".join(lines), prosa=prose)
 
 
 def interpret(
-    menu: Menu, prose: str, provider: CognitionProvider | None, seed: int
+    menu: Menu, prose: str, provider: CognitionProvider | None, seed: int,
+    template: str = PLANTILLA,
 ) -> Reading:
     if provider is None:
         return lexical(menu, prose)
-    out = provider.think(briefing(menu, prose), schema(menu), seed)
+    out = provider.think(briefing(menu, prose, template), schema(menu), seed)
     if not isinstance(out, BaseModel):
         return lexical(menu, prose)
     try:
