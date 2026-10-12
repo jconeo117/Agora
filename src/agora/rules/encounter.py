@@ -73,6 +73,11 @@ GONE = frozenset({Status.DEAD, Status.FLED, Status.SURRENDERED, Status.BROKEN})
 """Quien ya no está en la escena: ni actúa, ni se le ataca, ni se le remata."""
 
 
+BEAT_KINDS = frozenset({"quiebre", "reloj_de_muerte"})
+"""Los hechos de la escena que no son una acción elegida: los que pone `_beat`
+con un texto en vez de un `ActionKind`. Los lee el narrador (unidad 17)."""
+
+
 class ActionKind(StrEnum):
     ATTACK = "atacar"
     TOTAL_DEFENSE = "defensa_total"

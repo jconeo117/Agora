@@ -1,0 +1,9 @@
+# Lo que esta mesa acordó antes de jugar la isla (unidad 17, D-167). Es de la
+# mesa, no del mundo: cada grupo escribe el suyo y se pasa con --mesa.
+#
+# lines: no se narra; el motor lo simula igual, pero queda fuera de plano.
+# veils: se narra sin detalle.
+#
+# La isla genera sola muertes de adolescentes: por defecto, con velo.
+lines: []
+veils: [violencia, muerte]

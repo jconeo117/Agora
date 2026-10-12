@@ -14,6 +14,7 @@ una tecla; un falso sí puede costar la vida de alguien en la isla.
 from __future__ import annotations
 
 import json
+import re
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -22,6 +23,7 @@ from typing import Any
 
 from agora.agents.decide import options
 from agora.cognition.intencion import Kind, Menu, Reading, interpret, same_place
+from agora.cognition.narrador import Moment, moment_from_json, narrate
 from agora.engine.ontology import AgentId
 from agora.engine.pack import ContentPack
 from agora.engine.ports import CognitionProvider
@@ -146,3 +148,68 @@ def _describe(menu: Menu, r: Reading) -> str:
     if r.kind is Kind.ORDER and r.order is not None:
         return f"orden {r.order.value} {r.about or ''}".strip()
     return f"{r.kind.value} {[menu.entries[j].action for j in r.candidates]}"
+
+
+# --- El banco de narración (unidad 17) -------------------------------------------
+
+
+@dataclass
+class TellReport:
+    momentos: int = 0
+    del_modelo: int = 0
+    """Narraciones que contó un modelo de la cadena: válidas y sin nombres de
+    fuera del briefing (si no, las cuenta la plantilla y no suman aquí)."""
+    por_modelo: list[int] = field(default_factory=list)
+    hechos: int = 0
+    hechos_contados: int = 0
+    """Hechos cuyas personas aparecen en la prosa: si el narrador se come un
+    hecho, se come a quien lo protagoniza."""
+    tuyos: int = 0
+    tuyos_contados: int = 0
+    """Lo mismo, solo de los hechos del jugador: estos no se pueden resumir."""
+    latencias: list[float] = field(default_factory=list)
+    muestras: list[str] = field(default_factory=list)
+
+    def lines(self) -> list[str]:
+        n = max(self.momentos, 1)
+        lat = sorted(self.latencias) or [0.0]
+        return [
+            f"momentos     {self.momentos}",
+            f"del modelo   {self.del_modelo}/{self.momentos} (por modelo: {self.por_modelo})",
+            f"plantilla    {self.momentos - self.del_modelo}",
+            f"cobertura    {self.hechos_contados}/{self.hechos} hechos con nombre; "
+            f"tuyos {self.tuyos_contados}/{self.tuyos}",
+            f"latencia     p50 {lat[len(lat) // 2]:.2f} s, p90 {lat[int(len(lat) * 0.9)]:.2f} s, "
+            f"máx {lat[-1]:.2f} s ({100 * self.del_modelo // n} % del modelo)",
+        ]
+
+
+def load_moments(path: Path) -> list[Moment]:
+    return [moment_from_json(json.loads(linea))
+            for linea in path.read_text(encoding="utf-8").splitlines() if linea.strip()]
+
+
+def run_tell_bank(moments: Sequence[Moment], providers: Sequence[CognitionProvider]) -> TellReport:
+    informe = TellReport(por_modelo=[0] * len(providers))
+    for i, m in enumerate(moments):
+        t0 = time.perf_counter()
+        told = narrate(m, providers, 1000 + i)
+        informe.latencias.append(time.perf_counter() - t0)
+        informe.momentos += 1
+        if told.by is not None:
+            informe.del_modelo += 1
+            informe.por_modelo[told.by] += 1
+        for f in m.facts:
+            nombres = [n for n in f.names if n != m.player]
+            if nombres:
+                dicho = all(re.search(rf"\b{re.escape(n)}\b", told.text) for n in nombres)
+                informe.hechos += 1
+                informe.hechos_contados += dicho
+                informe.tuyos += f.mine
+                informe.tuyos_contados += f.mine and dicho
+        hechos = "\n".join(f"    {j}. {f.text}" for j, f in enumerate(m.facts, 1)) or (
+            f"    pregunta: {m.question}")
+        quien = "plantilla" if told.by is None else f"modelo {told.by}"
+        informe.muestras.append(f"## {i} · {m.kind.value} · {m.place} · {quien}\n{hechos}\n\n"
+                                f"> {told.text}\n")
+    return informe

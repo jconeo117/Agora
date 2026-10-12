@@ -16,7 +16,7 @@ from pathlib import Path
 import yaml
 from pydantic import Field, ValidationError, model_validator
 
-from agora.engine.ontology import Example, Spec
+from agora.engine.ontology import ContentTag, Example, NarrationSpec, Spec
 
 
 class RulesetError(ValueError):
@@ -123,15 +123,36 @@ class CombatSpec(Spec):
     """Cómo pediría un jugador cada acción de la escena, por su id (unidad 14).
     Es de la mesa y no del mundo: «me cubro» es defensa total en cualquier isla."""
 
+    narration: dict[str, NarrationSpec] = Field(default_factory=dict)
+    """Cómo se cuenta cada hecho de la escena (unidad 17), por `acción` o por
+    `acción.resultado` («atacar.failure»): el narrador recibe esto y no los
+    dados. Lo que no tenga entrada se cuenta con la etiqueta de la acción."""
+
+    content: dict[str, tuple[ContentTag, ...]] = Field(default_factory=dict)
+    """Qué hay en cada hecho de la escena que una mesa podría no querer ver
+    narrado, por acción («atacar: [violencia]»), para las líneas y los velos."""
+
     @model_validator(mode="after")
     def _examples_known(self) -> CombatSpec:
         # Import tardío: `encounter` importa este módulo.
-        from agora.rules.encounter import ActionKind
+        from agora.engine.ports import Outcome
+        from agora.rules.encounter import BEAT_KINDS, ActionKind
 
         conocidas = {k.value for k in ActionKind}
         sobran = sorted(k for k in self.examples if k not in conocidas)
         if sobran:
             raise ValueError(f"combat.examples: acciones que la escena no tiene: {sobran}")
+        resultados = {o.value for o in Outcome}
+        malas = sorted(
+            k for k in self.narration
+            if k.split(".")[0] not in conocidas | BEAT_KINDS
+            or (k.count(".") == 1 and k.split(".")[1] not in resultados) or k.count(".") > 1
+        )
+        if malas:
+            raise ValueError(f"combat.narration: claves que la escena no produce: {malas}")
+        sin_escena = sorted(k for k in self.content if k not in conocidas | BEAT_KINDS)
+        if sin_escena:
+            raise ValueError(f"combat.content: acciones que la escena no tiene: {sin_escena}")
         return self
 
 

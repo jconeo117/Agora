@@ -18,12 +18,14 @@ from __future__ import annotations
 
 import json
 import math
+import textwrap
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, TextIO
 
 from agora.agents.decide import Decision
 from agora.cognition.intencion import Entry, Kind, Menu, Order, interpret
+from agora.cognition.narrador import BeatView, Fact, Narrator, Table, Told, round_facts
 from agora.cognition.voz import hablar
 from agora.engine.consulta import ficha
 from agora.engine.events import EventKind
@@ -32,7 +34,7 @@ from agora.engine.ports import Outcome
 from agora.engine.render import render_event
 from agora.engine.state import AgentState, PerformingAction, Traveling, WorldState
 from agora.engine.world import Simulation
-from agora.rules.encounter import Action, ActionKind, Encounter, Fighter, Policy
+from agora.rules.encounter import Action, ActionKind, Beat, Encounter, Fighter, Policy
 
 if TYPE_CHECKING:
     from agora.engine.ports import CognitionProvider, DecisionSource
@@ -149,6 +151,32 @@ SIN_MODELO = "  (el intérprete no contestó: entiende el léxico)"
 le entiende peor. Sin esto, una API sin créditos pasaba por un léxico mudo."""
 
 
+SIN_NARRADOR = "  (el narrador no contestó: lo cuenta la plantilla)"
+
+
+def show(out: TextIO, told: Told, chain: bool) -> None:
+    """La prosa del narrador, a lo ancho de una terminal. `chain`: si había
+    algún modelo al que preguntar, para avisar cuando ninguno contestó."""
+    for linea in textwrap.wrap(told.text, width=88):
+        out.write(f"  {linea}\n")
+    if chain and told.by is None:
+        out.write(SIN_NARRADOR + "\n")
+    out.flush()
+
+
+def nearest_places(world: WorldState, options: Sequence[Decision]) -> dict[str, tuple[str, int]]:
+    """Acción -> el sitio más cercano donde el jugador sabe que puede hacerla:
+    lo que el narrador sabe para contestar «¿dónde hay agua?». Sale del menú,
+    con su percepción limitada, y no del mundo."""
+    pack = world.pack
+    out: dict[str, tuple[str, int]] = {}
+    for d in options:
+        label = pack.action_by_id[d.action].label
+        if label not in out or d.travel_ticks < out[label][1]:
+            out[label] = (pack.place_by_id[d.place].label, d.travel_ticks)
+    return out
+
+
 def world_menu(world: WorldState, options: Sequence[Decision]) -> Menu:
     """El menú de `options()` para el intérprete (unidad 14), en el mismo
     orden: la entrada i es la decisión i."""
@@ -200,6 +228,7 @@ class Terminal:
         provider: CognitionProvider | None = None,
         page: int = 12,
         interpreter: CognitionProvider | None = None,
+        narrator: Narrator | None = None,
     ) -> None:
         self.sim = sim
         self.inp = inp
@@ -210,6 +239,8 @@ class Terminal:
         """Quien entiende lo que escribes. Otro proveedor que la voz, aunque
         fuera el mismo modelo: nada de lo que se le pregunta a uno le llega al
         otro."""
+        self.narrator = narrator
+        """Quien cuenta lo que pasa (unidad 17). Sin él, el log de siempre."""
         self.page = page
         self.quit = False
         self._esperar = 0
@@ -232,6 +263,13 @@ class Terminal:
     def _novedades(self, agent: AgentState) -> None:
         """Lo que le ha pasado al jugador, o con él, desde la última vez."""
         world = self.sim.state
+        if self.narrator is not None:
+            nuevos = [e for e in self.sim.log if e.seq >= self._visto]
+            self._visto = self.sim.log.siguiente_seq
+            told = self.narrator.world(world, nuevos, str(agent.spec_id))
+            if told is not None:
+                show(self.out, told, bool(self.narrator.providers))
+            return
         for evento in self.sim.log:
             if evento.seq < self._visto:
                 continue
@@ -376,9 +414,25 @@ class Terminal:
                 if cual is None:
                     return False, None
                 return True, options[lectura.candidates[cual]]
+            case Kind.QUESTION if self.narrator is not None:
+                told = self.narrator.answer(world, str(agent.spec_id), texto,
+                                            nearest_places(world, options))
+                show(self.out, told, bool(self.narrator.providers))
+                return False, None
             case _:
                 self._decir("  no te entiendo: escribe lo que haces, o un número («ayuda»)")
                 return False, None
+
+    def farewell(self) -> None:
+        """Lo que pasó desde la última decisión hasta que el jugador murió: el
+        bucle se para sin volver a preguntarle, y sin esto nadie se lo contaba."""
+        if self.narrator is None or self.sim.state.player is None:
+            return
+        nuevos = [e for e in self.sim.log if e.seq >= self._visto]
+        self._visto = self.sim.log.siguiente_seq
+        told = self.narrator.world(self.sim.state, nuevos, str(self.sim.state.player))
+        if told is not None:
+            show(self.out, told, bool(self.narrator.providers))
 
     def interrupt(self, world: WorldState, agent: AgentState, need: NeedId) -> bool:
         """Se pregunta una vez por necesidad y ocupación: si dices que no, no
@@ -537,16 +591,57 @@ def legal_menu(
     )
 
 
+def scene_facts(
+    encounter: Encounter, me: Fighter, beats: Sequence[Beat], table: Table,
+) -> tuple[tuple[Fact, ...], tuple[str, ...], tuple[str, ...]]:
+    """Los hechos de unas rondas, el estado de cada combatiente y quién hay,
+    para el narrador. El daño, en bandas: el narrador no recita números."""
+    vistas = []
+    for i, b in enumerate(beats):
+        banda = ""
+        if b.damage and b.target is not None:
+            parte = b.damage / max(encounter.fighters[b.target].spec.vitality, 1)
+            banda = (", un roce" if parte < 0.2 else ", un buen golpe" if parte < 0.5
+                     else ", un golpe brutal")
+        kind = next((k for k in ActionKind if k.value == b.kind), None)
+        etiqueta = ETIQUETAS[kind].split(" {}")[0] if kind is not None else b.kind
+        vistas.append(BeatView(i, b.kind, b.actor, b.target,
+                               b.outcome.value if b.outcome else None, banda, etiqueta))
+
+    def name(f: str | None) -> str:
+        return "alguien" if f is None else encounter.fighters[f].spec.label.split(",")[0]
+
+    hechos = round_facts(vistas, me.id, name, encounter.combat.narration,
+                         encounter.combat.content, table)
+    estado = tuple(f"{'tú' if f.id == me.id else name(f.id)}: {_banda(f)}"
+                   for f in encounter.fighters.values())
+    presentes = tuple(name(f.id) for f in encounter.fighters.values() if f.id != me.id)
+    return hechos, estado, presentes
+
+
+def _banda(f: Fighter) -> str:
+    """Cómo está alguien en la escena, sin números: lo que se ve."""
+    parte = f.vitality / max(f.spec.vitality, 1)
+    salud = ("ileso" if parte >= 0.99 else "herido" if parte > 0.5
+             else "malherido" if parte > 0 else "sin fuerzas")
+    return f"{salud}, {f.status.value}"
+
+
 class TerminalCombat:
     """El jugador dentro de una escena: ve cómo va, elige por número o lo
     escribe, y contesta a las preguntas que la escena le hace (resistir,
     rematar, perseguir), que siguen siendo de sí o no."""
 
     def __init__(self, inp: TextIO, out: TextIO,
-                 interpreter: CognitionProvider | None = None) -> None:
+                 interpreter: CognitionProvider | None = None,
+                 narrator: Narrator | None = None,
+                 world: Callable[[], WorldState] | None = None) -> None:
         self.inp = inp
         self.out = out
         self.interpreter = interpreter
+        self.narrator = narrator
+        self.world = world
+        """El mundo de ahora, para el narrador: la escena no lo conoce."""
         self._visto: dict[str, int] = {}
 
     def _decir(self, texto: str) -> None:
@@ -562,8 +657,12 @@ class TerminalCombat:
     def _nombre(self, encounter: Encounter, quien: str | None) -> str:
         return "?" if quien is None else encounter.fighters[quien].spec.label
 
-    def _novedades(self, encounter: Encounter) -> None:
+    def _novedades(self, encounter: Encounter, me: Fighter | None = None) -> None:
         visto = self._visto.get(encounter.id, 0)
+        if self.narrator is not None and self.world is not None and me is not None:
+            self._contar(encounter, me, encounter.beats[visto:])
+            self._visto[encounter.id] = len(encounter.beats)
+            return
         for b in encounter.beats[visto:]:
             a_quien = f" a {self._nombre(encounter, b.target)}" if b.target else ""
             que = f" → {b.outcome.value}" if b.outcome else ""
@@ -573,12 +672,21 @@ class TerminalCombat:
             self._decir(f"  r{b.round} {quien}: {b.kind}{a_quien}{que}{dano}{nota}")
         self._visto[encounter.id] = len(encounter.beats)
 
+    def _contar(self, encounter: Encounter, me: Fighter, beats: Sequence[Beat]) -> None:
+        assert self.narrator is not None and self.world is not None
+        world = self.world()
+        hechos, estado, presentes = scene_facts(encounter, me, beats, self.narrator.table)
+        told = self.narrator.round(world, me.id, hechos, estado, presentes,
+                                   f"{encounter.id}:{encounter.round}")
+        if told is not None:
+            show(self.out, told, bool(self.narrator.providers))
+
     def report(self, lines: tuple[str, ...]) -> None:
         if lines:
             self._decir(lines[-1])
 
     def choose(self, encounter: Encounter, me: Fighter) -> Action:
-        self._novedades(encounter)
+        self._novedades(encounter, me)
         for f in encounter.fighters.values():
             self._decir(f"    {f.spec.label:<24} {f.vitality:>3}/{f.spec.vitality} PV"
                         f"  fatiga {f.fatigue}/{f.spec.fatigue}  estrés {f.stress}/{f.spec.stress}"
@@ -632,13 +740,13 @@ class TerminalCombat:
                 return None
 
     def resists(self, encounter: Encounter, me: Fighter, hit: int, outcome: Outcome) -> bool:
-        self._novedades(encounter)
+        self._novedades(encounter, me)
         return self._si(f"  te alcanza un golpe de {hit}. ¿Lo resistes (cuesta estrés)?", False)
 
     def finishes(self, encounter: Encounter, me: Fighter, fallen: Fighter) -> bool:
-        self._novedades(encounter)
+        self._novedades(encounter, me)
         return self._si(f"  {fallen.spec.label} está en el suelo. ¿Le rematas?", False)
 
     def pursues(self, encounter: Encounter, me: Fighter, fleer: Fighter) -> bool:
-        self._novedades(encounter)
+        self._novedades(encounter, me)
         return self._si(f"  {fleer.spec.label} intenta huir. ¿Le persigues?", True)

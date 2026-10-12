@@ -222,6 +222,9 @@ actions:
   - duermo a cubierto
   - busco refugio para pasar la noche
   - me acuesto bajo techo
+  narration:
+    you: duermes a cubierto
+    them: '{a} duerme a cubierto'
 - id: dormir_al_raso
   label: dormir al raso
   duration_ticks: 16
@@ -238,6 +241,9 @@ actions:
   - me echo a dormir aquí
   - duermo al aire libre
   - echo una cabezada
+  narration:
+    you: duermes al raso
+    them: '{a} duerme al raso'
 - id: beber
   label: beber
   duration_ticks: 2
@@ -250,6 +256,9 @@ actions:
   - bebo
   - tengo sed
   - relleno la cantimplora
+  narration:
+    you: bebes
+    them: '{a} bebe'
 - id: recolectar
   label: buscar comida
   duration_ticks: 8
@@ -268,6 +277,9 @@ actions:
   - recojo frutos y raíces
   - cazo algo
   - pesco
+  narration:
+    you: buscas algo que comer
+    them: '{a} busca algo que comer'
 - id: comer
   label: comer de lo que lleva
   duration_ticks: 2
@@ -284,6 +296,9 @@ actions:
   - como algo
   - saco comida de la mochila
   - tengo hambre
+  narration:
+    you: comes de lo que llevas
+    them: '{a} come de lo que lleva'
 - id: saquear_cornucopia
   label: saquear la cornucopia
   duration_ticks: 4
@@ -299,6 +314,9 @@ actions:
   - cojo lo que pueda de la cornucopia
   - voy a por las armas
   - saqueo las provisiones del cuerno
+  narration:
+    you: rebuscas en las cajas de la cornucopia
+    them: '{a} rebusca en las cajas de la cornucopia'
 - id: rebuscar
   label: rebuscar entre los escombros
   duration_ticks: 6
@@ -314,6 +332,9 @@ actions:
   - rebusco entre los escombros
   - registro las ruinas
   - busco algo útil
+  narration:
+    you: rebuscas entre los escombros
+    them: '{a} rebusca entre los escombros'
 - id: esconderse
   label: esconderse
   duration_ticks: 12
@@ -327,6 +348,9 @@ actions:
   - me escondo
   - me oculto
   - me pongo a cubierto sin que me vean
+  narration:
+    you: te escondes
+    them: '{a} se esconde'
 - id: vigilar
   label: vigilar desde lo alto
   duration_ticks: 6
@@ -343,6 +367,9 @@ actions:
   - vigilo
   - subo a un sitio alto a otear
   - monto guardia
+  narration:
+    you: vigilas desde lo alto
+    them: '{a} vigila desde lo alto'
 - id: aliarse
   label: aliarse
   duration_ticks: 4
@@ -362,6 +389,10 @@ actions:
   - me alío con
   - le propongo ir juntos
   - hago un pacto con
+  narration:
+    you: haces un pacto con {o}
+    them: '{a} pacta con {o}'
+    at_you: '{a} te propone un pacto'
 - id: atacar
   label: atacar
   duration_ticks: 3
@@ -393,6 +424,12 @@ actions:
   - le pego
   - me lanzo contra
   - peleo con
+  narration:
+    you: atacas a {o}
+    them: '{a} ataca a {o}'
+    at_you: '{a} te ataca'
+  content:
+  - violencia
 - id: atacar_con_sana
   label: atacar con saña
   duration_ticks: 3
@@ -425,6 +462,12 @@ actions:
   - le ataco sin piedad
   - voy a por todas contra
   - le doy con toda mi rabia
+  narration:
+    you: te lanzas sin piedad contra {o}
+    them: '{a} se lanza sin piedad contra {o}'
+    at_you: '{a} se lanza sin piedad contra ti'
+  content:
+  - violencia
 - id: golpe_mortal
   label: rematar a un herido
   duration_ticks: 2
@@ -450,6 +493,13 @@ actions:
   - acabo con
   - le doy el golpe de gracia
   - mato al herido
+  narration:
+    you: rematas a {o}, que estaba herido
+    them: '{a} remata a {o}, que estaba herido'
+    at_you: '{a} va a rematarte'
+  content:
+  - violencia
+  - muerte
 - id: saquear
   label: saquear a un herido
   duration_ticks: 3
@@ -468,6 +518,12 @@ actions:
   - le registro
   - le quito sus cosas
   - le robo al herido
+  narration:
+    you: le quitas lo que lleva a {o}, herido
+    them: '{a} le quita lo que lleva a {o}, herido'
+    at_you: '{a} te quita lo que llevas'
+  content:
+  - violencia
 - id: curarse
   label: curarse las heridas
   duration_ticks: 8
@@ -486,6 +542,9 @@ actions:
   - me curo
   - me vendo las heridas
   - me limpio la herida
+  narration:
+    you: te curas las heridas
+    them: '{a} se cura las heridas'
 - id: socorrer
   label: socorrer a un aliado
   duration_ticks: 6
@@ -506,6 +565,10 @@ actions:
   - ayudo a
   - curo las heridas de
   - socorro a
+  narration:
+    you: curas las heridas de {o}
+    them: '{a} cura las heridas de {o}'
+    at_you: '{a} te cura las heridas'
 relations:
 - id: del_distrito
   label: del mismo distrito
@@ -515,6 +578,7 @@ relations:
 places:
 - id: cornucopia
   label: la cornucopia
+  description: Un cuerno de metal enorme junto a un lago, rodeado de cajas y mochilas.
   affordances:
   - botin
   - aire
@@ -540,6 +604,7 @@ places:
   - aire
   tags:
   - pedestal
+  description: Una plataforma de metal a unos pasos de la cornucopia, sobre hierba pisoteada.
   neighbors:
     cornucopia: 1
     selva_1_0: 2
@@ -549,6 +614,7 @@ places:
   - aire
   tags:
   - pedestal
+  description: Una plataforma de metal a unos pasos de la cornucopia, sobre hierba pisoteada.
   neighbors:
     cornucopia: 1
     selva_1_1: 2
@@ -558,6 +624,7 @@ places:
   - aire
   tags:
   - pedestal
+  description: Una plataforma de metal a unos pasos de la cornucopia, sobre hierba pisoteada.
   neighbors:
     cornucopia: 1
     selva_1_2: 2
@@ -567,6 +634,7 @@ places:
   - aire
   tags:
   - pedestal
+  description: Una plataforma de metal a unos pasos de la cornucopia, sobre hierba pisoteada.
   neighbors:
     cornucopia: 1
     montana_1_3: 2
@@ -576,6 +644,7 @@ places:
   - aire
   tags:
   - pedestal
+  description: Una plataforma de metal a unos pasos de la cornucopia, sobre hierba pisoteada.
   neighbors:
     cornucopia: 1
     montana_1_0: 2
@@ -585,6 +654,7 @@ places:
   - aire
   tags:
   - pedestal
+  description: Una plataforma de metal a unos pasos de la cornucopia, sobre hierba pisoteada.
   neighbors:
     cornucopia: 1
     playa_1_1: 2
@@ -594,6 +664,7 @@ places:
   - aire
   tags:
   - pedestal
+  description: Una plataforma de metal a unos pasos de la cornucopia, sobre hierba pisoteada.
   neighbors:
     cornucopia: 1
     playa_1_2: 2
@@ -603,6 +674,7 @@ places:
   - aire
   tags:
   - pedestal
+  description: Una plataforma de metal a unos pasos de la cornucopia, sobre hierba pisoteada.
   neighbors:
     cornucopia: 1
     playa_1_3: 2
@@ -612,6 +684,7 @@ places:
   - aire
   tags:
   - pedestal
+  description: Una plataforma de metal a unos pasos de la cornucopia, sobre hierba pisoteada.
   neighbors:
     cienaga_1_0: 2
     cornucopia: 1
@@ -621,6 +694,7 @@ places:
   - aire
   tags:
   - pedestal
+  description: Una plataforma de metal a unos pasos de la cornucopia, sobre hierba pisoteada.
   neighbors:
     cienaga_1_1: 2
     cornucopia: 1
@@ -630,6 +704,7 @@ places:
   - aire
   tags:
   - pedestal
+  description: Una plataforma de metal a unos pasos de la cornucopia, sobre hierba pisoteada.
   neighbors:
     cornucopia: 1
     ruinas_1_2: 2
@@ -639,11 +714,13 @@ places:
   - aire
   tags:
   - pedestal
+  description: Una plataforma de metal a unos pasos de la cornucopia, sobre hierba pisoteada.
   neighbors:
     cornucopia: 1
     ruinas_1_3: 2
 - id: selva_1_0
   label: claro (la selva, interior)
+  description: Un hueco en la selva donde entra el sol de lleno; la hierba llega a la rodilla.
   affordances:
   - agua
   - forraje
@@ -660,6 +737,7 @@ places:
   - zona_1
 - id: selva_1_1
   label: arroyo (la selva, interior)
+  description: Un cauce de piedras con musgo; se oye agua cerca.
   affordances:
   - escondite
   - refugio
@@ -675,6 +753,7 @@ places:
   - zona_1
 - id: selva_1_2
   label: matorral (la selva, interior)
+  description: Arbustos espinosos y densos que arañan al pasar.
   affordances:
   - forraje
   - escondite
@@ -691,6 +770,7 @@ places:
   - zona_1
 - id: selva_1_3
   label: ceiba (la selva, interior)
+  description: Un árbol enorme con raíces como paredes; a su sombra no crece nada.
   affordances:
   - forraje
   - aire
@@ -705,6 +785,7 @@ places:
   - zona_1
 - id: selva_2_0
   label: arroyo (la selva, media)
+  description: Un cauce de piedras con musgo; se oye agua cerca.
   affordances:
   - forraje
   - escondite
@@ -721,6 +802,7 @@ places:
   - zona_2
 - id: selva_2_1
   label: matorral (la selva, media)
+  description: Arbustos espinosos y densos que arañan al pasar.
   affordances:
   - forraje
   - aire
@@ -736,6 +818,7 @@ places:
   - zona_2
 - id: selva_2_2
   label: ceiba (la selva, media)
+  description: Un árbol enorme con raíces como paredes; a su sombra no crece nada.
   affordances:
   - agua
   - forraje
@@ -751,6 +834,7 @@ places:
   - zona_2
 - id: selva_2_3
   label: helechal (la selva, media)
+  description: Helechos más altos que una persona, mojados de rocío.
   affordances:
   - escondite
   - refugio
@@ -767,6 +851,7 @@ places:
   - zona_2
 - id: selva_2_4
   label: barranco (la selva, media)
+  description: Una grieta de tierra roja con las paredes cubiertas de raíces.
   affordances:
   - forraje
   - escondite
@@ -782,6 +867,7 @@ places:
   - zona_2
 - id: selva_2_5
   label: lianas (la selva, media)
+  description: Cortinas de lianas que cuelgan de las copas y se mueven sin viento.
   affordances:
   - forraje
   - aire
@@ -797,6 +883,7 @@ places:
   - zona_2
 - id: selva_3_0
   label: matorral (la selva, costa)
+  description: Arbustos espinosos y densos que arañan al pasar.
   affordances:
   - agua
   - forraje
@@ -811,6 +898,7 @@ places:
   - zona_3
 - id: selva_3_1
   label: ceiba (la selva, costa)
+  description: Un árbol enorme con raíces como paredes; a su sombra no crece nada.
   affordances:
   - escondite
   - refugio
@@ -825,6 +913,7 @@ places:
   - zona_3
 - id: selva_3_2
   label: helechal (la selva, costa)
+  description: Helechos más altos que una persona, mojados de rocío.
   affordances:
   - forraje
   - escondite
@@ -839,6 +928,7 @@ places:
   - zona_3
 - id: selva_3_3
   label: barranco (la selva, costa)
+  description: Una grieta de tierra roja con las paredes cubiertas de raíces.
   affordances:
   - forraje
   - aire
@@ -853,6 +943,7 @@ places:
   - zona_3
 - id: selva_3_4
   label: lianas (la selva, costa)
+  description: Cortinas de lianas que cuelgan de las copas y se mueven sin viento.
   affordances:
   - agua
   - forraje
@@ -867,6 +958,7 @@ places:
   - zona_3
 - id: selva_3_5
   label: espesura (la selva, costa)
+  description: Árboles muy juntos y una penumbra húmeda que huele a hoja podrida.
   affordances:
   - escondite
   - refugio
@@ -881,6 +973,7 @@ places:
   - zona_3
 - id: selva_3_6
   label: claro (la selva, costa)
+  description: Un hueco en la selva donde entra el sol de lleno; la hierba llega a la rodilla.
   affordances:
   - forraje
   - escondite
@@ -895,6 +988,7 @@ places:
   - zona_3
 - id: selva_3_7
   label: arroyo (la selva, costa)
+  description: Un cauce de piedras con musgo; se oye agua cerca.
   affordances:
   - forraje
   - aire
@@ -909,6 +1003,7 @@ places:
   - zona_3
 - id: montana_1_0
   label: manantial (la montaña, interior)
+  description: Rocas lisas y verdes, y el rumor de agua bajo la piedra.
   affordances:
   - vigia
   tags:
@@ -924,6 +1019,7 @@ places:
   - zona_1
 - id: montana_1_1
   label: risco (la montaña, interior)
+  description: Una cornisa de piedra desde la que se ve media isla.
   affordances:
   - vigia
   - escondite
@@ -938,6 +1034,7 @@ places:
   - zona_1
 - id: montana_1_2
   label: paso (la montaña, interior)
+  description: Un sendero estrecho entre dos paredes de roca.
   affordances:
   - refugio
   - escondite
@@ -953,6 +1050,7 @@ places:
   - zona_1
 - id: montana_1_3
   label: canchal (la montaña, interior)
+  description: Piedra suelta que resbala a cada paso.
   affordances:
   - agua
   tags:
@@ -967,6 +1065,7 @@ places:
   - zona_1
 - id: montana_2_0
   label: risco (la montaña, media)
+  description: Una cornisa de piedra desde la que se ve media isla.
   affordances:
   - refugio
   - escondite
@@ -983,6 +1082,7 @@ places:
   - zona_2
 - id: montana_2_1
   label: paso (la montaña, media)
+  description: Un sendero estrecho entre dos paredes de roca.
   affordances:
   - agua
   tags:
@@ -997,6 +1097,7 @@ places:
   - zona_2
 - id: montana_2_2
   label: canchal (la montaña, media)
+  description: Piedra suelta que resbala a cada paso.
   affordances:
   - vigia
   tags:
@@ -1011,6 +1112,7 @@ places:
   - zona_2
 - id: montana_2_3
   label: cornisa (la montaña, media)
+  description: Un saliente de roca sobre el vacío, barrido por el viento.
   affordances:
   - vigia
   - escondite
@@ -1027,6 +1129,7 @@ places:
   - zona_2
 - id: montana_2_4
   label: grieta (la montaña, media)
+  description: Una hendidura en la montaña donde apenas cabe un cuerpo.
   affordances:
   - refugio
   - escondite
@@ -1042,6 +1145,7 @@ places:
   - zona_2
 - id: montana_2_5
   label: cumbre (la montaña, media)
+  description: La cima pelada; el viento no para y todo queda abajo.
   affordances:
   - agua
   tags:
@@ -1056,6 +1160,7 @@ places:
   - zona_2
 - id: montana_3_0
   label: paso (la montaña, costa)
+  description: Un sendero estrecho entre dos paredes de roca.
   affordances:
   - vigia
   tags:
@@ -1069,6 +1174,7 @@ places:
   - zona_3
 - id: montana_3_1
   label: canchal (la montaña, costa)
+  description: Piedra suelta que resbala a cada paso.
   affordances:
   - vigia
   - escondite
@@ -1083,6 +1189,7 @@ places:
   - zona_3
 - id: montana_3_2
   label: cornisa (la montaña, costa)
+  description: Un saliente de roca sobre el vacío, barrido por el viento.
   affordances:
   - refugio
   - escondite
@@ -1097,6 +1204,7 @@ places:
   - zona_3
 - id: montana_3_3
   label: grieta (la montaña, costa)
+  description: Una hendidura en la montaña donde apenas cabe un cuerpo.
   affordances:
   - agua
   tags:
@@ -1110,6 +1218,7 @@ places:
   - zona_3
 - id: montana_3_4
   label: cumbre (la montaña, costa)
+  description: La cima pelada; el viento no para y todo queda abajo.
   affordances:
   - vigia
   tags:
@@ -1123,6 +1232,7 @@ places:
   - zona_3
 - id: montana_3_5
   label: cueva (la montaña, costa)
+  description: Una boca oscura en la ladera; dentro, el aire es frío y quieto.
   affordances:
   - vigia
   - escondite
@@ -1137,6 +1247,7 @@ places:
   - zona_3
 - id: montana_3_6
   label: manantial (la montaña, costa)
+  description: Rocas lisas y verdes, y el rumor de agua bajo la piedra.
   affordances:
   - refugio
   - escondite
@@ -1151,6 +1262,7 @@ places:
   - zona_3
 - id: montana_3_7
   label: risco (la montaña, costa)
+  description: Una cornisa de piedra desde la que se ve media isla.
   affordances:
   - agua
   tags:
@@ -1164,6 +1276,7 @@ places:
   - zona_3
 - id: playa_1_0
   label: dunas (la playa, interior)
+  description: Montes de arena blanda que cambian de forma con el viento.
   affordances:
   - forraje
   - aire
@@ -1179,6 +1292,7 @@ places:
   - zona_1
 - id: playa_1_1
   label: rompiente (la playa, interior)
+  description: Las olas revientan contra rocas negras; el ruido lo tapa todo.
   affordances:
   - agua
   - escondite
@@ -1194,6 +1308,7 @@ places:
   - zona_1
 - id: playa_1_2
   label: manglar (la playa, interior)
+  description: Raíces retorcidas sobre agua salobre, sombra y mosquitos.
   affordances:
   - refugio
   tags:
@@ -1209,6 +1324,7 @@ places:
   - zona_1
 - id: playa_1_3
   label: arrecife (la playa, interior)
+  description: Roca y coral a ras de agua, cortantes bajo los pies.
   affordances:
   - forraje
   tags:
@@ -1223,6 +1339,7 @@ places:
   - zona_1
 - id: playa_2_0
   label: rompiente (la playa, media)
+  description: Las olas revientan contra rocas negras; el ruido lo tapa todo.
   affordances:
   - refugio
   tags:
@@ -1238,6 +1355,7 @@ places:
   - zona_2
 - id: playa_2_1
   label: manglar (la playa, media)
+  description: Raíces retorcidas sobre agua salobre, sombra y mosquitos.
   affordances:
   - forraje
   tags:
@@ -1252,6 +1370,7 @@ places:
   - zona_2
 - id: playa_2_2
   label: arrecife (la playa, media)
+  description: Roca y coral a ras de agua, cortantes bajo los pies.
   affordances:
   - forraje
   - aire
@@ -1267,6 +1386,7 @@ places:
   - zona_2
 - id: playa_2_3
   label: faro (la playa, media)
+  description: Una torre blanca sin luz, con la puerta arrancada.
   affordances:
   - agua
   - escondite
@@ -1283,6 +1403,7 @@ places:
   - zona_2
 - id: playa_2_4
   label: muelle roto (la playa, media)
+  description: Tablones podridos que se adentran en el mar y se acaban de golpe.
   affordances:
   - refugio
   tags:
@@ -1297,6 +1418,7 @@ places:
   - zona_2
 - id: playa_2_5
   label: naufragio (la playa, media)
+  description: El casco de un barco varado, medio enterrado en la arena.
   affordances:
   - forraje
   tags:
@@ -1311,6 +1433,7 @@ places:
   - zona_2
 - id: playa_3_0
   label: manglar (la playa, costa)
+  description: Raíces retorcidas sobre agua salobre, sombra y mosquitos.
   affordances:
   - forraje
   - aire
@@ -1325,6 +1448,7 @@ places:
   - zona_3
 - id: playa_3_1
   label: arrecife (la playa, costa)
+  description: Roca y coral a ras de agua, cortantes bajo los pies.
   affordances:
   - agua
   - escondite
@@ -1339,6 +1463,7 @@ places:
   - zona_3
 - id: playa_3_2
   label: faro (la playa, costa)
+  description: Una torre blanca sin luz, con la puerta arrancada.
   affordances:
   - refugio
   tags:
@@ -1352,6 +1477,7 @@ places:
   - zona_3
 - id: playa_3_3
   label: muelle roto (la playa, costa)
+  description: Tablones podridos que se adentran en el mar y se acaban de golpe.
   affordances:
   - forraje
   tags:
@@ -1365,6 +1491,7 @@ places:
   - zona_3
 - id: playa_3_4
   label: naufragio (la playa, costa)
+  description: El casco de un barco varado, medio enterrado en la arena.
   affordances:
   - forraje
   - aire
@@ -1379,6 +1506,7 @@ places:
   - zona_3
 - id: playa_3_5
   label: cala (la playa, costa)
+  description: Una ensenada pequeña entre rocas, con arena gris.
   affordances:
   - agua
   - escondite
@@ -1393,6 +1521,7 @@ places:
   - zona_3
 - id: playa_3_6
   label: dunas (la playa, costa)
+  description: Montes de arena blanda que cambian de forma con el viento.
   affordances:
   - refugio
   tags:
@@ -1406,6 +1535,7 @@ places:
   - zona_3
 - id: playa_3_7
   label: rompiente (la playa, costa)
+  description: Las olas revientan contra rocas negras; el ruido lo tapa todo.
   affordances:
   - forraje
   tags:
@@ -1419,6 +1549,7 @@ places:
   - zona_3
 - id: cienaga_1_0
   label: charca (la ciénaga, interior)
+  description: Agua quieta entre el barro; el suelo cede bajo los pies.
   affordances:
   - refugio
   - escondite
@@ -1435,6 +1566,7 @@ places:
   - zona_1
 - id: cienaga_1_1
   label: isleta (la ciénaga, interior)
+  description: Un montículo de tierra firme rodeado de fango.
   affordances:
   - forraje
   tags:
@@ -1449,6 +1581,7 @@ places:
   - zona_1
 - id: cienaga_1_2
   label: niebla (la ciénaga, interior)
+  description: Una bruma espesa que no deja ver a cinco pasos.
   affordances:
   - escondite
   tags:
@@ -1463,6 +1596,7 @@ places:
   - zona_1
 - id: cienaga_1_3
   label: pantano (la ciénaga, interior)
+  description: Agua negra y árboles muertos; burbujea de vez en cuando.
   affordances:
   - agua
   tags:
@@ -1476,6 +1610,7 @@ places:
   - zona_1
 - id: cienaga_2_0
   label: isleta (la ciénaga, media)
+  description: Un montículo de tierra firme rodeado de fango.
   affordances:
   - escondite
   tags:
@@ -1491,6 +1626,7 @@ places:
   - zona_2
 - id: cienaga_2_1
   label: niebla (la ciénaga, media)
+  description: Una bruma espesa que no deja ver a cinco pasos.
   affordances:
   - agua
   tags:
@@ -1505,6 +1641,7 @@ places:
   - zona_2
 - id: cienaga_2_2
   label: pantano (la ciénaga, media)
+  description: Agua negra y árboles muertos; burbujea de vez en cuando.
   affordances:
   - refugio
   - escondite
@@ -1520,6 +1657,7 @@ places:
   - zona_2
 - id: cienaga_2_3
   label: turbera (la ciénaga, media)
+  description: Tierra esponjosa y oscura que huele a humo viejo.
   affordances:
   - forraje
   tags:
@@ -1535,6 +1673,7 @@ places:
   - zona_2
 - id: cienaga_2_4
   label: carrizal (la ciénaga, media)
+  description: Cañas secas que crujen con cualquier movimiento.
   affordances:
   - escondite
   tags:
@@ -1549,6 +1688,7 @@ places:
   - zona_2
 - id: cienaga_2_5
   label: cieno (la ciénaga, media)
+  description: Lodo hasta los tobillos, y un olor dulzón a podrido.
   affordances:
   - agua
   tags:
@@ -1563,6 +1703,7 @@ places:
   - zona_2
 - id: cienaga_3_0
   label: niebla (la ciénaga, costa)
+  description: Una bruma espesa que no deja ver a cinco pasos.
   affordances:
   - refugio
   - escondite
@@ -1577,6 +1718,7 @@ places:
   - zona_3
 - id: cienaga_3_1
   label: pantano (la ciénaga, costa)
+  description: Agua negra y árboles muertos; burbujea de vez en cuando.
   affordances:
   - forraje
   tags:
@@ -1590,6 +1732,7 @@ places:
   - zona_3
 - id: cienaga_3_2
   label: turbera (la ciénaga, costa)
+  description: Tierra esponjosa y oscura que huele a humo viejo.
   affordances:
   - escondite
   tags:
@@ -1603,6 +1746,7 @@ places:
   - zona_3
 - id: cienaga_3_3
   label: carrizal (la ciénaga, costa)
+  description: Cañas secas que crujen con cualquier movimiento.
   affordances:
   - agua
   tags:
@@ -1616,6 +1760,7 @@ places:
   - zona_3
 - id: cienaga_3_4
   label: cieno (la ciénaga, costa)
+  description: Lodo hasta los tobillos, y un olor dulzón a podrido.
   affordances:
   - refugio
   - escondite
@@ -1630,6 +1775,7 @@ places:
   - zona_3
 - id: cienaga_3_5
   label: juncal (la ciénaga, costa)
+  description: Juncos más altos que una persona, que se cierran detrás de ti.
   affordances:
   - forraje
   tags:
@@ -1643,6 +1789,7 @@ places:
   - zona_3
 - id: cienaga_3_6
   label: charca (la ciénaga, costa)
+  description: Agua quieta entre el barro; el suelo cede bajo los pies.
   affordances:
   - escondite
   tags:
@@ -1656,6 +1803,7 @@ places:
   - zona_3
 - id: cienaga_3_7
   label: isleta (la ciénaga, costa)
+  description: Un montículo de tierra firme rodeado de fango.
   affordances:
   - agua
   tags:
@@ -1669,6 +1817,7 @@ places:
   - zona_3
 - id: ruinas_1_0
   label: torre (las ruinas, interior)
+  description: Una torre de piedra sin tejado, con escaleras que suben a medias.
   affordances:
   - refugio
   - escondite
@@ -1684,6 +1833,7 @@ places:
   - zona_1
 - id: ruinas_1_1
   label: sotano (las ruinas, interior)
+  description: Un hueco bajo las ruinas, oscuro y con eco.
   affordances:
   - agua
   tags:
@@ -1697,6 +1847,7 @@ places:
   - zona_1
 - id: ruinas_1_2
   label: pozo (las ruinas, interior)
+  description: Un brocal de piedra entre muros caídos.
   affordances:
   - botin_menor
   tags:
@@ -1712,6 +1863,7 @@ places:
   - zona_1
 - id: ruinas_1_3
   label: templo caido (las ruinas, interior)
+  description: Columnas derribadas y un tejado a medias que aún da sombra.
   affordances:
   - vigia
   tags:
@@ -1726,6 +1878,7 @@ places:
   - zona_1
 - id: ruinas_2_0
   label: sotano (las ruinas, media)
+  description: Un hueco bajo las ruinas, oscuro y con eco.
   affordances:
   - botin_menor
   tags:
@@ -1741,6 +1894,7 @@ places:
   - zona_2
 - id: ruinas_2_1
   label: pozo (las ruinas, media)
+  description: Un brocal de piedra entre muros caídos.
   affordances:
   - vigia
   tags:
@@ -1755,6 +1909,7 @@ places:
   - zona_2
 - id: ruinas_2_2
   label: templo caido (las ruinas, media)
+  description: Columnas derribadas y un tejado a medias que aún da sombra.
   affordances:
   - refugio
   - escondite
@@ -1770,6 +1925,7 @@ places:
   - zona_2
 - id: ruinas_2_3
   label: muralla (las ruinas, media)
+  description: Un lienzo de muralla en pie, con huecos donde faltan piedras.
   affordances:
   - agua
   tags:
@@ -1785,6 +1941,7 @@ places:
   - zona_2
 - id: ruinas_2_4
   label: almacen (las ruinas, media)
+  description: Estanterías vencidas y cajas reventadas por el tiempo.
   affordances:
   - botin_menor
   tags:
@@ -1799,6 +1956,7 @@ places:
   - zona_2
 - id: ruinas_2_5
   label: cripta (las ruinas, media)
+  description: Nichos vacíos en la pared y un frío que no se va.
   affordances:
   - vigia
   tags:
@@ -1813,6 +1971,7 @@ places:
   - zona_2
 - id: ruinas_3_0
   label: pozo (las ruinas, costa)
+  description: Un brocal de piedra entre muros caídos.
   affordances:
   - refugio
   - escondite
@@ -1827,6 +1986,7 @@ places:
   - zona_3
 - id: ruinas_3_1
   label: templo caido (las ruinas, costa)
+  description: Columnas derribadas y un tejado a medias que aún da sombra.
   affordances:
   - agua
   tags:
@@ -1840,6 +2000,7 @@ places:
   - zona_3
 - id: ruinas_3_2
   label: muralla (las ruinas, costa)
+  description: Un lienzo de muralla en pie, con huecos donde faltan piedras.
   affordances:
   - botin_menor
   tags:
@@ -1853,6 +2014,7 @@ places:
   - zona_3
 - id: ruinas_3_3
   label: almacen (las ruinas, costa)
+  description: Estanterías vencidas y cajas reventadas por el tiempo.
   affordances:
   - vigia
   tags:
@@ -1866,6 +2028,7 @@ places:
   - zona_3
 - id: ruinas_3_4
   label: cripta (las ruinas, costa)
+  description: Nichos vacíos en la pared y un frío que no se va.
   affordances:
   - refugio
   - escondite
@@ -1880,6 +2043,7 @@ places:
   - zona_3
 - id: ruinas_3_5
   label: plaza rota (las ruinas, costa)
+  description: Losas levantadas por raíces y una fuente seca en el centro.
   affordances:
   - agua
   tags:
@@ -1893,6 +2057,7 @@ places:
   - zona_3
 - id: ruinas_3_6
   label: torre (las ruinas, costa)
+  description: Una torre de piedra sin tejado, con escaleras que suben a medias.
   affordances:
   - botin_menor
   tags:
@@ -1906,6 +2071,7 @@ places:
   - zona_3
 - id: ruinas_3_7
   label: sotano (las ruinas, costa)
+  description: Un hueco bajo las ruinas, oscuro y con eco.
   affordances:
   - vigia
   tags:
@@ -17516,6 +17682,8 @@ situations:
   personal: true
   effects:
     salud: -0.0025
+  content:
+  - violencia
 - id: zona_3
   label: la zona se cierra (anillo 3)
   starts_at: 288

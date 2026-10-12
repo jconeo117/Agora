@@ -93,6 +93,30 @@ combat:
     rematar: [remato a, acabo con, le doy el golpe de gracia]
     huir: [huyo, salgo corriendo, escapo]
     rendirse: [me rindo, pido clemencia, tiro el arma]
+  # Cómo cuenta el narrador cada hecho de la escena (unidad 17), por acción o
+  # por acción.resultado: tú / otro / otro sobre ti. El daño llega en bandas
+  # («, un buen golpe»), nunca en números.
+  narration:
+    atacar.failure: {you: "atacas a {o}, sin alcanzarle", them: "{a} ataca a {o}, sin alcanzarle", at_you: "{a} te ataca, sin alcanzarte"}
+    atacar.success_at_cost: {you: "alcanzas a {o}{d}, pero te expones", them: "{a} alcanza a {o}{d}, pero se expone", at_you: "{a} te alcanza{d}, pero se expone"}
+    atacar.success: {you: "alcanzas a {o}{d}", them: "{a} alcanza a {o}{d}", at_you: "{a} te alcanza{d}"}
+    atacar.critical: {you: "aciertas de lleno a {o}{d}", them: "{a} acierta de lleno a {o}{d}", at_you: "{a} te acierta de lleno{d}"}
+    huir.failure: {you: "intentas huir, pero {o} te corta el paso", them: "{a} intenta huir, pero {o} le corta el paso", at_you: "{a} intenta huir y le cortas el paso"}
+    huir.success_at_cost: {you: "le ganas algo de distancia a {o}, a duras penas", them: "{a} le gana algo de distancia a {o}", at_you: "{a} te gana algo de distancia"}
+    huir.success: {you: "le sacas ventaja a {o} en la huida", them: "{a} le saca ventaja a {o}", at_you: "{a} te saca ventaja en la huida"}
+    huir.critical: {you: "dejas atrás a {o}", them: "{a} deja atrás a {o}", at_you: "{a} te deja atrás"}
+    huir: {you: "escapas; nadie te sigue", them: "{a} escapa; nadie le sigue"}
+    rematar: {you: "rematas a {o}", them: "{a} remata a {o}", at_you: "{a} te remata"}
+    primeros_auxilios: {you: "atiendes a {o}", them: "{a} atiende a {o}", at_you: "{a} te atiende"}
+    defensa_total: {you: "te cubres", them: "{a} se cubre"}
+    recuperar_aliento: {you: "recuperas el aliento", them: "{a} recupera el aliento"}
+    rendirse: {you: "te rindes", them: "{a} se rinde"}
+    quiebre: {you: "se te quiebra el ánimo", them: "a {a} se le quiebra el ánimo"}
+    reloj_de_muerte: {you: "te desangras en el suelo", them: "{a} se desangra en el suelo"}
+  content:
+    atacar: [violencia]
+    rematar: [violencia, muerte]
+    reloj_de_muerte: [muerte]
 
 # Las promesas del sistema (§24.4), cada una sobre un escenario de
 # `escenarios/`. El simulador las comprueba como --health las de un pack.

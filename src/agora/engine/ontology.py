@@ -15,6 +15,7 @@ que corre en escena, o en C# entre una clase de configuración y su objeto.
 
 from __future__ import annotations
 
+import string
 from enum import StrEnum
 from typing import Annotated, NewType
 
@@ -61,11 +62,45 @@ imposible leer una acción de un vistazo.
 Example = Annotated[str, Field(min_length=1, max_length=120)]
 """Una frase de ejemplo con la que un jugador pediría algo (unidad 14)."""
 
+ContentTag = Annotated[str, Field(min_length=1, max_length=40, pattern=r"^[a-z_]+$")]
+"""Una etiqueta de contenido («violencia»), para las líneas y los velos de la
+mesa (unidad 17). El motor no sabe qué significa ninguna: solo las compara."""
+
+
+
 
 class Spec(BaseModel):
     """Base de toda definición que viene del pack. Inmutable y estricta."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
+
+
+class NarrationSpec(Spec):
+    """Cómo se cuenta algo, en las tres formas que el narrador necesita
+    (unidad 17). `{a}` es quien actúa, `{o}` sobre quién y `{d}` cuánto daño
+    en palabras («, un buen golpe»), si la escena lo sabe. Son a la vez el
+    hecho que recibe el modelo y el respaldo sin modelo: con la etiqueta de la
+    acción, «rematar a un herido contra Zetu», los dos 70B del banco entendieron
+    «un herido que luchaba contra Zetu»."""
+
+    you: str = Field(min_length=1, max_length=160)
+    """Cuando actúa el jugador: «rematas a {o}»."""
+    them: str = Field(min_length=1, max_length=160)
+    """Cuando actúa otro: «{a} remata a {o}»."""
+    at_you: str | None = Field(default=None, min_length=1, max_length=160)
+    """Cuando otro actúa sobre el jugador: «{a} te remata». Sin esto, la forma
+    de tercera persona con su nombre."""
+
+    @model_validator(mode="after")
+    def _known_fields(self) -> NarrationSpec:
+        # Un `{objetivo}` mal escrito reventaría al narrar, en mitad de una
+        # partida y lejos de quien escribió el pack.
+        for forma in (self.you, self.them, self.at_you or ""):
+            campos = {c for _, c, _, _ in string.Formatter().parse(forma) if c is not None}
+            if campos - {"a", "o", "d"}:
+                raise ValueError(f"narration: «{forma}» usa {sorted(campos - {'a', 'o', 'd'})}; "
+                                 "solo valen {a}, {o} y {d}")
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -1141,6 +1176,10 @@ class ActionSpec(Spec):
     leen: solo el intérprete de la prosa del jugador, que con la etiqueta sola
     no reconoce «le reviento la cabeza» como atacar. Va en el pack y no en el
     código porque es vocabulario del mundo."""
+    narration: NarrationSpec | None = None
+    """Cómo la cuenta el narrador (unidad 17). Sin esto, con la etiqueta."""
+    content: tuple[ContentTag, ...] = ()
+    """Qué hay en ella que una mesa podría no querer ver narrado (D-167)."""
     duration_ticks: int = Field(ge=1)
     """Cuánto dura. Con `elastic`, deja de ser la duración y pasa a ser el TOPE.
 
@@ -1480,6 +1519,9 @@ class ActionSpec(Spec):
 class PlaceSpec(Spec):
     id: PlaceId
     label: str
+    description: str | None = Field(default=None, min_length=1, max_length=300)
+    """Cómo es, en una o dos frases (unidad 17). El narrador ambienta con esto y
+    con nada más: sin descripción, un modelo se inventa el río que no hay."""
 
     affordances: frozenset[Affordance] = Field(default_factory=frozenset)
     """Qué permite hacer aquí. Es el acoplamiento lugar <-> acción."""
@@ -2579,6 +2621,8 @@ class SituationSpec(Spec):
 
     id: SituationId
     label: str
+    content: tuple[ContentTag, ...] = ()
+    """Como el de las acciones: para las líneas y los velos (unidad 17)."""
 
     places: frozenset[PlaceId] = Field(default_factory=frozenset)
     """Dónde alcanza. **Vacío = en todo el mundo**, como `open_during` vacío es

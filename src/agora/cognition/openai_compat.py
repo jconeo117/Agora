@@ -84,6 +84,7 @@ class OpenAICompatibleProvider:
         plazo: float = 6.0,
         temperatura: float = 0.0,
         max_tokens: int = 200,
+        ruta: str | None = "throughput",
     ) -> None:
         self.url = url.rstrip("/")
         self.modelo = modelo
@@ -91,6 +92,10 @@ class OpenAICompatibleProvider:
         self.plazo = plazo
         self.temperatura = temperatura
         self.max_tokens = max_tokens
+        self.ruta = ruta
+        """Cómo elige OpenRouter entre los proveedores del modelo. Sin esto, a
+        Llama 3.3 lo mandaba casi siempre al más lento: p50 5,3 s, contra 1,7 s
+        pidiendo el de más rendimiento (banco del narrador, unidad 17)."""
 
     def think(self, briefing: str, schema: type, semilla: int) -> object | None:
         if not self.clave:
@@ -113,7 +118,8 @@ class OpenAICompatibleProvider:
             "max_tokens": self.max_tokens,
             "messages": [{"role": "user", "content": briefing}],
             # Que OpenRouter solo mande la petición a quien respete el esquema.
-            "provider": {"require_parameters": True},
+            "provider": {"require_parameters": True}
+            | ({"sort": self.ruta} if self.ruta is not None else {}),
         }
         modelo = schema if isinstance(schema, type) and issubclass(schema, BaseModel) else None
         if modelo is not None:

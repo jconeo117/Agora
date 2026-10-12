@@ -43,6 +43,53 @@ REGIONES = {
                 "afford": [["botin_menor"], ["vigia"], ["refugio", "escondite"], ["agua"]]},
 }
 ORDEN = list(REGIONES)
+
+# Cómo es cada tipo de lugar (unidad 17): lo único con lo que el narrador puede
+# ambientar. Solo atmósfera, nunca recursos: lo que ofrece un sitio sale de
+# `afford`, que no depende del nombre, y un «manantial» sin agua descrito con
+# agua prometería al jugador algo que el menú no le da.
+DESCRIPCION = {
+    "espesura": "Árboles muy juntos y una penumbra húmeda que huele a hoja podrida.",
+    "claro": "Un hueco en la selva donde entra el sol de lleno; la hierba llega a la rodilla.",
+    "arroyo": "Un cauce de piedras con musgo; se oye agua cerca.",
+    "matorral": "Arbustos espinosos y densos que arañan al pasar.",
+    "ceiba": "Un árbol enorme con raíces como paredes; a su sombra no crece nada.",
+    "helechal": "Helechos más altos que una persona, mojados de rocío.",
+    "barranco": "Una grieta de tierra roja con las paredes cubiertas de raíces.",
+    "lianas": "Cortinas de lianas que cuelgan de las copas y se mueven sin viento.",
+    "cueva": "Una boca oscura en la ladera; dentro, el aire es frío y quieto.",
+    "manantial": "Rocas lisas y verdes, y el rumor de agua bajo la piedra.",
+    "risco": "Una cornisa de piedra desde la que se ve media isla.",
+    "paso": "Un sendero estrecho entre dos paredes de roca.",
+    "canchal": "Piedra suelta que resbala a cada paso.",
+    "cornisa": "Un saliente de roca sobre el vacío, barrido por el viento.",
+    "grieta": "Una hendidura en la montaña donde apenas cabe un cuerpo.",
+    "cumbre": "La cima pelada; el viento no para y todo queda abajo.",
+    "cala": "Una ensenada pequeña entre rocas, con arena gris.",
+    "dunas": "Montes de arena blanda que cambian de forma con el viento.",
+    "rompiente": "Las olas revientan contra rocas negras; el ruido lo tapa todo.",
+    "manglar": "Raíces retorcidas sobre agua salobre, sombra y mosquitos.",
+    "arrecife": "Roca y coral a ras de agua, cortantes bajo los pies.",
+    "faro": "Una torre blanca sin luz, con la puerta arrancada.",
+    "muelle roto": "Tablones podridos que se adentran en el mar y se acaban de golpe.",
+    "naufragio": "El casco de un barco varado, medio enterrado en la arena.",
+    "juncal": "Juncos más altos que una persona, que se cierran detrás de ti.",
+    "charca": "Agua quieta entre el barro; el suelo cede bajo los pies.",
+    "isleta": "Un montículo de tierra firme rodeado de fango.",
+    "niebla": "Una bruma espesa que no deja ver a cinco pasos.",
+    "pantano": "Agua negra y árboles muertos; burbujea de vez en cuando.",
+    "turbera": "Tierra esponjosa y oscura que huele a humo viejo.",
+    "carrizal": "Cañas secas que crujen con cualquier movimiento.",
+    "cieno": "Lodo hasta los tobillos, y un olor dulzón a podrido.",
+    "plaza rota": "Losas levantadas por raíces y una fuente seca en el centro.",
+    "torre": "Una torre de piedra sin tejado, con escaleras que suben a medias.",
+    "sotano": "Un hueco bajo las ruinas, oscuro y con eco.",
+    "pozo": "Un brocal de piedra entre muros caídos.",
+    "templo caido": "Columnas derribadas y un tejado a medias que aún da sombra.",
+    "muralla": "Un lienzo de muralla en pie, con huecos donde faltan piedras.",
+    "almacen": "Estanterías vencidas y cajas reventadas por el tiempo.",
+    "cripta": "Nichos vacíos en la pared y un frío que no se va.",
+}
 ANILLOS = {1: 4, 2: 6, 3: 8}            # lugares por región y anillo; el 3 es la costa
 
 
@@ -62,11 +109,13 @@ def mapa() -> tuple[list[dict], dict[int, list[str]]]:
     # El lago de la cornucopia: la arena final necesita agua, o los últimos
     # mueren todos de sed el mismo día y nadie gana (sonda 2 de la v1).
     lugares["cornucopia"] = {"id": "cornucopia", "label": "la cornucopia",
+                             "description": "Un cuerno de metal enorme junto a un lago, rodeado de cajas y mochilas.",
                              "affordances": ["botin", "aire", "agua"], "tags": ["centro"]}
     por_anillo[0].append("cornucopia")
     for d in range(1, DISTRITOS + 1):
         pid = f"pedestal_{d}"
-        lugares[pid] = {"id": pid, "label": f"el pedestal {d}", "affordances": ["aire"], "tags": ["pedestal"]}
+        lugares[pid] = {"id": pid, "label": f"el pedestal {d}", "affordances": ["aire"], "tags": ["pedestal"],
+                        "description": "Una plataforma de metal a unos pasos de la cornucopia, sobre hierba pisoteada."}
         por_anillo[0].append(pid)
         unir(pid, "cornucopia", 1)
     for r, region in enumerate(ORDEN):
@@ -77,6 +126,7 @@ def mapa() -> tuple[list[dict], dict[int, list[str]]]:
                 nombre = datos["lugares"][(i + anillo) % len(datos["lugares"])]
                 aff = datos["afford"][(i + 2 * anillo) % len(datos["afford"])]
                 lugares[lid] = {"id": lid, "label": f"{nombre} ({datos['label']}, {['', 'interior', 'media', 'costa'][anillo]})",
+                                "description": DESCRIPCION[nombre],
                                 "affordances": list(aff), "tags": [region, f"anillo_{anillo}"]}
                 por_anillo[anillo].append(lid)
                 if i > 0:                                    # el camino dentro del anillo
@@ -233,7 +283,8 @@ def pack() -> dict:
         "places": lugares,
         "agents": tributos(por_anillo),
         "situations": [
-            {"id": "herida", "label": "herida", "personal": True, "effects": {"salud": -0.0025}},
+            {"id": "herida", "label": "herida", "personal": True, "effects": {"salud": -0.0025},
+             "content": ["violencia"]},
             # Periódicas con un ciclo de un año: empiezan el día de su anillo y
             # duran más que cualquier partida. Es la forma de decir «a partir
             # del día N, para siempre» con lo que el motor ya sabe.
@@ -278,8 +329,41 @@ EJEMPLOS = {
 }
 
 
+# Cómo cuenta el narrador cada acción (unidad 17): tú / otro / otro sobre ti.
+# Con la etiqueta, «rematar a un herido contra Zetu», los dos 70B del banco
+# entendieron «un herido que luchaba contra Zetu».
+NARRACION = {
+    "dormir": ("duermes a cubierto", "{a} duerme a cubierto", None),
+    "dormir_al_raso": ("duermes al raso", "{a} duerme al raso", None),
+    "beber": ("bebes", "{a} bebe", None),
+    "recolectar": ("buscas algo que comer", "{a} busca algo que comer", None),
+    "comer": ("comes de lo que llevas", "{a} come de lo que lleva", None),
+    "saquear_cornucopia": ("rebuscas en las cajas de la cornucopia", "{a} rebusca en las cajas de la cornucopia", None),
+    "rebuscar": ("rebuscas entre los escombros", "{a} rebusca entre los escombros", None),
+    "esconderse": ("te escondes", "{a} se esconde", None),
+    "vigilar": ("vigilas desde lo alto", "{a} vigila desde lo alto", None),
+    "aliarse": ("haces un pacto con {o}", "{a} pacta con {o}", "{a} te propone un pacto"),
+    "atacar": ("atacas a {o}", "{a} ataca a {o}", "{a} te ataca"),
+    "atacar_con_sana": ("te lanzas sin piedad contra {o}", "{a} se lanza sin piedad contra {o}",
+                        "{a} se lanza sin piedad contra ti"),
+    "golpe_mortal": ("rematas a {o}, que estaba herido", "{a} remata a {o}, que estaba herido",
+                     "{a} va a rematarte"),
+    "saquear": ("le quitas lo que lleva a {o}, herido", "{a} le quita lo que lleva a {o}, herido",
+                "{a} te quita lo que llevas"),
+    "curarse": ("te curas las heridas", "{a} se cura las heridas", None),
+    "socorrer": ("curas las heridas de {o}", "{a} cura las heridas de {o}", "{a} te cura las heridas"),
+}
+CONTENIDO = {"atacar": ["violencia"], "atacar_con_sana": ["violencia"],
+             "golpe_mortal": ["violencia", "muerte"], "saquear": ["violencia"]}
+
+
 def acciones() -> list[dict]:
-    return [{**a, "examples": EJEMPLOS[a["id"]]} for a in _acciones()]
+    def narracion(i: str) -> dict:
+        tu, otro, a_ti = NARRACION[i]
+        return {"you": tu, "them": otro, **({"at_you": a_ti} if a_ti else {})}
+    return [{**a, "examples": EJEMPLOS[a["id"]], "narration": narracion(a["id"]),
+             **({"content": CONTENIDO[a["id"]]} if a["id"] in CONTENIDO else {})}
+            for a in _acciones()]
 
 
 def _acciones() -> list[dict]:

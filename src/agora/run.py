@@ -20,7 +20,8 @@ from contextlib import ExitStack
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from agora.banco import load_bank, run_bank
+from agora.banco import load_bank, load_moments, run_bank, run_tell_bank
+from agora.cognition.narrador import Narrator, Table, load_table
 from agora.cognition.ollama import OllamaProvider
 from agora.cognition.openai_compat import OpenAICompatibleProvider
 from agora.cognition.voz import hablar
@@ -179,6 +180,28 @@ def main() -> None:
     parser.add_argument("--sin-interprete", action="store_true",
                         help="interpretar lo que escribes sin modelo, con el léxico")
     parser.add_argument(
+        "--narrador", default="meta-llama/llama-3.3-70b-instruct", metavar="MODELO",
+        help="el modelo que cuenta lo que vives al jugar (D-162, D-166); por la misma "
+        "API que el intérprete, con su propia instancia. Varios, separados por comas, "
+        "se prueban en orden; si ninguno contesta, la plantilla",
+    )
+    parser.add_argument("--narrador-plazo", type=float, default=10.0, metavar="S")
+    parser.add_argument("--sin-narrador", action="store_true",
+                        help="contar lo que pasa con las plantillas, sin modelo")
+    parser.add_argument("--sin-relato", action="store_true",
+                        help="ni narrador ni plantillas: el log de siempre")
+    parser.add_argument(
+        "--mesa", type=Path, default=None, metavar="F",
+        help="las líneas y los velos de la mesa (unidad 17); por defecto, "
+        "mesa.yaml junto al pack si existe",
+    )
+    parser.add_argument(
+        "--banco-narracion", type=Path, default=None, metavar="F",
+        help="narra los momentos de este archivo con --narrador y mide (unidad 17); "
+        "con --muestras, escribe cada narración para leerla",
+    )
+    parser.add_argument("--muestras", type=Path, default=None, metavar="F")
+    parser.add_argument(
         "--banco-intenciones", type=Path, default=None, metavar="F",
         help="mide el intérprete contra los casos de este archivo (unidad 14); "
         "con --sin-interprete, el léxico",
@@ -217,6 +240,14 @@ def main() -> None:
 
     if args.health:
         _report_health(pack)
+        return
+    if args.banco_narracion is not None:
+        narrador = _narrador(args)
+        cadena = narrador.providers if narrador is not None else ()
+        relato = run_tell_bank(load_moments(args.banco_narracion), cadena)
+        print("\n".join(relato.lines()))
+        if args.muestras is not None:
+            args.muestras.write_text("\n".join(relato.muestras), encoding="utf-8")
         return
     if args.banco_intenciones is not None:
         informe = run_bank(pack, load_ruleset(args.reglas),
@@ -332,9 +363,11 @@ def _jugar(sim: Simulation, args: argparse.Namespace, ticks: int) -> None:
     else:
         proveedor = None if args.sin_llm else OllamaProvider(url=args.llm_url, modelo=args.modelo)
         interprete = _interprete(args)
-        terminal = Terminal(sim, sys.stdin, sys.stdout, proveedor, interpreter=interprete)
+        narrador = _narrador(args)
+        terminal = Terminal(sim, sys.stdin, sys.stdout, proveedor, interpreter=interprete,
+                            narrator=narrador)
         fuente = terminal
-        escena = TerminalCombat(sys.stdin, sys.stdout, interprete)
+        escena = TerminalCombat(sys.stdin, sys.stdout, interprete, narrador, lambda: sim.state)
         combate = escena
     with ExitStack() as stack:
         if args.grabar is not None:
@@ -343,6 +376,8 @@ def _jugar(sim: Simulation, args: argparse.Namespace, ticks: int) -> None:
             combate = CombatRecorder(combate, grabacion, ahora)
         sim.encounter_resolver = _resolutor(sim, args, combate, escena)
         resultado = play(sim, fuente, ticks, terminal)
+    if terminal is not None and resultado.reason == "muerte":
+        terminal.farewell()
     print(f"\n# fin de la partida: {resultado.reason}, {resultado.ticks} ticks jugados")
 
 
@@ -357,6 +392,26 @@ def _interprete(args: argparse.Namespace) -> OpenAICompatibleProvider | None:
         print("# sin OPENROUTER_API_KEY: lo que escribes lo interpreta el léxico")
         return None
     return proveedor
+
+
+def _narrador(args: argparse.Namespace) -> Narrator | None:
+    """Su propia cadena de proveedores (D-166): ni el intérprete ni la voz ven
+    lo que se le cuenta a él."""
+    if args.sin_relato:
+        return None
+    ruta = args.mesa if args.mesa is not None else args.pack.parent / "mesa.yaml"
+    mesa = load_table(ruta) if ruta.exists() else Table()
+    if args.sin_llm or args.sin_narrador:
+        return Narrator((), mesa)
+    cadena = tuple(
+        OpenAICompatibleProvider(modelo=m.strip(), plazo=args.narrador_plazo,
+                                 temperatura=0.8, max_tokens=400)
+        for m in args.narrador.split(",") if m.strip()
+    )
+    if not all(p.clave for p in cadena):
+        print("# sin OPENROUTER_API_KEY: lo que pasa lo cuentan las plantillas")
+        return Narrator((), mesa)
+    return Narrator(cadena, mesa)
 
 
 def _resolutor(
