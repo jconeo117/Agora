@@ -16,7 +16,7 @@ from pathlib import Path
 import yaml
 from pydantic import Field, ValidationError, model_validator
 
-from agora.engine.ontology import Spec
+from agora.engine.ontology import Example, Spec
 
 
 class RulesetError(ValueError):
@@ -119,6 +119,20 @@ class CombatSpec(Spec):
     corregir."""
     chase_clock: int = Field(default=3, ge=1)
     """Segmentos de los dos relojes de una persecución: escapar y alcanzar."""
+    examples: dict[str, tuple[Example, ...]] = Field(default_factory=dict)
+    """Cómo pediría un jugador cada acción de la escena, por su id (unidad 14).
+    Es de la mesa y no del mundo: «me cubro» es defensa total en cualquier isla."""
+
+    @model_validator(mode="after")
+    def _examples_known(self) -> CombatSpec:
+        # Import tardío: `encounter` importa este módulo.
+        from agora.rules.encounter import ActionKind
+
+        conocidas = {k.value for k in ActionKind}
+        sobran = sorted(k for k in self.examples if k not in conocidas)
+        if sobran:
+            raise ValueError(f"combat.examples: acciones que la escena no tiene: {sobran}")
+        return self
 
 
 class CalibrationTarget(Spec):

@@ -58,6 +58,9 @@ existe `satisfies`. Permitirlo dejaría dos formas de expresar lo mismo y haría
 imposible leer una acción de un vistazo.
 """
 
+Example = Annotated[str, Field(min_length=1, max_length=120)]
+"""Una frase de ejemplo con la que un jugador pediría algo (unidad 14)."""
+
 
 class Spec(BaseModel):
     """Base de toda definición que viene del pack. Inmutable y estricta."""
@@ -1133,6 +1136,11 @@ class ActionSpec(Spec):
 
     id: ActionId
     label: str
+    examples: tuple[Example, ...] = ()
+    """Cómo lo diría un jugador (unidad 14, D-163). Ni el motor ni los NPCs lo
+    leen: solo el intérprete de la prosa del jugador, que con la etiqueta sola
+    no reconoce «le reviento la cabeza» como atacar. Va en el pack y no en el
+    código porque es vocabulario del mundo."""
     duration_ticks: int = Field(ge=1)
     """Cuánto dura. Con `elastic`, deja de ser la duración y pasa a ser el TOPE.
 

@@ -254,7 +254,35 @@ def pack() -> dict:
     }
 
 
+# Cómo pediría cada acción un jugador (unidad 14). Las lee el intérprete de la
+# prosa, no el motor. Escritas antes que el banco de intenciones y sin copiar
+# sus frases: si coincidieran, el banco mediría la lista y no al intérprete.
+EJEMPLOS = {
+    "dormir": ["duermo a cubierto", "busco refugio para pasar la noche", "me acuesto bajo techo"],
+    "dormir_al_raso": ["me echo a dormir aquí", "duermo al aire libre", "echo una cabezada"],
+    "beber": ["bebo", "tengo sed", "relleno la cantimplora"],
+    "recolectar": ["busco comida", "recojo frutos y raíces", "cazo algo", "pesco"],
+    "comer": ["como algo", "saco comida de la mochila", "tengo hambre"],
+    "saquear_cornucopia": ["cojo lo que pueda de la cornucopia", "voy a por las armas",
+                           "saqueo las provisiones del cuerno"],
+    "rebuscar": ["rebusco entre los escombros", "registro las ruinas", "busco algo útil"],
+    "esconderse": ["me escondo", "me oculto", "me pongo a cubierto sin que me vean"],
+    "vigilar": ["vigilo", "subo a un sitio alto a otear", "monto guardia"],
+    "aliarse": ["me alío con", "le propongo ir juntos", "hago un pacto con"],
+    "atacar": ["ataco a", "le pego", "me lanzo contra", "peleo con"],
+    "atacar_con_sana": ["le ataco sin piedad", "voy a por todas contra", "le doy con toda mi rabia"],
+    "golpe_mortal": ["remato a", "acabo con", "le doy el golpe de gracia", "mato al herido"],
+    "saquear": ["le registro", "le quito sus cosas", "le robo al herido"],
+    "curarse": ["me curo", "me vendo las heridas", "me limpio la herida"],
+    "socorrer": ["ayudo a", "curo las heridas de", "socorro a"],
+}
+
+
 def acciones() -> list[dict]:
+    return [{**a, "examples": EJEMPLOS[a["id"]]} for a in _acciones()]
+
+
+def _acciones() -> list[dict]:
     herida = {"situation": "herida", "marca": "cuerpo", "gravedad_min": 0.4, "gravedad_max": 1.0, "lasts": 2 * DIA}
     return [
         # Dormir deja desprevenido: quien te ataca dormido te pilla por sorpresa

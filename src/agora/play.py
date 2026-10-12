@@ -18,15 +18,16 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, TextIO
 
 from agora.agents.decide import Decision
+from agora.cognition.intencion import Entry, Kind, Menu, Order, interpret
 from agora.cognition.voz import hablar
 from agora.engine.consulta import ficha
 from agora.engine.events import EventKind
-from agora.engine.ontology import AgentId, NeedId
+from agora.engine.ontology import AgentId, NeedId, PlaceId
 from agora.engine.ports import Outcome
 from agora.engine.render import render_event
 from agora.engine.state import AgentState, PerformingAction, Traveling, WorldState
@@ -138,7 +139,53 @@ AYUDA = """  número       elegir esa opción
   ficha [id]   lo que se sabe de ti, o de otro
   mirar        quién está aquí y qué hace
   hablar id    preguntarle qué tal le va a alguien que esté aquí
-  salir        acabar la partida al final de este cuarto de hora"""
+  salir        acabar la partida al final de este cuarto de hora
+  ayuda        esto
+  o escribe lo que haces: «me escondo en el arroyo», «¿quién hay aquí?»"""
+
+
+SIN_MODELO = "  (el intérprete no contestó: entiende el léxico)"
+"""Como el «(respaldo)» de la voz: que el jugador sepa por qué de pronto se
+le entiende peor. Sin esto, una API sin créditos pasaba por un léxico mudo."""
+
+
+def world_menu(world: WorldState, options: Sequence[Decision]) -> Menu:
+    """El menú de `options()` para el intérprete (unidad 14), en el mismo
+    orden: la entrada i es la decisión i."""
+    pack = world.pack
+    viaje: dict[PlaceId, int] = {}
+    for d in options:
+        viaje[d.place] = min(viaje.get(d.place, d.travel_ticks), d.travel_ticks)
+    return Menu(
+        entries=tuple(Entry(d.action, d.place, d.target) for d in options),
+        actions=tuple((a, pack.action_by_id[a].label, pack.action_by_id[a].examples)
+                      for a in sorted({d.action for d in options})),
+        places=tuple((p, pack.place_by_id[p].label, t) for p, t in sorted(viaje.items())),
+        people=tuple((t, world.censo[t].label)
+                     for t in sorted({d.target for d in options if d.target is not None})),
+        orders=tuple(Order),
+    )
+
+
+def confirms(inp: TextIO, out: TextIO, texto: str) -> bool:
+    """El eco de lo entendido cuando va contra alguien. En el banco, «me ocupo
+    de Vidan» acabó en rematarle con los dos modelos de 70B. Enter es que sí."""
+    out.write(f"  entiendo: {texto}. ¿Sí? [S/n] ")
+    out.flush()
+    return not inp.readline().strip().lower().startswith("n")
+
+
+def picks(inp: TextIO, out: TextIO, pregunta: str, textos: Sequence[str]) -> int | None:
+    """Elegir entre las candidatas del intérprete por letra, para no chocar con
+    los números del menú. Cualquier otra cosa es ninguna."""
+    letras = "abc"[: len(textos)]
+    out.write(pregunta + "\n")
+    for letra, texto in zip(letras, textos, strict=False):
+        out.write(f"    {letra}) {texto}\n")
+    out.write("  ¿cuál? ")
+    out.flush()
+    r = inp.readline().strip().lower()
+    return letras.index(r) if len(r) == 1 and r in letras else None
 
 
 class Terminal:
@@ -152,11 +199,17 @@ class Terminal:
         out: TextIO,
         provider: CognitionProvider | None = None,
         page: int = 12,
+        interpreter: CognitionProvider | None = None,
     ) -> None:
         self.sim = sim
         self.inp = inp
         self.out = out
         self.provider = provider
+        """La voz de los NPCs."""
+        self.interpreter = interpreter
+        """Quien entiende lo que escribes. Otro proveedor que la voz, aunque
+        fuera el mismo modelo: nada de lo que se le pregunta a uno le llega al
+        otro."""
         self.page = page
         self.quit = False
         self._esperar = 0
@@ -194,6 +247,9 @@ class Terminal:
     def _opcion(
         self, world: WorldState, agent: AgentState, n: int, d: Decision, best: float
     ) -> str:
+        return f"  {n:>3}. {self._describir(world, agent, d, best)}"
+
+    def _describir(self, world: WorldState, agent: AgentState, d: Decision, best: float) -> str:
         pack = world.pack
         texto = pack.action_by_id[d.action].label
         if d.target is not None:
@@ -202,7 +258,7 @@ class Terminal:
         cuartos = "1 cuarto" if d.travel_ticks == 1 else f"{d.travel_ticks} cuartos"
         viaje = "aquí" if d.travel_ticks == 0 else f"en {donde}, a {cuartos} de hora"
         banda = hint(d.utility, best, agent.temperament.temperature)
-        return f"  {n:>3}. {texto} ({viaje})  — {banda}"
+        return f"{texto} ({viaje})  — {banda}"
 
     def _mirar(self, world: WorldState, agent: AgentState) -> None:
         pack = world.pack
@@ -236,7 +292,8 @@ class Terminal:
         for n, d in enumerate(options[:hasta], start=1):
             self._decir(self._opcion(world, agent, n, d, best))
         while True:
-            orden = self._leer("> ").split()
+            linea = self._leer("> ")
+            orden = linea.split()
             if not orden:
                 continue
             match orden:
@@ -252,27 +309,76 @@ class Terminal:
                     self._esperar = int(cuantos) - 1
                     return None
                 case ["ficha"]:
-                    for linea in ficha(world, agent.spec_id).lines():
-                        self._decir(linea)
+                    self._orden(world, agent, Order.SHEET, None)
                 case ["ficha", otro] if AgentId(otro) in world.agents:
-                    for linea in ficha(world, AgentId(otro), agent.spec_id).lines():
-                        self._decir(linea)
+                    self._orden(world, agent, Order.SHEET, otro)
                 case ["mirar"]:
-                    self._mirar(world, agent)
-                case ["hablar", otro] if (
-                    AgentId(otro) in world.agents and world.agents[AgentId(otro)].at == agent.at
-                ):
-                    quien = world.censo[AgentId(otro)].label
-                    habla, del_modelo, _ = hablar(
-                        world, AgentId(otro), agent.spec_id, self.provider
-                    )
-                    self._decir(f"  {quien}: «{habla.dice}»  [{habla.tono}]"
-                                + ("" if del_modelo else "  (respaldo)"))
+                    self._orden(world, agent, Order.LOOK, None)
+                case ["hablar", otro] if AgentId(otro) in world.agents:
+                    self._orden(world, agent, Order.TALK, otro)
                 case ["salir"]:
                     self.quit = True
                     return None
-                case _:
+                case ["ayuda"]:
                     self._decir(AYUDA)
+                case _:
+                    hecho, elegida = self._interpretar(world, agent, options, linea, best)
+                    if hecho:
+                        return elegida
+
+    def _orden(self, world: WorldState, agent: AgentState, orden: Order, sobre: str | None) -> bool:
+        """Lo que la terminal hace sin decidir nada, se escriba como orden o en
+        prosa. Devuelve si el jugador ha decidido esperar."""
+        otro = AgentId(sobre) if sobre is not None and AgentId(sobre) in world.agents else None
+        match orden:
+            case Order.SHEET:
+                hechos = (ficha(world, otro, agent.spec_id) if otro is not None
+                          else ficha(world, agent.spec_id))
+                for linea in hechos.lines():
+                    self._decir(linea)
+            case Order.LOOK:
+                self._mirar(world, agent)
+            case Order.TALK if otro is not None and world.agents[otro].at == agent.at:
+                quien = world.censo[otro].label
+                habla, del_modelo, _ = hablar(world, otro, agent.spec_id, self.provider)
+                self._decir(f"  {quien}: «{habla.dice}»  [{habla.tono}]"
+                            + ("" if del_modelo else "  (respaldo)"))
+            case Order.TALK:
+                self._decir("  no hay nadie así aquí con quien hablar")
+            case Order.WAIT:
+                return True
+        return False
+
+    def _interpretar(
+        self, world: WorldState, agent: AgentState, options: tuple[Decision, ...],
+        texto: str, best: float,
+    ) -> tuple[bool, Decision | None]:
+        """(si ya hay decisión, cuál: `None` es esperar)."""
+        semilla = world.rng.stream("intencion", agent.spec_id, world.tick).randrange(2**31)
+        lectura = interpret(world_menu(world, options), texto, self.interpreter, semilla)
+        if self.interpreter is not None and not lectura.by_model:
+            self._decir(SIN_MODELO)
+        match lectura.kind:
+            case Kind.ACTION if lectura.entry is not None:
+                d = options[lectura.entry]
+                descrita = self._describir(world, agent, d, best)
+                if d.target is None:
+                    self._decir(f"  → {descrita}")
+                    return True, d
+                return (True, d) if confirms(self.inp, self.out, descrita) else (False, None)
+            case Kind.ORDER if lectura.order is not None:
+                return self._orden(world, agent, lectura.order, lectura.about), None
+            case Kind.AMBIGUOUS | Kind.NO_FIT if lectura.candidates:
+                pregunta = ("  ¿cuál de estas?" if lectura.kind is Kind.AMBIGUOUS
+                            else "  eso no se puede ahora; lo más parecido:")
+                cual = picks(self.inp, self.out, pregunta, [
+                    self._describir(world, agent, options[i], best) for i in lectura.candidates])
+                if cual is None:
+                    return False, None
+                return True, options[lectura.candidates[cual]]
+            case _:
+                self._decir("  no te entiendo: escribe lo que haces, o un número («ayuda»)")
+                return False, None
 
     def interrupt(self, world: WorldState, agent: AgentState, need: NeedId) -> bool:
         """Se pregunta una vez por necesidad y ocupación: si dices que no, no
@@ -406,13 +512,41 @@ ETIQUETAS = {
 }
 
 
-class TerminalCombat:
-    """El jugador dentro de una escena: ve cómo va, elige por número y contesta
-    a las preguntas que la escena le hace (resistir, rematar, perseguir)."""
+def scene_menu(encounter: Encounter, legales: Sequence[Action]) -> Menu:
+    """Las acciones legales de la escena para el intérprete, en el mismo orden."""
+    return legal_menu(
+        encounter.combat.examples,
+        {f.id: f.spec.label for f in encounter.fighters.values()},
+        [(a.kind.value, a.target, a.force) for a in legales],
+    )
 
-    def __init__(self, inp: TextIO, out: TextIO) -> None:
+
+def legal_menu(
+    examples: Mapping[str, tuple[str, ...]], labels: Mapping[str, str],
+    legales: Sequence[tuple[str, str | None, bool]],
+) -> Menu:
+    """El menú de una escena a partir de datos: lo usa también el banco, que
+    no monta escenas."""
+    kinds = [k for k in ActionKind if any(a == k.value for a, _, _ in legales)]
+    gente = sorted({o for _, o, _ in legales if o is not None})
+    return Menu(
+        entries=tuple(Entry(a, None, o, f) for a, o, f in legales),
+        actions=tuple((k.value, ETIQUETAS[k].split(" {}")[0], tuple(examples.get(k.value, ())))
+                      for k in kinds),
+        people=tuple((g, labels[g]) for g in gente),
+    )
+
+
+class TerminalCombat:
+    """El jugador dentro de una escena: ve cómo va, elige por número o lo
+    escribe, y contesta a las preguntas que la escena le hace (resistir,
+    rematar, perseguir), que siguen siendo de sí o no."""
+
+    def __init__(self, inp: TextIO, out: TextIO,
+                 interpreter: CognitionProvider | None = None) -> None:
         self.inp = inp
         self.out = out
+        self.interpreter = interpreter
         self._visto: dict[str, int] = {}
 
     def _decir(self, texto: str) -> None:
@@ -454,8 +588,7 @@ class TerminalCombat:
             legales += [Action(a.kind, a.target, True) for a in legales
                         if a.kind is ActionKind.ATTACK]
         for n, a in enumerate(legales, start=1):
-            texto = ETIQUETAS[a.kind].format(self._nombre(encounter, a.target))
-            self._decir(f"  {n:>3}. {texto}{' forzándote' if a.force else ''}")
+            self._decir(f"  {n:>3}. {self._etiqueta(encounter, a)}")
         while True:
             self.out.write("combate> ")
             self.out.flush()
@@ -464,7 +597,39 @@ class TerminalCombat:
                 return legales[0]
             if linea.strip().isdigit() and 1 <= int(linea) <= len(legales):
                 return legales[int(linea) - 1]
-            self._decir("  elige un número de la lista")
+            if linea.strip():
+                elegida = self._interpretar(encounter, me, legales, linea.strip())
+                if elegida is not None:
+                    return elegida
+
+    def _etiqueta(self, encounter: Encounter, a: Action) -> str:
+        texto = ETIQUETAS[a.kind].format(self._nombre(encounter, a.target))
+        return texto + (" forzándote" if a.force else "")
+
+    def _interpretar(
+        self, encounter: Encounter, me: Fighter, legales: list[Action], texto: str
+    ) -> Action | None:
+        semilla = encounter.source.stream(
+            "intencion", encounter.id, encounter.round, me.id).randrange(2**31)
+        lectura = interpret(scene_menu(encounter, legales), texto, self.interpreter, semilla)
+        if self.interpreter is not None and not lectura.by_model:
+            self._decir(SIN_MODELO)
+        match lectura.kind:
+            case Kind.ACTION if lectura.entry is not None:
+                a = legales[lectura.entry]
+                if a.target is None:
+                    self._decir(f"  → {self._etiqueta(encounter, a)}")
+                    return a
+                return a if confirms(self.inp, self.out, self._etiqueta(encounter, a)) else None
+            case Kind.AMBIGUOUS | Kind.NO_FIT if lectura.candidates:
+                pregunta = ("  ¿cuál de estas?" if lectura.kind is Kind.AMBIGUOUS
+                            else "  eso no se puede ahora; lo más parecido:")
+                cual = picks(self.inp, self.out, pregunta,
+                             [self._etiqueta(encounter, legales[i]) for i in lectura.candidates])
+                return legales[lectura.candidates[cual]] if cual is not None else None
+            case _:
+                self._decir("  elige un número de la lista, o escribe lo que haces")
+                return None
 
     def resists(self, encounter: Encounter, me: Fighter, hit: int, outcome: Outcome) -> bool:
         self._novedades(encounter)

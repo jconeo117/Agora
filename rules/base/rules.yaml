@@ -83,6 +83,16 @@ combat:
   max_rounds: 30
   chase_skill: atletismo                # D-165: huir es una persecución
   chase_clock: 3
+  # Cómo pide un jugador cada acción de la escena (unidad 14). Las lee el
+  # intérprete de la prosa, nunca la escena.
+  examples:
+    atacar: [ataco a, le golpeo, le pego, voy a por]
+    defensa_total: [me cubro, me defiendo, aguanto a la defensiva]
+    recuperar_aliento: [recupero el aliento, tomo aire, me tomo un respiro]
+    primeros_auxilios: [socorro a, le vendo la herida, ayudo a]
+    rematar: [remato a, acabo con, le doy el golpe de gracia]
+    huir: [huyo, salgo corriendo, escapo]
+    rendirse: [me rindo, pido clemencia, tiro el arma]
 
 # Las promesas del sistema (§24.4), cada una sobre un escenario de
 # `escenarios/`. El simulador las comprueba como --health las de un pack.

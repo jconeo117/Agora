@@ -20,7 +20,9 @@ from contextlib import ExitStack
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from agora.banco import load_bank, run_bank
 from agora.cognition.ollama import OllamaProvider
+from agora.cognition.openai_compat import OpenAICompatibleProvider
 from agora.cognition.voz import hablar
 from agora.engine.consulta import ficha
 from agora.engine.lod import error_de_lod
@@ -163,8 +165,24 @@ def main() -> None:
                         help="las decisiones del jugador salen de este archivo, no del teclado")
     parser.add_argument("--grabar", type=Path, default=None, metavar="F",
                         help="graba las decisiones del jugador como guion")
-    parser.add_argument("--modelo", default="llama3.2:latest")
+    parser.add_argument("--modelo", default="llama3.2:latest",
+                        help="el modelo local (Ollama) de la voz de los NPCs")
     parser.add_argument("--llm-url", default="http://localhost:11434")
+    parser.add_argument(
+        "--interprete", default="meta-llama/llama-3.3-70b-instruct", metavar="MODELO",
+        help="el modelo que entiende lo que escribes al jugar (D-163), por una API "
+        "compatible con la de OpenAI; la clave, en OPENROUTER_API_KEY",
+    )
+    parser.add_argument("--interprete-url", default="https://openrouter.ai/api/v1")
+    parser.add_argument("--interprete-plazo", type=float, default=6.0, metavar="S",
+                        help="segundos; si el modelo tarda más, interpreta el léxico")
+    parser.add_argument("--sin-interprete", action="store_true",
+                        help="interpretar lo que escribes sin modelo, con el léxico")
+    parser.add_argument(
+        "--banco-intenciones", type=Path, default=None, metavar="F",
+        help="mide el intérprete contra los casos de este archivo (unidad 14); "
+        "con --sin-interprete, el léxico",
+    )
     parser.add_argument(
         "--reglas", type=Path, default=DEFAULT_RULES, metavar="SISTEMA",
         help="el sistema de rol de la mesa (rules/<sistema>/rules.yaml)",
@@ -199,6 +217,11 @@ def main() -> None:
 
     if args.health:
         _report_health(pack)
+        return
+    if args.banco_intenciones is not None:
+        informe = run_bank(pack, load_ruleset(args.reglas),
+                           load_bank(args.banco_intenciones), _interprete(args))
+        print("\n".join(informe.lines()))
         return
     if args.divergence:
         _report_divergence(pack, args.divergence, args.seed, args.days)
@@ -308,9 +331,10 @@ def _jugar(sim: Simulation, args: argparse.Namespace, ticks: int) -> None:
         combate: Policy = ScriptCombat(lineas, ahora)
     else:
         proveedor = None if args.sin_llm else OllamaProvider(url=args.llm_url, modelo=args.modelo)
-        terminal = Terminal(sim, sys.stdin, sys.stdout, proveedor)
+        interprete = _interprete(args)
+        terminal = Terminal(sim, sys.stdin, sys.stdout, proveedor, interpreter=interprete)
         fuente = terminal
-        escena = TerminalCombat(sys.stdin, sys.stdout)
+        escena = TerminalCombat(sys.stdin, sys.stdout, interprete)
         combate = escena
     with ExitStack() as stack:
         if args.grabar is not None:
@@ -320,6 +344,19 @@ def _jugar(sim: Simulation, args: argparse.Namespace, ticks: int) -> None:
         sim.encounter_resolver = _resolutor(sim, args, combate, escena)
         resultado = play(sim, fuente, ticks, terminal)
     print(f"\n# fin de la partida: {resultado.reason}, {resultado.ticks} ticks jugados")
+
+
+def _interprete(args: argparse.Namespace) -> OpenAICompatibleProvider | None:
+    """Un proveedor propio, aparte del de la voz: lo que entiende tus frases y
+    lo que dicen los NPCs no comparten ni modelo ni conversación."""
+    if args.sin_llm or args.sin_interprete:
+        return None
+    proveedor = OpenAICompatibleProvider(
+        modelo=args.interprete, url=args.interprete_url, plazo=args.interprete_plazo)
+    if not proveedor.clave:
+        print("# sin OPENROUTER_API_KEY: lo que escribes lo interpreta el léxico")
+        return None
+    return proveedor
 
 
 def _resolutor(

@@ -21,11 +21,16 @@ class OllamaProvider:
         modelo: str = "llama3.2:latest",
         timeout: float = 60.0,
         temperatura: float = 0.7,
+        contexto: int = 8192,
     ) -> None:
         self.url = url.rstrip("/")
         self.modelo = modelo
         self.timeout = timeout
         self.temperatura = temperatura
+        self.contexto = contexto
+        """Sin fijarlo, Ollama corta en 4096 tokens por su cuenta y se queda con
+        el final del prompt: en el banco de la 14, un 7B sin las instrucciones
+        contestó «salir» a «remato al herido»."""
 
     def think(self, briefing: str, schema: type, semilla: int) -> object | None:
         formato: object = (
@@ -34,7 +39,8 @@ class OllamaProvider:
         )
         cuerpo = json.dumps({
             "model": self.modelo, "prompt": briefing, "format": formato, "stream": False,
-            "options": {"temperature": self.temperatura, "seed": semilla, "num_predict": 160},
+            "options": {"temperature": self.temperatura, "seed": semilla, "num_predict": 160,
+                        "num_ctx": self.contexto},
         }).encode()
         peticion = urllib.request.Request(
             f"{self.url}/api/generate", data=cuerpo, headers={"Content-Type": "application/json"}

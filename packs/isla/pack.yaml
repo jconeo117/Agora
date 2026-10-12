@@ -218,6 +218,10 @@ actions:
     descanso: 1.0
   effects:
     seguridad: 0.05
+  examples:
+  - duermo a cubierto
+  - busco refugio para pasar la noche
+  - me acuesto bajo techo
 - id: dormir_al_raso
   label: dormir al raso
   duration_ticks: 16
@@ -230,6 +234,10 @@ actions:
     seguridad: -0.08
   costs:
     seguridad: 0.3
+  examples:
+  - me echo a dormir aquí
+  - duermo al aire libre
+  - echo una cabezada
 - id: beber
   label: beber
   duration_ticks: 2
@@ -238,6 +246,10 @@ actions:
     agua: 1.0
   effects:
     agua: 0.6
+  examples:
+  - bebo
+  - tengo sed
+  - relleno la cantimplora
 - id: recolectar
   label: buscar comida
   duration_ticks: 8
@@ -251,6 +263,11 @@ actions:
     descanso: -0.05
   costs:
     descanso: 0.2
+  examples:
+  - busco comida
+  - recojo frutos y raíces
+  - cazo algo
+  - pesco
 - id: comer
   label: comer de lo que lleva
   duration_ticks: 2
@@ -263,6 +280,10 @@ actions:
     sustento: 0.4
   costs:
     suministros: 0.5
+  examples:
+  - como algo
+  - saco comida de la mochila
+  - tengo hambre
 - id: saquear_cornucopia
   label: saquear la cornucopia
   duration_ticks: 4
@@ -274,6 +295,10 @@ actions:
     seguridad: -0.2
   costs:
     seguridad: 0.4
+  examples:
+  - cojo lo que pueda de la cornucopia
+  - voy a por las armas
+  - saqueo las provisiones del cuerno
 - id: rebuscar
   label: rebuscar entre los escombros
   duration_ticks: 6
@@ -285,6 +310,10 @@ actions:
     descanso: -0.03
   costs:
     descanso: 0.15
+  examples:
+  - rebusco entre los escombros
+  - registro las ruinas
+  - busco algo útil
 - id: esconderse
   label: esconderse
   duration_ticks: 12
@@ -294,6 +323,10 @@ actions:
   effects:
     seguridad: 0.35
     descanso: 0.05
+  examples:
+  - me escondo
+  - me oculto
+  - me pongo a cubierto sin que me vean
 - id: vigilar
   label: vigilar desde lo alto
   duration_ticks: 6
@@ -306,6 +339,10 @@ actions:
     descanso: -0.03
   costs:
     descanso: 0.1
+  examples:
+  - vigilo
+  - subo a un sitio alto a otear
+  - monto guardia
 - id: aliarse
   label: aliarse
   duration_ticks: 4
@@ -321,6 +358,10 @@ actions:
     regard_weight: 0.5
     gives:
       vinculo: 0.1
+  examples:
+  - me alío con
+  - le propongo ir juntos
+  - hago un pacto con
 - id: atacar
   label: atacar
   duration_ticks: 3
@@ -347,6 +388,11 @@ actions:
       gravedad_min: 0.4
       gravedad_max: 1.0
       lasts: 192
+  examples:
+  - ataco a
+  - le pego
+  - me lanzo contra
+  - peleo con
 - id: atacar_con_sana
   label: atacar con saña
   duration_ticks: 3
@@ -375,6 +421,10 @@ actions:
       gravedad_min: 0.4
       gravedad_max: 1.4
       lasts: 192
+  examples:
+  - le ataco sin piedad
+  - voy a por todas contra
+  - le doy con toda mi rabia
 - id: golpe_mortal
   label: rematar a un herido
   duration_ticks: 2
@@ -395,6 +445,11 @@ actions:
     quita_por_pericia: combate
     gives:
       salud: -0.4
+  examples:
+  - remato a
+  - acabo con
+  - le doy el golpe de gracia
+  - mato al herido
 - id: saquear
   label: saquear a un herido
   duration_ticks: 3
@@ -409,6 +464,10 @@ actions:
     requires_condition: herida
     gives:
       suministros: -0.3
+  examples:
+  - le registro
+  - le quito sus cosas
+  - le robo al herido
 - id: curarse
   label: curarse las heridas
   duration_ticks: 8
@@ -423,6 +482,10 @@ actions:
     suministros: 0.4
   cures:
     herida: 1.0
+  examples:
+  - me curo
+  - me vendo las heridas
+  - me limpio la herida
 - id: socorrer
   label: socorrer a un aliado
   duration_ticks: 6
@@ -439,6 +502,10 @@ actions:
       herida: 1.2
     gives:
       salud: 0.3
+  examples:
+  - ayudo a
+  - curo las heridas de
+  - socorro a
 relations:
 - id: del_distrito
   label: del mismo distrito

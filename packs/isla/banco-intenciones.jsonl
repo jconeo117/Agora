@@ -1,0 +1,76 @@
+{"prosa": "ataco a Renna", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["atacar"], "destinatario": "renna_d1"}
+{"prosa": "le reviento la cabeza a Renna", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["atacar", "atacar_con_sana"], "destinatario": "renna_d1", "cruda": true}
+{"prosa": "me lanzo contra Renna sin piedad, a hacerle todo el daño posible", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["atacar_con_sana"], "destinatario": "renna_d1", "cruda": true}
+{"prosa": "destrozo a Renna a puñaladas hasta que deje de moverse", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["atacar_con_sana", "atacar"], "destinatario": "renna_d1", "cruda": true}
+{"prosa": "acabo con Vidan, que está en el suelo", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["golpe_mortal"], "destinatario": "vidan_d1", "cruda": true}
+{"prosa": "le clavo el cuchillo en el cuello a Vidan mientras se desangra", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["golpe_mortal"], "destinatario": "vidan_d1", "cruda": true}
+{"prosa": "le corto el cuello a Vidan y me río mientras muere", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["golpe_mortal"], "destinatario": "vidan_d1", "cruda": true}
+{"prosa": "remato al herido", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["golpe_mortal"], "destinatario": "vidan_d1", "cruda": true}
+{"prosa": "le registro los bolsillos a Vidan", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["saquear"], "destinatario": "vidan_d1"}
+{"prosa": "desvalijo el cadáver de Vidan", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["saquear"], "destinatario": "vidan_d1", "cruda": true}
+{"prosa": "le quito las cosas al herido", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["saquear"], "destinatario": "vidan_d1"}
+{"prosa": "le propongo a Gara que vayamos juntos", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["aliarse"], "destinatario": "gara_d1"}
+{"prosa": "hago equipo con Gara", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["aliarse"], "destinatario": "gara_d1"}
+{"prosa": "me alío con alguien", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["aliarse"], "destinatario": "gara_d1"}
+{"prosa": "vendo las heridas de Vidri", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["socorrer"], "destinatario": "vidri_d1"}
+{"prosa": "ayudo a Vidri, que está sangrando", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["socorrer"], "destinatario": "vidri_d1"}
+{"prosa": "me curo", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["curarse"], "lugar": "pedestal_1"}
+{"prosa": "me tapono la herida del brazo", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["curarse"]}
+{"prosa": "como algo de la mochila", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["comer"]}
+{"prosa": "estoy muerto de hambre, como", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["comer"]}
+{"prosa": "me echo a dormir aquí mismo", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["dormir_al_raso"], "lugar": "pedestal_1"}
+{"prosa": "duermo un rato bajo las estrellas", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["dormir_al_raso"]}
+{"prosa": "busco un sitio techado para pasar la noche", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["dormir"]}
+{"prosa": "voy a la cornucopia a coger lo que pueda", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["saquear_cornucopia"], "lugar": "cornucopia"}
+{"prosa": "corro a por las mochilas del cuerno dorado", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["saquear_cornucopia"], "lugar": "cornucopia"}
+{"prosa": "bebo agua", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["beber"]}
+{"prosa": "voy a beber al claro", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["beber"], "lugar": "selva_1_0"}
+{"prosa": "busco frutos en la selva", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["recolectar"]}
+{"prosa": "intento pescar algo en el arrecife", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["recolectar"], "lugar": "playa_1_3"}
+{"prosa": "me escondo", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["esconderse"]}
+{"prosa": "me oculto en el matorral", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["esconderse"], "lugar": "selva_1_2"}
+{"prosa": "me escondo en el arroyo", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["esconderse"], "lugar": "selva_1_1"}
+{"prosa": "subo a otear desde lo alto", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["vigilar"]}
+{"prosa": "vigilo desde el templo caído", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["vigilar"], "lugar": "ruinas_1_3"}
+{"prosa": "rebusco entre las ruinas", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["rebuscar"]}
+{"prosa": "registro los escombros del pozo", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["rebuscar"], "lugar": "ruinas_1_2"}
+{"prosa": "duermo en la charca", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["dormir", "dormir_al_raso"], "lugar": "cienaga_1_0"}
+{"prosa": "voy a la cornucopia y bebo", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["beber"], "lugar": "cornucopia"}
+{"prosa": "me curo y luego ataco a Renna", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["curarse"]}
+{"prosa": "remato a Vidan y le quito las cosas", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["golpe_mortal"], "destinatario": "vidan_d1", "cruda": true}
+{"prosa": "le doy una paliza", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["atacar", "atacar_con_sana"], "destinatario": "renna_d1"}
+{"prosa": "me ocupo de Vidan", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["ambigua"]}
+{"prosa": "voy al arroyo", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["ambigua", "no_encaja"]}
+{"prosa": "descanso", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion", "ambigua"], "accion": ["dormir_al_raso", "dormir"]}
+{"prosa": "nado hasta la playa", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["no_encaja"]}
+{"prosa": "construyo una trampa con lianas", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["no_encaja"]}
+{"prosa": "le tiro una piedra a Gara", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["no_encaja"]}
+{"prosa": "ataco a Gara", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["no_encaja"]}
+{"prosa": "socorro a Renna", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["no_encaja"]}
+{"prosa": "enciendo una hoguera", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["no_encaja"]}
+{"prosa": "rezo a los dioses", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["no_encaja"]}
+{"prosa": "le robo a Gara", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["no_encaja"]}
+{"prosa": "¿quién está aquí?", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["orden"], "orden": "mirar"}
+{"prosa": "¿cómo estoy?", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["orden"], "orden": "ficha"}
+{"prosa": "¿qué sé de Renna?", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["orden"], "destinatario": "renna_d1", "orden": "ficha"}
+{"prosa": "espero", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["orden"], "orden": "esperar"}
+{"prosa": "me quedo quieto un rato", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["orden"], "orden": "esperar"}
+{"prosa": "pregúntale a Gara qué tal", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["orden"], "destinatario": "gara_d1", "orden": "hablar"}
+{"prosa": "quiero dejar la partida", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["no_encaja", "pregunta"]}
+{"prosa": "¿qué puedo hacer?", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["pregunta"]}
+{"prosa": "¿dónde hay agua?", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["pregunta"]}
+{"prosa": "ataco a Renna", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["atacar"], "destinatario": "renna_d1", "escena": [["atacar", "renna_d1", false], ["rematar", "vidan_d1", false], ["primeros_auxilios", "vidri_d1", false], ["defensa_total", null, false], ["recuperar_aliento", null, false], ["huir", null, false], ["rendirse", null, false], ["atacar", "renna_d1", true]]}
+{"prosa": "le doy con todo a Renna aunque me deje sin aliento", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["atacar"], "destinatario": "renna_d1", "cruda": true, "escena": [["atacar", "renna_d1", false], ["rematar", "vidan_d1", false], ["primeros_auxilios", "vidri_d1", false], ["defensa_total", null, false], ["recuperar_aliento", null, false], ["huir", null, false], ["rendirse", null, false], ["atacar", "renna_d1", true]]}
+{"prosa": "le golpeo", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["atacar"], "destinatario": "renna_d1", "escena": [["atacar", "renna_d1", false], ["rematar", "vidan_d1", false], ["primeros_auxilios", "vidri_d1", false], ["defensa_total", null, false], ["recuperar_aliento", null, false], ["huir", null, false], ["rendirse", null, false], ["atacar", "renna_d1", true]]}
+{"prosa": "le abro la cabeza a Renna", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["atacar"], "destinatario": "renna_d1", "cruda": true, "escena": [["atacar", "renna_d1", false], ["rematar", "vidan_d1", false], ["primeros_auxilios", "vidri_d1", false], ["defensa_total", null, false], ["recuperar_aliento", null, false], ["huir", null, false], ["rendirse", null, false], ["atacar", "renna_d1", true]]}
+{"prosa": "me cubro", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["defensa_total"], "escena": [["atacar", "renna_d1", false], ["rematar", "vidan_d1", false], ["primeros_auxilios", "vidri_d1", false], ["defensa_total", null, false], ["recuperar_aliento", null, false], ["huir", null, false], ["rendirse", null, false], ["atacar", "renna_d1", true]]}
+{"prosa": "levanto el escudo y aguanto", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["defensa_total"], "escena": [["atacar", "renna_d1", false], ["rematar", "vidan_d1", false], ["primeros_auxilios", "vidri_d1", false], ["defensa_total", null, false], ["recuperar_aliento", null, false], ["huir", null, false], ["rendirse", null, false], ["atacar", "renna_d1", true]]}
+{"prosa": "respiro hondo", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["recuperar_aliento"], "escena": [["atacar", "renna_d1", false], ["rematar", "vidan_d1", false], ["primeros_auxilios", "vidri_d1", false], ["defensa_total", null, false], ["recuperar_aliento", null, false], ["huir", null, false], ["rendirse", null, false], ["atacar", "renna_d1", true]]}
+{"prosa": "salgo corriendo", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["huir"], "escena": [["atacar", "renna_d1", false], ["rematar", "vidan_d1", false], ["primeros_auxilios", "vidri_d1", false], ["defensa_total", null, false], ["recuperar_aliento", null, false], ["huir", null, false], ["rendirse", null, false], ["atacar", "renna_d1", true]]}
+{"prosa": "huyo hacia la selva", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["huir"], "escena": [["atacar", "renna_d1", false], ["rematar", "vidan_d1", false], ["primeros_auxilios", "vidri_d1", false], ["defensa_total", null, false], ["recuperar_aliento", null, false], ["huir", null, false], ["rendirse", null, false], ["atacar", "renna_d1", true]]}
+{"prosa": "me rindo", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["rendirse"], "escena": [["atacar", "renna_d1", false], ["rematar", "vidan_d1", false], ["primeros_auxilios", "vidri_d1", false], ["defensa_total", null, false], ["recuperar_aliento", null, false], ["huir", null, false], ["rendirse", null, false], ["atacar", "renna_d1", true]]}
+{"prosa": "suplico piedad de rodillas", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["rendirse"], "escena": [["atacar", "renna_d1", false], ["rematar", "vidan_d1", false], ["primeros_auxilios", "vidri_d1", false], ["defensa_total", null, false], ["recuperar_aliento", null, false], ["huir", null, false], ["rendirse", null, false], ["atacar", "renna_d1", true]]}
+{"prosa": "remato a Vidan", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["rematar"], "destinatario": "vidan_d1", "cruda": true, "escena": [["atacar", "renna_d1", false], ["rematar", "vidan_d1", false], ["primeros_auxilios", "vidri_d1", false], ["defensa_total", null, false], ["recuperar_aliento", null, false], ["huir", null, false], ["rendirse", null, false], ["atacar", "renna_d1", true]]}
+{"prosa": "le corto la garganta a Vidan", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["rematar"], "destinatario": "vidan_d1", "cruda": true, "escena": [["atacar", "renna_d1", false], ["rematar", "vidan_d1", false], ["primeros_auxilios", "vidri_d1", false], ["defensa_total", null, false], ["recuperar_aliento", null, false], ["huir", null, false], ["rendirse", null, false], ["atacar", "renna_d1", true]]}
+{"prosa": "taponono la herida de Vidri", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["accion"], "accion": ["primeros_auxilios"], "destinatario": "vidri_d1", "escena": [["atacar", "renna_d1", false], ["rematar", "vidan_d1", false], ["primeros_auxilios", "vidri_d1", false], ["defensa_total", null, false], ["recuperar_aliento", null, false], ["huir", null, false], ["rendirse", null, false], ["atacar", "renna_d1", true]]}
+{"prosa": "le lanzo arena a los ojos", "semilla": 1, "tick": 7, "agente": "elor_d1", "tipo": ["no_encaja"], "escena": [["atacar", "renna_d1", false], ["rematar", "vidan_d1", false], ["primeros_auxilios", "vidri_d1", false], ["defensa_total", null, false], ["recuperar_aliento", null, false], ["huir", null, false], ["rendirse", null, false], ["atacar", "renna_d1", true]]}
