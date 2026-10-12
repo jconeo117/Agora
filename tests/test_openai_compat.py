@@ -101,10 +101,20 @@ def test_respuesta_valida_y_parametros_en_cuerpo(monkeypatch: pytest.MonkeyPatch
         assert res.mensaje == "saludo recibido"
 
         assert cuerpo_recibido.get("seed") == 42
-        assert cuerpo_recibido.get("provider") == {"require_parameters": True}
+        assert cuerpo_recibido.get("provider") == {"require_parameters": True, "sort": "throughput"}
         assert "response_format" in cuerpo_recibido
         assert cuerpo_recibido["response_format"].get("type") == "json_schema"
         assert "json_schema" in cuerpo_recibido["response_format"]
+
+        provider_sin_ruta = OpenAICompatibleProvider(
+            modelo="test-model",
+            url=f"http://127.0.0.1:{port}",
+            clave_env="TEST_OPENAI_KEY",
+            ruta=None,
+        )
+        res_sin_ruta = provider_sin_ruta.think("hola", DummyPayload, 42)
+        assert isinstance(res_sin_ruta, DummyPayload)
+        assert cuerpo_recibido.get("provider") == {"require_parameters": True}
     finally:
         server.shutdown()
 

@@ -12,15 +12,17 @@ import pytest
 from pydantic import BaseModel
 
 from agora.agents.decide import Decision, options
+from agora.cognition.narrador import Narrator, Table
 from agora.engine.newcomer import load_sheet, newcomer_spec
 from agora.engine.ontology import ActionId, AgentId, NeedId
 from agora.engine.pack import load_pack
-from agora.engine.ports import CognitionProvider
+from agora.engine.ports import CognitionProvider, Outcome
 from agora.engine.rng import RngSource
 from agora.engine.state import AgentState, PerformingAction, WorldState
 from agora.engine.world import Simulation
 from agora.play import (
     SIN_MODELO,
+    SIN_NARRADOR,
     Recorder,
     Script,
     ScriptError,
@@ -28,8 +30,9 @@ from agora.play import (
     TerminalCombat,
     hint,
     play,
+    scene_facts,
 )
-from agora.rules.encounter import ActionKind, Encounter
+from agora.rules.encounter import ActionKind, Beat, Encounter
 from agora.rules.scene import load_scenario
 from agora.rules.system import load_ruleset
 from agora.run import main
@@ -37,6 +40,7 @@ from agora.run import main
 CONFLUENCIA_PACK = Path("packs/confluencia/pack.yaml")
 FORASTERO_SHEET = Path("packs/confluencia/forastero.yaml")
 ISLA_PACK = Path("packs/isla/pack.yaml")
+BASE_RULES = Path("rules/base/rules.yaml")
 
 
 def test_grabar_y_volver_a_jugar_da_el_mismo_mundo(tmp_path: Path) -> None:
@@ -618,3 +622,151 @@ def test_recorder_y_script_con_prosa(tmp_path: Path) -> None:
     busy = sim2.state.agents[AgentId("elor_d1")].busy
     assert isinstance(busy, PerformingAction)
     assert busy.action == ActionId("dormir_al_raso")
+
+
+def test_terminal_con_narrador_usa_plantilla() -> None:
+    # 1. Terminal con Narrator((), Table()): antes de decidir escribe la
+    # plantilla de lo que pasó y no las líneas de render_event.
+    pack = load_pack(ISLA_PACK)
+    sim = Simulation(pack, seed=1312)
+    sim.tick()
+    sim.set_player(AgentId("elor_d1"))
+
+    # Sin narrador: usa render_event
+    out_sin = io.StringIO()
+    term_sin = Terminal(sim, io.StringIO("salir\n"), out_sin, narrator=None)
+    opts = tuple(options(sim.state, sim.state.agents[AgentId("elor_d1")]))
+    term_sin.choose(sim.state, sim.state.agents[AgentId("elor_d1")], opts)
+    salida_sin = out_sin.getvalue()
+    assert "d1 00:15 noche" in salida_sin
+
+    # Con narrador: usa la plantilla y no render_event
+    sim2 = Simulation(pack, seed=1312)
+    sim2.tick()
+    sim2.set_player(AgentId("elor_d1"))
+    out_con = io.StringIO()
+    narrator = Narrator((), Table())
+    term_con = Terminal(sim2, io.StringIO("salir\n"), out_con, narrator=narrator)
+    opts2 = tuple(options(sim2.state, sim2.state.agents[AgentId("elor_d1")]))
+    term_con.choose(sim2.state, sim2.state.agents[AgentId("elor_d1")], opts2)
+    salida_con = out_con.getvalue()
+    assert "Atacas a Renna" in salida_con
+    assert "d1 00:15 noche" not in salida_con
+
+
+def test_terminal_narrador_aviso_sin_narrador() -> None:
+    # 2. Terminal con un narrador cuyo proveedor devuelve None: escribe
+    # SIN_NARRADOR; con Narrator((), …), no.
+    class NoneProvider(CognitionProvider):
+        def think(self, briefing: str, schema: type, semilla: int) -> object:
+            return None
+
+    pack = load_pack(ISLA_PACK)
+    sim = Simulation(pack, seed=1312)
+    sim.tick()
+    sim.set_player(AgentId("elor_d1"))
+    opts = tuple(options(sim.state, sim.state.agents[AgentId("elor_d1")]))
+
+    # Con cadena que devuelve None -> avisa SIN_NARRADOR
+    out1 = io.StringIO()
+    narrator1 = Narrator((NoneProvider(),), Table())
+    term1 = Terminal(sim, io.StringIO("salir\n"), out1, narrator=narrator1)
+    term1.choose(sim.state, sim.state.agents[AgentId("elor_d1")], opts)
+    assert SIN_NARRADOR in out1.getvalue()
+
+    # Sin proveedores en la cadena -> no avisa SIN_NARRADOR
+    sim2 = Simulation(pack, seed=1312)
+    sim2.tick()
+    sim2.set_player(AgentId("elor_d1"))
+    opts2 = tuple(options(sim2.state, sim2.state.agents[AgentId("elor_d1")]))
+    out2 = io.StringIO()
+    term2 = Terminal(sim2, io.StringIO("salir\n"), out2, narrator=Narrator((), Table()))
+    term2.choose(sim2.state, sim2.state.agents[AgentId("elor_d1")], opts2)
+    assert SIN_NARRADOR not in out2.getvalue()
+
+
+def test_terminal_prosa_pregunta_responde_y_no_decide() -> None:
+    # 3. Prosa que el intérprete (fingido) lee como pregunta, con narrador: escribe
+    # la respuesta y no decide.
+    class QuestionInterpreter(CognitionProvider):
+        def think(self, briefing: str, schema: type, semilla: int) -> object:
+            # schema es el modelo dinámico generado por schema(menu)
+            return schema(tipo="pregunta")
+
+    pack = load_pack(ISLA_PACK)
+    sim = Simulation(pack, seed=1312)
+    sim.set_player(AgentId("elor_d1"))
+    opts = tuple(options(sim.state, sim.state.agents[AgentId("elor_d1")]))
+
+    inp = io.StringIO("¿dónde hay agua?\nsalir\n")
+    out = io.StringIO()
+    narrator = Narrator((), Table())
+    term = Terminal(sim, inp, out, interpreter=QuestionInterpreter(), narrator=narrator)
+
+    d = term.choose(sim.state, sim.state.agents[AgentId("elor_d1")], opts)
+    assert d is None
+    salida = out.getvalue()
+    assert "puedes beber:" in salida.lower() or "sin el narrador" in salida.lower()
+
+
+def test_terminal_farewell_al_morir() -> None:
+    # 4. farewell tras la muerte del jugador escribe «caes…».
+    pack = load_pack(ISLA_PACK)
+    sim = Simulation(pack, seed=1312)
+    sim.set_player(AgentId("elor_d1"))
+    sim.state.agents.pop(AgentId("elor_d1"))
+
+    out = io.StringIO()
+    term = Terminal(sim, io.StringIO(), out, narrator=Narrator((), Table()))
+    term.farewell()
+    assert "caes, y ya no te levantas" in out.getvalue().lower()
+
+
+def test_terminal_combat_con_narrador_muestra_ronda_y_pv() -> None:
+    # 5. TerminalCombat con narrador: antes del turno, la plantilla de la ronda; las
+    # líneas de PV siguen apareciendo.
+    pack = load_pack(ISLA_PACK)
+    sim = Simulation(pack, seed=1312)
+    ruleset = load_ruleset(BASE_RULES)
+    esc = load_scenario(Path("rules/base/escenarios/espejo.yaml"), ruleset)
+    enc = Encounter(esc, ruleset, RngSource(1312), "test")
+    aria = enc.fighters["aria_a"]
+
+    enc.beats.append(Beat(1, "aria_a", "atacar", "aria_b", Outcome.SUCCESS, 2, ""))
+
+    inp = io.StringIO("1\n")
+    out = io.StringIO()
+    narrator = Narrator((), Table())
+    tc = TerminalCombat(inp, out, narrator=narrator, world=lambda: sim.state)
+    acc = tc.choose(enc, aria)
+    assert acc is not None
+
+    salida = out.getvalue()
+    assert "alcanzas a aria b" in salida.lower()
+    assert "PV" in salida
+
+
+def test_scene_facts_banda_sin_numeros() -> None:
+    # 6. scene_facts da el daño en banda («un roce», «un buen golpe», «un golpe
+    # brutal») y nunca un número.
+    import re
+
+    ruleset = load_ruleset(BASE_RULES)
+    esc = load_scenario(Path("rules/base/escenarios/espejo.yaml"), ruleset)
+    enc = Encounter(esc, ruleset, RngSource(1312), "test")
+    aria = enc.fighters["aria_a"]
+    beats = [
+        Beat(1, "aria_a", "atacar", "aria_b", Outcome.SUCCESS, 1, ""),
+        Beat(2, "aria_a", "atacar", "aria_b", Outcome.SUCCESS, 6, ""),
+        Beat(3, "aria_a", "atacar", "aria_b", Outcome.SUCCESS, 15, ""),
+    ]
+
+    hechos, _estado, _presentes = scene_facts(enc, aria, beats, Table())
+    textos = [f.text for f in hechos]
+    assert any(", un roce" in t for t in textos)
+    assert any(", un buen golpe" in t for t in textos)
+    assert any(", un golpe brutal" in t for t in textos)
+    assert not any(re.search(r"\b\d+ de daño\b", t) for t in textos)
+    assert not any(re.search(r"\b\d+\b", t) for t in textos)
+
+
