@@ -9,18 +9,34 @@ import sys
 from pathlib import Path
 
 import pytest
+from pydantic import BaseModel
 
 from agora.agents.decide import Decision, options
 from agora.engine.newcomer import load_sheet, newcomer_spec
-from agora.engine.ontology import ActionId, NeedId
+from agora.engine.ontology import ActionId, AgentId, NeedId
 from agora.engine.pack import load_pack
+from agora.engine.ports import CognitionProvider
+from agora.engine.rng import RngSource
 from agora.engine.state import AgentState, PerformingAction, WorldState
 from agora.engine.world import Simulation
-from agora.play import Recorder, Script, ScriptError, Terminal, hint, play
+from agora.play import (
+    SIN_MODELO,
+    Recorder,
+    Script,
+    ScriptError,
+    Terminal,
+    TerminalCombat,
+    hint,
+    play,
+)
+from agora.rules.encounter import ActionKind, Encounter
+from agora.rules.scene import load_scenario
+from agora.rules.system import load_ruleset
 from agora.run import main
 
 CONFLUENCIA_PACK = Path("packs/confluencia/pack.yaml")
 FORASTERO_SHEET = Path("packs/confluencia/forastero.yaml")
+ISLA_PACK = Path("packs/isla/pack.yaml")
 
 
 def test_grabar_y_volver_a_jugar_da_el_mismo_mundo(tmp_path: Path) -> None:
@@ -237,7 +253,7 @@ def test_la_terminal_elige_y_consulta() -> None:
     assert f"en {pack.place_by_id[presente.at].label}:" in texto_salida
     assert otro_aqui.spec_id in texto_salida
     assert "(respaldo)" in texto_salida
-    assert "número       elegir esa opción" in texto_salida
+    assert "no hay nadie así aquí con quien hablar" in texto_salida
 
 
 def test_esperar_n() -> None:
@@ -404,3 +420,201 @@ def test_jugar_por_la_linea_de_ordenes(
     )
     with pytest.raises(SystemExit, match="--skip no se puede jugar"):
         main()
+
+
+def test_prosa_sin_destinatario_con_lexico() -> None:
+    # 1. Prosa sin destinatario con el léxico (interpreter=None): la terminal
+    # devuelve esa Decision sin preguntar y escribe →.
+    pack = load_pack(ISLA_PACK)
+    sim = Simulation(pack, seed=1312)
+    agent = sim.state.agents[AgentId("elor_d1")]
+    opts = tuple(options(sim.state, agent))
+
+    inp = io.StringIO("me echo a dormir aquí mismo\n")
+    out = io.StringIO()
+    terminal = Terminal(sim, inp, out, provider=None, interpreter=None)
+    elegida = terminal.choose(sim.state, agent, opts)
+
+    assert elegida is not None
+    assert elegida.action == ActionId("dormir_al_raso")
+    assert elegida.target is None
+    assert "→" in out.getvalue()
+
+
+def test_prosa_contra_alguien_confirma() -> None:
+    # 2. Prosa contra alguien (proveedor fingido que devuelve esa intención):
+    # pregunta entiendo:; con n no decide y sigue leyendo; con Enter devuelve la decisión.
+    pack = load_pack(ISLA_PACK)
+    sim = Simulation(pack, seed=1)
+    while sim.state.tick < 7:
+        sim.tick()
+    agent = sim.state.agents[AgentId("elor_d1")]
+    opts = tuple(options(sim.state, agent))
+    atacar_renna = next(
+        o for o in opts if o.action == ActionId("atacar") and o.target == AgentId("renna_d1")
+    )
+
+    class FakeProvider(CognitionProvider):
+        def think(self, briefing: str, schema: type, semilla: int) -> object | None:
+            if isinstance(schema, type) and issubclass(schema, BaseModel):
+                return schema.model_validate(
+                    {"tipo": "accion", "accion": "atacar", "destinatario": "renna_d1"}
+                )
+            return None
+
+    # Primero 'n' rechaza y sigue en el bucle; luego Enter (línea vacía '\n') confirma.
+    inp = io.StringIO("ataco a Renna\nn\nataco a Renna\n\n")
+    out = io.StringIO()
+    terminal = Terminal(sim, inp, out, provider=None, interpreter=FakeProvider())
+    elegida = terminal.choose(sim.state, agent, opts)
+
+    assert elegida == atacar_renna
+    assert "entiendo:" in out.getvalue()
+
+
+def test_no_fit_con_candidatas() -> None:
+    # 3. NO_FIT con candidatas: con b devuelve la segunda candidata; con x no decide.
+    pack = load_pack(ISLA_PACK)
+    sim = Simulation(pack, seed=1312)
+    while sim.state.tick < 7:
+        sim.tick()
+    agent = sim.state.agents[AgentId("elor_d1")]
+    opts = tuple(options(sim.state, agent))
+
+    class AmbiguousProvider(CognitionProvider):
+        def think(self, briefing: str, schema: type, semilla: int) -> object | None:
+            if isinstance(schema, type) and issubclass(schema, BaseModel):
+                return schema.model_validate({
+                    "tipo": "ambigua",
+                    "candidatas": [
+                        {
+                            "accion": str(opts[0].action),
+                            "destinatario": str(opts[0].target) if opts[0].target else None,
+                        },
+                        {
+                            "accion": str(opts[1].action),
+                            "destinatario": str(opts[1].target) if opts[1].target else None,
+                        },
+                    ],
+                })
+            return None
+
+    # Primero 'x' rechaza y sigue; luego 'b' elige la segunda candidata (opts[1]).
+    inp = io.StringIO("algo ambiguo\nx\nalgo ambiguo\nb\n")
+    out = io.StringIO()
+    terminal = Terminal(sim, inp, out, provider=None, interpreter=AmbiguousProvider())
+    elegida = terminal.choose(sim.state, agent, opts)
+
+    assert elegida == opts[1]
+    assert "¿cuál de estas?" in out.getvalue()
+
+
+def test_proveedor_fingido_none_dice_sin_modelo() -> None:
+    # 4. Proveedor fingido que devuelve None: la salida contiene SIN_MODELO.
+    # Sin intérprete (None), no lo contiene.
+    pack = load_pack(ISLA_PACK)
+    sim = Simulation(pack, seed=1312)
+    agent = sim.state.agents[AgentId("elor_d1")]
+    opts = tuple(options(sim.state, agent))
+
+    class NoneProvider(CognitionProvider):
+        def think(self, briefing: str, schema: type, semilla: int) -> object | None:
+            return None
+
+    # Con intérprete que devuelve None:
+    inp1 = io.StringIO("me echo a dormir aquí mismo\n")
+    out1 = io.StringIO()
+    term1 = Terminal(sim, inp1, out1, provider=None, interpreter=NoneProvider())
+    term1.choose(sim.state, agent, opts)
+    assert SIN_MODELO in out1.getvalue()
+
+    # Sin intérprete (None):
+    inp2 = io.StringIO("me echo a dormir aquí mismo\n")
+    out2 = io.StringIO()
+    term2 = Terminal(sim, inp2, out2, provider=None, interpreter=None)
+    term2.choose(sim.state, agent, opts)
+    assert SIN_MODELO not in out2.getvalue()
+
+
+def test_quien_hay_aqui_con_lexico_como_mirar() -> None:
+    # 5. «¿quién hay aquí?» con el léxico escribe lo mismo que mirar.
+    pack = load_pack(CONFLUENCIA_PACK)
+    sim = Simulation(pack, seed=1312)
+    agents = sim.state.agents_in_order()
+    presente = agents[0]
+    opts = tuple(options(sim.state, presente))
+
+    inp1 = io.StringIO("mirar\n1\n")
+    out1 = io.StringIO()
+    term1 = Terminal(sim, inp1, out1, provider=None, interpreter=None)
+    term1.choose(sim.state, presente, opts)
+
+    inp2 = io.StringIO("¿quién hay aquí?\n1\n")
+    out2 = io.StringIO()
+    term2 = Terminal(sim, inp2, out2, provider=None, interpreter=None)
+    term2.choose(sim.state, presente, opts)
+
+    lineas1 = [
+        line for line in out1.getvalue().splitlines() if line.startswith("    ") or "más" in line
+    ]
+    lineas2 = [
+        line for line in out2.getvalue().splitlines() if line.startswith("    ") or "más" in line
+    ]
+    assert lineas1 == lineas2
+
+
+def test_escena_prosa_y_numero() -> None:
+    # 6. Escena (TerminalCombat con una escena de rules/base/escenarios/):
+    # «me cubro» devuelve Action(TOTAL_DEFENSE); el número sigue funcionando.
+    ruleset = load_ruleset(Path("rules/base/rules.yaml"))
+    esc = load_scenario(Path("rules/base/escenarios/aria_lobo.yaml"), ruleset)
+    enc = Encounter(esc, ruleset, RngSource(1312), "test")
+    aria = enc.fighters["aria"]
+
+    # Prosa "me cubro"
+    inp1 = io.StringIO("me cubro\n")
+    out1 = io.StringIO()
+    tc1 = TerminalCombat(inp1, out1, interpreter=None)
+    acc1 = tc1.choose(enc, aria)
+    assert acc1.kind is ActionKind.TOTAL_DEFENSE
+
+    # Número 1
+    legales = list(enc.legal_actions(aria))
+    inp2 = io.StringIO("1\n")
+    out2 = io.StringIO()
+    tc2 = TerminalCombat(inp2, out2, interpreter=None)
+    acc2 = tc2.choose(enc, aria)
+    assert acc2 == legales[0]
+
+
+def test_recorder_y_script_con_prosa(tmp_path: Path) -> None:
+    # 7. Recorder sobre una terminal que recibe prosa graba la línea
+    # {"tick":…, "decidir":{…}} sin la prosa, y Script con esa línea
+    # reproduce la misma decisión.
+    pack = load_pack(ISLA_PACK)
+    sim1 = Simulation(pack, seed=1312)
+    sim1.set_player(AgentId("elor_d1"))
+    grabacion = tmp_path / "guion_prosa.jsonl"
+
+    inp = io.StringIO("me echo a dormir aquí mismo\nsalir\n")
+    out = io.StringIO()
+    term = Terminal(sim1, inp, out, provider=None, interpreter=None)
+
+    with grabacion.open("w", encoding="utf-8") as f:
+        rec = Recorder(term, f)
+        play(sim1, rec, 1, term)
+
+    lineas = grabacion.read_text(encoding="utf-8").splitlines()
+    assert len(lineas) == 1
+    dato = json.loads(lineas[0])
+    assert "prosa" not in dato
+    assert dato["decidir"]["accion"] == "dormir_al_raso"
+
+    script = Script(lineas)
+    sim2 = Simulation(pack, seed=1312)
+    sim2.set_player(AgentId("elor_d1"))
+    res2 = play(sim2, script, 1, None)
+    assert res2.ticks == 1
+    busy = sim2.state.agents[AgentId("elor_d1")].busy
+    assert isinstance(busy, PerformingAction)
+    assert busy.action == ActionId("dormir_al_raso")
