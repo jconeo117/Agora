@@ -65,7 +65,7 @@ tuning:
 needs:
 - id: sustento
   label: comida
-  decay_per_tick: 0.0045
+  decay_per_tick: 0.006
   urgency_exponent: 2.4
   initial: 0.7
   base_weight: 1.0
@@ -267,7 +267,7 @@ actions:
     suministros: 1.0
     sustento: 0.3
   effects:
-    suministros: 0.25
+    suministros: 0.12
     sustento: 0.05
     descanso: -0.05
   costs:
@@ -310,6 +310,8 @@ actions:
     seguridad: -0.2
   costs:
     seguridad: 0.4
+  situation_multipliers:
+    cornucopia_agotada: 0.1
   examples:
   - cojo lo que pueda de la cornucopia
   - voy a por las armas
@@ -608,6 +610,8 @@ places:
   neighbors:
     cornucopia: 1
     selva_1_0: 2
+  closed_during:
+  - zona_final
 - id: pedestal_2
   label: el pedestal 2
   affordances:
@@ -618,6 +622,8 @@ places:
   neighbors:
     cornucopia: 1
     selva_1_1: 2
+  closed_during:
+  - zona_final
 - id: pedestal_3
   label: el pedestal 3
   affordances:
@@ -628,6 +634,8 @@ places:
   neighbors:
     cornucopia: 1
     selva_1_2: 2
+  closed_during:
+  - zona_final
 - id: pedestal_4
   label: el pedestal 4
   affordances:
@@ -638,6 +646,8 @@ places:
   neighbors:
     cornucopia: 1
     montana_1_3: 2
+  closed_during:
+  - zona_final
 - id: pedestal_5
   label: el pedestal 5
   affordances:
@@ -648,6 +658,8 @@ places:
   neighbors:
     cornucopia: 1
     montana_1_0: 2
+  closed_during:
+  - zona_final
 - id: pedestal_6
   label: el pedestal 6
   affordances:
@@ -658,6 +670,8 @@ places:
   neighbors:
     cornucopia: 1
     playa_1_1: 2
+  closed_during:
+  - zona_final
 - id: pedestal_7
   label: el pedestal 7
   affordances:
@@ -668,6 +682,8 @@ places:
   neighbors:
     cornucopia: 1
     playa_1_2: 2
+  closed_during:
+  - zona_final
 - id: pedestal_8
   label: el pedestal 8
   affordances:
@@ -678,6 +694,8 @@ places:
   neighbors:
     cornucopia: 1
     playa_1_3: 2
+  closed_during:
+  - zona_final
 - id: pedestal_9
   label: el pedestal 9
   affordances:
@@ -688,6 +706,8 @@ places:
   neighbors:
     cienaga_1_0: 2
     cornucopia: 1
+  closed_during:
+  - zona_final
 - id: pedestal_10
   label: el pedestal 10
   affordances:
@@ -698,6 +718,8 @@ places:
   neighbors:
     cienaga_1_1: 2
     cornucopia: 1
+  closed_during:
+  - zona_final
 - id: pedestal_11
   label: el pedestal 11
   affordances:
@@ -708,6 +730,8 @@ places:
   neighbors:
     cornucopia: 1
     ruinas_1_2: 2
+  closed_during:
+  - zona_final
 - id: pedestal_12
   label: el pedestal 12
   affordances:
@@ -718,6 +742,8 @@ places:
   neighbors:
     cornucopia: 1
     ruinas_1_3: 2
+  closed_during:
+  - zona_final
 - id: selva_1_0
   label: claro (la selva, interior)
   description: Un hueco en la selva donde entra el sol de lleno; la hierba llega a la rodilla.
@@ -1052,7 +1078,7 @@ places:
   label: canchal (la montaña, interior)
   description: Piedra suelta que resbala a cada paso.
   affordances:
-  - agua
+  - refugio
   tags:
   - montana
   - anillo_1
@@ -1084,7 +1110,7 @@ places:
   label: paso (la montaña, media)
   description: Un sendero estrecho entre dos paredes de roca.
   affordances:
-  - agua
+  - refugio
   tags:
   - montana
   - anillo_2
@@ -1147,7 +1173,7 @@ places:
   label: cumbre (la montaña, media)
   description: La cima pelada; el viento no para y todo queda abajo.
   affordances:
-  - agua
+  - refugio
   tags:
   - montana
   - anillo_2
@@ -1206,7 +1232,7 @@ places:
   label: grieta (la montaña, costa)
   description: Una hendidura en la montaña donde apenas cabe un cuerpo.
   affordances:
-  - agua
+  - refugio
   tags:
   - montana
   - anillo_3
@@ -1264,7 +1290,7 @@ places:
   label: risco (la montaña, costa)
   description: Una cornisa de piedra desde la que se ve media isla.
   affordances:
-  - agua
+  - refugio
   tags:
   - montana
   - anillo_3
@@ -1832,10 +1858,11 @@ places:
   closed_during:
   - zona_1
 - id: ruinas_1_1
-  label: sotano (las ruinas, interior)
+  label: sótano (las ruinas, interior)
   description: Un hueco bajo las ruinas, oscuro y con eco.
   affordances:
-  - agua
+  - botin_menor
+  - escondite
   tags:
   - ruinas
   - anillo_1
@@ -1862,7 +1889,7 @@ places:
   closed_during:
   - zona_1
 - id: ruinas_1_3
-  label: templo caido (las ruinas, interior)
+  label: templo caído (las ruinas, interior)
   description: Columnas derribadas y un tejado a medias que aún da sombra.
   affordances:
   - vigia
@@ -1877,7 +1904,7 @@ places:
   closed_during:
   - zona_1
 - id: ruinas_2_0
-  label: sotano (las ruinas, media)
+  label: sótano (las ruinas, media)
   description: Un hueco bajo las ruinas, oscuro y con eco.
   affordances:
   - botin_menor
@@ -1908,7 +1935,7 @@ places:
   closed_during:
   - zona_2
 - id: ruinas_2_2
-  label: templo caido (las ruinas, media)
+  label: templo caído (las ruinas, media)
   description: Columnas derribadas y un tejado a medias que aún da sombra.
   affordances:
   - refugio
@@ -1927,7 +1954,8 @@ places:
   label: muralla (las ruinas, media)
   description: Un lienzo de muralla en pie, con huecos donde faltan piedras.
   affordances:
-  - agua
+  - botin_menor
+  - escondite
   tags:
   - ruinas
   - anillo_2
@@ -1940,7 +1968,7 @@ places:
   closed_during:
   - zona_2
 - id: ruinas_2_4
-  label: almacen (las ruinas, media)
+  label: almacén (las ruinas, media)
   description: Estanterías vencidas y cajas reventadas por el tiempo.
   affordances:
   - botin_menor
@@ -1985,10 +2013,11 @@ places:
   closed_during:
   - zona_3
 - id: ruinas_3_1
-  label: templo caido (las ruinas, costa)
+  label: templo caído (las ruinas, costa)
   description: Columnas derribadas y un tejado a medias que aún da sombra.
   affordances:
-  - agua
+  - botin_menor
+  - escondite
   tags:
   - ruinas
   - anillo_3
@@ -2013,7 +2042,7 @@ places:
   closed_during:
   - zona_3
 - id: ruinas_3_3
-  label: almacen (las ruinas, costa)
+  label: almacén (las ruinas, costa)
   description: Estanterías vencidas y cajas reventadas por el tiempo.
   affordances:
   - vigia
@@ -2045,7 +2074,8 @@ places:
   label: plaza rota (las ruinas, costa)
   description: Losas levantadas por raíces y una fuente seca en el centro.
   affordances:
-  - agua
+  - botin_menor
+  - escondite
   tags:
   - ruinas
   - anillo_3
@@ -2070,7 +2100,7 @@ places:
   closed_during:
   - zona_3
 - id: ruinas_3_7
-  label: sotano (las ruinas, costa)
+  label: sótano (las ruinas, costa)
   description: Un hueco bajo las ruinas, oscuro y con eco.
   affordances:
   - vigia
@@ -17686,7 +17716,7 @@ situations:
   - violencia
 - id: zona_3
   label: la zona se cierra (anillo 3)
-  starts_at: 288
+  starts_at: 192
   every: 34560
   lasts: 28800
   places:
@@ -17735,7 +17765,7 @@ situations:
     seguridad: -0.01
 - id: zona_2
   label: la zona se cierra (anillo 2)
-  starts_at: 576
+  starts_at: 384
   every: 34560
   lasts: 28800
   places:
@@ -17774,7 +17804,7 @@ situations:
     seguridad: -0.01
 - id: zona_1
   label: la zona se cierra (anillo 1)
-  starts_at: 864
+  starts_at: 480
   every: 34560
   lasts: 28800
   places:
@@ -17801,6 +17831,36 @@ situations:
   effects:
     salud: -0.012
     seguridad: -0.01
+- id: zona_final
+  label: la zona se cierra (solo queda la cornucopia)
+  starts_at: 576
+  every: 34560
+  lasts: 28800
+  places:
+  - pedestal_1
+  - pedestal_2
+  - pedestal_3
+  - pedestal_4
+  - pedestal_5
+  - pedestal_6
+  - pedestal_7
+  - pedestal_8
+  - pedestal_9
+  - pedestal_10
+  - pedestal_11
+  - pedestal_12
+  effects:
+    salud: -0.012
+    seguridad: -0.01
+- id: cornucopia_agotada
+  label: la cornucopia está vacía
+  starts_at: 480
+  every: 34560
+  lasts: 28800
+  places:
+  - cornucopia
+  gain_multipliers:
+    suministros: 0.05
 newcomer:
   home: selva_1_0
   start_at: pedestal_12

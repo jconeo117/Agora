@@ -124,8 +124,10 @@ class Agresivo:
 
 
 def test_la_partida_de_la_sonda() -> None:
-    """La sonda (sonda_partida.py) como test: reason == "muerte" en el tick 47,
-    tres escenas y el guion byte a byte.
+    """La sonda (sonda_partida.py) como test: reason == "muerte" en el tick 41,
+    dos escenas y el guion byte a byte. Eran el 47 y tres escenas hasta la calibración de la
+    isla del 2026-10-13 (zona antes, menos agua y comida): el número es de la
+    isla, no del combate.
     """
     pack = load_pack(ISLA_PACK)
     ruleset = load_ruleset(BASE_RULES)
@@ -142,9 +144,9 @@ def test_la_partida_de_la_sonda() -> None:
     )
     res1 = play(sim1, Recorder(Agresivo(), guion), 96 * 3, None)
 
-    assert res1.ticks == 47
+    assert res1.ticks == 41
     assert res1.reason == "muerte"
-    assert len(escenas) == 3
+    assert len(escenas) == 2
 
     log2 = io.StringIO()
     sim2 = Simulation(pack, seed=1312, log_sink=log2)

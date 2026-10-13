@@ -34,13 +34,13 @@ REGIONES = {
     "selva":   {"label": "la selva",   "lugares": ["espesura", "claro", "arroyo", "matorral", "ceiba", "helechal", "barranco", "lianas"],
                 "afford": [["forraje", "escondite"], ["forraje", "aire"], ["agua", "forraje"], ["escondite", "refugio"]]},
     "montana": {"label": "la montaña", "lugares": ["cueva", "manantial", "risco", "paso", "canchal", "cornisa", "grieta", "cumbre"],
-                "afford": [["refugio", "escondite"], ["agua"], ["vigia"], ["vigia", "escondite"]]},
+                "afford": [["refugio", "escondite"], ["refugio"], ["vigia"], ["vigia", "escondite"]]},
     "playa":   {"label": "la playa",   "lugares": ["cala", "dunas", "rompiente", "manglar", "arrecife", "faro", "muelle roto", "naufragio"],
                 "afford": [["refugio"], ["forraje"], ["forraje", "aire"], ["agua", "escondite"]]},
     "cienaga": {"label": "la ciénaga", "lugares": ["juncal", "charca", "isleta", "niebla", "pantano", "turbera", "carrizal", "cieno"],
                 "afford": [["escondite"], ["agua"], ["refugio", "escondite"], ["forraje"]]},
-    "ruinas":  {"label": "las ruinas", "lugares": ["plaza rota", "torre", "sotano", "pozo", "templo caido", "muralla", "almacen", "cripta"],
-                "afford": [["botin_menor"], ["vigia"], ["refugio", "escondite"], ["agua"]]},
+    "ruinas":  {"label": "las ruinas", "lugares": ["plaza rota", "torre", "sótano", "pozo", "templo caído", "muralla", "almacén", "cripta"],
+                "afford": [["botin_menor"], ["vigia"], ["refugio", "escondite"], ["botin_menor", "escondite"]]},
 }
 ORDEN = list(REGIONES)
 
@@ -83,11 +83,11 @@ DESCRIPCION = {
     "cieno": "Lodo hasta los tobillos, y un olor dulzón a podrido.",
     "plaza rota": "Losas levantadas por raíces y una fuente seca en el centro.",
     "torre": "Una torre de piedra sin tejado, con escaleras que suben a medias.",
-    "sotano": "Un hueco bajo las ruinas, oscuro y con eco.",
+    "sótano": "Un hueco bajo las ruinas, oscuro y con eco.",
     "pozo": "Un brocal de piedra entre muros caídos.",
-    "templo caido": "Columnas derribadas y un tejado a medias que aún da sombra.",
+    "templo caído": "Columnas derribadas y un tejado a medias que aún da sombra.",
     "muralla": "Un lienzo de muralla en pie, con huecos donde faltan piedras.",
-    "almacen": "Estanterías vencidas y cajas reventadas por el tiempo.",
+    "almacén": "Estanterías vencidas y cajas reventadas por el tiempo.",
     "cripta": "Nichos vacíos en la pared y un frío que no se va.",
 }
 ANILLOS = {1: 4, 2: 6, 3: 8}            # lugares por región y anillo; el 3 es la costa
@@ -149,7 +149,16 @@ def mapa() -> tuple[list[dict], dict[int, list[str]]]:
 
 # --- La zona que se cierra --------------------------------------------------------
 
-ZONA = {3: 3, 2: 6, 1: 9}                 # anillo -> día en que se cierra
+ZONA = {3: 2, 2: 4, 1: 5}                 # anillo -> día en que se cierra
+FINAL = 6
+AGOTADA = 5
+"""Día en que la cornucopia deja de dar botín (sigue el agua del lago): sin
+esto era un refugio con curas ilimitadas y en el final hacía falta una docena
+de ataques por muerte (calibración del 2026-10-13)."""
+"""Día en que se cierran también los pedestales y solo queda la cornucopia: el
+final que obliga a encontrarse. Sin él, con la zona sola, el día 7 quedaban
+15-32 vivos repartidos entre cornucopia y pedestales (calibración del
+2026-10-13)."""
 
 
 # --- Los tributos ------------------------------------------------------------------
@@ -227,6 +236,9 @@ def pack() -> dict:
     for anillo, dia in ZONA.items():
         for lid in por_anillo[anillo]:
             next(p for p in lugares if p["id"] == lid)["closed_during"] = [f"zona_{anillo}"]
+    pedestales = [lid for lid in por_anillo[0] if lid != "cornucopia"]
+    for lid in pedestales:
+        next(p for p in lugares if p["id"] == lid)["closed_during"] = ["zona_final"]
     rasgo = lambda i, label, **canales: {"id": i, "label": label, **canales}  # noqa: E731
     return {
         "id": "isla",
@@ -248,7 +260,7 @@ def pack() -> dict:
                    "regret_weight": 0.35, "regret_scale": 0.5, "fear_weight": 0.5, "fear_scale": 0.5,
                    "grief_scale": 0.5, "rumor_rate": 0.1, "rumor_decay": 0.5},
         "needs": [
-            {"id": "sustento", "label": "comida", "decay_per_tick": 0.0045, "urgency_exponent": 2.4, "initial": 0.7, "base_weight": 1.0, "strain_weight": 0.8},
+            {"id": "sustento", "label": "comida", "decay_per_tick": 0.006, "urgency_exponent": 2.4, "initial": 0.7, "base_weight": 1.0, "strain_weight": 0.8},
             {"id": "agua", "label": "agua", "decay_per_tick": 0.007, "urgency_exponent": 2.6, "initial": 0.8, "base_weight": 1.1, "strain_weight": 0.9, "lethal_after": 192},
             {"id": "descanso", "label": "descanso", "decay_per_tick": 0.006, "urgency_exponent": 2.2, "initial": 0.8, "base_weight": 1.0, "strain_weight": 1.0, "max_debt": 1.0},
             {"id": "salud", "label": "salud", "decay_per_tick": 0.0, "urgency_exponent": 2.6, "initial": 1.0, "base_weight": 1.0, "lethal_after": 8},
@@ -291,6 +303,10 @@ def pack() -> dict:
             *({"id": f"zona_{anillo}", "label": f"la zona se cierra (anillo {anillo})", "starts_at": dia * DIA,
                "every": 360 * DIA, "lasts": 300 * DIA, "places": por_anillo[anillo], "effects": {"salud": -0.012, "seguridad": -0.01}}
               for anillo, dia in ZONA.items()),
+            {"id": "zona_final", "label": "la zona se cierra (solo queda la cornucopia)", "starts_at": FINAL * DIA,
+             "every": 360 * DIA, "lasts": 300 * DIA, "places": pedestales, "effects": {"salud": -0.012, "seguridad": -0.01}},
+            {"id": "cornucopia_agotada", "label": "la cornucopia está vacía", "starts_at": AGOTADA * DIA,
+             "every": 360 * DIA, "lasts": 300 * DIA, "places": ["cornucopia"], "gain_multipliers": {"suministros": 0.05}},
         ],
         "newcomer": {"home": por_anillo[1][0], "start_at": "pedestal_12", "edad_inicial": DIA * 360 * 17,
                      "initial_needs": {"suministros": 0.2}},
@@ -380,12 +396,12 @@ def _acciones() -> list[dict]:
         {"id": "beber", "label": "beber", "duration_ticks": 2, "requires_affordance": "agua",
          "satisfies": {"agua": 1.0}, "effects": {"agua": 0.6}},
         {"id": "recolectar", "label": "buscar comida", "duration_ticks": 8, "requires_affordance": "forraje",
-         "satisfies": {"suministros": 1.0, "sustento": 0.3}, "effects": {"suministros": 0.25, "sustento": 0.05, "descanso": -0.05},
+         "satisfies": {"suministros": 1.0, "sustento": 0.3}, "effects": {"suministros": 0.12, "sustento": 0.05, "descanso": -0.05},
          "costs": {"descanso": 0.2}},
         {"id": "comer", "label": "comer de lo que lleva", "duration_ticks": 2, "requires": {"suministros": 0.1},
          "satisfies": {"sustento": 1.0}, "effects": {"suministros": -0.1, "sustento": 0.4}, "costs": {"suministros": 0.5}},
         {"id": "saquear_cornucopia", "label": "saquear la cornucopia", "duration_ticks": 4, "requires_affordance": "botin",
-         "satisfies": {"suministros": 1.0}, "effects": {"suministros": 0.6, "seguridad": -0.2}, "costs": {"seguridad": 0.4}},
+         "satisfies": {"suministros": 1.0}, "effects": {"suministros": 0.6, "seguridad": -0.2}, "costs": {"seguridad": 0.4}, "situation_multipliers": {"cornucopia_agotada": 0.1}},
         {"id": "rebuscar", "label": "rebuscar entre los escombros", "duration_ticks": 6, "requires_affordance": "botin_menor",
          "satisfies": {"suministros": 1.0}, "effects": {"suministros": 0.3, "descanso": -0.03}, "costs": {"descanso": 0.15}},
         {"id": "esconderse", "label": "esconderse", "duration_ticks": 12, "requires_affordance": "escondite",
