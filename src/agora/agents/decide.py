@@ -548,7 +548,9 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
     # las dos de arriba, esta no se apaga con un peso del mundo: la piden las
     # acciones que se dirigen por agravio, y si ninguna lo hace no se calcula.
     agravio = (
-        world.memoria.agravio(agent.spec_id, world.tick, tuning.grief_scale)
+        world.memoria.agravio(
+            agent.spec_id, world.tick, tuning.grief_scale, tuning.agravio_de_oidas
+        )
         if any(a.target is not None and a.target.por_agravio for a in pack.actions)
         else {}
     )

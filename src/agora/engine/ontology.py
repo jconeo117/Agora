@@ -3591,6 +3591,23 @@ class TuningSpec(Spec):
     el narrador de F5, sin decidir por nadie.
     """
 
+    agravio_de_oidas: float = Field(default=0.3, ge=0.0, le=1.0)
+    """Cuánto pesa en `agravio()` lo que uno oyó de otro, frente a lo que vivió.
+
+    Un rumor copia el recuerdo con su `por_quien` (`oir`), y sin esto el rencor
+    se contagiaba entero: quien oye que insultaste a otro te cuenta un agravio.
+    Medido en `confluencia` con cuatro semillas (4271, 1, 2, 3), inyectando lo
+    oído como agravio al 100 % (lo de antes), al 0 % y al 30 %:
+
+        peso de lo oído   muertes   crisis   salud   desafíos
+        100 %                40     23.6 %    0.47      6298
+        0 %                  50     22.9 %    0.53      5374
+        30 %                 39     22.6 %    0.51         —
+
+    Con 0 % las muertes suben un 25 %, todas por `salud`, con menos desafíos:
+    el mecanismo no está trazado, y por eso no se elige. Con 30 % se queda donde
+    estaba. 1.0 es el comportamiento anterior a la unidad 15b."""
+
 
 class Tone(StrEnum):
     """Cómo suena una réplica. Deliberadamente pobre, como `Outcome`: la regla
@@ -3610,8 +3627,10 @@ class SocialAct(StrEnum):
     acto que inventara el pack no lo sabría recibir nadie. Lo que se dijo
     exactamente lo pone la voz, y no se guarda.
 
-    `ASK`, `AFFIRM` y `LIE` se reconocen ya, pero no mueven nada hasta la 15b:
-    hace falta comparar lo afirmado con lo que el otro recuerda."""
+    `ASK` y `AFFIRM` no pesan por sí mismos: lo que mueven lo decide
+    comparar lo afirmado con lo que el otro sabe (unidad 15b). Mentir no es un
+    acto: una afirmación es verdadera o falsa según el motor, se diga como se
+    diga."""
 
     GREET = "saludar"
     CHAT = "charlar"
@@ -3624,7 +3643,20 @@ class SocialAct(StrEnum):
     THREATEN = "amenazar"
     ASK = "preguntar"
     AFFIRM = "afirmar"
-    LIE = "mentir"
+
+
+class ClaimKind(StrEnum):
+    """Lo que el jugador puede afirmar y el motor comprobar (unidad 15b)."""
+
+    AT = "esta_en"
+    ALIVE = "vive"
+    DEAD = "ha_muerto"
+    HARMED = "hizo_dano"
+
+
+class QuestionKind(StrEnum):
+    WHERE = "donde_esta"
+    ABOUT = "que_sabes"
 
 
 class SocialActSpec(Spec):
@@ -3656,7 +3688,6 @@ def _default_social_acts() -> dict[SocialAct, SocialActSpec]:
         SocialAct.THREATEN: SocialActSpec(regard=-0.12, valence=-0.7, importance=0.6),
         SocialAct.ASK: SocialActSpec(regard=0.0),
         SocialAct.AFFIRM: SocialActSpec(regard=0.0),
-        SocialAct.LIE: SocialActSpec(regard=0.0),
     }
 
 
@@ -3676,6 +3707,17 @@ class SocialSpec(Spec):
     leave_below: float = Field(default=-0.3, ge=-1.0, le=0.0)
     """Por debajo de este aprecio hacia quien le habla, el otro se va."""
     acts: dict[SocialAct, SocialActSpec] = Field(default_factory=_default_social_acts)
+    trust_above: float = 0.05
+    """Aprecio desde el que alguien te cuenta lo que sabe (o una relación)."""
+    caught: SocialActSpec = SocialActSpec(regard=-0.10, valence=-0.5, importance=0.4)
+    """Lo que cuesta que te pillen en una mentira: se aplica en lugar del peso
+    del acto, y se recuerda con quien habló como culpable."""
+    doubt: float = -0.02
+    """Lo que baja el aprecio hacia quien habla cuando se le cree a medias (un
+    éxito con coste en la tirada)."""
+    accuse: float = 0.15
+    """Cuánto baja el aprecio hacia el acusado de dañar a alguien, por unidad de
+    aprecio a la víctima (si la víctima es el oyente, por 1)."""
 
     @model_validator(mode="after")
     def _all_acts(self) -> SocialSpec:

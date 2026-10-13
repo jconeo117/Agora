@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from agora.engine.consulta import Ficha, Lack, ficha
 from agora.engine.ontology import AgentId, Tone
 from agora.engine.ports import CognitionProvider
+from agora.engine.social import Belief
 from agora.engine.state import WorldState
 
 PLANTILLA = (Path(__file__).parent / "prompts" / "voz.txt").read_text(encoding="utf-8")
@@ -44,6 +45,11 @@ class Heard:
     turn: int
     """Cuántos actos lleva la conversación: dos réplicas del mismo tick no
     comparten semilla."""
+    facts: tuple[str, ...] = ()
+    """Lo que sabe y le cuenta a quien pregunta (unidad 15b). Con hechos, la voz
+    solo puede decir eso: lo que el motor sabe, no lo que el modelo supone."""
+    belief: Belief | None = None
+    """Qué hizo con lo que le afirmaron: si lo pilló, la voz tiene que saberlo."""
 
 
 def briefing(f: Ficha, heard: Heard | None = None) -> str:
@@ -70,6 +76,9 @@ def briefing(f: Ficha, heard: Heard | None = None) -> str:
         " Te pregunta qué tal te va." if heard is None
         else f" Te acaba de decir: «{heard.phrase[:200]}» ({heard.act})."
         f" Contestas en tono {heard.tone.value}{', y te vas' if heard.leaves else ''}."
+        + (f" Lo que sabes y le cuentas: {'; '.join(heard.facts)}. Solo puedes decir eso."
+           if heard.facts else "")
+        + (" No le crees: sabes que no es así." if heard.belief is Belief.CAUGHT else "")
     )
     interlocutor = (
         f"Te habla {f.interlocutor}"

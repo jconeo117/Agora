@@ -22,8 +22,16 @@ from pathlib import Path
 from typing import Any
 
 from agora.agents.decide import options
-from agora.cognition.conversa import CONVERSA, talk_menu
-from agora.cognition.intencion import Kind, Menu, Reading, interpret, same_place
+from agora.cognition.conversa import CONVERSA, Said, interpret_said, talk_menu
+from agora.cognition.intencion import (
+    Kind,
+    Menu,
+    Reading,
+    _representatives,
+    interpret,
+    same_place,
+    short_name,
+)
 from agora.cognition.narrador import Moment, moment_from_json, narrate
 from agora.engine.ontology import AgentId
 from agora.engine.pack import ContentPack
@@ -261,3 +269,91 @@ def run_acts_bank(casos: Sequence[ActCase], provider: CognitionProvider | None) 
             informe.falsos_si += r.kind is Kind.ACTION
             informe.fallos.append(f"  ✗ «{c.prosa}» → {_describe(menu, r)}")
     return informe
+
+
+# --- El banco de afirmaciones (unidad 15b) ---------------------------------------
+
+PLAYER = "jugador"
+"""El id del jugador en los casos del banco; en el esquema, la persona «yo»."""
+
+
+@dataclass(frozen=True, slots=True)
+class ClaimCase:
+    prosa: str
+    tipo: str
+    """«afirmar», «preguntar» u «otro»."""
+    afirma: str | None = None
+    pregunta: str | None = None
+    persona: str | None = None
+    lugar: str | None = None
+    """El nombre corto del lugar, como en el banco de la 14."""
+    victima: str | None = None
+
+
+def load_claims_bank(path: Path) -> list[ClaimCase]:
+    casos = []
+    for linea in path.read_text(encoding="utf-8").splitlines():
+        if not linea.strip():
+            continue
+        d: dict[str, Any] = json.loads(linea)
+        casos.append(ClaimCase(
+            prosa=d["prosa"], tipo=d["tipo"], afirma=d.get("afirma"),
+            pregunta=d.get("pregunta"), persona=d.get("persona"), lugar=d.get("lugar"),
+            victima=d.get("victima"),
+        ))
+    return casos
+
+
+def run_claims_bank(
+    pack: ContentPack, casos: Sequence[ClaimCase], provider: CognitionProvider | None,
+) -> BankReport:
+    """Mide qué afirma o pregunta el intérprete de lo que se le dice a un NPC,
+    sobre el mundo de la isla (semilla 1, tick 7) y el menú de Elor, que es de
+    donde salen los lugares que sabe nombrar. Sin modelo no se interpreta nada
+    (no hay léxico para esto): acierta lo que es «otro» y nada más."""
+    sim = Simulation(pack, seed=1)
+    while sim.state.tick < 7:
+        sim.tick()
+    w = sim.state
+    menu = world_menu(w, options(w, w.agents[AgentId("elor_d1")]))
+    nombres = {pid: label for pid, label, _ in menu.places}
+    lugares = [(pid, nombre) for nombre, (_, pid) in _representatives(menu).items()]
+    ids = sorted({x for c in casos for x in (c.persona, c.victima) if x and x != PLAYER}
+                 | {"gara_d1"})
+    gente = [(i, w.censo[AgentId(i)].label) for i in ids] + [(PLAYER, "yo")]
+    informe = BankReport()
+    for i, c in enumerate(casos):
+        t0 = time.perf_counter()
+        dicho = interpret_said(gente, lugares, c.prosa, provider, 100 + i, "gara_d1")
+        informe.latencias.append(time.perf_counter() - t0)
+        if c.tipo == "afirmar":
+            a = None if dicho is None else dicho.claim
+            bien = (a is not None and a.kind.value == c.afirma and str(a.who) == c.persona
+                    and (c.lugar is None
+                         or (a.place is not None
+                             and short_name(nombres[str(a.place)]) == c.lugar))
+                    and (c.victima is None or str(a.victim) == c.victima))
+        elif c.tipo == "preguntar":
+            q = None if dicho is None else dicho.question
+            bien = (q is not None and q[0].value == c.pregunta and str(q[1]) == c.persona)
+        else:
+            bien = dicho is None or (dicho.claim is None and dicho.question is None)
+        informe.casos += 1
+        informe.aciertos += bien
+        informe.sin_modelo += provider is not None and dicho is None
+        if not bien:
+            salio = dicho is not None and (dicho.claim is not None or dicho.question is not None)
+            informe.falsos_si += salio
+            informe.fallos.append(f"  ✗ «{c.prosa}» → {_describe_said(dicho)}")
+    return informe
+
+
+def _describe_said(dicho: Said | None) -> str:
+    if dicho is None:
+        return "no se entendió"
+    if dicho.claim is not None:
+        c = dicho.claim
+        return f"afirma {c.kind.value} {c.who} {c.place or ''} {c.victim or ''}".strip()
+    if dicho.question is not None:
+        return f"pregunta {dicho.question[0].value} {dicho.question[1]}"
+    return "otro"

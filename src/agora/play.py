@@ -21,19 +21,26 @@ import math
 import textwrap
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TextIO
+from typing import TYPE_CHECKING, Any, TextIO
 
 from agora.agents.decide import Decision
-from agora.cognition.conversa import ACT_HELP, CONVERSA, FAREWELL, heard_as, talk_menu
-from agora.cognition.intencion import Entry, Kind, Menu, Order, interpret
+from agora.cognition.conversa import (
+    ACT_HELP,
+    CONVERSA,
+    FAREWELL,
+    heard_as,
+    interpret_said,
+    talk_menu,
+)
+from agora.cognition.intencion import Entry, Kind, Menu, Order, _representatives, interpret
 from agora.cognition.narrador import BeatView, Fact, Narrator, Table, Told, round_facts
 from agora.cognition.voz import Heard, hablar
 from agora.engine.consulta import ficha
 from agora.engine.events import EventKind
-from agora.engine.ontology import AgentId, NeedId, PlaceId, SocialAct
+from agora.engine.ontology import AgentId, ClaimKind, NeedId, PlaceId, QuestionKind, SocialAct
 from agora.engine.ports import Outcome
 from agora.engine.render import render_event
-from agora.engine.social import Conversation
+from agora.engine.social import Claim, Conversation
 from agora.engine.state import AgentState, PerformingAction, Traveling, WorldState
 from agora.engine.world import Simulation
 from agora.rules.encounter import Action, ActionKind, Beat, Encounter, Fighter, Policy
@@ -65,7 +72,7 @@ class Script:
         self.sim = sim
         self.decisiones: dict[int, tuple[str, str, str | None]] = {}
         self.interrupciones: dict[int, bool] = {}
-        self.charlas: dict[int, list[tuple[str, str, str | None]]] = {}
+        self.charlas: dict[int, list[dict[str, Any]]] = {}
         for n, linea in enumerate(lines, start=1):
             if not linea.strip():
                 continue
@@ -77,8 +84,7 @@ class Script:
             elif "interrumpir" in dato:
                 self.interrupciones[tick] = bool(dato["interrumpir"])
             elif HABLAR in dato:
-                h = dato[HABLAR]
-                self.charlas.setdefault(tick, []).append((h["con"], h["acto"], h.get("sobre")))
+                self.charlas.setdefault(tick, []).append(dato[HABLAR])
             elif not any(k in dato for k in COMBATE):
                 raise ScriptError(f"línea {n}: ni «decidir», ni «interrumpir», ni de combate")
         if self.charlas and sim is None:
@@ -91,10 +97,23 @@ class Script:
             # Antes de buscar la decisión: lo dicho cambia el aprecio, como cuando
             # se jugó, y la decisión se tomó después de decirlo.
             conversaciones: dict[str, Conversation] = {}
-            for con, acto, sobre in self.charlas.get(world.tick, ()):
+            for h in self.charlas.get(world.tick, ()):
+                con = str(h["con"])
                 charla = conversaciones.setdefault(con, Conversation(AgentId(con)))
-                self.sim.apply_social(agent.spec_id, AgentId(con), SocialAct(acto),
-                                      None if sobre is None else AgentId(sobre), charla)
+                sobre = h.get("sobre")
+                afirma = h.get("afirma")
+                pregunta = h.get("pregunta")
+                if pregunta is not None:
+                    sobre = pregunta["quien"]
+                self.sim.apply_social(
+                    agent.spec_id, AgentId(con), SocialAct(h["acto"]),
+                    None if sobre is None else AgentId(sobre), charla,
+                    None if afirma is None else Claim(
+                        ClaimKind(afirma["tipo"]), AgentId(afirma["quien"]),
+                        None if "lugar" not in afirma else PlaceId(afirma["lugar"]),
+                        None if "victima" not in afirma else AgentId(afirma["victima"])),
+                    None if pregunta is None else QuestionKind(pregunta["tipo"]),
+                )
         pedida = self.decisiones.get(world.tick)
         if pedida is None:
             return None
@@ -127,8 +146,18 @@ class Recorder:
             for e in self.sim.log:
                 if (e.seq >= desde and e.kind is EventKind.SOCIAL_ACT
                         and e.actor == agent.spec_id and e.subject is not None):
-                    h: dict[str, str] = {"con": str(e.subject), "acto": str(e.data["act"])}
-                    if "about" in e.data:
+                    h: dict[str, Any] = {"con": str(e.subject), "acto": str(e.data["act"])}
+                    if "claim" in e.data:
+                        afirma = {"tipo": str(e.data["claim"]), "quien": str(e.data["claim_who"])}
+                        if "claim_place" in e.data:
+                            afirma["lugar"] = str(e.data["claim_place"])
+                        if "claim_victim" in e.data:
+                            afirma["victima"] = str(e.data["claim_victim"])
+                        h["afirma"] = afirma
+                    elif "question" in e.data:
+                        h["pregunta"] = {"tipo": str(e.data["question"]),
+                                         "quien": str(e.data["about"])}
+                    elif "about" in e.data:
                         h["sobre"] = str(e.data["about"])
                     self.out.write(json.dumps({"tick": world.tick, HABLAR: h}) + "\n")
             self.out.flush()
@@ -424,6 +453,27 @@ class Terminal:
                 return True, None
         return False, None
 
+    @staticmethod
+    def _lugares(world: WorldState, options: tuple[Decision, ...]) -> dict[str, tuple[int, str]]:
+        """Nombre corto -> (viaje, el más cercano con ese nombre), de su menú: los
+        lugares que el jugador sabe nombrar, como en la 14."""
+        return _representatives(world_menu(world, options))
+
+    @staticmethod
+    def _conocidos(
+        world: WorldState, agent: AgentState, presentes: list[tuple[str, str]],
+        options: tuple[Decision, ...],
+    ) -> list[tuple[str, str]]:
+        """Las personas de las que el jugador puede afirmar algo: quien tiene
+        delante, quien le sale en el menú y quien ha visto. Y él mismo, que es
+        «yo»: «Tumi me hirió a mí» tiene una víctima."""
+        ids = {pid for pid, _ in presentes} | {str(d.target) for d in options if d.target}
+        ids |= {str(q) for _, quienes in agent.sightings.values() for q in quienes}
+        ids.discard(str(agent.spec_id))
+        gente = [(pid, world.censo[AgentId(pid)].label) for pid in sorted(ids)
+                 if AgentId(pid) in world.censo]
+        return [*gente, (str(agent.spec_id), "yo")]
+
     def _conversar(
         self, world: WorldState, agent: AgentState, otro: AgentId,
         options: tuple[Decision, ...],
@@ -465,9 +515,28 @@ class Terminal:
                 break
             acto = SocialAct(entrada.action)
             sobre = None if entrada.target is None else AgentId(entrada.target)
-            r = self.sim.apply_social(agent.spec_id, otro, acto, sobre, talk)
-            oido = Heard(frase, heard_as(acto, None if sobre is None else etiquetas[str(sobre)]),
-                         r.tone, r.leaves, talk.count)
+            afirma: Claim | None = None
+            pregunta: QuestionKind | None = None
+            if acto in (SocialAct.AFFIRM, SocialAct.ASK):
+                # Una segunda llamada con el esquema anidado (unidad 15b). Sin
+                # modelo no hay léxico para esto: un falso sí acusaría a alguien.
+                segunda = world.rng.stream(
+                    "conversa-dicho", agent.spec_id, world.tick, talk.count).randrange(2**31)
+                dicho = interpret_said(
+                    self._conocidos(world, agent, presentes, options),
+                    [(pid, nombre) for nombre, (_, pid) in self._lugares(world, options).items()],
+                    frase, self.interpreter, segunda, str(otro))
+                if dicho is None or (dicho.claim is None and dicho.question is None):
+                    self._decir("  no sé qué afirmas; dilo de otra forma")
+                    continue
+                if dicho.claim is not None:
+                    acto, afirma, sobre = SocialAct.AFFIRM, dicho.claim, None
+                elif dicho.question is not None:
+                    acto, (pregunta, sobre) = SocialAct.ASK, dicho.question
+            r = self.sim.apply_social(agent.spec_id, otro, acto, sobre, talk, afirma, pregunta)
+            de_quien = None if sobre is None else etiquetas.get(str(sobre))
+            oido = Heard(frase, heard_as(acto, de_quien), r.tone, r.leaves, talk.count,
+                         r.info, r.belief)
             habla, del_modelo, _ = hablar(world, otro, agent.spec_id, self.provider, oido)
             self._decir(f"  {quien}: «{habla.dice}»  [{habla.tono}]"
                         + ("" if del_modelo else "  (respaldo)"))

@@ -10,10 +10,16 @@ entiende lo mismo que con el de la 14: por raíces, y peor.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, create_model
 
 from agora.cognition.intencion import Entry, Menu
-from agora.engine.ontology import SocialAct
+from agora.engine.ontology import AgentId, ClaimKind, PlaceId, QuestionKind, SocialAct
+from agora.engine.ports import CognitionProvider
+from agora.engine.social import Claim
 
 CONVERSA = (Path(__file__).parent / "prompts" / "conversa.txt").read_text(encoding="utf-8")
 
@@ -38,12 +44,11 @@ ACT_HELP: dict[str, tuple[str, tuple[str, ...]]] = {
                                       "cuidado conmigo")),
     SocialAct.ASK: ("preguntar algo", ("has visto a", "dónde está", "sabes algo de")),
     SocialAct.AFFIRM: ("afirmar un hecho", ("yo estuve allí", "te digo que", "es verdad que")),
-    SocialAct.LIE: ("mentir a sabiendas", ("le diré que", "le miento", "invento que")),
     FAREWELL: ("despedirse y dejar la conversación", ("adiós", "hasta luego", "me voy")),
 }
 
 ABOUT = frozenset({
-    SocialAct.FLATTER, SocialAct.INSULT, SocialAct.ASK, SocialAct.AFFIRM, SocialAct.LIE,
+    SocialAct.FLATTER, SocialAct.INSULT, SocialAct.ASK, SocialAct.AFFIRM,
 })
 """Los actos que pueden ir sobre un tercero."""
 
@@ -59,10 +64,8 @@ HEARD: dict[SocialAct, str] = {
     SocialAct.THREATEN: "te amenaza",
     SocialAct.ASK: "te pregunta algo",
     SocialAct.AFFIRM: "te afirma algo",
-    SocialAct.LIE: "te cuenta algo",
 }
-"""Cómo lo oye quien escucha, para el briefing de la voz. `LIE` se oye como
-«te cuenta algo»: el que escucha no sabe que le mienten."""
+"""Cómo lo oye quien escucha, para el briefing de la voz."""
 
 
 def heard_as(act: SocialAct, about_label: str | None = None) -> str:
@@ -86,3 +89,101 @@ def talk_menu(people: Sequence[tuple[str, str]], listener: str) -> Menu:
         actions=tuple((str(k), label, examples) for k, (label, examples) in ACT_HELP.items()),
         people=tuple(people),
     )
+
+
+# --- afirmar y preguntar (unidad 15b) -------------------------------------------
+
+AFIRMAR = (Path(__file__).parent / "prompts" / "afirmar.txt").read_text(encoding="utf-8")
+
+
+@dataclass(frozen=True, slots=True)
+class Said:
+    """Lo que se afirma o se pregunta, ya como lo entiende el motor. Con las dos
+    cosas a `None`, la frase no era ni una ni otra."""
+
+    claim: Claim | None = None
+    question: tuple[QuestionKind, AgentId] | None = None
+
+
+def said_schema(
+    people: Sequence[tuple[str, str]], places: Sequence[tuple[str, str]]
+) -> type[BaseModel]:
+    """El esquema anidado (unidad 15b): la afirmación y la pregunta cada una con
+    sus campos, y los enumerados hechos con las personas y los lugares de este
+    momento. Con un esquema plano con todo opcional, el modelo dejaba la persona
+    vacía y un «Renna es buena gente» acababa en «Renna está en…»: medido,
+    21/30 contra 29/30 con este."""
+    persona: Any = Literal[tuple(pid for pid, _ in people)] if people else str
+    lugar: Any = Literal[tuple(pid for pid, _ in places)] if places else str
+    afirmacion = create_model(
+        "Afirmacion",
+        que=(Literal[tuple(k.value for k in ClaimKind)], ...),
+        persona=(persona, ...),
+        lugar=(lugar | None, None),
+        victima=(persona | None, None),
+    )
+    pregunta = create_model(
+        "Pregunta",
+        que=(Literal[tuple(k.value for k in QuestionKind)], ...),
+        persona=(persona, ...),
+    )
+    model: type[BaseModel] = create_model(
+        "Dicho",
+        __config__=ConfigDict(extra="ignore"),
+        tipo=(Literal["afirmar", "preguntar", "otro"], ...),
+        afirmacion=(afirmacion | None, None),
+        pregunta=(pregunta | None, None),
+    )
+    return model
+
+
+def said_briefing(
+    people: Sequence[tuple[str, str]], places: Sequence[tuple[str, str]], prose: str,
+    listener: str | None = None,
+) -> str:
+    return AFIRMAR.format(
+        personas="\n".join(
+            f"  {pid}: {label}" + (" (con quien hablas)" if pid == listener else "")
+            for pid, label in people),
+        lugares="\n".join(f"  {pid}: {label}" for pid, label in places),
+        prosa=prose,
+    )
+
+
+def interpret_said(
+    people: Sequence[tuple[str, str]], places: Sequence[tuple[str, str]], prose: str,
+    provider: CognitionProvider | None, seed: int, listener: str | None = None,
+) -> Said | None:
+    """Qué afirma o pregunta el jugador (unidad 15b). **Solo con modelo**: no hay
+    léxico para esto, porque un falso sí aquí acusa a alguien de algo que no
+    hizo. `None`: no se entendió (sin modelo, o falló); `Said()` vacío: el modelo
+    dice que no es ni una afirmación ni una pregunta."""
+    if provider is None:
+        return None
+    out = provider.think(
+        said_briefing(people, places, prose, listener), said_schema(people, places), seed)
+    if not isinstance(out, BaseModel):
+        return None
+    d = out.model_dump()
+    try:
+        if d["tipo"] == "afirmar":
+            a = d["afirmacion"]
+            if a is None:
+                return None
+            kind = ClaimKind(a["que"])
+            if (kind is ClaimKind.AT and a["lugar"] is None) or (
+                    kind is ClaimKind.HARMED and a["victima"] is None):
+                return None
+            return Said(claim=Claim(
+                kind, AgentId(a["persona"]),
+                None if kind is not ClaimKind.AT else PlaceId(a["lugar"]),
+                None if kind is not ClaimKind.HARMED else AgentId(a["victima"]),
+            ))
+        if d["tipo"] == "preguntar":
+            p = d["pregunta"]
+            if p is None:
+                return None
+            return Said(question=(QuestionKind(p["que"]), AgentId(p["persona"])))
+    except (KeyError, ValueError, TypeError):
+        return None
+    return Said()

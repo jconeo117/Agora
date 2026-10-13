@@ -1,0 +1,30 @@
+{"prosa": "Renna está en el arroyo, la he visto", "tipo": "afirmar", "afirma": "esta_en", "persona": "renna_d1", "lugar": "arroyo"}
+{"prosa": "Vidan se esconde en el templo caído", "tipo": "afirmar", "afirma": "esta_en", "persona": "vidan_d1", "lugar": "templo caido"}
+{"prosa": "he visto a Elka junto a la cornucopia", "tipo": "afirmar", "afirma": "esta_en", "persona": "elka_d1", "lugar": "la cornucopia"}
+{"prosa": "Tumi anda por la charca", "tipo": "afirmar", "afirma": "esta_en", "persona": "tumi_d1", "lugar": "charca"}
+{"prosa": "Renna está muerta", "tipo": "afirmar", "afirma": "ha_muerto", "persona": "renna_d1"}
+{"prosa": "a Vidan lo mataron anoche", "tipo": "afirmar", "afirma": "ha_muerto", "persona": "vidan_d1"}
+{"prosa": "Elka ya no respira, la vi caer", "tipo": "afirmar", "afirma": "ha_muerto", "persona": "elka_d1"}
+{"prosa": "Tumi sigue vivo, te lo juro", "tipo": "afirmar", "afirma": "vive", "persona": "tumi_d1"}
+{"prosa": "Renna no está muerta, la vi esta mañana", "tipo": "afirmar", "afirma": "vive", "persona": "renna_d1"}
+{"prosa": "fue Renna quien te atacó anoche", "tipo": "afirmar", "afirma": "hizo_dano", "persona": "renna_d1", "victima": "gara_d1"}
+{"prosa": "Vidan le clavó un cuchillo a Elka", "tipo": "afirmar", "afirma": "hizo_dano", "persona": "vidan_d1", "victima": "elka_d1"}
+{"prosa": "Tumi me hirió a mí, mira esta herida", "tipo": "afirmar", "afirma": "hizo_dano", "persona": "tumi_d1", "victima": "jugador"}
+{"prosa": "Elka atacó a Renna por la espalda", "tipo": "afirmar", "afirma": "hizo_dano", "persona": "elka_d1", "victima": "renna_d1"}
+{"prosa": "yo no fui, fue Vidan quien te robó", "tipo": "afirmar", "afirma": "hizo_dano", "persona": "vidan_d1", "victima": "gara_d1"}
+{"prosa": "te juro que Renna le partió la cara a Tumi", "tipo": "afirmar", "afirma": "hizo_dano", "persona": "renna_d1", "victima": "tumi_d1"}
+{"prosa": "¿has visto a Renna?", "tipo": "preguntar", "pregunta": "donde_esta", "persona": "renna_d1"}
+{"prosa": "¿dónde está Vidan?", "tipo": "preguntar", "pregunta": "donde_esta", "persona": "vidan_d1"}
+{"prosa": "¿sabes por dónde anda Elka?", "tipo": "preguntar", "pregunta": "donde_esta", "persona": "elka_d1"}
+{"prosa": "¿qué sabes de Tumi?", "tipo": "preguntar", "pregunta": "que_sabes", "persona": "tumi_d1"}
+{"prosa": "cuéntame lo que sepas de Renna", "tipo": "preguntar", "pregunta": "que_sabes", "persona": "renna_d1"}
+{"prosa": "¿Vidan es de fiar?", "tipo": "preguntar", "pregunta": "que_sabes", "persona": "vidan_d1"}
+{"prosa": "¿alguien ha visto a Tumi por la charca?", "tipo": "preguntar", "pregunta": "donde_esta", "persona": "tumi_d1"}
+{"prosa": "hola, Gara", "tipo": "otro"}
+{"prosa": "eres muy valiente", "tipo": "otro"}
+{"prosa": "vete a la mierda", "tipo": "otro"}
+{"prosa": "Renna es buena gente", "tipo": "otro"}
+{"prosa": "mañana lloverá", "tipo": "otro"}
+{"prosa": "¿tienes hambre?", "tipo": "otro"}
+{"prosa": "Elka está escondida en el arroyo, créeme, vi sus huellas", "tipo": "afirmar", "afirma": "esta_en", "persona": "elka_d1", "lugar": "arroyo"}
+{"prosa": "ya sé que Vidan vive, pero ¿dónde está?", "tipo": "preguntar", "pregunta": "donde_esta", "persona": "vidan_d1"}

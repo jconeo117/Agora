@@ -23,9 +23,11 @@ from typing import TYPE_CHECKING
 from agora.banco import (
     load_acts_bank,
     load_bank,
+    load_claims_bank,
     load_moments,
     run_acts_bank,
     run_bank,
+    run_claims_bank,
     run_tell_bank,
 )
 from agora.cognition.narrador import Narrator, Table, load_table
@@ -59,6 +61,7 @@ from agora.rules.scene import load_scenario
 from agora.rules.simulator import account, check_calibration, fight, simulate
 from agora.rules.system import Ruleset, load_ruleset
 from agora.rules.world_combat import WorldCombat
+from agora.rules.world_social import WorldSocial
 
 if TYPE_CHECKING:
     from typing import TextIO
@@ -214,6 +217,11 @@ def main() -> None:
         "(unidad 15); con --sin-interprete, el léxico",
     )
     parser.add_argument(
+        "--banco-afirmar", type=Path, default=None, metavar="F",
+        help="mide qué afirma o pregunta el intérprete de lo que le dices a un NPC "
+        "(unidad 15b); sin modelo no se interpreta nada",
+    )
+    parser.add_argument(
         "--banco-intenciones", type=Path, default=None, metavar="F",
         help="mide el intérprete contra los casos de este archivo (unidad 14); "
         "con --sin-interprete, el léxico",
@@ -260,6 +268,10 @@ def main() -> None:
         print("\n".join(relato.lines()))
         if args.muestras is not None:
             args.muestras.write_text("\n".join(relato.muestras), encoding="utf-8")
+        return
+    if args.banco_afirmar is not None:
+        afirmar = run_claims_bank(pack, load_claims_bank(args.banco_afirmar), _interprete(args))
+        print("\n".join(afirmar.lines()))
         return
     if args.banco_actos is not None:
         actos = run_acts_bank(load_acts_bank(args.banco_actos), _interprete(args))
@@ -391,6 +403,7 @@ def _jugar(sim: Simulation, args: argparse.Namespace, ticks: int) -> None:
             fuente = Recorder(fuente, grabacion, sim)
             combate = CombatRecorder(combate, grabacion, ahora)
         sim.encounter_resolver = _resolutor(sim, args, combate, escena)
+        sim.social_resolver = _engano(sim, args)
         resultado = play(sim, fuente, ticks, terminal)
     if terminal is not None and resultado.reason == "muerte":
         terminal.farewell()
@@ -428,6 +441,16 @@ def _narrador(args: argparse.Namespace) -> Narrator | None:
         print("# sin OPENROUTER_API_KEY: lo que pasa lo cuentan las plantillas")
         return Narrator((), mesa)
     return Narrator(cadena, mesa)
+
+
+def _engano(sim: Simulation, args: argparse.Namespace) -> WorldSocial | None:
+    """Engañar a un NPC con las reglas de la mesa (unidad 15b). Sin enlace entre
+    este mundo y el sistema, decide el aprecio; el aviso ya lo da `_resolutor`."""
+    sistema = load_ruleset(args.reglas)
+    ruta = args.pack.parent / "reglas" / f"{sistema.id}.yaml"
+    if sistema.social is None or not ruta.exists():
+        return None
+    return WorldSocial(sistema, load_binding(ruta, sim.state.pack, sistema))
 
 
 def _resolutor(

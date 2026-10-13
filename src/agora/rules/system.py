@@ -156,6 +156,16 @@ class CombatSpec(Spec):
         return self
 
 
+class SocialRulesSpec(Spec):
+    """Con qué se miente y con qué se nota (unidad 15b). Son competencias del
+    sistema: el motor no sabe cuáles."""
+
+    deceive: str
+    """La competencia de quien miente; su reserva se tira contra la del otro."""
+    notice: str
+    """La competencia de quien escucha."""
+
+
 class CalibrationTarget(Spec):
     """Una promesa medible del sistema (§24.4), como el contrato de salud de un
     pack: el simulador la comprueba y dice CUMPLE o NO CUMPLE."""
@@ -220,6 +230,9 @@ class Ruleset(Spec):
     resources: ResourcesSpec | None = None
     """Sin esta sección el sistema no sabe cuánto aguanta nadie: las fichas de
     escena tienen que escribirlo a mano."""
+    social: SocialRulesSpec | None = None
+    """Sin esta sección el sistema no sabe engañar: el motor decide por el
+    aprecio (unidad 15b)."""
 
     def grade(self, value: int) -> int:
         """El grado es lo único del atributo que entra en una tirada; el valor
@@ -253,6 +266,7 @@ class Ruleset(Spec):
             *self._check_combat(),
             *self._check_calibration(),
             *self._check_resources(),
+            *self._check_social(),
         ]
         if self.vitality.grave_below >= self.vitality.wounded_below:
             problems.append(
@@ -340,6 +354,16 @@ class Ruleset(Spec):
         if c.tired_at >= c.exhausted_at:
             problems.append("combat: tired_at tiene que quedar por debajo de exhausted_at")
         return problems
+
+    def _check_social(self) -> list[str]:
+        if self.social is None:
+            return []
+        competencias = frozenset(s.id for s in self.skills)
+        return [
+            f"social.{papel}: competencia desconocida {s!r}"
+            for papel, s in (("deceive", self.social.deceive), ("notice", self.social.notice))
+            if s not in competencias
+        ]
 
     def _check_resources(self) -> list[str]:
         if self.resources is None:

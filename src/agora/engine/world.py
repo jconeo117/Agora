@@ -15,6 +15,7 @@ Dos invariantes que sostienen el determinismo:
 from __future__ import annotations
 
 import hashlib
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, assert_never
 
@@ -31,7 +32,7 @@ from agora.agents.decide import (
 from agora.engine import persistence
 from agora.engine.disposition import urgency
 from agora.engine.events import Event, EventKind, EventLog, Payload
-from agora.engine.memory import importancia_de
+from agora.engine.memory import Cue, Recuerdo, importancia_de
 from agora.engine.ontology import (
     ActionId,
     ActionSpec,
@@ -39,6 +40,7 @@ from agora.engine.ontology import (
     AgentId,
     AgentSpec,
     BirthSpec,
+    ClaimKind,
     FactionId,
     FactionKindId,
     GoalSpec,
@@ -48,6 +50,7 @@ from agora.engine.ontology import (
     Progenitor,
     PropertyId,
     PropertyKind,
+    QuestionKind,
     RelationId,
     SituationId,
     SituationSpec,
@@ -64,7 +67,19 @@ from agora.engine.outcome import (
 )
 from agora.engine.pack import ContentPack
 from agora.engine.ports import Fate
-from agora.engine.social import Conversation, Reaction, react
+from agora.engine.social import (
+    Belief,
+    Claim,
+    Conversation,
+    Reaction,
+    freshest_sighting,
+    judge,
+    react,
+    react_ask,
+    react_claim,
+    trusts,
+    truth,
+)
 from agora.engine.state import (
     AgentState,
     Busy,
@@ -79,13 +94,20 @@ from agora.engine.state import (
 if TYPE_CHECKING:
     from typing import TextIO
 
-    from agora.engine.ports import DecisionSource, EncounterOutcome, EncounterResolver
+    from agora.engine.ports import (
+        DecisionSource,
+        EncounterOutcome,
+        EncounterResolver,
+        SocialResolver,
+    )
 
 
 class Simulation:
     """Un mundo corriendo. Estado mutable + su registro de eventos."""
 
-    __slots__ = ("_together", "encounter_resolver", "log", "player_source", "state")
+    __slots__ = (
+        "_together", "encounter_resolver", "log", "player_source", "social_resolver", "state",
+    )
 
     def __init__(
         self,
@@ -111,6 +133,9 @@ class Simulation:
         self.encounter_resolver: EncounterResolver | None = None
         """Quién resuelve una pelea con el jugador dentro (unidad 13). Como la
         fuente de decisiones, no es estado: son las reglas de la mesa."""
+        self.social_resolver: SocialResolver | None = None
+        """Quién resuelve engañar a alguien (unidad 15b): las reglas de la mesa,
+        no estado. Sin él, el motor decide por el aprecio."""
         self.player_source: DecisionSource | None = None
         """De dónde salen las decisiones del jugador (unidad 10). No es estado:
         es el teclado o el guion, y no viaja en el guardado. Quién es el
@@ -2138,6 +2163,7 @@ class Simulation:
     def apply_social(
         self, speaker: AgentId, listener: AgentId, act: SocialAct,
         about: AgentId | None, talk: Conversation,
+        claim: Claim | None = None, question: QuestionKind | None = None,
     ) -> Reaction:
         """Alguien le dice algo a otro (unidad 15, D-164). **La única puerta por
         la que lo dicho cambia el mundo**, y solo por tres sitios que ya
@@ -2146,6 +2172,13 @@ class Simulation:
         log. De ahí sale el resto sin código nuevo: los rumores cuentan el
         recuerdo, la deliberación lee el aprecio y la venganza el agravio.
 
+        Con una afirmación (`claim`, unidad 15b) el oyente la compara con lo que
+        sabe y con lo que es verdad, y solo si no tiene nada con qué juzgarla
+        tira (`social_resolver`). Creerla cambia lo que él cree —dónde ve a
+        alguien, qué piensa de un acusado— y nunca fabrica un recuerdo de lo que
+        no pasó. Con una pregunta (`question`, y `about` es de quién), si se fía
+        cuenta lo que sabe, y quien pregunta lo recibe como se recibe un rumor.
+
         Revienta con `ValueError` si no están en el mismo sitio o si la
         conversación ya acabó: el que llama tenía que haberlo comprobado, y
         aplicarlo igual sería hablar a través de las paredes."""
@@ -2153,16 +2186,39 @@ class Simulation:
         oyente = self.state.agents.get(listener)
         if quien is None or oyente is None or quien.at != oyente.at or talk.over:
             raise ValueError(f"{speaker} no puede hablar con {listener} ahora")
-        r = react(self.state, listener, speaker, act, about, talk)
         tick = self.state.tick
+        verdadera = False
+        if act is SocialAct.AFFIRM and claim is not None:
+            verdadera = truth(self.state, claim) is True
+            creencia = judge(self.state, listener, speaker, claim, self.social_resolver,
+                             f"{tick}:{talk.count}")
+            r = react_claim(self.state, listener, speaker, creencia, talk)
+        elif act is SocialAct.ASK and question is not None and about is not None:
+            r = react_ask(self.state, listener, speaker, talk)
+        else:
+            r = react(self.state, listener, speaker, act, about, talk)
+        datos: dict[str, str | int | float | bool] = {
+            "act": act.value, "regard": round(r.regard, 4)}
+        if about is not None:
+            datos["about"] = str(about)
+        if claim is not None:
+            datos["claim"] = claim.kind.value
+            datos["claim_who"] = str(claim.who)
+            if claim.place is not None:
+                datos["claim_place"] = str(claim.place)
+            if claim.victim is not None:
+                datos["claim_victim"] = str(claim.victim)
+        if question is not None:
+            datos["question"] = question.value
+        if r.belief is not None:
+            datos["belief"] = r.belief.value
         evento = self.log.emit(
             tick=tick,
             kind=EventKind.SOCIAL_ACT,
             actor=speaker,
             place=oyente.at,
             subject=listener,
-            data={"act": act.value, "regard": round(r.regard, 4),
-                  **({"about": str(about)} if about is not None else {})},
+            data=datos,
         )
         if r.regard != 0.0:
             oyente.acercar(speaker, r.regard, tick)
@@ -2171,10 +2227,85 @@ class Simulation:
                 listener, evento, r.importance, r.valence,
                 por_quien=speaker if r.valence < 0.0 else None,
             )
+        if claim is not None and r.belief in (Belief.BELIEVED, Belief.DOUBTFUL):
+            self._creer(oyente, claim, verdadera, tick)
+        if (act is SocialAct.ASK and question is not None and about is not None
+                and trusts(self.state, listener, speaker)):
+            r = replace(r, info=self._contar_a(quien, oyente, about, question, tick))
         talk.said[act] = talk.said.get(act, 0) + 1
         talk.count += 1
         talk.over = r.leaves
         return r
+
+    def _creer(self, oyente: AgentState, claim: Claim, verdadera: bool, tick: int) -> None:
+        """Lo que cambia en quien cree una afirmación (unidad 15b). Solo lo que
+        él piensa o ve: un recuerdo es de algo que pasó, y esto puede no haber
+        pasado. La excepción es una muerte verdadera, donde llega el recuerdo
+        real de quien la vivió."""
+        memoria = self.state.memoria
+        match claim.kind:
+            case ClaimKind.AT if claim.place is not None:
+                for sitio in sorted(oyente.sightings):
+                    visto, quienes = oyente.sightings[sitio]
+                    if claim.who in quienes:
+                        oyente.sightings[sitio] = (visto, quienes - {claim.who})
+                _, ahi = oyente.sightings.get(claim.place, (tick, frozenset()))
+                oyente.sightings[claim.place] = (tick, ahi | {claim.who})
+            case ClaimKind.HARMED if claim.victim is not None:
+                if claim.who == oyente.spec_id or claim.who not in self.state.agents:
+                    return
+                if claim.victim == oyente.spec_id:
+                    peso = 1.0
+                else:
+                    peso = max(0.0, oyente.regard_for(
+                        claim.victim, tick, oyente.temperament.bond_fade,
+                        oyente.relation_floor(self.pack, claim.victim)))
+                if peso > 0.0:
+                    oyente.acercar(claim.who, -self.pack.social.accuse * peso, tick)
+            case ClaimKind.DEAD if verdadera:
+                reales = [
+                    (r.seq, duenyo, r) for duenyo in memoria.duenyos()
+                    for r in memoria.de(duenyo)
+                    if r.kind is EventKind.AGENT_DIED and r.about == claim.who
+                    and r.de_oidas == 0
+                ]
+                if reales:
+                    real = min(reales, key=lambda x: (x[0], x[1]))[2]
+                    memoria.oir(oyente.spec_id, real,
+                                self._importancia_oida(oyente, real, tick))
+
+    def _contar_a(
+        self, quien: AgentState, oyente: AgentState, about: AgentId,
+        question: QuestionKind, tick: int,
+    ) -> tuple[str, ...]:
+        """Lo que el oyente cuenta de `about` a quien pregunta, y que quien
+        pregunta recibe (unidad 15b). Devuelve las frases para la voz."""
+        pack = self.pack
+        nombre = self.state.censo[about].label.split(",")[0]
+        match question:
+            case QuestionKind.WHERE:
+                visto = freshest_sighting(self.state, oyente.spec_id, about)
+                if visto is None:
+                    return ()
+                sitio, cuando, quienes = visto
+                if sitio not in quien.sightings or quien.sightings[sitio][0] < cuando:
+                    quien.sightings[sitio] = (cuando, quienes)
+                hace = tick - cuando
+                cuartos = "1 cuarto" if hace == 1 else f"{hace} cuartos"
+                return (f"a {nombre} lo viste en {pack.place_by_id[sitio].label} "
+                        f"hace {cuartos}",)
+            case QuestionKind.ABOUT:
+                recordado = self.state.memoria.recall(oyente.spec_id, Cue(about=about), 1)
+                if not recordado:
+                    return ()
+                r = recordado[0]
+                self.state.memoria.oir(quien.spec_id, r, self._importancia_oida(quien, r, tick))
+                partes = [r.kind.value]
+                if r.action is not None:
+                    partes.append(pack.action_by_id[r.action].label)
+                if r.place is not None:
+                    partes.append(f"en {pack.place_by_id[r.place].label}")
+                return (f"de {nombre}: {' '.join(partes)}",)
 
     def _nacer(self, portador: AgentState, cond: Condicion) -> AgentId | None:
         """Nace alguien. **La segunda entidad que el motor crea en marcha, y la
@@ -2656,24 +2787,33 @@ class Simulation:
             if rng.random() >= tuning.rumor_rate:
                 continue
 
-            if historia.about is not None:
-                # Mismo `regard_for` que en `morir`, y por lo mismo: leer el
-                # aprecio en crudo se saltaba el suelo de la relación y el
-                # desdibujado. Enterarte de algo de tu pareja no puede pesar lo
-                # que pesaría de un conocido cualquiera de igual trato.
-                aprecio = oyente.regard_for(
-                    historia.about, tick, oyente.temperament.bond_fade,
-                    oyente.relation_floor(self.pack, historia.about),
-                )
-                if aprecio <= 0.0:
-                    # No le suena de nada. Se entera y no le mueve un pelo: no
-                    # se guarda, porque un recuerdo de importancia cero no es un
-                    # recuerdo, es ocupar sitio.
-                    continue
-                importancia = signed_saturation(aprecio, tuning.escala_del_aprecio)
-            else:
-                importancia = historia.importancia * tuning.rumor_decay
+            importancia = self._importancia_oida(oyente, historia, tick)
+            if importancia <= 0.0:
+                # No le suena de nada. Se entera y no le mueve un pelo: no se
+                # guarda, porque un recuerdo de importancia cero no es un
+                # recuerdo, es ocupar sitio.
+                continue
             memoria.oir(quien, historia, importancia)
+
+    def _importancia_oida(self, oyente: AgentState, historia: Recuerdo, tick: int) -> float:
+        """Cuánto pesa lo que se oye, para quien lo oye. Una sola puerta: la usan
+        los rumores (`_contar`) y lo que se cuenta al hablar (`apply_social`),
+        y si cada uno pusiera su peso, calibrar uno dejaría de significar nada.
+
+        Mismo `regard_for` que en `morir`, y por lo mismo: leer el aprecio en
+        crudo se saltaba el suelo de la relación y el desdibujado. Enterarte de
+        algo de tu pareja no puede pesar lo que pesaría de un conocido
+        cualquiera de igual trato. 0.0 es «no le mueve un pelo»."""
+        tuning = self.pack.tuning
+        if historia.about is None:
+            return historia.importancia * tuning.rumor_decay
+        aprecio = oyente.regard_for(
+            historia.about, tick, oyente.temperament.bond_fade,
+            oyente.relation_floor(self.pack, historia.about),
+        )
+        if aprecio <= 0.0:
+            return 0.0
+        return signed_saturation(aprecio, tuning.escala_del_aprecio)
 
     def _grabar(
         self,

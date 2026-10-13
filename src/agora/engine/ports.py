@@ -261,3 +261,13 @@ class EncounterResolver(Protocol):
         self, world: WorldState, attacker: AgentId, defender: AgentId,
         surprised: frozenset[AgentId],
     ) -> EncounterOutcome | None: ...
+
+
+@runtime_checkable
+class SocialResolver(Protocol):
+    """Engañar a alguien (unidad 15b, D-164): Porte contra Instinto + Alerta, o
+    lo que diga el sistema de la mesa. El motor no nombra competencias.
+    `None`: no sé resolverlo; el motor sigue por su regla."""
+
+    def deceive(self, world: WorldState, liar: AgentId, listener: AgentId,
+                key: str) -> Outcome | None: ...

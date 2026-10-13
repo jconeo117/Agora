@@ -118,6 +118,10 @@ combat:
     rematar: [violencia, muerte]
     reloj_de_muerte: [muerte]
 
+# Con qué se miente y con qué se nota (unidad 15b): Porte contra Instinto +
+# Alerta, las competencias que ya tiene el sistema.
+social: {deceive: porte, notice: alerta}
+
 # Las promesas del sistema (§24.4), cada una sobre un escenario de
 # `escenarios/`. El simulador las comprueba como --health las de un pack.
 calibration:

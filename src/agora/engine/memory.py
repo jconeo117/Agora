@@ -641,7 +641,9 @@ class MemoriaEpisodica:
         """
         self._por_duenyo.pop(owner, None)
 
-    def agravio(self, owner: AgentId, tick: int, escala: float) -> dict[AgentId, float]:
+    def agravio(
+        self, owner: AgentId, tick: int, escala: float, de_oidas: float = 1.0
+    ) -> dict[AgentId, float]:
         """Cuánto le debe cada cual. Valores [0, 1).
 
             agravio[persona] = saturación( Σ |valencia negativa| · valor(hoy), escala )
@@ -678,6 +680,8 @@ class MemoriaEpisodica:
             if recuerdo.por_quien is None or recuerdo.valencia >= 0.0:
                 continue
             peso = -recuerdo.valencia * recuerdo.valor(tick, fade)
+            if recuerdo.de_oidas > 0:
+                peso *= de_oidas
             if peso > 0.0:
                 bruto[recuerdo.por_quien] = bruto.get(recuerdo.por_quien, 0.0) + peso
         return {quien: signed_saturation(v, escala) for quien, v in bruto.items()}
