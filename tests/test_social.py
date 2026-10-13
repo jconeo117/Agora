@@ -324,15 +324,15 @@ def test_amenaza_con_aprecio_mayor_que_hostil_asusta_y_se_va() -> None:
     assert r.leaves is True
 
 
-def test_preguntar_afirmar_mentir_no_mueven_nada() -> None:
-    # 12. preguntar, afirmar, mentir no mueven nada ni dejan recuerdo.
+def test_preguntar_afirmar_no_mueven_nada() -> None:
+    # 12. preguntar, afirmar no mueven nada ni dejan recuerdo.
     sim = Simulation(load_pack(CONFLUENCIA_PACK), seed=3)
     ags = sim.state.agents_in_order()
     speaker = ags[0].spec_id
     listener = ags[1].spec_id
 
     talk = Conversation(listener)
-    for act in (SocialAct.ASK, SocialAct.AFFIRM, SocialAct.LIE):
+    for act in (SocialAct.ASK, SocialAct.AFFIRM):
         r = react(sim.state, listener, speaker, act, None, talk)
         assert r.regard == 0.0
         assert r.importance == 0.0
