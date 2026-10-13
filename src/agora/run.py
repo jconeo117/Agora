@@ -177,7 +177,14 @@ def main() -> None:
     parser.add_argument("--grabar", type=Path, default=None, metavar="F",
                         help="graba las decisiones del jugador como guion")
     parser.add_argument("--modelo", default="llama3.2:latest",
-                        help="el modelo local (Ollama) de la voz de los NPCs")
+                        help="con --voz-local: el modelo de Ollama de la voz de los NPCs")
+    parser.add_argument(
+        "--voz-api", default="meta-llama/llama-3.3-70b-instruct", metavar="MODELO",
+        help="la voz de los NPCs por la API (OpenRouter), con su propia instancia: "
+        "ni el intérprete ni el narrador ven lo que dice (D-166)",
+    )
+    parser.add_argument("--voz-local", action="store_true",
+                        help="la voz de los NPCs con Ollama (--modelo) en vez de la API")
     parser.add_argument("--llm-url", default="http://localhost:11434")
     parser.add_argument(
         "--interprete", default="meta-llama/llama-3.3-70b-instruct", metavar="MODELO",
@@ -389,7 +396,7 @@ def _jugar(sim: Simulation, args: argparse.Namespace, ticks: int) -> None:
         fuente: DecisionSource = Script(lineas, sim)
         combate: Policy = ScriptCombat(lineas, ahora)
     else:
-        proveedor = None if args.sin_llm else OllamaProvider(url=args.llm_url, modelo=args.modelo)
+        proveedor = _voz(args)
         interprete = _interprete(args)
         narrador = _narrador(args)
         terminal = Terminal(sim, sys.stdin, sys.stdout, proveedor, interpreter=interprete,
@@ -531,10 +538,24 @@ def _consultar(sim: Simulation, quien: str) -> None:
         print(line)
 
 
+def _voz(args: argparse.Namespace) -> OllamaProvider | OpenAICompatibleProvider | None:
+    """La voz de los NPCs: por la API por defecto, o local con `--voz-local`.
+    Sin clave, la local, que si no responde deja hablar al respaldo."""
+    if args.sin_llm:
+        return None
+    if not args.voz_local:
+        api = OpenAICompatibleProvider(modelo=args.voz_api, plazo=8.0, temperatura=0.7,
+                                       max_tokens=200)
+        if api.clave:
+            return api
+        print("# sin OPENROUTER_API_KEY: la voz va con el modelo local")
+    return OllamaProvider(url=args.llm_url, modelo=args.modelo)
+
+
 def _hablar(sim: Simulation, args: argparse.Namespace) -> None:
     agente = _vivo(sim, args.hablar, "--hablar")
     otro = None if args.con is None else _vivo(sim, args.con, "--con")
-    proveedor = None if args.sin_llm else OllamaProvider(url=args.llm_url, modelo=args.modelo)
+    proveedor = _voz(args)
     habla, del_modelo, texto = hablar(sim.state, agente, otro, proveedor)
     print(f"\n# {args.hablar} habla  (tick {sim.state.tick})")
     if not args.quiet:
