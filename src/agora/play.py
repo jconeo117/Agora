@@ -33,7 +33,7 @@ from agora.cognition.conversa import (
     talk_menu,
 )
 from agora.cognition.intencion import Entry, Kind, Menu, Order, _representatives, interpret
-from agora.cognition.narrador import BeatView, Fact, Narrator, Table, Told, round_facts
+from agora.cognition.narrador import DEATH, BeatView, Fact, Narrator, Table, Told, round_facts
 from agora.cognition.voz import Heard, hablar
 from agora.engine.consulta import ficha
 from agora.engine.events import EventKind
@@ -179,7 +179,12 @@ class Recorder:
 
 
 def hint(utility: float, best: float, temperature: float) -> str:
-    """La utilidad en bandas y no en número: el número delataría al motor, y
+    """**Ya no se le enseña al jugador** (2026-10-13): en la primera partida de
+    prueba, con «te conviene mucho» delante, eligió rematar tres veces seguidas
+    sin pensar. Un DM no te dice cuál es la mejor opción. Se queda para
+    depurar.
+
+    La utilidad en bandas y no en número: el número delataría al motor, y
     lo que un personaje sabe de sus opciones es si le apetecen, no cuánto.
 
     La banda es el peso que le daría a esa opción un NPC con su temperamento,
@@ -279,6 +284,10 @@ def picks(inp: TextIO, out: TextIO, pregunta: str, textos: Sequence[str]) -> int
     return letras.index(r) if len(r) == 1 and r in letras else None
 
 
+POR_VERBO = 3
+"""Opciones de cada verbo en la primera página; el resto, con «más»."""
+
+
 class Terminal:
     """Una persona delante del teclado. Lo que consulta no cambia el mundo:
     ficha, mirar y hablar son lectura (reglas 1 y 4)."""
@@ -345,21 +354,44 @@ class Terminal:
                 self._decir("  " + render_event(world.pack, evento, world.censo))
         self._visto = self.sim.log.siguiente_seq
 
-    def _opcion(
-        self, world: WorldState, agent: AgentState, n: int, d: Decision, best: float
-    ) -> str:
-        return f"  {n:>3}. {self._describir(world, agent, d, best)}"
+    def _opcion(self, world: WorldState, n: int, d: Decision) -> str:
+        return f"  {n:>3}. {self._describir(world, d)}"
 
-    def _describir(self, world: WorldState, agent: AgentState, d: Decision, best: float) -> str:
+    def _describir(self, world: WorldState, d: Decision) -> str:
+        """Sin «te conviene» (ver `hint`). El destinatario va tras dos puntos y
+        no con «con»: «atacar con Renna» se leía «atacar junto a Renna»."""
         pack = world.pack
         texto = pack.action_by_id[d.action].label
         if d.target is not None:
-            texto += f" con {world.censo[d.target].label}"
+            texto += f": {world.censo[d.target].label}"
         donde = pack.place_by_id[d.place].label
         cuartos = "1 cuarto" if d.travel_ticks == 1 else f"{d.travel_ticks} cuartos"
         viaje = "aquí" if d.travel_ticks == 0 else f"en {donde}, a {cuartos} de hora"
-        banda = hint(d.utility, best, agent.temperament.temperature)
-        return f"{texto} ({viaje})  — {banda}"
+        return f"{texto} ({viaje})"
+
+    def _vista(self, world: WorldState, options: tuple[Decision, ...]) -> list[int]:
+        """El orden en que se enseñan las opciones: por verbo, alfabético, y
+        dentro de cada verbo de la más cercana a la más lejana; como mucho
+        `POR_VERBO` de cada uno delante y el resto después. El orden del motor
+        es de mejor a peor, y enseñarlo así era decirle al jugador cuál elegir;
+        y con ocho «esconderse» seguidos no cabía nada más en la pantalla."""
+        pack = world.pack
+
+        def clave(i: int) -> tuple[str, int, str, str]:
+            d = options[i]
+            quien = "" if d.target is None else world.censo[d.target].label
+            return (pack.action_by_id[d.action].label, d.travel_ticks,
+                    pack.place_by_id[d.place].label, quien)
+
+        orden = sorted(range(len(options)), key=clave)
+        primero: list[int] = []
+        resto: list[int] = []
+        vistos: dict[str, int] = {}
+        for i in orden:
+            verbo = clave(i)[0]
+            vistos[verbo] = vistos.get(verbo, 0) + 1
+            (primero if vistos[verbo] <= POR_VERBO else resto).append(i)
+        return primero + resto
 
     def _mirar(self, world: WorldState, agent: AgentState) -> None:
         pack = world.pack
@@ -387,11 +419,11 @@ class Terminal:
         if not options:
             self._decir("  no hay nada que puedas hacer ahora; esperas")
             return None
-        best = options[0].utility
+        vista = self._vista(world, options)
         hasta = self.page
         self._decir(f"\n# {world.censo[agent.spec_id].label}, tick {world.tick}")
-        for n, d in enumerate(options[:hasta], start=1):
-            self._decir(self._opcion(world, agent, n, d, best))
+        for n, i in enumerate(vista[:hasta], start=1):
+            self._decir(self._opcion(world, n, options[i]))
         while True:
             linea = self._leer("> ")
             orden = linea.split()
@@ -399,10 +431,10 @@ class Terminal:
                 continue
             match orden:
                 case [numero] if numero.isdigit() and 1 <= int(numero) <= len(options):
-                    return options[int(numero) - 1]
+                    return options[vista[int(numero) - 1]]
                 case ["más" | "mas"]:
-                    for n, d in enumerate(options[hasta : hasta + self.page], start=hasta + 1):
-                        self._decir(self._opcion(world, agent, n, d, best))
+                    for n, i in enumerate(vista[hasta : hasta + self.page], start=hasta + 1):
+                        self._decir(self._opcion(world, n, options[i]))
                     hasta += self.page
                 case ["esperar"]:
                     return None
@@ -425,7 +457,7 @@ class Terminal:
                 case ["ayuda"]:
                     self._decir(AYUDA)
                 case _:
-                    hecho, elegida = self._interpretar(world, agent, options, linea, best)
+                    hecho, elegida = self._interpretar(world, agent, options, linea)
                     if hecho:
                         return elegida
 
@@ -550,7 +582,7 @@ class Terminal:
 
     def _interpretar(
         self, world: WorldState, agent: AgentState, options: tuple[Decision, ...],
-        texto: str, best: float,
+        texto: str,
     ) -> tuple[bool, Decision | None]:
         """(si ya hay decisión, cuál: `None` es esperar)."""
         semilla = world.rng.stream("intencion", agent.spec_id, world.tick).randrange(2**31)
@@ -560,7 +592,7 @@ class Terminal:
         match lectura.kind:
             case Kind.ACTION if lectura.entry is not None:
                 d = options[lectura.entry]
-                descrita = self._describir(world, agent, d, best)
+                descrita = self._describir(world, d)
                 if d.target is None:
                     self._decir(f"  → {descrita}")
                     return True, d
@@ -571,7 +603,7 @@ class Terminal:
                 pregunta = ("  ¿cuál de estas?" if lectura.kind is Kind.AMBIGUOUS
                             else "  eso no se puede ahora; lo más parecido:")
                 cual = picks(self.inp, self.out, pregunta, [
-                    self._describir(world, agent, options[i], best) for i in lectura.candidates])
+                    self._describir(world, options[i]) for i in lectura.candidates])
                 if cual is None:
                     return False, None
                 return True, options[lectura.candidates[cual]]
@@ -905,8 +937,23 @@ class TerminalCombat:
         return self._si(f"  te alcanza un golpe de {hit}. ¿Lo resistes (cuesta estrés)?", False)
 
     def finishes(self, encounter: Encounter, me: Fighter, fallen: Fighter) -> bool:
+        """Si lo que estás haciendo en el mundo ya era matar (su `content` del
+        pack lleva la muerte), no se pregunta: preguntar «¿le rematas?» justo
+        después de elegir «rematar a un herido» era redundante (2026-10-13)."""
         self._novedades(encounter, me)
+        if self._ya_era_matar(me):
+            self._decir(f"  rematas a {fallen.spec.label}: era lo que ibas a hacer")
+            return True
         return self._si(f"  {fallen.spec.label} está en el suelo. ¿Le rematas?", False)
+
+    def _ya_era_matar(self, me: Fighter) -> bool:
+        if self.world is None:
+            return False
+        world = self.world()
+        yo = world.agents.get(AgentId(me.id))
+        if yo is None or not isinstance(yo.busy, PerformingAction):
+            return False
+        return DEATH in world.pack.action_by_id[yo.busy.action].content
 
     def pursues(self, encounter: Encounter, me: Fighter, fleer: Fighter) -> bool:
         self._novedades(encounter, me)

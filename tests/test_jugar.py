@@ -253,7 +253,8 @@ def test_la_terminal_elige_y_consulta() -> None:
     terminal = Terminal(sim, inp, out, provider=None)
 
     elegida = terminal.choose(sim.state, presente, opts)
-    assert elegida == opts[1]
+    # El número es el de la pantalla (agrupada por verbo), no el orden del motor.
+    assert elegida == opts[terminal._vista(sim.state, opts)[1]]
 
     texto_salida = out.getvalue()
     assert f"en {pack.place_by_id[presente.at].label}:" in texto_salida
@@ -285,8 +286,8 @@ def test_esperar_n() -> None:
     assert terminal.choose(sim.state, agent, opts) is None
     assert terminal._esperar == 0
 
-    # 4ª llamada: lee "1" de la entrada y devuelve opts[0]
-    assert terminal.choose(sim.state, agent, opts) == opts[0]
+    # 4ª llamada: lee "1" de la entrada y devuelve la primera de la pantalla
+    assert terminal.choose(sim.state, agent, opts) == opts[terminal._vista(sim.state, opts)[0]]
 
 
 def test_salir_es_entre_ticks() -> None:
