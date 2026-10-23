@@ -114,13 +114,11 @@ def test_select_accion_contra_jugador_prioridad_5_y_mine() -> None:
     )
 
     facts = select(world, [e_ataca, e_encuentro], "elor_d1", Sighting(here), Table())
-    assert len(facts) == 2
-    f0, f1 = facts
+    assert len(facts) == 1
+    (f0,) = facts
     assert f0.priority == 5
     assert f0.mine is True
     assert "te ataca" in f0.text
-    assert f1.priority == 5
-    assert "sigue yendo a por ti" in f1.text
 
 
 def test_select_agrupa_acciones_ajenas_similares() -> None:
@@ -483,7 +481,7 @@ def test_banco_narracion_plantilla_contrato() -> None:
     informe = run_tell_bank(momentos, ())
     assert informe.momentos == 95
     assert informe.del_modelo == 0
-    assert informe.hechos == 314
-    assert informe.hechos_contados == 314
-    assert informe.tuyos == 158
-    assert informe.tuyos_contados == 158
+    assert informe.hechos == 308
+    assert informe.hechos_contados == 308
+    assert informe.tuyos == 146
+    assert informe.tuyos_contados == 146

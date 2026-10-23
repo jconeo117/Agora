@@ -377,9 +377,10 @@ def test_select_hilos_termina_desiste_sigue() -> None:
         data={},
     )
     facts_a = select(world, [e_complete], yo, Sighting(here), Table(), hilos_a)
-    assert any("Renna termina: atacar" in f.text for f in facts_a), (
-        "debe contar «Renna termina: atacar»"
+    assert any("Renna te ataca" in f.text for f in facts_a), (
+        "debe contar la forma at_you («Renna te ataca»)"
     )
+    assert not any("termina:" in f.text for f in facts_a)
     assert "renna_d1" not in hilos_a.pending
 
     # Caso B: en la siguiente ventana Renna aborta la acción -> «desiste»
@@ -474,10 +475,7 @@ def test_select_accion_dirigida_jugador_usa_my_target() -> None:
         data={},
     )
     facts = select(world, [e_done], yo, Sighting(here), Table(), hilos)
-    assert any("Gara" in f.text for f in facts), (
-        "la narración debe incluir al destinatario guardado en my_target"
-    )
-    assert not any("terminas: aliarse" in f.text for f in facts)
+    assert len(facts) == 0, "el fin de una acción dirigida del jugador no debe ser un hecho"
 
 
 def test_beat_copia_dados_resolution() -> None:
@@ -592,7 +590,7 @@ def test_terminal_atajos_y_numero_sin_lista() -> None:
     assert t.choose(w, agent, opts) is None, "un número sin lista previa no debe elegir nada"
 
     # Escribir atajo lista solo sus opciones, y luego el número sí elige
-    verbos = t._verbos(w, opts)
+    verbos = t._verbos(w, agent, opts)
     primer_verbo = verbos[0]
     out = io.StringIO()
     t2 = Terminal(sim, io.StringIO(f"{primer_verbo}\n1\n"), out)
@@ -601,8 +599,8 @@ def test_terminal_atajos_y_numero_sin_lista() -> None:
     assert w.pack.action_by_id[elegida.action].label == primer_verbo
 
 
-def test_terminal_opciones_lista_menu_entero_agrupado() -> None:
-    # 2. opciones lista menú entero agrupado.
+def test_terminal_opciones_lista_primera_pagina_agrupada() -> None:
+    # 2. opciones lista primera página del menú agrupado.
     sim = Simulation(load_pack(ISLA_PACK), seed=1)
     while sim.state.tick < 7:
         sim.tick()
@@ -615,7 +613,8 @@ def test_terminal_opciones_lista_menu_entero_agrupado() -> None:
     t.choose(w, agent, opts)
     texto = out.getvalue()
     assert "1. " in texto
-    assert len(t._mostrada) == len(t._vista(w, opts))
+    assert len(t._mostrada) == t.page
+    assert len(t._mostrada) + len(t._resto) == len(t._vista(w, opts))
 
 
 def test_terminal_que_haces_aparece_siempre() -> None:
