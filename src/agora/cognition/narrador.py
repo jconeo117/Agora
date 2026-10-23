@@ -206,7 +206,6 @@ def select(
         # Nadie emite la muerte de uno para él mismo: `AGENT_DIED` es de quien
         # le llora. Sin esto, la partida acababa sin que nadie te lo contara.
         facts.append(Fact(6, 1 << 62, "caes, y ya no te levantas", (), (DEATH,), mine=True))
-    target_of: dict[str, str] = {}
     mourned: set[str] = set()
     inv: set[str] = set()
 
@@ -228,7 +227,6 @@ def select(
         spec = pack.action_by_id[e.action] if e.action is not None else None
         content = spec.content if spec is not None else ()
         if e.kind is EventKind.ACTION_STARTED and actor is not None and target is not None:
-            target_of[actor] = target
             if target == player:
                 inv.add(actor)
             if actor == player:
@@ -241,17 +239,11 @@ def select(
                     hilos.my_target = target
                     add(3, e, tell(spec.narration, spec.label, actor, target, player, name),
                         (name(target),), content)
-                case EventKind.ACTION_COMPLETED if spec is not None:
-                    # Sin destinatario en esta ventana, el de antes: «pacto con »
-                    # sin nombre era lo que salía cuando empezó en otra ventana.
-                    t = None
-                    if spec.target is not None:
-                        t = target_of.get(player) or hilos.my_target
-                    if spec.target is not None and t is None:
-                        texto = f"terminas: {spec.label}"
-                    else:
-                        texto = tell(spec.narration, spec.label, actor, t, player, name)
-                    add(2, e, texto, (name(t),) if t is not None else (), content)
+                case EventKind.ACTION_COMPLETED if spec is not None and spec.target is None:
+                    # El fin de una acción dirigida no es un hecho: su inicio ya lo
+                    # contó, y lo que cambió (la herida, el saqueo) llega por su hecho.
+                    add(2, e, tell(spec.narration, spec.label, actor, None, player, name),
+                        (), content)
                 case EventKind.ACTION_ABORTED if spec is not None:
                     add(2, e, f"dejas a medias: {spec.label}")
                 case EventKind.SITUATION_BEGAN:
@@ -294,16 +286,22 @@ def select(
     # Ningún hilo suelto (unidad 18): lo que alguien empezó contra el jugador
     # tiene que acabar en algún hecho, aunque se cuente en otra ventana.
     hilos.involved = frozenset(inv | set(hilos.pending))
+    # Quien empezó contra el jugador en esta ventana ya tiene su inicio contado:
+    # de él, el cierre solo añade un «desiste», nunca otro «termina» ni «sigue».
+    empezados_aqui = {str(e.actor) for e in events
+                      if e.kind is EventKind.ACTION_STARTED and e.actor is not None
+                      and str(e.data.get("target")) == player}
     for a in sorted(hilos.pending):
         accion, _ = hilos.pending[a]
         spec_a = pack.action_by_id[ActionId(accion)]
+        aqui = a in empezados_aqui
         cierre = next((e for e in events
                        if e.kind in (EventKind.ACTION_COMPLETED, EventKind.ACTION_ABORTED)
                        and str(e.actor) == a), None)
         if cierre is None:
             # Sin evento no hay orden que dar: va al final. Lleva el `content` de
             # su acción, para que una línea de la mesa lo quite como a cualquier hecho.
-            if not any(c in table.lines for c in spec_a.content):
+            if not aqui and not any(c in table.lines for c in spec_a.content):
                 facts.append(Fact(5, 1 << 61, f"{name(a)} sigue yendo a por ti", (name(a),),
                                   spec_a.content))
             continue
@@ -311,11 +309,19 @@ def select(
         if cierre.kind is EventKind.ACTION_ABORTED:
             add(5, cierre, f"{name(a)} desiste", (name(a),), spec_a.content)
             continue
+        if aqui:
+            continue
         # Si acabó dejándote una herida, el hecho ya es la herida: no se cuenta dos veces.
         ya_contado = any(e.kind is EventKind.SITUATION_BEGAN and str(e.actor) == player
                          and str(e.data.get("por_quien")) == a for e in events)
         if not ya_contado:
-            add(5, cierre, f"{name(a)} termina: {spec_a.label}", (name(a),), spec_a.content)
+            # Sin `at_you`, la forma de «ellos» pone «ti» donde iría el nombre: los
+            # patrones ya traen la preposición («contra {o}», «a {o}»).
+            def de_ti(x: str | None) -> str:
+                return "ti" if x == player else name(x)
+
+            add(5, cierre, tell(spec_a.narration, spec_a.label, a, player, player, de_ti),
+                (name(a),), spec_a.content)
     if here is not None and here == seen.place and DEATH not in table.lines:
         alive = {str(a) for a in world.agents}
         for muerto in sorted(seen.present - alive - mourned - {player}):

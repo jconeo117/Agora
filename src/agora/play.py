@@ -320,6 +320,9 @@ def picks(inp: TextIO, out: TextIO, pregunta: str, textos: Sequence[str]) -> int
     return letras.index(r) if len(r) == 1 and r in letras else None
 
 
+HABLAR = "hablar"
+"""El atajo que lista a los presentes y abre la conversación con el número."""
+
 POR_VERBO = 3
 """Opciones de cada verbo en la primera página; el resto, con «más»."""
 
@@ -356,6 +359,10 @@ class Terminal:
         self._rechazos: set[tuple[NeedId, int]] = set()
         self._mostrada: list[int] = []
         """Las opciones numeradas de la última lista: un número solo vale tras una."""
+        self._resto: list[int] = []
+        """Las opciones de esa lista que aún no se han enseñado («más»)."""
+        self._gente: list[str] = []
+        """Las personas de la última lista de «hablar»: un número abre con una."""
 
     def _decir(self, texto: str) -> None:
         self.out.write(texto + "\n")
@@ -399,19 +406,34 @@ class Terminal:
 
     def _listar(self, world: WorldState, options: tuple[Decision, ...],
                 indices: Sequence[int]) -> None:
-        """Enseña opciones numeradas y deja que el número valga para ellas."""
-        self._mostrada = list(indices)
-        for n, i in enumerate(indices, start=1):
-            self._decir(self._opcion(world, n, options[i]))
+        """Enseña la primera página de opciones numeradas; el resto, con «más».
+        El número vale para lo que se ve, y solo para eso."""
+        self._mostrada = []
+        self._gente = []
+        self._resto = list(indices)
+        self._mas(world, options)
 
-    @staticmethod
-    def _verbos(world: WorldState, options: tuple[Decision, ...]) -> list[str]:
-        """Los atajos: hasta `VERBOS` verbos, primero los que llevan destinatario
-        (ya hay alguien a quien se puede hacer), luego los demás, por orden."""
+    def _mas(self, world: WorldState, options: tuple[Decision, ...]) -> None:
+        pagina, self._resto = self._resto[: self.page], self._resto[self.page:]
+        for n, i in enumerate(pagina, start=len(self._mostrada) + 1):
+            self._decir(self._opcion(world, n, options[i]))
+        self._mostrada += pagina
+
+    def _presentes(self, world: WorldState, agent: AgentState) -> list[AgentState]:
+        return [o for o in world.agents_in_order() if o.at == agent.at and o is not agent]
+
+    def _verbos(self, world: WorldState, agent: AgentState,
+                options: tuple[Decision, ...]) -> list[str]:
+        """Los atajos: hasta `VERBOS`. Si hay alguien aquí, «hablar» es siempre
+        el último: escribirlo lista a los presentes. Los demás, primero los que
+        llevan destinatario (ya hay a quién hacerlo), luego por orden."""
         pack = world.pack
         con = {pack.action_by_id[d.action].label for d in options if d.target is not None}
-        todos = {pack.action_by_id[d.action].label for d in options}
-        return (sorted(con) + sorted(todos - con))[:VERBOS]
+        todos = {pack.action_by_id[d.action].label for d in options} - {HABLAR}
+        verbos = sorted(con - {HABLAR}) + sorted(todos - con)
+        if not self._presentes(world, agent):
+            return verbos[:VERBOS]
+        return [*verbos[: VERBOS - 1], HABLAR]
 
     def _describir(self, world: WorldState, d: Decision) -> str:
         """Sin «te conviene» (ver `hint`). El destinatario va tras dos puntos y
@@ -471,14 +493,16 @@ class Terminal:
         if self._esperar > 0:
             self._esperar -= 1
             return None
+        self._decir(f"\n# {world.censo[agent.spec_id].label}, tick {world.tick}")
         self._novedades(agent)
         if not options:
             self._decir("  no hay nada que puedas hacer ahora; esperas")
             return None
         vista = self._vista(world, options)
-        verbos = self._verbos(world, options)
+        verbos = self._verbos(world, agent, options)
         self._mostrada = []
-        self._decir(f"\n# {world.censo[agent.spec_id].label}, tick {world.tick}")
+        self._gente = []
+        self._resto = []
         self._decir("¿Qué haces?")
         self._decir("  atajos: " + " · ".join(verbos))
         while True:
@@ -487,15 +511,28 @@ class Terminal:
             if not orden:
                 continue
             match orden:
+                case [numero] if numero.isdigit() and 1 <= int(numero) <= len(self._gente):
+                    hecho, elegida = self._orden(world, agent, Order.TALK,
+                                                 self._gente[int(numero) - 1], options)
+                    self._gente = []
+                    if hecho:
+                        return elegida
                 case [numero] if numero.isdigit() and 1 <= int(numero) <= len(self._mostrada):
                     return options[self._mostrada[int(numero) - 1]]
                 case ["opciones"]:
                     self._listar(world, options, vista)
                 case ["más" | "mas"]:
-                    resto = [i for i in vista if i not in self._mostrada][: self.page]
-                    for n, i in enumerate(resto, start=len(self._mostrada) + 1):
-                        self._decir(self._opcion(world, n, options[i]))
-                    self._mostrada += resto
+                    self._mas(world, options)
+                case ["hablar"]:
+                    presentes = self._presentes(world, agent)
+                    if not presentes:
+                        self._decir("  no hay nadie aquí con quien hablar")
+                        continue
+                    self._mostrada = []
+                    self._resto = []
+                    self._gente = [str(o.spec_id) for o in presentes]
+                    for n, o in enumerate(presentes, start=1):
+                        self._decir(f"  {n}. {world.censo[o.spec_id].label} ({o.spec_id})")
                 case _ if linea.strip() in verbos:
                     self._listar(world, options, [
                         i for i in vista
