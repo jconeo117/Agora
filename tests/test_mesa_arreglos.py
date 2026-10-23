@@ -31,7 +31,7 @@ def test_el_menu_no_dice_que_conviene_ni_usa_con() -> None:
     w = sim.state
     opts = tuple(options(w, w.agents[yo]))
     out = io.StringIO()
-    Terminal(sim, io.StringIO("salir\n"), out).choose(w, w.agents[yo], opts)
+    Terminal(sim, io.StringIO("opciones\nsalir\n"), out).choose(w, w.agents[yo], opts)
     texto = out.getvalue()
     assert "conviene" not in texto
     menu = [ln for ln in texto.splitlines() if re.match(r"\s+\d+\. ", ln)]
@@ -45,7 +45,7 @@ def test_el_menu_va_por_verbo_y_el_numero_elige_lo_que_se_ve() -> None:
     sim, yo = _isla_en_el_tick_7()
     w = sim.state
     opts = tuple(options(w, w.agents[yo]))
-    terminal = Terminal(sim, io.StringIO("1\n"), io.StringIO())
+    terminal = Terminal(sim, io.StringIO("opciones\n1\n"), io.StringIO())
     vista = terminal._vista(w, opts)
     assert sorted(vista) == list(range(len(opts)))
     pagina = vista[: terminal.page]

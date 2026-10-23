@@ -246,6 +246,7 @@ def test_la_terminal_elige_y_consulta() -> None:
         f"hablar {otro_aqui.spec_id}",
         "",
         f"hablar {ausente.spec_id}",
+        "opciones",
         "2",
     ]
     inp = io.StringIO("\n".join(comandos) + "\n")
@@ -270,7 +271,7 @@ def test_esperar_n() -> None:
     agent = next(iter(sim.state.agents.values()))
     opts = tuple(options(sim.state, agent))
 
-    inp = io.StringIO("esperar 3\n1\n")
+    inp = io.StringIO("esperar 3\nopciones\n1\n")
     out = io.StringIO()
     terminal = Terminal(sim, inp, out)
 

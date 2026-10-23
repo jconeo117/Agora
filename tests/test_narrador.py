@@ -114,11 +114,13 @@ def test_select_accion_contra_jugador_prioridad_5_y_mine() -> None:
     )
 
     facts = select(world, [e_ataca, e_encuentro], "elor_d1", Sighting(here), Table())
-    assert len(facts) == 1
-    f = facts[0]
-    assert f.priority == 5
-    assert f.mine is True
-    assert "te ataca" in f.text
+    assert len(facts) == 2
+    f0, f1 = facts
+    assert f0.priority == 5
+    assert f0.mine is True
+    assert "te ataca" in f0.text
+    assert f1.priority == 5
+    assert "sigue yendo a por ti" in f1.text
 
 
 def test_select_agrupa_acciones_ajenas_similares() -> None:
@@ -474,14 +476,14 @@ def test_isla_descripciones_narracion_y_mesa() -> None:
 
 
 def test_banco_narracion_plantilla_contrato() -> None:
-    # 4. run_tell_bank(load_moments(banco), ()): 89 momentos, del_modelo == 0,
-    # cobertura 283/283, tuyos 146/146. Es el contrato de las plantillas.
+    # 4. run_tell_bank(load_moments(banco), ()): 95 momentos, del_modelo == 0,
+    # cobertura 314/314, tuyos 158/158. Es el contrato de las plantillas.
     momentos = load_moments(BANCO_NARRACION)
-    assert len(momentos) == 89
+    assert len(momentos) == 95
     informe = run_tell_bank(momentos, ())
-    assert informe.momentos == 89
+    assert informe.momentos == 95
     assert informe.del_modelo == 0
-    assert informe.hechos == 283
-    assert informe.hechos_contados == 283
-    assert informe.tuyos == 146
-    assert informe.tuyos_contados == 146
+    assert informe.hechos == 314
+    assert informe.hechos_contados == 314
+    assert informe.tuyos == 158
+    assert informe.tuyos_contados == 158

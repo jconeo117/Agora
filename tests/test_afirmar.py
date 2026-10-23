@@ -30,7 +30,7 @@ from agora.engine.ontology import (
 )
 from agora.engine.outcome import signed_saturation
 from agora.engine.pack import load_pack
-from agora.engine.ports import CognitionProvider, Outcome
+from agora.engine.ports import CognitionProvider, Contest, Outcome, Resolution
 from agora.engine.rng import RngSource
 from agora.engine.social import (
     Belief,
@@ -217,7 +217,7 @@ def test_verdadera_creida_sin_tirada() -> None:
     class FailingResolver:
         def deceive(
             self, world: Any, liar: AgentId, listener_id: AgentId, key: str
-        ) -> Outcome | None:
+        ) -> Contest | None:
             raise AssertionError("No debe tirar si la afirmación es verdadera")
 
     sim.social_resolver = FailingResolver()
@@ -244,7 +244,7 @@ def test_contradicha_pillada_sin_tirada() -> None:
     class FailingResolver:
         def deceive(
             self, world: Any, liar: AgentId, listener_id: AgentId, key: str
-        ) -> Outcome | None:
+        ) -> Contest | None:
             raise AssertionError("No debe tirar si la afirmación contradice lo que sabe")
 
     sim.social_resolver = FailingResolver()
@@ -296,8 +296,22 @@ def test_tirada_con_resolver_distintos_desenlaces() -> None:
 
         def deceive(
             self, world: Any, liar: AgentId, listener_id: AgentId, key: str
-        ) -> Outcome | None:
-            return self.resultado
+        ) -> Contest | None:
+            res = Resolution(
+                outcome=self.resultado,
+                dice=(6,) if self.resultado in (Outcome.SUCCESS, Outcome.CRITICAL) else (1,),
+                opposing_dice=(1,),
+                successes=1 if self.resultado != Outcome.FAILURE else 0,
+                opposing_successes=0,
+                sixes=(
+                    2
+                    if self.resultado == Outcome.CRITICAL
+                    else (1 if self.resultado == Outcome.SUCCESS else 0)
+                ),
+                overflow=0,
+                effect=1,
+            )
+            return Contest(resolution=res, actor_label="Porte", opposing_label="Instinto + Alerta")
 
     mock = MockResolver()
     sim.social_resolver = mock
