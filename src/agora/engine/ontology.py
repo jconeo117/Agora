@@ -2661,6 +2661,10 @@ class SituationSpec(Spec):
     ocurre en un sitio ni vuelve por calendario. Se valida en el pack.
     """
 
+    visible: bool = False
+    """Si se ve a simple vista que la lleva (unidad 18). Una herida sí; una
+    infección o un veneno, no. Lo lee la escena, no la simulación."""
+
     every: int = Field(default=0, ge=0)
     """Cada cuántos ticks vuelve. 0 = no es periódica, hay que encenderla.
 

@@ -28,7 +28,7 @@ from enum import StrEnum
 from agora.engine.consulta import Lack, ficha
 from agora.engine.events import EventKind
 from agora.engine.ontology import AgentId, ClaimKind, PlaceId, SocialAct, Tone
-from agora.engine.ports import Outcome, SocialResolver
+from agora.engine.ports import Contest, Outcome, SocialResolver
 from agora.engine.state import WorldState
 
 BOND_RATE = 0.15
@@ -73,6 +73,8 @@ class Reaction:
     """Qué hizo con una afirmación (unidad 15b); `None` si no era una."""
     info: tuple[str, ...] = ()
     """Lo que contó al preguntarle, en frases para la voz (unidad 15b)."""
+    contest: Contest | None = None
+    """La tirada de la mentira, con sus dados, si la hubo (unidad 18)."""
 
 
 @dataclass
@@ -239,20 +241,23 @@ def trusts(world: WorldState, listener: AgentId, speaker: AgentId) -> bool:
 def judge(
     world: WorldState, listener: AgentId, speaker: AgentId, claim: Claim,
     resolver: SocialResolver | None, key: str,
-) -> Belief:
+) -> tuple[Belief, Contest | None]:
     """Qué hace el oyente con una afirmación: en este orden, lo que sabe, lo que
     es verdad, y solo si no hay nada de eso, una tirada (o el aprecio, sin
-    sistema de rol)."""
+    sistema de rol). Devuelve también la tirada, para enseñar sus dados."""
     if contradicts(world, listener, claim):
-        return Belief.CAUGHT
+        return Belief.CAUGHT, None
     if truth(world, claim) is True:
-        return Belief.BELIEVED
-    resultado = None if resolver is None else resolver.deceive(world, speaker, listener, key)
-    if resultado is None:
-        return Belief.BELIEVED if _regard(world, listener, speaker) >= 0.0 else Belief.CAUGHT
+        return Belief.BELIEVED, None
+    contest = None if resolver is None else resolver.deceive(world, speaker, listener, key)
+    if contest is None:
+        creida = _regard(world, listener, speaker) >= 0.0
+        return (Belief.BELIEVED if creida else Belief.CAUGHT), None
+    resultado = contest.resolution.outcome
     if resultado is Outcome.FAILURE:
-        return Belief.CAUGHT
-    return Belief.DOUBTFUL if resultado is Outcome.SUCCESS_AT_COST else Belief.BELIEVED
+        return Belief.CAUGHT, contest
+    creencia = Belief.DOUBTFUL if resultado is Outcome.SUCCESS_AT_COST else Belief.BELIEVED
+    return creencia, contest
 
 
 def _leaves(world: WorldState, despues: float, talk: Conversation) -> bool:
@@ -262,12 +267,13 @@ def _leaves(world: WorldState, despues: float, talk: Conversation) -> bool:
 
 def react_claim(
     world: WorldState, listener: AgentId, speaker: AgentId, belief: Belief,
-    talk: Conversation,
+    talk: Conversation, contest: Contest | None = None,
 ) -> Reaction:
     """La recepción de una afirmación ya juzgada. Creída: no mueve el aprecio
     (lo que cambia son sus efectos en lo que el oyente cree). A medias: lo baja
     un poco. Pillada: cuesta como un agravio, con quien habla de culpable."""
-    base = react(world, listener, speaker, SocialAct.AFFIRM, None, talk)
+    base = replace(react(world, listener, speaker, SocialAct.AFFIRM, None, talk),
+                   contest=contest)
     social = world.pack.social
     if belief is Belief.BELIEVED:
         return replace(base, belief=belief)

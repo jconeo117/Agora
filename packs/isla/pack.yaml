@@ -746,7 +746,7 @@ places:
   - zona_final
 - id: selva_1_0
   label: claro (la selva, interior)
-  description: Un hueco en la selva donde entra el sol de lleno; la hierba llega a la rodilla.
+  description: Un hueco abierto al cielo en la selva; la hierba llega a la rodilla.
   affordances:
   - agua
   - forraje
@@ -796,7 +796,7 @@ places:
   - zona_1
 - id: selva_1_3
   label: ceiba (la selva, interior)
-  description: Un árbol enorme con raíces como paredes; a su sombra no crece nada.
+  description: Un árbol enorme con raíces como paredes; bajo sus ramas no crece nada.
   affordances:
   - forraje
   - aire
@@ -844,7 +844,7 @@ places:
   - zona_2
 - id: selva_2_2
   label: ceiba (la selva, media)
-  description: Un árbol enorme con raíces como paredes; a su sombra no crece nada.
+  description: Un árbol enorme con raíces como paredes; bajo sus ramas no crece nada.
   affordances:
   - agua
   - forraje
@@ -860,7 +860,7 @@ places:
   - zona_2
 - id: selva_2_3
   label: helechal (la selva, media)
-  description: Helechos más altos que una persona, mojados de rocío.
+  description: Helechos más altos que una persona, empapados.
   affordances:
   - escondite
   - refugio
@@ -924,7 +924,7 @@ places:
   - zona_3
 - id: selva_3_1
   label: ceiba (la selva, costa)
-  description: Un árbol enorme con raíces como paredes; a su sombra no crece nada.
+  description: Un árbol enorme con raíces como paredes; bajo sus ramas no crece nada.
   affordances:
   - escondite
   - refugio
@@ -939,7 +939,7 @@ places:
   - zona_3
 - id: selva_3_2
   label: helechal (la selva, costa)
-  description: Helechos más altos que una persona, mojados de rocío.
+  description: Helechos más altos que una persona, empapados.
   affordances:
   - forraje
   - escondite
@@ -984,7 +984,7 @@ places:
   - zona_3
 - id: selva_3_5
   label: espesura (la selva, costa)
-  description: Árboles muy juntos y una penumbra húmeda que huele a hoja podrida.
+  description: Árboles muy juntos y un aire húmedo que huele a hoja podrida.
   affordances:
   - escondite
   - refugio
@@ -999,7 +999,7 @@ places:
   - zona_3
 - id: selva_3_6
   label: claro (la selva, costa)
-  description: Un hueco en la selva donde entra el sol de lleno; la hierba llega a la rodilla.
+  description: Un hueco abierto al cielo en la selva; la hierba llega a la rodilla.
   affordances:
   - forraje
   - escondite
@@ -1258,7 +1258,7 @@ places:
   - zona_3
 - id: montana_3_5
   label: cueva (la montaña, costa)
-  description: Una boca oscura en la ladera; dentro, el aire es frío y quieto.
+  description: Una boca estrecha en la ladera; dentro, el aire es frío y quieto.
   affordances:
   - vigia
   - escondite
@@ -1334,7 +1334,7 @@ places:
   - zona_1
 - id: playa_1_2
   label: manglar (la playa, interior)
-  description: Raíces retorcidas sobre agua salobre, sombra y mosquitos.
+  description: Raíces retorcidas sobre agua salobre, y mosquitos.
   affordances:
   - refugio
   tags:
@@ -1381,7 +1381,7 @@ places:
   - zona_2
 - id: playa_2_1
   label: manglar (la playa, media)
-  description: Raíces retorcidas sobre agua salobre, sombra y mosquitos.
+  description: Raíces retorcidas sobre agua salobre, y mosquitos.
   affordances:
   - forraje
   tags:
@@ -1412,7 +1412,7 @@ places:
   - zona_2
 - id: playa_2_3
   label: faro (la playa, media)
-  description: Una torre blanca sin luz, con la puerta arrancada.
+  description: Una torre blanca apagada, con la puerta arrancada.
   affordances:
   - agua
   - escondite
@@ -1459,7 +1459,7 @@ places:
   - zona_2
 - id: playa_3_0
   label: manglar (la playa, costa)
-  description: Raíces retorcidas sobre agua salobre, sombra y mosquitos.
+  description: Raíces retorcidas sobre agua salobre, y mosquitos.
   affordances:
   - forraje
   - aire
@@ -1489,7 +1489,7 @@ places:
   - zona_3
 - id: playa_3_2
   label: faro (la playa, costa)
-  description: Una torre blanca sin luz, con la puerta arrancada.
+  description: Una torre blanca apagada, con la puerta arrancada.
   affordances:
   - refugio
   tags:
@@ -1683,7 +1683,7 @@ places:
   - zona_2
 - id: cienaga_2_3
   label: turbera (la ciénaga, media)
-  description: Tierra esponjosa y oscura que huele a humo viejo.
+  description: Tierra esponjosa y negra que huele a humo viejo.
   affordances:
   - forraje
   tags:
@@ -1758,7 +1758,7 @@ places:
   - zona_3
 - id: cienaga_3_2
   label: turbera (la ciénaga, costa)
-  description: Tierra esponjosa y oscura que huele a humo viejo.
+  description: Tierra esponjosa y negra que huele a humo viejo.
   affordances:
   - escondite
   tags:
@@ -1859,7 +1859,7 @@ places:
   - zona_1
 - id: ruinas_1_1
   label: sótano (las ruinas, interior)
-  description: Un hueco bajo las ruinas, oscuro y con eco.
+  description: Un hueco bajo las ruinas, cerrado y con eco.
   affordances:
   - botin_menor
   - escondite
@@ -1890,7 +1890,7 @@ places:
   - zona_1
 - id: ruinas_1_3
   label: templo caído (las ruinas, interior)
-  description: Columnas derribadas y un tejado a medias que aún da sombra.
+  description: Columnas derribadas y un tejado a medias sobre la piedra rota.
   affordances:
   - vigia
   tags:
@@ -1905,7 +1905,7 @@ places:
   - zona_1
 - id: ruinas_2_0
   label: sótano (las ruinas, media)
-  description: Un hueco bajo las ruinas, oscuro y con eco.
+  description: Un hueco bajo las ruinas, cerrado y con eco.
   affordances:
   - botin_menor
   tags:
@@ -1936,7 +1936,7 @@ places:
   - zona_2
 - id: ruinas_2_2
   label: templo caído (las ruinas, media)
-  description: Columnas derribadas y un tejado a medias que aún da sombra.
+  description: Columnas derribadas y un tejado a medias sobre la piedra rota.
   affordances:
   - refugio
   - escondite
@@ -2014,7 +2014,7 @@ places:
   - zona_3
 - id: ruinas_3_1
   label: templo caído (las ruinas, costa)
-  description: Columnas derribadas y un tejado a medias que aún da sombra.
+  description: Columnas derribadas y un tejado a medias sobre la piedra rota.
   affordances:
   - botin_menor
   - escondite
@@ -2101,7 +2101,7 @@ places:
   - zona_3
 - id: ruinas_3_7
   label: sótano (las ruinas, costa)
-  description: Un hueco bajo las ruinas, oscuro y con eco.
+  description: Un hueco bajo las ruinas, cerrado y con eco.
   affordances:
   - vigia
   tags:
@@ -17710,6 +17710,7 @@ situations:
 - id: herida
   label: herida
   personal: true
+  visible: true
   effects:
     salud: -0.0025
   content:

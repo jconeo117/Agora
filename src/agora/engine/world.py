@@ -2190,9 +2190,9 @@ class Simulation:
         verdadera = False
         if act is SocialAct.AFFIRM and claim is not None:
             verdadera = truth(self.state, claim) is True
-            creencia = judge(self.state, listener, speaker, claim, self.social_resolver,
-                             f"{tick}:{talk.count}")
-            r = react_claim(self.state, listener, speaker, creencia, talk)
+            creencia, reto = judge(self.state, listener, speaker, claim, self.social_resolver,
+                                   f"{tick}:{talk.count}")
+            r = react_claim(self.state, listener, speaker, creencia, talk, reto)
         elif act is SocialAct.ASK and question is not None and about is not None:
             r = react_ask(self.state, listener, speaker, talk)
         else:

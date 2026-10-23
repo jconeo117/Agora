@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -28,9 +28,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from agora.cognition.intencion import stems
 from agora.engine.consulta import ficha
 from agora.engine.events import Event, EventKind
-from agora.engine.ontology import AgentId, ContentTag, NarrationSpec, Spec
+from agora.engine.ontology import ActionId, AgentId, ContentTag, NarrationSpec, Spec
 from agora.engine.ports import CognitionProvider
-from agora.engine.state import WorldState
+from agora.engine.state import PerformingAction, Traveling, WorldState
 
 PROMPTS = Path(__file__).parent / "prompts"
 TELL = (PROMPTS / "narrador.txt").read_text(encoding="utf-8")
@@ -50,6 +50,9 @@ TOP = 8
 ALIKE = 2
 """Cuántos hechos ajenos del mismo tipo se cuentan uno a uno antes de agruparse."""
 
+TOP_NOTABLES = 5
+"""Cuántas personas caben en la escena; las demás son «y otros N» (unidad 18)."""
+
 
 class Table(Spec):
     """Lo que la mesa acordó antes de jugar (sesión cero). Es de la mesa y no
@@ -59,6 +62,8 @@ class Table(Spec):
     """No se narra: el motor lo simula igual, pero queda fuera de plano."""
     veils: tuple[ContentTag, ...] = ()
     """Se narra sin detalle."""
+    dice: bool = True
+    """Si los dados de las tiradas se ven (unidad 18): `false` los oculta."""
 
 
 def load_table(path: Path) -> Table:
@@ -88,6 +93,29 @@ class Kind(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class Notable:
+    name: str
+    wounded: bool
+    doing: str
+    """Su acción, «de paso» o «sin hacer nada»."""
+
+
+@dataclass(frozen=True, slots=True)
+class Scene:
+    """Lo que se ve al llegar a una decisión, antes de lo que pasó (unidad 18).
+    La lista de gente vive aquí y no en `present`: el briefing no puede tener
+    dos listas que se contradigan."""
+
+    full: bool
+    """Completa (cambió de sitio, o hubo pelea) o breve."""
+    notables: tuple[Notable, ...]
+    others: int
+    """Los que no caben entre los notables."""
+    elapsed: int
+    """Ticks desde la decisión anterior."""
+
+
+@dataclass(frozen=True, slots=True)
 class Moment:
     kind: Kind
     player: str
@@ -102,6 +130,7 @@ class Moment:
     knowledge: tuple[str, ...] = ()
     everyone: tuple[str, ...] = ()
     """Todos los nombres del censo: lo que el anclaje busca en la prosa."""
+    scene: Scene | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +140,21 @@ class Sighting:
 
     place: str | None = None
     present: frozenset[str] = frozenset()
+
+
+@dataclass
+class Hilos:
+    """Lo que sigue abierto entre dos ventanas de narración (unidad 18): quién
+    empezó algo contra el jugador y aún no ha acabado, y a quién apuntó él por
+    última vez. Sin esto, «Tumi te ataca» no tenía final en la siguiente
+    ventana, y «haces un pacto con » salía sin nombre."""
+
+    pending: dict[str, tuple[str, str]] = field(default_factory=dict)
+    """Quién → (id de la acción, tick en que empezó). El id, no la etiqueta: de
+    él sale el `content` que decide si la mesa lo deja fuera."""
+    my_target: str | None = None
+    involved: frozenset[str] = frozenset()
+    """Quién actuó sobre el jugador o sobre quien él actuó en la última ventana."""
 
 
 # --- contar un hecho ----------------------------------------------------------
@@ -145,13 +189,18 @@ def tell(
 
 def select(
     world: WorldState, events: Iterable[Event], player: str, seen: Sighting, table: Table,
+    hilos: Hilos | None = None,
 ) -> tuple[Fact, ...]:
     """Lo que merece contarse de `events`, de lo más grave a lo menos, y luego
     en el orden en que pasó. Sin vocabulario de mundo: las formas de cada
-    acción vienen del pack."""
+    acción vienen del pack. `hilos` es lo que sigue abierto de ventanas
+    anteriores; sin él, cada ventana empieza de cero (lo que hacen los momentos
+    sueltos)."""
     pack = world.pack
     yo = AgentId(player)
     here = str(world.agents[yo].at) if yo in world.agents else seen.place
+    hilos = Hilos() if hilos is None else hilos
+    events = tuple(events)  # se recorre dos veces: los hechos y los hilos que cierran
     facts: list[Fact] = []
     if yo not in world.agents and DEATH not in table.lines:
         # Nadie emite la muerte de uno para él mismo: `AGENT_DIED` es de quien
@@ -159,6 +208,7 @@ def select(
         facts.append(Fact(6, 1 << 62, "caes, y ya no te levantas", (), (DEATH,), mine=True))
     target_of: dict[str, str] = {}
     mourned: set[str] = set()
+    inv: set[str] = set()
 
     def name(a: str | None) -> str:
         return name_of(world, a)
@@ -179,17 +229,29 @@ def select(
         content = spec.content if spec is not None else ()
         if e.kind is EventKind.ACTION_STARTED and actor is not None and target is not None:
             target_of[actor] = target
+            if target == player:
+                inv.add(actor)
+            if actor == player:
+                inv.add(target)
         if actor == player:
             match e.kind:
                 case EventKind.TRAVEL_ARRIVED if e.place is not None:
                     add(3, e, f"llegas a {pack.place_by_id[e.place].label}")
                 case EventKind.ACTION_STARTED if spec is not None and target is not None:
+                    hilos.my_target = target
                     add(3, e, tell(spec.narration, spec.label, actor, target, player, name),
                         (name(target),), content)
                 case EventKind.ACTION_COMPLETED if spec is not None:
-                    t = target_of.get(player) if spec.target is not None else None
-                    add(2, e, tell(spec.narration, spec.label, actor, t, player, name),
-                        (name(t),) if t is not None else (), content)
+                    # Sin destinatario en esta ventana, el de antes: «pacto con »
+                    # sin nombre era lo que salía cuando empezó en otra ventana.
+                    t = None
+                    if spec.target is not None:
+                        t = target_of.get(player) or hilos.my_target
+                    if spec.target is not None and t is None:
+                        texto = f"terminas: {spec.label}"
+                    else:
+                        texto = tell(spec.narration, spec.label, actor, t, player, name)
+                    add(2, e, texto, (name(t),) if t is not None else (), content)
                 case EventKind.ACTION_ABORTED if spec is not None:
                     add(2, e, f"dejas a medias: {spec.label}")
                 case EventKind.SITUATION_BEGAN:
@@ -215,6 +277,8 @@ def select(
             continue
         if (target == player and spec is not None
                 and e.kind is EventKind.ACTION_STARTED):
+            if actor is not None:
+                hilos.pending[actor] = (str(spec.id), str(e.tick))
             add(5, e, tell(spec.narration, spec.label, actor, target, player, name),
                 (name(actor),), content)
             continue
@@ -227,6 +291,31 @@ def select(
                 alike="violenta" if content else str(e.action), mine=False)
         elif e.kind is EventKind.TRAVEL_ARRIVED:
             add(1, e, f"llega {name(actor)}", (name(actor),), alike="llega", mine=False)
+    # Ningún hilo suelto (unidad 18): lo que alguien empezó contra el jugador
+    # tiene que acabar en algún hecho, aunque se cuente en otra ventana.
+    hilos.involved = frozenset(inv | set(hilos.pending))
+    for a in sorted(hilos.pending):
+        accion, _ = hilos.pending[a]
+        spec_a = pack.action_by_id[ActionId(accion)]
+        cierre = next((e for e in events
+                       if e.kind in (EventKind.ACTION_COMPLETED, EventKind.ACTION_ABORTED)
+                       and str(e.actor) == a), None)
+        if cierre is None:
+            # Sin evento no hay orden que dar: va al final. Lleva el `content` de
+            # su acción, para que una línea de la mesa lo quite como a cualquier hecho.
+            if not any(c in table.lines for c in spec_a.content):
+                facts.append(Fact(5, 1 << 61, f"{name(a)} sigue yendo a por ti", (name(a),),
+                                  spec_a.content))
+            continue
+        del hilos.pending[a]
+        if cierre.kind is EventKind.ACTION_ABORTED:
+            add(5, cierre, f"{name(a)} desiste", (name(a),), spec_a.content)
+            continue
+        # Si acabó dejándote una herida, el hecho ya es la herida: no se cuenta dos veces.
+        ya_contado = any(e.kind is EventKind.SITUATION_BEGAN and str(e.actor) == player
+                         and str(e.data.get("por_quien")) == a for e in events)
+        if not ya_contado:
+            add(5, cierre, f"{name(a)} termina: {spec_a.label}", (name(a),), spec_a.content)
     if here is not None and here == seen.place and DEATH not in table.lines:
         alive = {str(a) for a in world.agents}
         for muerto in sorted(seen.present - alive - mourned - {player}):
@@ -290,8 +379,49 @@ def _base(world: WorldState, player: str, kind: Kind, facts: tuple[Fact, ...],
 
 
 def world_moment(world: WorldState, player: str, facts: tuple[Fact, ...], table: Table,
-                 last_place: str | None = None) -> Moment:
-    return _base(world, player, Kind.WORLD, facts, table, last_place)
+                 last_place: str | None = None, scene: Scene | None = None) -> Moment:
+    return replace(_base(world, player, Kind.WORLD, facts, table, last_place), scene=scene)
+
+
+def scene_of(
+    world: WorldState, player: str, seen: Sighting, involved: frozenset[str],
+    last_was_fight: bool, elapsed: int,
+) -> Scene:
+    """La escena de ahora. Notables: primero quien actuó sobre el jugador o él
+    sobre quien, luego a quien aprecia o con quien tiene relación (de más a
+    menos aprecio), luego quien se ve herido, y el resto por nombre. Desempate
+    por id: el nombre puede repetirse y el orden no puede depender de eso.
+
+    Completa si cambió de sitio, si es la primera decisión o si acabó una
+    pelea; breve si no."""
+    yo = world.agents.get(AgentId(player))
+    if yo is None:
+        return Scene(full=True, notables=(), others=0, elapsed=elapsed)
+    full = seen.place is None or seen.place != str(yo.at) or last_was_fight
+    visibles = frozenset(sid for sid, spec in world.pack.situation_by_id.items() if spec.visible)
+    candidatos: list[tuple[tuple[int, int, float, int, str, str], Notable]] = []
+    for o in world.agents_in_order():
+        if o is yo or o.at != yo.at:
+            continue
+        otro = o.spec_id
+        aprecio = yo.regard_for(otro, world.tick, yo.temperament.bond_fade,
+                                yo.relation_floor(world.pack, otro))
+        apreciado = aprecio > 0 or bool(yo.related_to(otro))
+        herido = any(c.situacion in visibles for c in o.condiciones)
+        match o.busy:
+            case PerformingAction(action=accion):
+                haciendo = world.pack.action_by_id[accion].label
+            case Traveling():
+                haciendo = "de paso"
+            case _:
+                haciendo = "sin hacer nada"
+        nombre = name_of(world, str(otro))
+        clave = (0 if str(otro) in involved else 1, 0 if apreciado else 1,
+                 -aprecio if apreciado else 0.0, 0 if herido else 1, nombre, str(otro))
+        candidatos.append((clave, Notable(nombre, herido, haciendo)))
+    candidatos.sort(key=lambda par: par[0])
+    notables = tuple(n for _, n in candidatos[:TOP_NOTABLES])
+    return Scene(full, notables, max(0, len(candidatos) - TOP_NOTABLES), elapsed)
 
 
 def question_moment(
@@ -358,13 +488,41 @@ VEIL = ("\n- Con lo que toque {cosas}: dilo, sin detalle gráfico ni regodeo; "
         "una frase sobria basta.")
 
 
+def _ha_pasado(ticks: int) -> str:
+    """Un cuarto de hora por tick: a partir de dos horas se dice en horas."""
+    return (f"HA PASADO: {ticks} cuartos de hora" if ticks < 8
+            else f"HA PASADO: {ticks // 4} horas")
+
+
+def _escena(s: Scene) -> list[str]:
+    lines = [f"ESCENA AHORA ({'completa' if s.full else 'breve'}):"]
+    for n in s.notables:
+        partes = ["herido"] if n.wounded else []
+        lines.append(f"  - {n.name}: {', '.join([*partes, n.doing])}")
+    if s.others:
+        lines.append(f"  - y otros {s.others}")
+    if not s.notables:
+        lines.append("  - nadie más")
+    return lines
+
+
+def _lista(partes: list[str]) -> str:
+    if len(partes) <= 1:
+        return "".join(partes)
+    return ", ".join(partes[:-1]) + " y " + partes[-1]
+
+
 def briefing(m: Moment) -> str:
     lines = [f"PERSONAJE: {m.player} (el jugador: tú)", f"LUGAR: {m.place}"]
     if m.description:
         lines.append(f"CÓMO ES: {m.description}")
     if m.phase:
         lines.append(f"HORA: {m.phase}")
-    if m.present:
+    if m.scene is not None:
+        if m.scene.elapsed >= 4:
+            lines.append(_ha_pasado(m.scene.elapsed))
+        lines += _escena(m.scene)
+    elif m.present:
         extra = f" y {len(m.present) - 6} más" if len(m.present) > 6 else ""
         lines.append(f"AQUÍ HAY: {', '.join(m.present[:6])}{extra}")
     else:
@@ -410,7 +568,20 @@ def fallback(m: Moment) -> str:
                   if k.startswith(CAN) and pide & set(stems(k[len(CAN):].split(":")[0]))]
         return (" ".join(f"{k[0].upper()}{k[1:]}." for k in utiles[:4])
                 or "Sin el narrador no sé contestarte eso; prueba «ficha» o «mirar».")
-    return " ".join(f.text[0].upper() + f.text[1:] + "." for f in m.facts)
+    partes = [f.text[0].upper() + f.text[1:] + "." for f in m.facts]
+    if m.scene is not None:
+        partes += _escena_plantilla(m, m.scene)
+    return " ".join(partes)
+
+
+def _escena_plantilla(m: Moment, s: Scene) -> list[str]:
+    if not s.full:
+        return [f"Sigues en {m.place}."]
+    items = [f"{n.name} (herido)" if n.wounded else n.name for n in s.notables]
+    if s.others:
+        items.append(f"otros {s.others}")
+    aqui = f"Aquí: {_lista(items)}." if items else "Aquí: nadie más."
+    return [f"Estás en {m.place}.", *([m.description] if m.description else []), aqui]
 
 
 @dataclass(frozen=True, slots=True)
@@ -442,17 +613,27 @@ class Narrator:
     providers: tuple[CognitionProvider, ...]
     table: Table
     seen: Sighting = Sighting()
+    hilos: Hilos = field(default_factory=Hilos)
+    last_tick: int | None = None
+    """Cuándo fue la decisión anterior: de ahí sale «HA PASADO»."""
+    last_was_fight: bool = False
+    """Acabó una escena de combate desde la última narración. La marca quien
+    lleva la pelea (`TerminalCombat.report`) y la gasta la siguiente narración."""
 
-    def world(self, world: WorldState, events: Iterable[Event], player: str) -> Told | None:
-        facts = select(world, events, player, self.seen, self.table)
+    def world(self, world: WorldState, events: Iterable[Event], player: str) -> Told:
+        """Siempre hay momento: aunque no pase nada, la escena se cuenta (unidad 18)."""
+        facts = select(world, events, player, self.seen, self.table, self.hilos)
+        elapsed = 0 if self.last_tick is None else world.tick - self.last_tick
+        scene = scene_of(world, player, self.seen, self.hilos.involved,
+                         self.last_was_fight, elapsed)
+        self.last_was_fight = False
+        self.last_tick = world.tick
         last = self.seen.place
         a = world.agents.get(AgentId(player))
         if a is not None:
             self.seen = Sighting(str(a.at), frozenset(
                 str(o.spec_id) for o in world.agents_in_order() if o.at == a.at))
-        if not facts:
-            return None
-        m = world_moment(world, player, facts, self.table, last)
+        m = world_moment(world, player, facts, self.table, last, scene)
         return narrate(m, self.providers, _seed(world, player, "mundo"))
 
     def answer(self, world: WorldState, player: str, question: str,
@@ -489,5 +670,15 @@ def moment_from_json(d: Mapping[str, Any]) -> Moment:
         description=d.get("description"), phase=d.get("phase"), present=tuple(d["present"]),
         state=tuple(d["state"]), facts=facts, veils=tuple(d["veils"]),
         question=d.get("question"), knowledge=tuple(d["knowledge"]),
-        everyone=tuple(d["everyone"]),
+        everyone=tuple(d["everyone"]), scene=_scene_from_json(d.get("scene")),
+    )
+
+
+def _scene_from_json(d: Mapping[str, Any] | None) -> Scene | None:
+    if d is None:
+        return None
+    return Scene(
+        full=d["full"],
+        notables=tuple(Notable(n["name"], n["wounded"], n["doing"]) for n in d["notables"]),
+        others=d["others"], elapsed=d["elapsed"],
     )

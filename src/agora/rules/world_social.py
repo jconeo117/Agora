@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agora.engine.ontology import AgentId
-from agora.engine.ports import Challenge, Outcome
+from agora.engine.ports import Challenge, Contest
 from agora.engine.state import WorldState
 from agora.rules.binding import BindingSpec
 from agora.rules.derive import derive
@@ -34,9 +34,20 @@ class WorldSocial:
         atributo = next(s.attribute for s in self.ruleset.skills if s.id == skill)
         return self.ruleset.grade(ficha.attributes[atributo]) + ficha.skills.get(skill, 0)
 
+    def _label(self, skill: str) -> str:
+        """«Porte» lo tira quien miente; «Instinto + Alerta» quien nota, con el
+        atributo por el que tira delante de la competencia."""
+        spec = next(s for s in self.ruleset.skills if s.id == skill)
+        return spec.label
+
+    def _opposing_label(self, skill: str) -> str:
+        spec = next(s for s in self.ruleset.skills if s.id == skill)
+        atributo = next(a.label for a in self.ruleset.attributes if a.id == spec.attribute)
+        return f"{atributo} + {spec.label}"
+
     def deceive(
         self, world: WorldState, liar: AgentId, listener: AgentId, key: str
-    ) -> Outcome | None:
+    ) -> Contest | None:
         social = self.ruleset.social
         if social is None:
             return None
@@ -45,4 +56,6 @@ class WorldSocial:
             opposing_pool=self.pool(world, listener, social.notice),
         )
         dados = KeyedDice(world.rng.stream("enganyo", key, liar, listener))
-        return PoolResolver.from_ruleset(self.ruleset).resolve(reto, dados).outcome
+        resolucion = PoolResolver.from_ruleset(self.ruleset).resolve(reto, dados)
+        return Contest(resolucion, self._label(social.deceive),
+                       self._opposing_label(social.notice))

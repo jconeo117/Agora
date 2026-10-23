@@ -100,6 +100,16 @@ class Resolution:
     """Pasos finales si acertó; `Effect.NONE` si falló."""
 
 
+@dataclass(frozen=True, slots=True)
+class Contest:
+    """Una tirada enfrentada con nombre, para enseñarla: el motor no sabe qué
+    es Porte, el sistema sí."""
+
+    resolution: Resolution
+    actor_label: str      # «Porte»
+    opposing_label: str   # «Instinto + Alerta»
+
+
 @runtime_checkable
 class Dice(Protocol):
     """De dónde salen los dados. El motor da uno derivado por clave; un test,
@@ -270,4 +280,4 @@ class SocialResolver(Protocol):
     `None`: no sé resolverlo; el motor sigue por su regla."""
 
     def deceive(self, world: WorldState, liar: AgentId, listener: AgentId,
-                key: str) -> Outcome | None: ...
+                key: str) -> Contest | None: ...

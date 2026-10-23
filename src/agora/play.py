@@ -33,7 +33,16 @@ from agora.cognition.conversa import (
     talk_menu,
 )
 from agora.cognition.intencion import Entry, Kind, Menu, Order, _representatives, interpret
-from agora.cognition.narrador import DEATH, BeatView, Fact, Narrator, Table, Told, round_facts
+from agora.cognition.narrador import (
+    DEATH,
+    BeatView,
+    Fact,
+    Narrator,
+    Table,
+    Told,
+    name_of,
+    round_facts,
+)
 from agora.cognition.voz import Heard, hablar
 from agora.engine.consulta import ficha
 from agora.engine.events import EventKind
@@ -232,6 +241,33 @@ def show(out: TextIO, told: Told, chain: bool) -> None:
     out.flush()
 
 
+PALABRAS_TIRADA = {
+    Outcome.FAILURE: "falla",
+    Outcome.SUCCESS_AT_COST: "éxito con coste",
+    Outcome.SUCCESS: "éxito",
+    Outcome.CRITICAL: "crítico",
+}
+
+
+def dice_line(
+    actor: str, pool_label: str, dice: Sequence[int], opposing: str | None,
+    opposing_label: str | None, opposing_dice: Sequence[int], outcome: Outcome,
+) -> str:
+    """Los dados a la vista, en una línea (unidad 18): quién tiró cuántos contra
+    qué, y cómo acabó. `opposing_label` es la frase entera antes del nombre
+    («la defensa de»), porque cada sistema lo dice a su manera."""
+    tiros = f"[{' '.join(str(d) for d in dice)}]"
+    cuerpo = f"{actor}, {pool_label} ({len(dice)})"
+    if opposing is not None:
+        cuerpo += f" contra {opposing_label} {opposing} ({len(opposing_dice)})"
+        tiros += f" contra [{' '.join(str(d) for d in opposing_dice)}]"
+    return f"🎲 {cuerpo}: {tiros} → {PALABRAS_TIRADA[outcome]}"
+
+
+VERBOS = 5
+"""Atajos que se enseñan junto a «¿Qué haces?»."""
+
+
 def nearest_places(world: WorldState, options: Sequence[Decision]) -> dict[str, tuple[str, int]]:
     """Acción -> el sitio más cercano donde el jugador sabe que puede hacerla:
     lo que el narrador sabe para contestar «¿dónde hay agua?». Sale del menú,
@@ -318,6 +354,8 @@ class Terminal:
         self._esperar = 0
         self._visto = 0
         self._rechazos: set[tuple[NeedId, int]] = set()
+        self._mostrada: list[int] = []
+        """Las opciones numeradas de la última lista: un número solo vale tras una."""
 
     def _decir(self, texto: str) -> None:
         self.out.write(texto + "\n")
@@ -332,15 +370,17 @@ class Terminal:
             return "salir"
         return linea.strip()
 
+    def _dados(self) -> bool:
+        return self.narrator is None or self.narrator.table.dice
+
     def _novedades(self, agent: AgentState) -> None:
         """Lo que le ha pasado al jugador, o con él, desde la última vez."""
         world = self.sim.state
         if self.narrator is not None:
             nuevos = [e for e in self.sim.log if e.seq >= self._visto]
             self._visto = self.sim.log.siguiente_seq
-            told = self.narrator.world(world, nuevos, str(agent.spec_id))
-            if told is not None:
-                show(self.out, told, bool(self.narrator.providers))
+            show(self.out, self.narrator.world(world, nuevos, str(agent.spec_id)),
+                 bool(self.narrator.providers))
             return
         for evento in self.sim.log:
             if evento.seq < self._visto:
@@ -356,6 +396,22 @@ class Terminal:
 
     def _opcion(self, world: WorldState, n: int, d: Decision) -> str:
         return f"  {n:>3}. {self._describir(world, d)}"
+
+    def _listar(self, world: WorldState, options: tuple[Decision, ...],
+                indices: Sequence[int]) -> None:
+        """Enseña opciones numeradas y deja que el número valga para ellas."""
+        self._mostrada = list(indices)
+        for n, i in enumerate(indices, start=1):
+            self._decir(self._opcion(world, n, options[i]))
+
+    @staticmethod
+    def _verbos(world: WorldState, options: tuple[Decision, ...]) -> list[str]:
+        """Los atajos: hasta `VERBOS` verbos, primero los que llevan destinatario
+        (ya hay alguien a quien se puede hacer), luego los demás, por orden."""
+        pack = world.pack
+        con = {pack.action_by_id[d.action].label for d in options if d.target is not None}
+        todos = {pack.action_by_id[d.action].label for d in options}
+        return (sorted(con) + sorted(todos - con))[:VERBOS]
 
     def _describir(self, world: WorldState, d: Decision) -> str:
         """Sin «te conviene» (ver `hint`). El destinatario va tras dos puntos y
@@ -420,22 +476,31 @@ class Terminal:
             self._decir("  no hay nada que puedas hacer ahora; esperas")
             return None
         vista = self._vista(world, options)
-        hasta = self.page
+        verbos = self._verbos(world, options)
+        self._mostrada = []
         self._decir(f"\n# {world.censo[agent.spec_id].label}, tick {world.tick}")
-        for n, i in enumerate(vista[:hasta], start=1):
-            self._decir(self._opcion(world, n, options[i]))
+        self._decir("¿Qué haces?")
+        self._decir("  atajos: " + " · ".join(verbos))
         while True:
             linea = self._leer("> ")
             orden = linea.split()
             if not orden:
                 continue
             match orden:
-                case [numero] if numero.isdigit() and 1 <= int(numero) <= len(options):
-                    return options[vista[int(numero) - 1]]
+                case [numero] if numero.isdigit() and 1 <= int(numero) <= len(self._mostrada):
+                    return options[self._mostrada[int(numero) - 1]]
+                case ["opciones"]:
+                    self._listar(world, options, vista)
                 case ["más" | "mas"]:
-                    for n, i in enumerate(vista[hasta : hasta + self.page], start=hasta + 1):
+                    resto = [i for i in vista if i not in self._mostrada][: self.page]
+                    for n, i in enumerate(resto, start=len(self._mostrada) + 1):
                         self._decir(self._opcion(world, n, options[i]))
-                    hasta += self.page
+                    self._mostrada += resto
+                case _ if linea.strip() in verbos:
+                    self._listar(world, options, [
+                        i for i in vista
+                        if world.pack.action_by_id[options[i].action].label == linea.strip()
+                    ])
                 case ["esperar"]:
                     return None
                 case ["esperar", cuantos] if cuantos.isdigit() and int(cuantos) > 0:
@@ -572,6 +637,12 @@ class Terminal:
             habla, del_modelo, _ = hablar(world, otro, agent.spec_id, self.provider, oido)
             self._decir(f"  {quien}: «{habla.dice}»  [{habla.tono}]"
                         + ("" if del_modelo else "  (respaldo)"))
+            if r.contest is not None and self._dados():
+                tirada = r.contest.resolution
+                self._decir(dice_line(
+                    name_of(world, str(agent.spec_id)), r.contest.actor_label,
+                    tirada.dice, name_of(world, str(otro)),
+                    f"{r.contest.opposing_label} de", tirada.opposing_dice, tirada.outcome))
             if r.leaves:
                 self._decir(f"  ({quien} da la conversación por terminada)")
         accion = world.pack.social.action
@@ -624,8 +695,7 @@ class Terminal:
         nuevos = [e for e in self.sim.log if e.seq >= self._visto]
         self._visto = self.sim.log.siguiente_seq
         told = self.narrator.world(self.sim.state, nuevos, str(self.sim.state.player))
-        if told is not None:
-            show(self.out, told, bool(self.narrator.providers))
+        show(self.out, told, bool(self.narrator.providers))
 
     def interrupt(self, world: WorldState, agent: AgentState, need: NeedId) -> bool:
         """Se pregunta una vez por necesidad y ocupación: si dices que no, no
@@ -812,6 +882,27 @@ def scene_facts(
     return hechos, estado, presentes
 
 
+TIRADAS_DE_ESCENA = {
+    "atacar": ("ataque", "la defensa de"),
+    "huir": ("huida", "la persecución de"),
+    "primeros_auxilios": ("primeros auxilios", None),
+    "rematar": ("remate", None),
+    "quiebre": ("aguante", None),
+    "reloj_de_muerte": ("aguante", None),
+}
+"""Cómo se llama cada tirada de la escena en la línea de dados, y qué se
+opone (solo cuando hay dados del rival)."""
+
+
+def _linea_tirada(encounter: Encounter, b: Beat, outcome: Outcome) -> str:
+    def corto(f: str) -> str:
+        return encounter.fighters[f].spec.label.split(",")[0]
+
+    etiqueta, contra = TIRADAS_DE_ESCENA[b.kind]
+    rival = corto(b.target) if b.opposing_dice and b.target is not None else None
+    return dice_line(corto(b.actor), etiqueta, b.dice, rival, contra, b.opposing_dice, outcome)
+
+
 def _banda(f: Fighter) -> str:
     """Cómo está alguien en la escena, sin números: lo que se ve."""
     parte = f.vitality / max(f.spec.vitality, 1)
@@ -873,8 +964,15 @@ class TerminalCombat:
                                    f"{encounter.id}:{encounter.round}")
         if told is not None:
             show(self.out, told, bool(self.narrator.providers))
+        if self.narrator.table.dice:
+            for b in beats:
+                if b.outcome is not None and b.dice and me.id in (b.actor, b.target):
+                    self._decir(_linea_tirada(encounter, b, b.outcome))
 
     def report(self, lines: tuple[str, ...]) -> None:
+        """Llega al acabar la pelea: la siguiente narración cuenta la escena completa."""
+        if self.narrator is not None:
+            self.narrator.last_was_fight = True
         if lines:
             self._decir(lines[-1])
 

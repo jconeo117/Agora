@@ -14,7 +14,8 @@ from pathlib import Path
 
 from agora.agents.decide import Decision
 from agora.cognition.narrador import (
-    Sighting, Table, moment_to_json, question_moment, round_moment, select, world_moment,
+    Hilos, Sighting, Table, moment_to_json, question_moment, round_moment, scene_of, select,
+    world_moment,
 )
 from agora.engine.ontology import AgentId
 from agora.engine.pack import load_pack
@@ -38,13 +39,24 @@ class Auto:
         self.sim, self.yo, self.visto, self.n = sim, yo, 0, 0
         self.seen = Sighting()
         self.preguntas = list(PREGUNTAS)
+        self.hilos = Hilos()
+        self.ultimo: int | None = None
+        self.pelea = False
+
+    def acabo_pelea(self, relato: tuple[str, ...]) -> None:
+        """Lo que `TerminalCombat.report` marca: la siguiente decisión cuenta la escena entera."""
+        self.pelea = True
 
     def choose(self, world, agent, opts: tuple[Decision, ...]):
         eventos = [e for e in self.sim.log if e.seq >= self.visto]
         self.visto = self.sim.log.siguiente_seq
-        hechos = select(world, eventos, self.yo, self.seen, MESA)
-        if hechos:
-            momentos.append(moment_to_json(world_moment(world, self.yo, hechos, MESA, self.seen.place)))
+        hechos = select(world, eventos, self.yo, self.seen, MESA, self.hilos)
+        transcurrido = 0 if self.ultimo is None else world.tick - self.ultimo
+        escena = scene_of(world, self.yo, self.seen, self.hilos.involved, self.pelea, transcurrido)
+        self.pelea = False
+        self.ultimo = world.tick
+        momentos.append(moment_to_json(
+            world_moment(world, self.yo, hechos, MESA, self.seen.place, escena)))
         self.n += 1
         if self.preguntas and self.n % 3 == 2:
             q = question_moment(world, self.yo, self.preguntas.pop(0), nearest_places(world, opts), MESA)
@@ -88,8 +100,9 @@ def jugar(semilla: int, yo: str, ticks: int) -> None:
     enlace = load_binding(Path("packs/isla/reglas/base.yaml"), pack, reglas)
     sim = Simulation(pack, seed=semilla)
     sim.set_player(AgentId(yo))
-    sim.player_source = Auto(sim, yo)
-    sim.encounter_resolver = WorldCombat(reglas, enlace, Escena(sim, yo))
+    auto = Auto(sim, yo)
+    sim.player_source = auto
+    sim.encounter_resolver = WorldCombat(reglas, enlace, Escena(sim, yo), auto.acabo_pelea)
     for _ in range(ticks):
         if AgentId(yo) not in sim.state.agents:
             break

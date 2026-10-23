@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol
 
-from agora.engine.ports import Challenge, Dice, Outcome
+from agora.engine.ports import Challenge, Dice, Outcome, Resolution
 from agora.engine.rng import RngSource
 from agora.rules.damage import VitalityBand, damage, vitality_band
 from agora.rules.pool import KeyedDice, PoolResolver
@@ -142,6 +142,8 @@ class Beat:
     outcome: Outcome | None = None
     damage: int = 0
     note: str = ""
+    dice: tuple[int, ...] = ()
+    opposing_dice: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -440,7 +442,8 @@ class Encounter:
                 golpe = damage(f.weapon.base, grado, r.effect, proteccion, perfora)
                 notas.append(f"resiste, {r.stress} de estrés")
                 self._stress(target, r.stress, dice)
-        self._beat(f, ActionKind.ATTACK, target.id, res.outcome, golpe, ", ".join(notas))
+        self._beat(f, ActionKind.ATTACK, target.id, res.outcome, golpe, ", ".join(notas),
+                   res=res)
         if golpe > 0:
             self._hurt(target, golpe, dice)
         if consequences and res.outcome in (Outcome.FAILURE, Outcome.SUCCESS_AT_COST):
@@ -486,7 +489,7 @@ class Encounter:
                 f.caught += 2
                 golpe = True
         relojes = f"escapar {min(f.escape, reloj)}/{reloj}, alcanzar {min(f.caught, reloj)}/{reloj}"
-        self._beat(f, ActionKind.FLEE, cazador.id, res.outcome, note=relojes)
+        self._beat(f, ActionKind.FLEE, cazador.id, res.outcome, note=relojes, res=res)
         if golpe:
             self._attack(cazador, f, False, dice, policy, False, "golpe de oportunidad")
         if f.escape >= reloj and f.status is Status.ACTIVE:
@@ -535,11 +538,11 @@ class Encounter:
         if res.outcome is Outcome.FAILURE:
             f.status = Status.BROKEN
             f.trauma = True
-            self._beat(f, "quiebre", outcome=res.outcome, note="trauma")
+            self._beat(f, "quiebre", outcome=res.outcome, note="trauma", res=res)
         else:
             f.impetus = f.spec.impetus
             f.stress = f.spec.stress // 2
-            self._beat(f, "quiebre", outcome=res.outcome, note="despertar")
+            self._beat(f, "quiebre", outcome=res.outcome, note="despertar", res=res)
 
     def _death_clock(self, f: Fighter, dice: Dice) -> None:
         if f.stabilized:
@@ -550,13 +553,13 @@ class Encounter:
             if f.death_marks >= self.combat.death_clock:
                 f.status = Status.DEAD
         self._beat(f, "reloj_de_muerte", outcome=res.outcome,
-                   note=f"{f.death_marks}/{self.combat.death_clock}")
+                   note=f"{f.death_marks}/{self.combat.death_clock}", res=res)
 
     def _first_aid(self, f: Fighter, fallen: Fighter, dice: Dice) -> None:
         res = self.resolver.resolve(Challenge(pool=self.first_aid_pool(f)), dice)
         if res.outcome is not Outcome.FAILURE:
             fallen.stabilized = True
-        self._beat(f, ActionKind.FIRST_AID, fallen.id, res.outcome)
+        self._beat(f, ActionKind.FIRST_AID, fallen.id, res.outcome, res=res)
 
     def _finish(self, f: Fighter, fallen: Fighter, dice: Dice) -> None:
         """Un caído no se defiende: es una tirada simple, y mata con éxito
@@ -568,7 +571,7 @@ class Encounter:
         )
         if res.outcome in KILL and res.effect > 0:
             fallen.status = Status.DEAD
-        self._beat(f, ActionKind.FINISH, fallen.id, res.outcome)
+        self._beat(f, ActionKind.FINISH, fallen.id, res.outcome, res=res)
 
     def _close(self, policy: Policy) -> None:
         """Al acabar, quien queda en pie decide qué hace con los caídos del otro
@@ -589,8 +592,12 @@ class Encounter:
     def _beat(
         self, f: Fighter, kind: str, target: str | None = None,
         outcome: Outcome | None = None, golpe: int = 0, note: str = "",
+        res: Resolution | None = None,
     ) -> None:
-        self.beats.append(Beat(self.round, f.id, str(kind), target, outcome, golpe, note))
+        dados = res.dice if res is not None else ()
+        rivales = res.opposing_dice if res is not None else ()
+        self.beats.append(Beat(self.round, f.id, str(kind), target, outcome, golpe, note,
+                               dados, rivales))
 
 
 _ORDEN = (VitalityBand.HEALTHY, VitalityBand.WOUNDED, VitalityBand.GRAVE, VitalityBand.DOWN)

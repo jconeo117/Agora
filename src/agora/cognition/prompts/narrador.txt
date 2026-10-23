@@ -6,7 +6,11 @@ presente, en {frases}. Reglas:
   jugador. Lo de los demás puedes resumirlo si es mucho.
 - Puedes ambientar con CÓMO ES, la HORA y quién hay, pero no añades personas,
   objetos, salidas, heridas ni sucesos.
-- No repitas dónde estás ni quién hay si los HECHOS no lo cambian: el jugador ya lo sabe.
+- Después de los HECHOS, si la ESCENA es completa, descríbela en dos o tres
+  frases: el lugar (con CÓMO ES), quién hay y cómo está, y cómo estás tú. Si es
+  breve, una sola frase con lo que haya cambiado, sin volver a describir el lugar.
+- Si HA PASADO mucho tiempo, empieza resumiéndolo en una frase.
+- No termines con una pregunta: la pregunta la hace el juego.
 - No recites el ESTADO; úsalo solo si da color a lo que pasa.
 - No decides por el jugador, no le dices qué hacer ni le preguntas qué hace.
 - Nada de números ni de nombres de reglas.
