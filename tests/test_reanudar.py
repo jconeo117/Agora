@@ -172,6 +172,8 @@ def test_cada_campo_se_guarda_o_se_deriva(tmp_path: Path) -> None:
         "temperament",
         "metas",
         "ledger",
+        "equipado_gains",
+        "equipado_costs",
     }
     campos_agente = {f.name for f in dataclasses.fields(AgentState)}
     assert campos_agente == guardados | derivados, (
@@ -216,6 +218,9 @@ def test_cada_campo_se_guarda_o_se_deriva(tmp_path: Path) -> None:
         renta={NeedId("oro"): 1.0},
         tributo={},
     )
-    assert set(_propiedad_a_dict(prop, del_pack=False)) == (
+    assert set(_propiedad_a_dict(prop, del_pack=False, objeto=True)) == (
         {f.name for f in dataclasses.fields(Propiedad)} - {"tributo"}
+    )
+    assert set(_propiedad_a_dict(prop, del_pack=False, objeto=False)) == (
+        {f.name for f in dataclasses.fields(Propiedad)} - {"tributo", "lugar", "equipado"}
     )

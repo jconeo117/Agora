@@ -457,13 +457,13 @@ def test_combat_spec_validacion_claves(tmp_path: Path) -> None:
 
 def test_isla_descripciones_narracion_y_mesa() -> None:
     # 3. La isla carga con description en todos sus lugares y narration en sus 16
-    # acciones; mesa.yaml carga con load_table.
+    # acciones (17 con registrar de 16a); mesa.yaml carga con load_table.
     pack = load_pack(ISLA_PACK)
     assert len(pack.places) > 0
     for p in pack.places:
         assert p.description is not None and len(p.description) > 0
 
-    assert len(pack.actions) == 16
+    assert len(pack.actions) == 17
     for a in pack.actions:
         assert a.narration is not None
 

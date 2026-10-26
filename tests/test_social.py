@@ -461,8 +461,18 @@ def test_talk_menu_entradas_terceros_y_despedida() -> None:
     assert FAREWELL in acciones
 
     # Todos los actos sociales básicos presentes sin destinatario
+    # (salvo dar y pedir que exigen objeto)
     for act in SocialAct:
+        if act in (SocialAct.GIVE, SocialAct.ASK_FOR):
+            continue
         assert any(e.action == act and e.target is None for e in menu.entries)
+
+    # Con objetos dados y pedibles, dar y pedir aparecen con su item
+    menu_con_items = talk_menu(
+        gente, listener="gara_d1", dados=[("obj1", "Lanza")], pedibles=[("obj2", "Cuchillo")]
+    )
+    assert any(e.action == SocialAct.GIVE and e.item == "obj1" for e in menu_con_items.entries)
+    assert any(e.action == SocialAct.ASK_FOR and e.item == "obj2" for e in menu_con_items.entries)
 
     # Para los actos con ABOUT (FLATTER, INSULT, ASK, AFFIRM, LIE):
     # deben existir entradas con target para renna_d1 y vidan_d1, pero NUNCA gara_d1
