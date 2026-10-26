@@ -46,11 +46,20 @@ from agora.cognition.narrador import (
 from agora.cognition.voz import Heard, hablar
 from agora.engine.consulta import ficha
 from agora.engine.events import EventKind
-from agora.engine.ontology import AgentId, ClaimKind, NeedId, PlaceId, QuestionKind, SocialAct
+from agora.engine.ontology import (
+    AgentId,
+    ClaimKind,
+    ItemId,
+    NeedId,
+    PlaceId,
+    PropertyId,
+    QuestionKind,
+    SocialAct,
+)
 from agora.engine.ports import Outcome
 from agora.engine.render import render_event
 from agora.engine.social import Claim, Conversation
-from agora.engine.state import AgentState, PerformingAction, Traveling, WorldState
+from agora.engine.state import AgentState, PerformingAction, Propiedad, Traveling, WorldState
 from agora.engine.world import Simulation
 from agora.rules.encounter import Action, ActionKind, Beat, Encounter, Fighter, Policy
 
@@ -305,6 +314,12 @@ def confirms(inp: TextIO, out: TextIO, texto: str) -> bool:
     out.write(f"  entiendo: {texto}. ¿Sí? [S/n] ")
     out.flush()
     return not inp.readline().strip().lower().startswith("n")
+
+
+def _nombre_objeto(world: WorldState, p: Propiedad) -> str:
+    """Cómo se nombra un objeto en la terminal: lo que el pack dice de su tipo."""
+    spec = world.pack.item_by_id[ItemId(p.objeto)]
+    return spec.narration or spec.label
 
 
 def picks(inp: TextIO, out: TextIO, pregunta: str, textos: Sequence[str]) -> int | None:
@@ -577,6 +592,8 @@ class Terminal:
                           else ficha(world, agent.spec_id))
                 for linea in hechos.lines():
                     self._decir(linea)
+                if otro is None:
+                    self._equipo(world, agent)
             case Order.LOOK:
                 self._mirar(world, agent)
             case Order.TALK if otro is not None and world.agents[otro].at == agent.at:
@@ -619,8 +636,11 @@ class Terminal:
         quien = world.censo[otro].label
         presentes = [(str(o.spec_id), world.censo[o.spec_id].label)
                      for o in world.agents_in_order() if o.at == agent.at and o is not agent]
-        menu = talk_menu(presentes, str(otro))
-        etiquetas = {pid: label for pid, label in presentes}
+        dados = [(str(p.id), _nombre_objeto(world, p)) for p in world.objetos_de(agent.spec_id)]
+        pedibles = [(str(p.id), _nombre_objeto(world, p))
+                    for p in world.objetos_de(otro) if not p.equipado]
+        menu = talk_menu(presentes, str(otro), dados, pedibles)
+        etiquetas = {pid: label for pid, label in presentes} | dict(dados) | dict(pedibles)
         talk = Conversation(otro)
         self._decir(f"  hablas con {quien} («adiós» para terminar)")
         while not talk.over:
@@ -647,6 +667,18 @@ class Terminal:
                 continue
             if entrada.action == FAREWELL:
                 break
+            if entrada.item is not None:
+                # Dar o pedir sin decir cuál: entre los objetos del menú, se pregunta.
+                # El intérprete devuelve la primera entrada de la acción y no sabe
+                # de objetos; sin esto, «dame» daría siempre el primero.
+                opciones = [e for e in menu.entries
+                            if e.action == entrada.action and e.item is not None]
+                if len(opciones) > 1:
+                    cual = picks(self.inp, self.out, "  ¿cuál?",
+                                 [etiquetas[str(e.item)] for e in opciones])
+                    if cual is None:
+                        continue
+                    entrada = opciones[cual]
             acto = SocialAct(entrada.action)
             sobre = None if entrada.target is None else AgentId(entrada.target)
             afirma: Claim | None = None
@@ -667,7 +699,16 @@ class Terminal:
                     acto, afirma, sobre = SocialAct.AFFIRM, dicho.claim, None
                 elif dicho.question is not None:
                     acto, (pregunta, sobre) = SocialAct.ASK, dicho.question
-            r = self.sim.apply_social(agent.spec_id, otro, acto, sobre, talk, afirma, pregunta)
+            objeto = None if entrada.item is None else PropertyId(entrada.item)
+            if objeto is not None:
+                dueno = agent.spec_id if acto is SocialAct.GIVE else otro
+                suyo = world.propiedades.get(objeto)
+                if suyo is None or suyo.dueño != dueno:
+                    self._decir("  eso ya no está en sus manos")
+                    continue
+            r = self.sim.apply_social(
+                agent.spec_id, otro, acto, sobre, talk, afirma, pregunta, item=objeto,
+            )
             de_quien = None if sobre is None else etiquetas.get(str(sobre))
             oido = Heard(frase, heard_as(acto, de_quien), r.tone, r.leaves, talk.count,
                          r.info, r.belief)
@@ -688,11 +729,54 @@ class Terminal:
         aqui = next((d for d in options if d.action == accion and d.travel_ticks == 0), None)
         return (True, aqui) if aqui is not None else (False, None)
 
+    def _equipo(self, world: WorldState, agent: AgentState) -> None:
+        """Lo que lleva, numerado en el orden de `objetos_de` (por id), con lo
+        puesto marcado. El número es el que acepta `equipar N`."""
+        objetos = world.objetos_de(agent.spec_id)
+        if not objetos:
+            self._decir("  no llevas nada")
+            return
+        for n, p in enumerate(objetos, start=1):
+            marca = " (puesto)" if p.equipado else ""
+            self._decir(f"  {n}. {_nombre_objeto(world, p)}{marca}")
+
+    def _equipar(self, world: WorldState, agent: AgentState, numero: str) -> None:
+        objetos = world.objetos_de(agent.spec_id)
+        n = int(numero)
+        if not 1 <= n <= len(objetos):
+            self._decir("  no llevas nada con ese número")
+            return
+        objeto = objetos[n - 1]
+        try:
+            self.sim.equipar(agent.spec_id, objeto.id)
+        except ValueError:
+            self._decir(f"  {_nombre_objeto(world, objeto)} no se puede llevar puesto")
+            return
+        self._decir(f"  te pones {_nombre_objeto(world, objeto)}")
+
+    def _orden_directa(
+        self, world: WorldState, agent: AgentState, texto: str,
+    ) -> tuple[bool, Decision | None] | None:
+        """«equipo» y «equipar N» se resuelven sin modelo: el número de un objeto
+        no es una frase que el intérprete deba entender, y no debe depender de él.
+        No pasa tiempo, así que no deciden nada."""
+        partes = texto.strip().lower().split()
+        if partes == ["equipo"]:
+            self._equipo(world, agent)
+            return False, None
+        if len(partes) == 2 and partes[0] == "equipar" and partes[1].isdigit():
+            self._equipar(world, agent, partes[1])
+            return False, None
+        return None
+
     def _interpretar(
         self, world: WorldState, agent: AgentState, options: tuple[Decision, ...],
         texto: str,
     ) -> tuple[bool, Decision | None]:
         """(si ya hay decisión, cuál: `None` es esperar)."""
+        directa = self._orden_directa(world, agent, texto)
+        if directa is not None:
+            return directa
         semilla = world.rng.stream("intencion", agent.spec_id, world.tick).randrange(2**31)
         lectura = interpret(world_menu(world, options), texto, self.interpreter, semilla)
         if self.interpreter is not None and not lectura.by_model:

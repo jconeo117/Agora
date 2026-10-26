@@ -44,6 +44,8 @@ ACT_HELP: dict[str, tuple[str, tuple[str, ...]]] = {
                                       "cuidado conmigo")),
     SocialAct.ASK: ("preguntar algo", ("has visto a", "dónde está", "sabes algo de")),
     SocialAct.AFFIRM: ("afirmar un hecho", ("yo estuve allí", "te digo que", "es verdad que")),
+    SocialAct.GIVE: ("dar algo de lo tuyo", ("toma", "te doy", "quédate con esto")),
+    SocialAct.ASK_FOR: ("pedir algo", ("dame", "me prestas", "¿me das")),
     FAREWELL: ("despedirse y dejar la conversación", ("adiós", "hasta luego", "me voy")),
 }
 
@@ -64,6 +66,8 @@ HEARD: dict[SocialAct, str] = {
     SocialAct.THREATEN: "te amenaza",
     SocialAct.ASK: "te pregunta algo",
     SocialAct.AFFIRM: "te afirma algo",
+    SocialAct.GIVE: "te da algo",
+    SocialAct.ASK_FOR: "te pide algo",
 }
 """Cómo lo oye quien escucha, para el briefing de la voz."""
 
@@ -76,17 +80,33 @@ def heard_as(act: SocialAct, about_label: str | None = None) -> str:
     return HEARD[act]
 
 
-def talk_menu(people: Sequence[tuple[str, str]], listener: str) -> Menu:
+def talk_menu(
+    people: Sequence[tuple[str, str]], listener: str,
+    dados: Sequence[tuple[str, str]] = (), pedibles: Sequence[tuple[str, str]] = (),
+) -> Menu:
     """Una entrada por acto y por despedirse; los actos que pueden ir sobre un
-    tercero, además, una por cada persona que no sea quien escucha."""
+    tercero, además, una por cada persona que no sea quien escucha.
+
+    `dados` son los objetos del jugador (para dar) y `pedibles`, los del oyente
+    que no lleva puestos (para pedir). Cada uno es una entrada del acto con su
+    `item`: dar y pedir sin objeto no dicen nada, así que no hay entrada vacía.
+    """
     entries: list[Entry] = []
     for key in ACT_HELP:
+        if key is SocialAct.GIVE:
+            entries += [Entry(str(key), item=pid) for pid, _ in dados]
+            continue
+        if key is SocialAct.ASK_FOR:
+            entries += [Entry(str(key), item=pid) for pid, _ in pedibles]
+            continue
         entries.append(Entry(str(key)))
         if key in ABOUT:
             entries += [Entry(str(key), target=pid) for pid, _ in people if pid != listener]
+    presentes = {e.action for e in entries}
     return Menu(
         entries=tuple(entries),
-        actions=tuple((str(k), label, examples) for k, (label, examples) in ACT_HELP.items()),
+        actions=tuple((str(k), label, examples) for k, (label, examples) in ACT_HELP.items()
+                      if str(k) in presentes),
         people=tuple(people),
     )
 

@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from agora.engine.ontology import AgentId, NeedId, TraitId
+from agora.engine.ontology import AgentId, ItemId, NeedId, TraitId
 from agora.engine.ports import Effect
 from agora.engine.state import AgentState, WorldState
 from agora.rules.binding import (
@@ -152,16 +152,31 @@ def derive(
         dados = grado + competencias.get(w.skill, 0) + int(w.defensive)
         return (golpe * dados, w.id)
 
-    armas = [w for w in binding.weapons
-             if _accessible(world, a, w) and _fits(ruleset, valores, w)]
-    if not armas:
-        raise ValueError(f"{agent_id}: ninguna arma del enlace está a su alcance")
-    arma = max(armas, key=lambda w: (rinde(w)[0], [-ord(c) for c in w.id]))
-    armaduras = [p for p in binding.armors
-                 if _accessible(world, a, p) and _fits(ruleset, valores, p)]
-    armadura = (max(armaduras, key=lambda p: (2 * p.protection + p.resist_dice,
-                                               [-ord(c) for c in p.id]))
-                if armaduras else None)
+    # Lo que lleva PUESTO manda sobre lo que los suministros dejarían coger (16a).
+    # Lo que no está en el enlace sigue saliendo del camino de siempre.
+    puestas = {
+        binding.items[ItemId(p.objeto)] for p in world.objetos_de(agent_id)
+        if p.equipado and ItemId(p.objeto) in binding.items
+    }
+    arma_puesta = next((w for w in binding.weapons if w.id in puestas), None)
+    armadura_puesta = next((p for p in binding.armors if p.id in puestas), None)
+    if arma_puesta is not None:
+        arma = arma_puesta
+    else:
+        armas = [w for w in binding.weapons
+                 if _accessible(world, a, w) and _fits(ruleset, valores, w)]
+        if not armas:
+            raise ValueError(f"{agent_id}: ninguna arma del enlace está a su alcance")
+        arma = max(armas, key=lambda w: (rinde(w)[0], [-ord(c) for c in w.id]))
+    armadura: GearArmor | None
+    if armadura_puesta is not None:
+        armadura = armadura_puesta
+    else:
+        armaduras = [p for p in binding.armors
+                     if _accessible(world, a, p) and _fits(ruleset, valores, p)]
+        armadura = (max(armaduras, key=lambda p: (2 * p.protection + p.resist_dice,
+                                                  [-ord(c) for c in p.id]))
+                    if armaduras else None)
 
     r = ruleset.resources
     vit_max = ruleset.evaluate(r.vitality, valores, competencias)

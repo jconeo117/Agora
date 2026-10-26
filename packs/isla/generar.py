@@ -110,7 +110,12 @@ def mapa() -> tuple[list[dict], dict[int, list[str]]]:
     # mueren todos de sed el mismo día y nadie gana (sonda 2 de la v1).
     lugares["cornucopia"] = {"id": "cornucopia", "label": "la cornucopia",
                              "description": "Un cuerno de metal enorme junto a un lago, rodeado de cajas y mochilas.",
-                             "affordances": ["botin", "aire", "agua"], "tags": ["centro"]}
+                             "affordances": ["botin", "aire", "agua"], "tags": ["centro"],
+                             # Cuarenta armas y veinte armaduras (16a): pocas,
+                             # porque si todos saquean armados, el arma no
+                             # distingue a nadie (medido: 107-128 saqueos).
+                             "items": {"cuchillo": 16, "lanza_corta": 14, "hacha": 10,
+                                       "cuero": 12, "cota": 8}}
     por_anillo[0].append("cornucopia")
     for d in range(1, DISTRITOS + 1):
         pid = f"pedestal_{d}"
@@ -291,6 +296,7 @@ def pack() -> dict:
             rasgo("pereza", "pereza", need_weight_multipliers={"descanso": 1.8}),
         ],
         "actions": acciones(),
+        "items": ITEMS,
         "relations": [{"id": "del_distrito", "label": "del mismo distrito", "symmetric": True, "regard_floor": 0.15, "company_multiplier": 1.3}],
         "places": lugares,
         "agents": tributos(por_anillo),
@@ -321,6 +327,23 @@ def pack() -> dict:
     }
 
 
+# Lo que se lleva (16a). Cuatro tipos de arma y dos de armadura: el enlace
+# `reglas/base.yaml` dice qué pieza de la ficha es cada uno. Sin arco: el
+# enlace no tiene arma de proyectil ni competencia para ella, y eso se decide
+# aparte (ver el contrato, §A.9).
+ITEMS = [
+    {"id": "cuchillo", "label": "cuchillo", "slot": "arma", "gains": {"combate": 1.3},
+     "narration": "un cuchillo"},
+    {"id": "lanza_corta", "label": "lanza corta", "slot": "arma", "gains": {"combate": 1.5},
+     "narration": "una lanza corta"},
+    {"id": "hacha", "label": "hacha", "slot": "arma", "gains": {"combate": 1.8},
+     "narration": "un hacha de batalla"},
+    {"id": "cuero", "label": "armadura de cuero", "slot": "armadura", "costs": {"salud": 0.85},
+     "narration": "una armadura de cuero"},
+    {"id": "cota", "label": "cota de malla", "slot": "armadura", "costs": {"salud": 0.7},
+     "narration": "una cota de malla"},
+]
+
 # Cómo pediría cada acción un jugador (unidad 14). Las lee el intérprete de la
 # prosa, no el motor. Escritas antes que el banco de intenciones y sin copiar
 # sus frases: si coincidieran, el banco mediría la lista y no al intérprete.
@@ -332,6 +355,7 @@ EJEMPLOS = {
     "comer": ["como algo", "saco comida de la mochila", "tengo hambre"],
     "saquear_cornucopia": ["cojo lo que pueda de la cornucopia", "voy a por las armas",
                            "saqueo las provisiones del cuerno"],
+    "registrar": ["registro lo que hay en el suelo", "cojo lo que hay tirado", "miro qué hay aquí"],
     "rebuscar": ["rebusco entre los escombros", "registro las ruinas", "busco algo útil"],
     "esconderse": ["me escondo", "me oculto", "me pongo a cubierto sin que me vean"],
     "vigilar": ["vigilo", "subo a un sitio alto a otear", "monto guardia"],
@@ -355,6 +379,7 @@ NARRACION = {
     "recolectar": ("buscas algo que comer", "{a} busca algo que comer", None),
     "comer": ("comes de lo que llevas", "{a} come de lo que lleva", None),
     "saquear_cornucopia": ("rebuscas en las cajas de la cornucopia", "{a} rebusca en las cajas de la cornucopia", None),
+    "registrar": ("registras lo que hay en el suelo", "{a} registra lo que hay en el suelo", None),
     "rebuscar": ("rebuscas entre los escombros", "{a} rebusca entre los escombros", None),
     "esconderse": ("te escondes", "{a} se esconde", None),
     "vigilar": ("vigilas desde lo alto", "{a} vigila desde lo alto", None),
@@ -401,7 +426,14 @@ def _acciones() -> list[dict]:
         {"id": "comer", "label": "comer de lo que lleva", "duration_ticks": 2, "requires": {"suministros": 0.1},
          "satisfies": {"sustento": 1.0}, "effects": {"suministros": -0.1, "sustento": 0.4}, "costs": {"suministros": 0.5}},
         {"id": "saquear_cornucopia", "label": "saquear la cornucopia", "duration_ticks": 4, "requires_affordance": "botin",
-         "satisfies": {"suministros": 1.0}, "effects": {"suministros": 0.6, "seguridad": -0.2}, "costs": {"seguridad": 0.4}, "situation_multipliers": {"cornucopia_agotada": 0.1}},
+         "satisfies": {"suministros": 1.0}, "effects": {"suministros": 0.6, "seguridad": -0.2}, "costs": {"seguridad": 0.4}, "situation_multipliers": {"cornucopia_agotada": 0.1},
+         "takes_item": {}},
+        # Coger lo que está en el suelo del sitio donde se está (16a). Sin
+        # afordancia: cualquier sitio con algo tirado vale. Lo que se gana es
+        # estar armado, no comida.
+        {"id": "registrar", "label": "registrar el suelo", "duration_ticks": 2,
+         "requires_item": {}, "takes_item": {},
+         "satisfies": {"seguridad": 0.2}, "costs": {"descanso": 0.05}},
         {"id": "rebuscar", "label": "rebuscar entre los escombros", "duration_ticks": 6, "requires_affordance": "botin_menor",
          "satisfies": {"suministros": 1.0}, "effects": {"suministros": 0.3, "descanso": -0.03}, "costs": {"descanso": 0.15}},
         {"id": "esconderse", "label": "esconderse", "duration_ticks": 12, "requires_affordance": "escondite",
@@ -427,7 +459,7 @@ def _acciones() -> list[dict]:
          "satisfies": {"combate": 1.0, "seguridad": 0.5}, "effects": {"combate": 0.08, "seguridad": 0.1},
          "target": {"combate": True, "por_desconocido": True, "max_regard": 0.0, "requires_condition": "herida", "quita_por_pericia": "combate", "gives": {"salud": -0.4}}},
         {"id": "saquear", "label": "saquear a un herido", "duration_ticks": 3, "requires_company": 1,
-         "satisfies": {"suministros": 1.0}, "effects": {"suministros": 0.3},
+         "satisfies": {"suministros": 1.0}, "effects": {"suministros": 0.3}, "takes_item": {},
          "target": {"por_desconocido": True, "max_regard": 0.05, "requires_condition": "herida", "gives": {"suministros": -0.3}}},
         {"id": "curarse", "label": "curarse las heridas", "duration_ticks": 8, "requires": {"suministros": 0.2},
          "satisfies": {"salud": 1.0}, "effects": {"salud": 0.25, "suministros": -0.15}, "costs": {"suministros": 0.4},

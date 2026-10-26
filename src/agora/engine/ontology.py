@@ -15,6 +15,7 @@ que corre en escena, o en C# entre una clase de configuración y su objeto.
 
 from __future__ import annotations
 
+import math
 import string
 from enum import StrEnum
 from typing import Annotated, NewType
@@ -42,6 +43,7 @@ AgentId = NewType("AgentId", str)
 PropertyId = NewType("PropertyId", str)
 Affordance = NewType("Affordance", str)
 Tag = NewType("Tag", str)
+ItemId = NewType("ItemId", str)
 
 PositiveFactor = Annotated[float, Field(gt=0.0)]
 """Multiplicador estrictamente positivo.
@@ -1159,6 +1161,64 @@ class TargetSpec(Spec):
     """
 
 
+class ItemSlot(StrEnum):
+    """Dónde se lleva un objeto. Cerrado y del motor: el motor sabe que un arma y
+    una armadura ocupan huecos distintos, no qué es cada una. `ninguno` se lleva
+    pero no se equipa."""
+
+    ARMA = "arma"
+    ARMADURA = "armadura"
+    NINGUNO = "ninguno"
+
+
+class ItemSpec(Spec):
+    """Un tipo de objeto que puede tener alguien o un sitio (unidad 16a).
+
+    Un objeto concreto es una `Propiedad` de tipo OBJETO cuyo `objeto` es este
+    id: una sola puerta para «quién tiene qué», en vez de un inventario aparte.
+
+    `gains` y `costs` son los dos puentes con la aptitud. Un arma multiplica lo
+    que rinde quien la lleva en su eje (el combate); una armadura multiplica lo
+    que le cuesta un golpe (la salud), por el mismo camino del temple. Sin ellos
+    un objeto es decorado, y el motor no cambiaría una decisión por llevarlo.
+    """
+
+    id: ItemId
+    label: str
+    tags: frozenset[Tag] = Field(default_factory=frozenset)
+    slot: ItemSlot
+    gains: dict[NeedId, PositiveFactor] = Field(default_factory=dict)
+    """Lo que multiplica la aptitud de quien lo lleva EQUIPADO."""
+    costs: dict[NeedId, PositiveFactor] = Field(default_factory=dict)
+    """Lo que multiplica lo que le cuesta a quien lo lleva EQUIPADO recibir algo."""
+    narration: str | None = None
+    """Cómo se nombra en la escena («una lanza corta»). Sin esto, la etiqueta."""
+
+    @property
+    def valor(self) -> float:
+        """Lo que vale como «mejor»: el producto de lo que multiplica la aptitud.
+        Una armadura, que solo tiene `costs`, vale 1.0 y empata con todas: por eso
+        el desempate por id decide, y no hay una armadura «mejor» que otra."""
+        return math.prod(self.gains.values())
+
+
+class ItemQuery(Spec):
+    """Qué objeto hace falta o se mueve: un hueco, unas etiquetas, o ambos.
+
+    Vacía = cualquier objeto. Es lo que separa «hay una arma» de «hay una
+    lanza»: el pack escribe la consulta y el motor solo la compara con los tags.
+    """
+
+    slot: ItemSlot | None = None
+    tags: frozenset[Tag] = frozenset()
+
+    def admits(self, item: ItemSpec) -> bool:
+        """Única forma de preguntar si un objeto cumple: la usan la puerta, el
+        «mejor» de `takes_item` y el de `gives_item`, y si cada una comparara por
+        su cuenta, dos de ellas podrían decidir distinto sobre el mismo objeto."""
+        return (self.slot is None or item.slot is self.slot) and self.tags <= item.tags
+
+
 class ActionSpec(Spec):
     """Algo que un agente puede hacer durante N ticks.
 
@@ -1512,6 +1572,18 @@ class ActionSpec(Spec):
     """Válvula de escape para lo que el motor no modela: "violenta", "ilegal",
     "ruidosa". Los packs declaran qué significan; el motor solo las compara."""
 
+    requires_item: ItemQuery | None = None
+    """Puerta dura: hace falta un objeto que cumpla, en el suelo del sitio o, si
+    la acción tiene `target`, en lo que lleva el objetivo."""
+
+    takes_item: ItemQuery | None = None
+    """Al terminar, pasa al actor el mejor objeto que cumpla: del suelo, o del
+    objetivo si la acción tiene `target`."""
+
+    gives_item: ItemQuery | None = None
+    """Al terminar, pasa del actor al objetivo el mejor objeto que cumpla. Exige
+    `target`: sin a quién darlo no hay transferencia."""
+
 
 # ---------------------------------------------------------------------------
 # Lugares: nodos del grafo del mundo
@@ -1595,6 +1667,9 @@ class PlaceSpec(Spec):
 
     tags: frozenset[Tag] = Field(default_factory=frozenset)
     """Atmósfera y control: "sagrado", "vigilado", "ruinoso"."""
+
+    items: dict[ItemId, int] = Field(default_factory=dict)
+    """Cuántos de cada objeto hay en el suelo al empezar la partida."""
 
     @model_validator(mode="after")
     def _no_self_loop(self) -> PlaceSpec:
@@ -3647,6 +3722,8 @@ class SocialAct(StrEnum):
     THREATEN = "amenazar"
     ASK = "preguntar"
     AFFIRM = "afirmar"
+    GIVE = "dar"
+    ASK_FOR = "pedir"
 
 
 class ClaimKind(StrEnum):
@@ -3692,6 +3769,8 @@ def _default_social_acts() -> dict[SocialAct, SocialActSpec]:
         SocialAct.THREATEN: SocialActSpec(regard=-0.12, valence=-0.7, importance=0.6),
         SocialAct.ASK: SocialActSpec(regard=0.0),
         SocialAct.AFFIRM: SocialActSpec(regard=0.0),
+        SocialAct.GIVE: SocialActSpec(regard=0.05, valence=0.4, importance=0.3),
+        SocialAct.ASK_FOR: SocialActSpec(regard=0.0),
     }
 
 
@@ -3722,6 +3801,9 @@ class SocialSpec(Spec):
     accuse: float = 0.15
     """Cuánto baja el aprecio hacia el acusado de dañar a alguien, por unidad de
     aprecio a la víctima (si la víctima es el oyente, por 1)."""
+    give_above: float = Field(default=0.15, ge=-1.0, le=1.0)
+    """Aprecio mínimo del oyente hacia quien pide un objeto para dárselo. Por
+    debajo, se niega. Un objeto equipado nunca se pide: sin él no hay pelea."""
 
     @model_validator(mode="after")
     def _all_acts(self) -> SocialSpec:

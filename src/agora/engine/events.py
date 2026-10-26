@@ -175,6 +175,14 @@ class EventKind(StrEnum):
     `Simulation.apply_social`, la única puerta por la que lo dicho cambia el
     mundo."""
 
+    ITEM_MOVED = "item_moved"
+    """Un objeto cambia de manos, de suelo o de dueño (unidad 16a). `actor` es
+    quien lo mueve; `subject`, quien lo recibe o pierde si es otro agente;
+    `data` lleva `propiedad`, `item`, `de` y `a`.
+
+    No es `PROPERTY_CREATED` ni `PROPERTY_ENDED`: el objeto no nace ni se acaba,
+    cambia de manos. El log es la verdad y el narrador cuenta el movimiento."""
+
 
 @dataclass(frozen=True, slots=True)
 class Event:

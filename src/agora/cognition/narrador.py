@@ -28,7 +28,16 @@ from pydantic import BaseModel, ConfigDict, Field
 from agora.cognition.intencion import stems
 from agora.engine.consulta import ficha
 from agora.engine.events import Event, EventKind
-from agora.engine.ontology import ActionId, AgentId, ContentTag, NarrationSpec, Spec
+from agora.engine.ontology import (
+    ActionId,
+    AgentId,
+    ContentTag,
+    ItemId,
+    ItemSlot,
+    NarrationSpec,
+    PlaceId,
+    Spec,
+)
 from agora.engine.ports import CognitionProvider
 from agora.engine.state import PerformingAction, Traveling, WorldState
 
@@ -98,6 +107,8 @@ class Notable:
     wounded: bool
     doing: str
     """Su acción, «de paso» o «sin hacer nada»."""
+    carries: str | None = None
+    """Cómo se nombra el arma que lleva puesta (unidad 16a). `None` si no lleva."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,6 +124,9 @@ class Scene:
     """Los que no caben entre los notables."""
     elapsed: int
     """Ticks desde la decisión anterior."""
+    floor: tuple[str, ...] = ()
+    """Lo que hay en el suelo del sitio, ya nombrado; con «(xn)» si hay varios
+    del mismo. Vacío si no hay nada o el mundo no tiene objetos."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,6 +245,15 @@ def select(
                 inv.add(actor)
             if actor == player:
                 inv.add(target)
+        if e.kind is EventKind.ITEM_MOVED:
+            # Un objeto que cambia de manos o de puesto: lo tuyo siempre, lo ajeno
+            # solo si pasa en tu sitio (como cualquier otro hecho de los demás).
+            dicho = _movimiento(world, e, player, name)
+            if dicho is not None:
+                texto, prioridad, propio = dicho
+                if propio or (e.place is not None and str(e.place) == here):
+                    add(prioridad, e, texto, (), (), None, propio)
+            continue
         if actor == player:
             match e.kind:
                 case EventKind.TRAVEL_ARRIVED if e.place is not None:
@@ -330,6 +353,47 @@ def select(
     return _trim(facts)
 
 
+def _movimiento(
+    world: WorldState, e: Event, player: str, name: Callable[[str | None], str],
+) -> tuple[str, int, bool] | None:
+    """Lo que cuenta un objeto que cambia de manos o de puesto: texto, prioridad y
+    si es del jugador. El nombre del objeto sale del pack; las formas («coges»,
+    «te quita») son del narrador, como «llegas a». `de` y `a` son `lugar:<id>`
+    o `agente:<id>` (ver `Simulation._mover_objeto`)."""
+    spec = world.pack.item_by_id.get(ItemId(str(e.data.get("item"))))
+    if spec is None:
+        return None
+    nombre = spec.narration or spec.label
+    yo = f"agente:{player}"
+    de = str(e.data.get("de"))
+    a = str(e.data.get("a"))
+    actor = None if e.actor is None else str(e.actor)
+    if de == a:
+        # Se puso o se quitó: solo cuenta si es del jugador.
+        if actor != player:
+            return None
+        return (f"te pones {nombre}" if e.data.get("puesto") else f"te quitas {nombre}", 3, True)
+    if a == yo:
+        if de.startswith("lugar:"):
+            return (f"coges {nombre}", 3, True)
+        donante = de.removeprefix("agente:")
+        if actor == player:
+            return (f"consigues {nombre} de {name(donante)}", 3, True)
+        if actor == donante:
+            return (f"{name(actor)} te da {nombre}", 3, True)
+        return None
+    if de == yo:
+        if a.startswith("lugar:") or actor is None:
+            return None
+        receptor = a.removeprefix("agente:")
+        if actor == player:
+            return (f"le das {nombre} a {name(receptor)}", 3, True)
+        return (f"{name(actor)} te quita {nombre}", 5, True)
+    if actor is not None and de.startswith("lugar:") and a.startswith("agente:"):
+        return (f"{name(actor)} coge {nombre}", 1, False)
+    return None
+
+
 def _trim(facts: list[Fact]) -> tuple[Fact, ...]:
     grupos: dict[str, list[Fact]] = {}
     for f in facts:
@@ -424,10 +488,35 @@ def scene_of(
         nombre = name_of(world, str(otro))
         clave = (0 if str(otro) in involved else 1, 0 if apreciado else 1,
                  -aprecio if apreciado else 0.0, 0 if herido else 1, nombre, str(otro))
-        candidatos.append((clave, Notable(nombre, herido, haciendo)))
+        candidatos.append((clave, Notable(nombre, herido, haciendo, _arma_puesta(world, otro))))
     candidatos.sort(key=lambda par: par[0])
     notables = tuple(n for _, n in candidatos[:TOP_NOTABLES])
-    return Scene(full, notables, max(0, len(candidatos) - TOP_NOTABLES), elapsed)
+    return Scene(full, notables, max(0, len(candidatos) - TOP_NOTABLES), elapsed,
+                 _suelo(world, yo.at))
+
+
+def _arma_puesta(world: WorldState, quien: AgentId) -> str | None:
+    """Cómo se nombra lo que lleva en la mano, si lleva algo (unidad 16a)."""
+    for p in world.objetos_de(quien):
+        if p.equipado:
+            spec = world.pack.item_by_id[ItemId(p.objeto)]
+            if spec.slot is ItemSlot.ARMA:
+                return spec.narration or spec.label
+    return None
+
+
+def _suelo(world: WorldState, lugar: PlaceId) -> tuple[str, ...]:
+    """Lo del suelo, agrupado por clase de objeto. Sin plural en el pack, un
+    grupo se cuenta como «(xn)» tras el nombre: no inventa una forma."""
+    cuenta: dict[str, int] = {}
+    for p in world.objetos_en(lugar):
+        cuenta[p.objeto] = cuenta.get(p.objeto, 0) + 1
+    partes: list[str] = []
+    for item_id, n in sorted(cuenta.items()):
+        spec = world.pack.item_by_id[ItemId(item_id)]
+        nombre = spec.narration or spec.label
+        partes.append(nombre if n == 1 else f"{nombre} (x{n})")
+    return tuple(partes)
 
 
 def question_moment(
@@ -504,11 +593,15 @@ def _escena(s: Scene) -> list[str]:
     lines = [f"ESCENA AHORA ({'completa' if s.full else 'breve'}):"]
     for n in s.notables:
         partes = ["herido"] if n.wounded else []
+        if n.carries is not None:
+            partes.append(f"lleva {n.carries}")
         lines.append(f"  - {n.name}: {', '.join([*partes, n.doing])}")
     if s.others:
         lines.append(f"  - y otros {s.others}")
     if not s.notables:
         lines.append("  - nadie más")
+    if s.floor:
+        lines.append(f"  - en el suelo: {', '.join(s.floor)}")
     return lines
 
 
@@ -685,6 +778,10 @@ def _scene_from_json(d: Mapping[str, Any] | None) -> Scene | None:
         return None
     return Scene(
         full=d["full"],
-        notables=tuple(Notable(n["name"], n["wounded"], n["doing"]) for n in d["notables"]),
+        notables=tuple(
+            Notable(n["name"], n["wounded"], n["doing"], n.get("carries"))
+            for n in d["notables"]
+        ),
         others=d["others"], elapsed=d["elapsed"],
+        floor=tuple(d.get("floor", ())),
     )

@@ -110,3 +110,12 @@ roles:
   - {attributes: [voluntad, presencia], label: líder}
   - {attributes: [voluntad, resonancia], label: canalizador}
   - {attributes: [presencia, resonancia], label: invocador}
+
+# Lo que se lleva puesto (16a) sustituye a la pieza que los suministros darían:
+# objeto del pack → pieza de arriba. Lo que no está aquí sale del camino de siempre.
+items:
+  cuchillo: daga
+  lanza_corta: espada_corta
+  hacha: hacha
+  cuero: cuero
+  cota: cota_de_malla

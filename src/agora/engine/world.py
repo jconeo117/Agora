@@ -15,6 +15,7 @@ Dos invariantes que sostienen el determinismo:
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, assert_never
@@ -45,6 +46,9 @@ from agora.engine.ontology import (
     FactionKindId,
     GoalSpec,
     GoalStatus,
+    ItemId,
+    ItemQuery,
+    ItemSlot,
     NeedId,
     PlaceId,
     Progenitor,
@@ -57,6 +61,7 @@ from agora.engine.ontology import (
     SocialAct,
     TargetSpec,
     TasteSpec,
+    Tone,
     TraitId,
 )
 from agora.engine.outcome import (
@@ -623,6 +628,12 @@ class Simulation:
                 if len(self.state.miembros_de(faccion_id)) > 1:
                     casa = faccion_id
                     break
+
+        # Lo que lleva encima NO se hereda: se queda en el suelo de donde muere
+        # (16a). Va antes de la herencia, o el heredero recibiría la lanza del
+        # muerto como si fuera una deuda.
+        for objeto in self.state.objetos_de(quien):
+            self._mover_objeto(objeto, actor=quien, dueño=None, lugar=donde, donde=donde)
 
         for propiedad in self.state.propiedades.values():
             if propiedad.dueño == quien:
@@ -1446,7 +1457,142 @@ class Simulation:
                     action=spec.id,
                     data={"situation": str(curada), "personal": True},
                 )
+        # Los objetos cambian de manos al terminar, como las curas: media faena
+        # no coge nada. Con objetivo, el de la otra persona solo si sigue delante.
+        presente = target is not None and self._presente(agent, target)
+        if spec.takes_item is not None:
+            if spec.target is None:
+                fuente = self.state.objetos_en(agent.at)
+            elif target is not None and presente:
+                fuente = self.state.objetos_de(target)
+            else:
+                fuente = []
+            elegido = self._mejor(spec.takes_item, fuente)
+            if elegido is not None:
+                self._mover_objeto(
+                    elegido, actor=agent.spec_id, dueño=agent.spec_id, lugar=None,
+                    donde=agent.at,
+                )
+                self._equipar_si_procede(agent, elegido)
+        if spec.gives_item is not None and presente and target is not None:
+            elegido = self._mejor(spec.gives_item, self.state.objetos_de(agent.spec_id))
+            if elegido is not None:
+                self._mover_objeto(
+                    elegido, actor=agent.spec_id, dueño=target, lugar=None, donde=agent.at,
+                )
         agent.busy = None
+
+    def _objeto_de(self, objeto: PropertyId, dueño: AgentId) -> Propiedad:
+        """El objeto, si es de ese dueño. Revienta si no: quien llama lo tenía que
+        haber comprobado, como con `apply_social`."""
+        propiedad = self.state.propiedades.get(objeto)
+        if (propiedad is None or not self.state.es_objeto(propiedad)
+                or propiedad.dueño != dueño):
+            raise ValueError(f"{dueño} no tiene {objeto}")
+        return propiedad
+
+    def _presente(self, agent: AgentState, otro: AgentId) -> bool:
+        """Sigue vivo y en el mismo sitio. Lo que pasa entre dos que no se ven no
+        pasa: el mismo criterio que `apply_social`."""
+        ota = self.state.agents.get(otro)
+        return ota is not None and ota.at == agent.at
+
+    def _mejor(self, query: ItemQuery, objetos: Sequence[Propiedad]) -> Propiedad | None:
+        """El que cumple la consulta con más valor; a igualdad, el de id menor.
+        Ese desempate no es estético: sin él, dos lanzas idénticas se elegirían
+        por el orden del dict, y un mismo mundo podría dar dos resultados."""
+        cumplen = [p for p in objetos if query.admits(self.pack.item_by_id[ItemId(p.objeto)])]
+        if not cumplen:
+            return None
+        return min(
+            cumplen,
+            key=lambda p: (-self.pack.item_by_id[ItemId(p.objeto)].valor, p.id),
+        )
+
+    def _mover_objeto(
+        self, objeto: Propiedad, *, actor: AgentId, dueño: AgentId | None,
+        lugar: PlaceId | None, donde: PlaceId,
+    ) -> None:
+        """La única puerta por la que un objeto cambia de manos o de suelo (16a).
+
+        Siempre sale SIN puesto: quien lo cedía lo pierde al soltarlo, y quien
+        lo recibe solo lo lleva puesto si `equipar` lo decide. Recompone a quien
+        lo llevaba. `de` y `a` son `agente:<id>` o `lugar:<id>`, para que el log
+        diga de dónde a dónde sin que el narrador adivine.
+        """
+        de = f"agente:{objeto.dueño}" if objeto.dueño is not None else f"lugar:{objeto.lugar}"
+        a = f"agente:{dueño}" if dueño is not None else f"lugar:{lugar}"
+        viejo = objeto.dueño
+        objeto.dueño = dueño
+        objeto.lugar = lugar
+        objeto.equipado = False
+        self.log.emit(
+            tick=self.state.tick,
+            kind=EventKind.ITEM_MOVED,
+            actor=actor,
+            place=donde,
+            subject=dueño,
+            data={"propiedad": str(objeto.id), "item": objeto.objeto, "de": de, "a": a,
+                  "puesto": False},
+        )
+        if viejo is not None and viejo in self.state.agents:
+            self.state.recalcular_equipo(self.state.agents[viejo])
+
+    def _equipar_si_procede(self, agent: AgentState, objeto: Propiedad) -> None:
+        """Al coger algo se pone si el hueco está vacío o lo que hay es peor. El
+        desempate de «peor» es el mismo que el de `_mejor`: por id."""
+        spec = self.pack.item_by_id[ItemId(objeto.objeto)]
+        if spec.slot is ItemSlot.NINGUNO:
+            return
+        actual = next(
+            (p for p in self.state.objetos_de(agent.spec_id)
+             if p.equipado and self.pack.item_by_id[ItemId(p.objeto)].slot is spec.slot),
+            None,
+        )
+        if actual is not None:
+            mejor = min(
+                [actual, objeto],
+                key=lambda p: (-self.pack.item_by_id[ItemId(p.objeto)].valor, p.id),
+            )
+            if mejor is actual:
+                return
+        self.equipar(agent.spec_id, objeto.id)
+
+    def equipar(self, quien: AgentId, objeto: PropertyId) -> None:
+        """Pone un objeto de los suyos; lo que estaba puesto en el mismo hueco
+        se quita. Revienta si no lo lleva o no se puede llevar puesto: quien
+        llama tenía que haberlo comprobado, como en `apply_social`.
+
+        Cada cambio de lo puesto emite `ITEM_MOVED` con `puesto`. Sin eso, lo
+        que cambia la aptitud ocurriría sin que el log lo viera, y el log es la
+        verdad del mundo."""
+        propiedad = self.state.propiedades.get(objeto)
+        agente = self.state.agents.get(quien)
+        if (propiedad is None or agente is None or not self.state.es_objeto(propiedad)
+                or propiedad.dueño != quien):
+            raise ValueError(f"{quien} no lleva {objeto}")
+        slot = self.pack.item_by_id[ItemId(propiedad.objeto)].slot
+        if slot is ItemSlot.NINGUNO:
+            raise ValueError(f"{objeto} no se puede llevar puesto")
+        for otro in self.state.objetos_de(quien):
+            if otro.equipado and self.pack.item_by_id[ItemId(otro.objeto)].slot is slot:
+                otro.equipado = False
+                self._emit_puesto(agente, otro, puesto=False)
+        propiedad.equipado = True
+        self._emit_puesto(agente, propiedad, puesto=True)
+        self.state.recalcular_equipo(agente)
+
+    def _emit_puesto(self, agente: AgentState, objeto: Propiedad, *, puesto: bool) -> None:
+        self.log.emit(
+            tick=self.state.tick,
+            kind=EventKind.ITEM_MOVED,
+            actor=agente.spec_id,
+            place=agente.at,
+            subject=agente.spec_id,
+            data={"propiedad": str(objeto.id), "item": objeto.objeto,
+                  "de": f"agente:{agente.spec_id}", "a": f"agente:{agente.spec_id}",
+                  "puesto": puesto},
+        )
 
     def _arrive(self, agent: AgentState, busy: Traveling) -> None:
         """Llegada a un nodo: fin de trayecto o siguiente tramo."""
@@ -1484,6 +1630,12 @@ class Simulation:
             agent.traits,
             self.state.situations_at(agent.at),
             agent.kin_present(presentes),
+            # El viaje no guarda a quién se dirige, así que la puerta de objeto
+            # solo se vuelve a mirar para lo que no apunta a nadie.
+            objetos=(
+                [self.pack.item_by_id[ItemId(p.objeto)] for p in self.state.objetos_en(agent.at)]
+                if action.requires_item is not None and action.target is None else None
+            ),
         ):
             self._start_action(agent, busy.intent, utility=None)
         else:
@@ -2164,6 +2316,7 @@ class Simulation:
         self, speaker: AgentId, listener: AgentId, act: SocialAct,
         about: AgentId | None, talk: Conversation,
         claim: Claim | None = None, question: QuestionKind | None = None,
+        item: PropertyId | None = None,
     ) -> Reaction:
         """Alguien le dice algo a otro (unidad 15, D-164). **La única puerta por
         la que lo dicho cambia el mundo**, y solo por tres sitios que ya
@@ -2186,6 +2339,12 @@ class Simulation:
         oyente = self.state.agents.get(listener)
         if quien is None or oyente is None or quien.at != oyente.at or talk.over:
             raise ValueError(f"{speaker} no puede hablar con {listener} ahora")
+        # Se comprueba ANTES de nada: un objeto que no es de quien toca no puede
+        # llegar a medio acto, con el log escrito y el objeto sin mover.
+        if item is not None and act is SocialAct.GIVE:
+            self._objeto_de(item, speaker)
+        elif item is not None and act is SocialAct.ASK_FOR:
+            self._objeto_de(item, listener)
         tick = self.state.tick
         verdadera = False
         if act is SocialAct.AFFIRM and claim is not None:
@@ -2220,6 +2379,26 @@ class Simulation:
             subject=listener,
             data=datos,
         )
+        # Dar y pedir mueven un objeto DESPUÉS de que el acto quede en el log: lo
+        # dicho va antes que lo que causa. Pedir sin aprecio, o pedir lo puesto,
+        # se niega: el tono sale seco y el objeto no cambia de manos.
+        if item is not None and act is SocialAct.GIVE:
+            self._mover_objeto(
+                self._objeto_de(item, speaker), actor=speaker, dueño=listener,
+                lugar=None, donde=oyente.at,
+            )
+        elif item is not None and act is SocialAct.ASK_FOR:
+            objeto = self._objeto_de(item, listener)
+            aprecio = oyente.regard_for(
+                speaker, tick, oyente.temperament.bond_fade,
+                oyente.relation_floor(self.pack, speaker),
+            )
+            if aprecio >= self.pack.social.give_above and not objeto.equipado:
+                self._mover_objeto(
+                    objeto, actor=speaker, dueño=speaker, lugar=None, donde=oyente.at,
+                )
+            else:
+                r = replace(r, tone=Tone.CURT)
         if r.regard != 0.0:
             oyente.acercar(speaker, r.regard, tick)
         if r.importance > 0.0:

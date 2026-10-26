@@ -114,7 +114,9 @@ def _agente_a_dict(agent: AgentState, recuerdos: tuple[Recuerdo, ...]) -> dict[s
     Fuera queda lo derivado. `need_weights`, `phase_shift`, `aptitud_base`,
     `gains`, `caps`, `costs` y `temperament` los rehace `recompose` desde los
     rasgos y las metas; `strain` lo rehace `refresh_state` desde las
-    necesidades; `metas` es la ficha, que está en el pack o en `nacidos`; y
+    necesidades; `equipado_gains` y `equipado_costs` los rehace
+    `WorldState.recalcular_equipo` desde lo que el agente lleva puesto (16a);
+    `metas` es la ficha, que está en el pack o en `nacidos`; y
     `ledger` es un instrumento de `health`, no estado de la partida.
     Recomponerlos al cargar es más barato que arrastrarlos y más seguro que
     confiar en que sigan valiendo con el pack de hoy. `test_reanudar.py`
@@ -193,9 +195,11 @@ def _agente_a_dict(agent: AgentState, recuerdos: tuple[Recuerdo, ...]) -> dict[s
     }
 
 
-def _propiedad_a_dict(prop: Propiedad, del_pack: bool) -> dict[str, Any]:
+def _propiedad_a_dict(prop: Propiedad, del_pack: bool, objeto: bool) -> dict[str, Any]:
     """Lo que hay que guardar de una propiedad, que depende de si el pack la
     conoce: de la suya, solo lo que cambió; de una nacida en marcha, todo.
+    `objeto` marca un objeto del pack (16a): solo esos llevan dónde están y si
+    van puestos; un `OBJETO` de los de antes no cambia de formato.
     """
     datos: dict[str, Any] = {
         "id": str(prop.id),
@@ -207,6 +211,12 @@ def _propiedad_a_dict(prop: Propiedad, del_pack: bool) -> dict[str, Any]:
         datos["tipo"] = str(prop.tipo)
         datos["objeto"] = prop.objeto
         datos["renta"] = sorted([str(n), v] for n, v in prop.renta.items())
+    if objeto:
+        # Dónde está y si va puesto: lo que cambia en marcha al moverse. Un
+        # guardado sin estas claves (anterior a 16a) se lee con los valores por
+        # defecto, que son los del objeto recién puesto en el pack.
+        datos["lugar"] = None if prop.lugar is None else str(prop.lugar)
+        datos["equipado"] = prop.equipado
     return datos
 
 
@@ -303,7 +313,8 @@ def save(
             for f in sorted(world.facciones.values(), key=lambda x: x.id)
         ],
         "propiedades": [
-            _propiedad_a_dict(prop, prop.id in world.pack.property_by_id)
+            _propiedad_a_dict(prop, prop.id in world.pack.property_by_id,
+                              world.es_objeto(prop))
             for prop in sorted(world.propiedades.values(), key=lambda p: p.id)
         ],
     }
@@ -657,11 +668,19 @@ def load(
         }
         if saldo:
             propiedad.saldo = saldo
+        if world.es_objeto(propiedad):
+            lugar = fila.get("lugar")
+            propiedad.lugar = None if lugar is None else PlaceId(str(lugar))
+            propiedad.equipado = bool(fila.get("equipado", False))
     # Los que el pack tiene y el guardado no —fichas nuevas— entran frescos, tal
     # y como los dejo `WorldState.new`. Asi se puede ampliar el elenco sin
     # perder la partida.
     for agente in agentes:
         world.agents[agente.spec_id] = agente
+    # Lo puesto se traduce a aptitud aquí, con los objetos ya cargados: antes no
+    # había de dónde sacarlo. Sin objetos equipados no toca nada.
+    for agente in agentes:
+        world.recalcular_equipo(world.agents[agente.spec_id])
 
     # Y los que faltaban POR MUERTOS se van otra vez. Es la contrapartida de lo
     # de arriba: la misma tolerancia que deja entrar a una ficha nueva resucitaba

@@ -70,6 +70,8 @@ from agora.engine.ontology import (
     ActionSpec,
     AgentId,
     FactionKindId,
+    ItemId,
+    ItemSpec,
     NeedId,
     PhaseId,
     PlaceId,
@@ -342,6 +344,7 @@ def is_available(
     condiciones: Sequence[SituationId] = (),
     lealtad: Mapping[FactionKindId, float] | None = None,
     prestigio: Mapping[FactionKindId, float] | None = None,
+    objetos: Sequence[ItemSpec] | None = None,
 ) -> bool:
     """¿Se puede ejecutar esta acción aquí y ahora? Siete puertas duras:
 
@@ -441,6 +444,12 @@ def is_available(
     if action.forbids_faccion is not None and (
         lealtad is None or action.forbids_faccion in lealtad
     ):
+        return False
+    # DECIMOTERCERA (16a): hay un objeto que cumple, en el suelo o en lo que lleva
+    # quien se le pasa a la acción. `objetos` a `None` la desactiva: así la
+    # llama quien aún no sabe a quién se dirige, y la comprueba después.
+    if (action.requires_item is not None and objetos is not None
+            and not any(action.requires_item.admits(i) for i in objetos)):
         return False
     return all(needs[need] >= minimum for need, minimum in action.requires.items())
 
@@ -565,6 +574,7 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
                 deudor = AgentId(propiedad.objeto)
                 deudas[deudor] = deudas.get(deudor, 0.0) + sum(propiedad.renta.values())
 
+    hay_objetos = any(a.requires_item is not None for a in pack.actions)
     found: list[Decision] = []
     # Qué lugares mira lo decide el LOD (D-152), y solo él: quien está lejos
     # del foco delibera sobre un menú corto. Sin foco o sin radio, son todos.
@@ -609,12 +619,20 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
 
         aqui = tuple(s for s in situations if by_situation[s].reaches(place.id))
         gains_aqui = world.gains_at(place.id, aqui) if aqui else place.gain_multipliers
+        # Lo que hay en el suelo de este sitio, solo si algún objeto lo pide: en
+        # un pack sin objetos no se lee nada nuevo.
+        suelo = (
+            [pack.item_by_id[ItemId(p.objeto)] for p in world.objetos_en(place.id)]
+            if hay_objetos else None
+        )
 
         for action in pack.actions:
             if not is_available(
                 action, place, headcount, agent.needs, open_phase, agent.traits, aqui,
                 kin, agent.rango, edad_ahora, lleva_encima, lealtad_por_clase,
-                prestigio_por_clase
+                prestigio_por_clase,
+                # Con destinatario, lo que lleva él se mira después de elegirlo.
+                objetos=suelo if action.target is None else None,
             ):
                 continue
             # OCTAVA PUERTA: hay a quién hacérselo, y está delante.
@@ -635,6 +653,13 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
                 )
                 if destinatario is None:
                     continue
+                if action.requires_item is not None:
+                    llevados = [
+                        pack.item_by_id[ItemId(p.objeto)]
+                        for p in world.objetos_de(destinatario.spec_id)
+                    ]
+                    if not any(action.requires_item.admits(i) for i in llevados):
+                        continue
             reward = benefit(pack, agent, action, weights) * discount * place_taste
             if destinatario is not None and action.target is not None:
                 # Encoge, no veta: ayudar a un desconocido sigue valiendo algo,

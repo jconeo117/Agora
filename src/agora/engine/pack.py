@@ -36,6 +36,8 @@ from agora.engine.ontology import (
     GoalId,
     GoalSpec,
     HealthSpec,
+    ItemId,
+    ItemSpec,
     NeedId,
     NeedSpec,
     NewcomerSpec,
@@ -92,6 +94,10 @@ class ContentPack(Spec):
     properties: tuple[PropertySpec, ...] = ()
     """Quién tiene qué. Vacío = un mundo sin propiedad, donde `home` sigue
     siendo solo una referencia sin efecto mecánico."""
+
+    items: tuple[ItemSpec, ...] = ()
+    """Qué tipos de objeto existen (unidad 16a). Vacío = un mundo sin objetos,
+    y entonces ningún camino nuevo se activa: los packs antiguos no cambian."""
 
     situations: tuple[SituationSpec, ...] = ()
     """Cómo puede estar el mundo. Vacío = el mundo no tiene estados, y entonces
@@ -167,6 +173,10 @@ class ContentPack(Spec):
         return {prop.id: prop for prop in self.properties}
 
     @cached_property
+    def item_by_id(self) -> dict[ItemId, ItemSpec]:
+        return {item.id: item for item in self.items}
+
+    @cached_property
     def situation_by_id(self) -> dict[SituationId, SituationSpec]:
         return {situation.id: situation for situation in self.situations}
 
@@ -178,7 +188,10 @@ class ContentPack(Spec):
     @cached_property
     def fallback_actions(self) -> tuple[ActionSpec, ...]:
         """Acciones válidas en cualquier lugar. La red de seguridad del motor."""
-        return tuple(a for a in self.actions if a.requires_affordance is None)
+        return tuple(
+            a for a in self.actions
+            if a.requires_affordance is None and a.requires_item is None
+        )
 
     # -------------------------------------------------------------------------
     # Validaciones
@@ -218,6 +231,7 @@ class ContentPack(Spec):
             *self._duplicates("situaciones", (s.id for s in self.situations)),
             *self._duplicates("relaciones", (r.id for r in self.relations)),
             *self._duplicates("propiedades", (p.id for p in self.properties)),
+            *self._duplicates("objetos", (i.id for i in self.items)),
             *self._duplicates("clases de faccion", (k.id for k in self.faction_kinds)),
         ]
 
@@ -603,6 +617,34 @@ class ContentPack(Spec):
                 problems.append(
                     f"acción {action.id!r}: `min_ticks` ({elastic.min_ticks}) supera el "
                     f"tope `duration_ticks` ({action.duration_ticks})"
+                )
+        return problems
+
+    def _check_item_refs(self) -> list[str]:
+        """Los objetos que nombran sitios y multiplicadores existen, y un
+        objeto cuyo efecto cae en un eje que el mundo no tiene no se carga.
+
+        `gives_item` exige `target`: pasarle algo a nadie no es una acción. Un
+        `takes_item` sin `target` coge del suelo, y con `target`, del objetivo.
+        """
+        conocidos_objetos = frozenset(str(i.id) for i in self.items)
+        conocidas = frozenset(str(n.id) for n in self.needs)
+        problems: list[str] = []
+        for place in self.places:
+            problems += self._unknown_keys(
+                f"lugar {place.id!r}", "objeto", place.items, conocidos_objetos
+            )
+        for item in self.items:
+            problems += self._unknown_keys(
+                f"objeto {item.id!r}", "necesidad", item.gains, conocidas
+            )
+            problems += self._unknown_keys(
+                f"objeto {item.id!r}", "necesidad", item.costs, conocidas
+            )
+        for action in self.actions:
+            if action.gives_item is not None and action.target is None:
+                problems.append(
+                    f"acción {action.id!r}: gives_item sin target, nadie recibiría el objeto"
                 )
         return problems
 
@@ -1561,6 +1603,7 @@ class ContentPack(Spec):
             *self._check_initial_ranks(),
             *self._check_elastic_is_coherent(),
             *self._check_gain_refs(),
+            *self._check_item_refs(),
             *self._check_places_are_open_sometime(),
             *self._check_taste_refs(),
             *self._check_actions_are_reachable(),

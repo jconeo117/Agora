@@ -68,6 +68,9 @@ class Entry:
     place: str | None = None
     target: str | None = None
     force: bool = False
+    item: str | None = None
+    """Un objeto, para dar o pedir (unidad 16a). El índice del menú sigue siendo
+    lo que se devuelve; el objeto es lo que quien construyó el menú sabe leer."""
 
 
 @dataclass(frozen=True, slots=True)

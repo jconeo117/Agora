@@ -27,7 +27,7 @@ import yaml
 from pydantic import Field, ValidationError
 
 from agora.engine.disposition import Temperament
-from agora.engine.ontology import AflictionSpec, Spec
+from agora.engine.ontology import AflictionSpec, ItemId, ItemSlot, Spec
 from agora.engine.pack import ContentPack
 from agora.rules.scene import ArmorSpec, WeaponSpec
 from agora.rules.system import Ruleset
@@ -129,6 +129,13 @@ class BindingSpec(Spec):
     resources: ResourceNeeds
     style: StyleBinding
     roles: tuple[RoleSpec, ...] = ()
+    items: dict[ItemId, str] = Field(default_factory=dict)
+    """Qué pieza del sistema es cada objeto del mundo (unidad 16a): objeto →
+    id de `weapons` o `armors`. Lo que se lleva puesto sustituye al camino de
+    los suministros; lo que no está aquí sigue saliendo de ellos.
+
+    Va en el enlace y no en el pack ni en el sistema por lo mismo que el resto
+    del enlace: el pack no sabe de reglas y el sistema no sabe de objetos."""
 
 
 _PERILLAS = frozenset(f.name for f in fields(Temperament))
@@ -189,6 +196,20 @@ def check_binding(binding: BindingSpec, pack: ContentPack, ruleset: Ruleset) -> 
                  for w in binding.weapons if w.skill not in competencias]
     ids = [p.id for p in piezas]
     problems += [f"pieza repetida {i!r}" for i in sorted(set(ids)) if ids.count(i) > 1]
+    armas_ids = frozenset(w.id for w in binding.weapons)
+    armaduras_ids = frozenset(p.id for p in binding.armors)
+    for objeto, id_pieza in sorted(binding.items.items()):
+        item = pack.item_by_id.get(objeto)
+        if item is None:
+            problems.append(f"items: objeto {objeto!r} no existe en este mundo")
+        elif id_pieza in armas_ids and item.slot is not ItemSlot.ARMA:
+            problems.append(f"items.{objeto}: {id_pieza!r} es un arma y el objeto no lo es")
+        elif id_pieza in armaduras_ids and item.slot is not ItemSlot.ARMADURA:
+            problems.append(
+                f"items.{objeto}: {id_pieza!r} es una armadura y el objeto no lo es"
+            )
+        elif id_pieza not in armas_ids and id_pieza not in armaduras_ids:
+            problems.append(f"items.{objeto}: pieza {id_pieza!r} no está en weapons ni armors")
     for eje in (binding.resources.vitality, binding.resources.fatigue):
         if eje is not None and eje not in ejes:
             problems.append(f"resources: eje desconocido {eje!r}")

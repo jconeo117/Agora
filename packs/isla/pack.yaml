@@ -312,6 +312,7 @@ actions:
     seguridad: 0.4
   situation_multipliers:
     cornucopia_agotada: 0.1
+  takes_item: {}
   examples:
   - cojo lo que pueda de la cornucopia
   - voy a por las armas
@@ -319,6 +320,22 @@ actions:
   narration:
     you: rebuscas en las cajas de la cornucopia
     them: '{a} rebusca en las cajas de la cornucopia'
+- id: registrar
+  label: registrar el suelo
+  duration_ticks: 2
+  requires_item: {}
+  takes_item: {}
+  satisfies:
+    seguridad: 0.2
+  costs:
+    descanso: 0.05
+  examples:
+  - registro lo que hay en el suelo
+  - cojo lo que hay tirado
+  - miro qué hay aquí
+  narration:
+    you: registras lo que hay en el suelo
+    them: '{a} registra lo que hay en el suelo'
 - id: rebuscar
   label: rebuscar entre los escombros
   duration_ticks: 6
@@ -510,6 +527,7 @@ actions:
     suministros: 1.0
   effects:
     suministros: 0.3
+  takes_item: {}
   target:
     por_desconocido: true
     max_regard: 0.05
@@ -571,6 +589,37 @@ actions:
     you: curas las heridas de {o}
     them: '{a} cura las heridas de {o}'
     at_you: '{a} te cura las heridas'
+items:
+- id: cuchillo
+  label: cuchillo
+  slot: arma
+  gains:
+    combate: 1.3
+  narration: un cuchillo
+- id: lanza_corta
+  label: lanza corta
+  slot: arma
+  gains:
+    combate: 1.5
+  narration: una lanza corta
+- id: hacha
+  label: hacha
+  slot: arma
+  gains:
+    combate: 1.8
+  narration: un hacha de batalla
+- id: cuero
+  label: armadura de cuero
+  slot: armadura
+  costs:
+    salud: 0.85
+  narration: una armadura de cuero
+- id: cota
+  label: cota de malla
+  slot: armadura
+  costs:
+    salud: 0.7
+  narration: una cota de malla
 relations:
 - id: del_distrito
   label: del mismo distrito
@@ -587,6 +636,12 @@ places:
   - agua
   tags:
   - centro
+  items:
+    cuchillo: 16
+    lanza_corta: 14
+    hacha: 10
+    cuero: 12
+    cota: 8
   neighbors:
     pedestal_1: 1
     pedestal_10: 1

@@ -41,6 +41,7 @@ from agora.engine.ontology import (
     GoalId,
     GoalSpec,
     GoalStatus,
+    ItemId,
     NeedId,
     NeedSpec,
     PlaceId,
@@ -296,6 +297,15 @@ class Propiedad:
     saldo: dict[NeedId, float] = field(default_factory=dict)
     """Lo que queda por cobrar antes de extinguirse. Vacío = perpetua."""
 
+    lugar: PlaceId | None = None
+    """Un objeto en el suelo de este sitio (unidad 16a). Excluyente con `dueño`
+    y `dueña`: un objeto está en el suelo o en manos de alguien, nunca en las
+    dos. Es lo que hace que «quién tiene qué» sea una sola pregunta."""
+
+    equipado: bool = False
+    """Si el objeto está puesto: un arma en la mano, una armadura encima. Solo
+    tiene efecto para quien lo lleva; en el suelo no cuenta."""
+
 
 @dataclass(slots=True)
 class Bond:
@@ -471,6 +481,14 @@ class AgentState:
 
     DERIVADO como todo lo demás: no se guarda, se recompone al cargar.
     """
+
+    equipado_gains: dict[NeedId, float] = field(default_factory=dict)
+    """Producto de los `gains` de lo que lleva EQUIPADO (unidad 16a). Lo pone
+    `world` al equipar o quitar algo; vacío = no lleva nada puesto, y entonces
+    la aptitud es la de siempre."""
+
+    equipado_costs: dict[NeedId, float] = field(default_factory=dict)
+    """Producto de los `costs` de lo que lleva EQUIPADO (la armadura)."""
 
     gains: dict[NeedId, float] = field(default_factory=dict)
     """DERIVADO de `traits` **y de lo que lleva encima**: la APTITUD hoy.
@@ -1384,7 +1402,8 @@ class AgentState:
         # que todo cunda menos mientras dura. Se parte de la base estable —los
         # rasgos, que no cambian con el tick— y solo se multiplica para quien
         # lleve algo encima, que son treinta de doscientos.
-        if not animos:
+        equipo = self.equipado_gains   # dict[NeedId, float], lo pone world al equipar
+        if not animos and not equipo:
             self.gains = self.aptitud_base
             return
         gains = dict(self.aptitud_base)
@@ -1393,6 +1412,10 @@ class AgentState:
             gravedad = animos[situacion]
             for need_id, m in by_situation[situacion].gain_multipliers.items():
                 gains[need_id] = gains.get(need_id, 1.0) * m**gravedad
+        # Lo equipado va DETRÁS de los ánimos: es lo que lleva, no lo que le pasa.
+        # Ordenado por eje para que el producto de floats no dependa del orden.
+        for need_id, m in sorted(equipo.items()):
+            gains[need_id] = gains.get(need_id, 1.0) * m
         self.gains = gains
 
     def drift_trait(self, pack: ContentPack, trait: TraitId, delta: float) -> None:
@@ -1459,6 +1482,8 @@ class AgentState:
         self.aptitud_base = compose_gains(pack, self.traits)
         self.gains = dict(self.aptitud_base)
         self.costs = compose_costs(pack, self.traits)
+        for need_id, m in sorted(self.equipado_costs.items()):
+            self.costs[need_id] = self.costs.get(need_id, 1.0) * m
         self.caps = compose_caps(pack, self.traits)
         self.temperament = compose_temperament(pack, self.traits, self.strain)
 
@@ -1751,6 +1776,41 @@ class AgentState:
         return self.busy is None or self.busy.ticks_remaining == 0
 
 
+def _propiedades_iniciales(pack: ContentPack) -> dict[PropertyId, Propiedad]:
+    """Las propiedades del pack y, detrás, los objetos del suelo de cada sitio.
+
+    Los objetos van después y con id determinista (`obj:lugar:objeto:n`): el
+    orden del pack fija el del mundo, y un contador global dependería de cuántos
+    sitios hubiera antes. Ordenados por sitio y por objeto para que no dependa
+    del orden en que el YAML los haya escrito.
+    """
+    propiedades: dict[PropertyId, Propiedad] = {
+        spec.id: Propiedad(
+            id=spec.id,
+            tipo=spec.tipo,
+            objeto=spec.objeto,
+            renta=dict(spec.renta),
+            tributo=dict(spec.tributo),
+            dueño=spec.dueño_inicial,
+            saldo=dict(spec.saldo),
+        )
+        for spec in pack.properties
+    }
+    for lugar in pack.places:
+        for item, cuantos in sorted(lugar.items.items()):
+            for n in range(cuantos):
+                id_obj = PropertyId(f"obj:{lugar.id}:{item}:{n}")
+                propiedades[id_obj] = Propiedad(
+                    id=id_obj,
+                    tipo=PropertyKind.OBJETO,
+                    objeto=str(item),
+                    renta={},
+                    tributo={},
+                    lugar=lugar.id,
+                )
+    return propiedades
+
+
 def _build_memoria(pack: ContentPack) -> MemoriaEpisodica:
     """El estado inicial de la memoria del mundo: capacidad, fade general, y
     los cinco diccionarios dispersos (el general más los cuatro lentes, D-045).
@@ -1990,19 +2050,57 @@ class WorldState:
             # lo demás derivado: al reanudar sobre un pack retocado manda el
             # nuevo, no el que se guardó.
             memoria=_build_memoria(pack),
-            propiedades={
-                spec.id: Propiedad(
-                    id=spec.id,
-                    tipo=spec.tipo,
-                    objeto=spec.objeto,
-                    renta=dict(spec.renta),
-                    tributo=dict(spec.tributo),
-                    dueño=spec.dueño_inicial,
-                    saldo=dict(spec.saldo),
-                )
-                for spec in pack.properties
-            },
+            propiedades=_propiedades_iniciales(pack),
         )
+
+    def es_objeto(self, propiedad: Propiedad) -> bool:
+        """Si es un objeto del pack (16a). No basta con `tipo`: un `OBJETO` de
+        los de antes (una granja, un título de tierra) es una propiedad que se
+        hereda como las demás, y su `objeto` es texto libre, no un `ItemSpec`."""
+        return (propiedad.tipo is PropertyKind.OBJETO
+                and propiedad.objeto in self.pack.item_by_id)
+
+    def objetos_de(self, agente: AgentId) -> list[Propiedad]:
+        """Lo que lleva encima, ordenado por id. Única forma de preguntarlo: el
+        mismo dato, leído dos veces de dos maneras, acabaría divergiendo."""
+        return sorted(
+            (p for p in self.propiedades.values()
+             if self.es_objeto(p) and p.dueño == agente),
+            key=lambda p: p.id,
+        )
+
+    def objetos_en(self, lugar: PlaceId) -> list[Propiedad]:
+        """Lo que hay en el suelo de este sitio, ordenado por id."""
+        return sorted(
+            (p for p in self.propiedades.values()
+             if self.es_objeto(p) and p.lugar == lugar),
+            key=lambda p: p.id,
+        )
+
+    def recalcular_equipo(self, agent: AgentState) -> None:
+        """La única puerta de lo puesto a aptitud y a coste (unidad 16a).
+
+        La llaman `equipar` al poner o cambiar algo y `persistence` al cargar:
+        ninguno de los dos recalcula por su cuenta. Sin nada puesto ni nada que
+        quitar no hace nada, así que un pack sin objetos no cambia ni un byte.
+        """
+        if (not agent.equipado_gains and not agent.equipado_costs
+                and not any(p.equipado for p in self.objetos_de(agent.spec_id))):
+            return
+        gains: dict[NeedId, float] = {}
+        costs: dict[NeedId, float] = {}
+        for propiedad in self.objetos_de(agent.spec_id):
+            if not propiedad.equipado:
+                continue
+            spec = self.pack.item_by_id[ItemId(propiedad.objeto)]
+            for need, m in spec.gains.items():
+                gains[need] = gains.get(need, 1.0) * m
+            for need, m in spec.costs.items():
+                costs[need] = costs.get(need, 1.0) * m
+        agent.equipado_gains = gains
+        agent.equipado_costs = costs
+        agent.recompose(self.pack)
+        agent.refresh_state(self.pack)
 
     # -- situaciones ----------------------------------------------------------
 
