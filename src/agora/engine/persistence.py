@@ -313,9 +313,22 @@ def save(
             for f in sorted(world.facciones.values(), key=lambda x: x.id)
         ],
         "propiedades": [
-            _propiedad_a_dict(prop, prop.id in world.pack.property_by_id,
-                              world.es_objeto(prop))
+            _propiedad_a_dict(prop, prop.id in world.pack.property_by_id, False)
             for prop in sorted(world.propiedades.values(), key=lambda p: p.id)
+            if not world.es_objeto(prop)
+        ],
+        # Los objetos van enteros (16b): un objeto gastado no está aquí, y así al
+        # cargar no vuelve desde el pack. Lo de las propiedades queda para lo demás.
+        "objetos": [
+            {
+                "id": str(p.id),
+                "objeto": p.objeto,
+                "dueño": None if p.dueño is None else str(p.dueño),
+                "lugar": None if p.lugar is None else str(p.lugar),
+                "equipado": p.equipado,
+            }
+            for p in sorted(world.propiedades.values(), key=lambda p: p.id)
+            if world.es_objeto(p)
         ],
     }
     path.write_text(json.dumps(datos, indent=1, ensure_ascii=False), encoding="utf-8")
@@ -675,12 +688,37 @@ def load(
     # Los que el pack tiene y el guardado no —fichas nuevas— entran frescos, tal
     # y como los dejo `WorldState.new`. Asi se puede ampliar el elenco sin
     # perder la partida.
+    # Los objetos (16b): si el guardado los trae, es la verdad: lo que no está, se
+    # gastó, y lo que está, va donde estaba. Un guardado anterior no los trae y
+    # manda lo de arriba, que son los objetos del pack con sus dueños de entonces.
+    if "objetos" in datos:
+        vivos = {PropertyId(str(f["id"])) for f in datos["objetos"]}
+        for id_obj in sorted(i for i, p in world.propiedades.items()
+                             if world.es_objeto(p) and i not in vivos):
+            world.baja_objeto(world.propiedades[id_obj])
+        for f in datos["objetos"]:
+            id_obj = PropertyId(str(f["id"]))
+            prop = world.propiedades.get(id_obj)
+            if prop is None:
+                if str(f["objeto"]) not in pack.item_by_id:
+                    continue
+                prop = Propiedad(id=id_obj, tipo=PropertyKind.OBJETO,
+                                 objeto=str(f["objeto"]), renta={}, tributo={})
+                world.alta_objeto(prop)
+            world.mudar_objeto(
+                prop,
+                dueño=None if f["dueño"] is None else AgentId(str(f["dueño"])),
+                lugar=None if f["lugar"] is None else PlaceId(str(f["lugar"])),
+            )
+            prop.equipado = bool(f["equipado"])
+    world.reindexar()
     for agente in agentes:
         world.agents[agente.spec_id] = agente
     # Lo puesto se traduce a aptitud aquí, con los objetos ya cargados: antes no
     # había de dónde sacarlo. Sin objetos equipados no toca nada.
     for agente in agentes:
         world.recalcular_equipo(world.agents[agente.spec_id])
+        world.recalcular_ejes(world.agents[agente.spec_id])
 
     # Y los que faltaban POR MUERTOS se van otra vez. Es la contrapartida de lo
     # de arriba: la misma tolerancia que deja entrar a una ficha nueva resucitaba

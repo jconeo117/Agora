@@ -49,6 +49,8 @@ from agora.engine.ontology import (
     ItemId,
     ItemQuery,
     ItemSlot,
+    ItemSpec,
+    ItemWhere,
     NeedId,
     PlaceId,
     Progenitor,
@@ -250,6 +252,7 @@ class Simulation:
         self._decay_everyone()
         self._disolver_las_vacias()
         self._aplicar_rentas()
+        self._reponer()
         self._cobrar_muertes()
         for agent in self.state.agents_in_order():
             self._settle_goals(agent)
@@ -1283,6 +1286,21 @@ class Simulation:
         tuning = self.pack.tuning
         tick = self.state.tick
 
+        # Lo que se gasta se gasta ANTES de que la acción dé nada. Si ya no lo lleva,
+        # no llega a su efecto: se registra como abortada, con su razón (16b).
+        if spec.consumes is not None:
+            gastable = next(
+                (p for p in self.state.objetos_de(agent.spec_id)
+                 if spec.consumes.admits(self.pack.item_by_id[ItemId(p.objeto)])),
+                None,
+            )
+            if gastable is None:
+                self._emit(EventKind.ACTION_ABORTED, agent, action=action_id,
+                           data={"reason": "sin_objeto"})
+                agent.busy = None
+                return
+            self._gastar(agent, gastable)
+
         others = [other.spec_id for other in self.state.others_at(agent)]
         company = agent.effective_company(
             others, tick, tuning.bond_weight, agent.temperament.bond_fade,
@@ -1523,8 +1541,7 @@ class Simulation:
         de = f"agente:{objeto.dueño}" if objeto.dueño is not None else f"lugar:{objeto.lugar}"
         a = f"agente:{dueño}" if dueño is not None else f"lugar:{lugar}"
         viejo = objeto.dueño
-        objeto.dueño = dueño
-        objeto.lugar = lugar
+        self.state.mudar_objeto(objeto, dueño=dueño, lugar=lugar)
         objeto.equipado = False
         self.log.emit(
             tick=self.state.tick,
@@ -1535,8 +1552,73 @@ class Simulation:
             data={"propiedad": str(objeto.id), "item": objeto.objeto, "de": de, "a": a,
                   "puesto": False},
         )
-        if viejo is not None and viejo in self.state.agents:
-            self.state.recalcular_equipo(self.state.agents[viejo])
+        # Lo puesto y los ejes que salen de lo que se lleva: quien pierde y quien
+        # gana. Es la única puerta por la que un objeto cambia de manos (16b).
+        for quien in (viejo, dueño):
+            if quien is not None and quien in self.state.agents:
+                agente = self.state.agents[quien]
+                self.state.recalcular_equipo(agente)
+                self.state.recalcular_ejes(agente)
+
+    def _objetos_que_mira(self, agent: AgentState, action: ActionSpec) -> list[ItemSpec] | None:
+        """Lo que la puerta de objeto mira al llegar, con la misma regla que
+        `candidates`: lo que lleva el agente si la consulta dice `encima`; el suelo
+        si no apunta a nadie; y `None` (no se mira aquí) si apunta a alguien, porque
+        el viaje no guarda a quién."""
+        if action.requires_item is None:
+            return None
+        if action.requires_item.where is ItemWhere.ENCIMA:
+            propios = self.state.objetos_de(agent.spec_id)
+        elif action.target is None:
+            propios = self.state.objetos_en(agent.at)
+        else:
+            return None
+        return [self.pack.item_by_id[ItemId(p.objeto)] for p in propios]
+
+    def _gastar(self, agent: AgentState, objeto: Propiedad) -> None:
+        """Quita del mundo un objeto que el agente gasta. Su `ITEM_MOVED` lleva
+        `a: gastado` para que el log distinga gastar de soltar."""
+        self.state.baja_objeto(objeto)
+        self.log.emit(
+            tick=self.state.tick,
+            kind=EventKind.ITEM_MOVED,
+            actor=agent.spec_id,
+            place=agent.at,
+            subject=agent.spec_id,
+            data={"propiedad": str(objeto.id), "item": objeto.objeto,
+                  "de": f"agente:{agent.spec_id}", "a": "gastado", "puesto": False},
+        )
+        self.state.recalcular_ejes(agent)
+
+    def _reponer(self) -> None:
+        """Lo que vuelve a aparecer en el suelo de cada sitio (16b). Una vez por
+        tick, sitios en orden de id, sin azar: cada `every` ticks aparece uno si
+        hay menos de `max` de ese objeto. El id lleva el tick, así que no choca
+        con lo que haya salido antes."""
+        for lugar in sorted(self.pack.places, key=lambda p: p.id):
+            for item in sorted(lugar.regrow):
+                spec = lugar.regrow[item]
+                if self.state.tick % spec.every != 0:
+                    continue
+                en_suelo = [p for p in self.state.objetos_en(lugar.id) if p.objeto == str(item)]
+                if len(en_suelo) >= spec.max:
+                    continue
+                nuevo = Propiedad(
+                    id=PropertyId(f"obj:{lugar.id}:{item}:r{self.state.tick}"),
+                    tipo=PropertyKind.OBJETO,
+                    objeto=str(item),
+                    renta={},
+                    tributo={},
+                    lugar=lugar.id,
+                )
+                self.state.alta_objeto(nuevo)
+                self.log.emit(
+                    tick=self.state.tick,
+                    kind=EventKind.ITEM_MOVED,
+                    place=lugar.id,
+                    data={"propiedad": str(nuevo.id), "item": nuevo.objeto,
+                          "de": "mundo", "a": f"lugar:{lugar.id}", "puesto": False},
+                )
 
     def _equipar_si_procede(self, agent: AgentState, objeto: Propiedad) -> None:
         """Al coger algo se pone si el hueco está vacío o lo que hay es peor. El
@@ -1632,10 +1714,7 @@ class Simulation:
             agent.kin_present(presentes),
             # El viaje no guarda a quién se dirige, así que la puerta de objeto
             # solo se vuelve a mirar para lo que no apunta a nadie.
-            objetos=(
-                [self.pack.item_by_id[ItemId(p.objeto)] for p in self.state.objetos_en(agent.at)]
-                if action.requires_item is not None and action.target is None else None
-            ),
+            objetos=self._objetos_que_mira(agent, action),
         ):
             self._start_action(agent, busy.intent, utility=None)
         else:
@@ -2291,6 +2370,20 @@ class Simulation:
         agente = AgentState.from_spec(self.pack, spec)
         agente.nacido_en = self.state.tick - spec.edad_inicial
         self.state.agents[spec.id] = agente
+        # Lo que lleva encima al entrar (16b). Es la misma puerta para nacer y para
+        # llegar, así que quien nace también trae su ajuar: en un pack sin
+        # `starting_items` no hay nada que dar.
+        for item, cuantos in sorted(self.pack.starting_items.items()):
+            for n in range(cuantos):
+                self.state.alta_objeto(Propiedad(
+                    id=PropertyId(f"ajuar:{spec.id}:{item}:{n}"),
+                    tipo=PropertyKind.OBJETO,
+                    objeto=str(item),
+                    renta={},
+                    tributo={},
+                    dueño=spec.id,
+                ))
+        self.state.recalcular_ejes(agente)
         return agente
 
     def arrive(self, spec: AgentSpec) -> AgentState:

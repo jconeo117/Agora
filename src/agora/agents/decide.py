@@ -72,6 +72,7 @@ from agora.engine.ontology import (
     FactionKindId,
     ItemId,
     ItemSpec,
+    ItemWhere,
     NeedId,
     PhaseId,
     PlaceId,
@@ -83,7 +84,7 @@ from agora.engine.ontology import (
 )
 from agora.engine.outcome import company_saturation
 from agora.engine.pack import ContentPack
-from agora.engine.state import AgentState, PerformingAction, Traveling, WorldState
+from agora.engine.state import AgentState, PerformingAction, Propiedad, Traveling, WorldState
 from agora.engine.topology import INFINITE
 
 
@@ -454,6 +455,16 @@ def is_available(
     return all(needs[need] >= minimum for need, minimum in action.requires.items())
 
 
+def _clases(pack: ContentPack, objetos: Sequence[Propiedad]) -> list[ItemSpec]:
+    """Una vez por clase de objeto, en orden de id. `ItemQuery.admits` solo mira la
+    clase, así que dos raciones son la misma respuesta para la puerta."""
+    por_clase: dict[ItemId, ItemSpec] = {}
+    for p in objetos:
+        item = pack.item_by_id[ItemId(p.objeto)]
+        por_clase.setdefault(item.id, item)
+    return [por_clase[i] for i in sorted(por_clase)]
+
+
 def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
     """Todas las opciones del mundo, puntuadas.
 
@@ -575,6 +586,10 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
                 deudas[deudor] = deudas.get(deudor, 0.0) + sum(propiedad.renta.values())
 
     hay_objetos = any(a.requires_item is not None for a in pack.actions)
+    # Lo que lleva encima, una vez: lo mira la consulta `where: encima` (16b).
+    lleva = (
+        _clases(pack, world.objetos_de(agent.spec_id)) if hay_objetos else None
+    )
     found: list[Decision] = []
     # Qué lugares mira lo decide el LOD (D-152), y solo él: quien está lejos
     # del foco delibera sobre un menú corto. Sin foco o sin radio, son todos.
@@ -620,19 +635,26 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
         aqui = tuple(s for s in situations if by_situation[s].reaches(place.id))
         gains_aqui = world.gains_at(place.id, aqui) if aqui else place.gain_multipliers
         # Lo que hay en el suelo de este sitio, solo si algún objeto lo pide: en
-        # un pack sin objetos no se lee nada nuevo.
+        # un pack sin objetos no se lee nada nuevo. Una copia por clase de objeto
+        # basta: la puerta solo mira la clase, y con cientos de raciones en la
+        # cornucopia, recorrerlas por cada acción era el coste de la deliberación.
         suelo = (
-            [pack.item_by_id[ItemId(p.objeto)] for p in world.objetos_en(place.id)]
-            if hay_objetos else None
+            _clases(pack, world.objetos_en(place.id)) if hay_objetos else None
         )
 
         for action in pack.actions:
+            # Lo que mira la puerta de objeto: lo que lleva el agente si la consulta
+            # dice `encima`; si no, el suelo sin destinatario, y con él el objetivo
+            # (que se mira después de elegirlo).
+            if action.requires_item is not None and action.requires_item.where is ItemWhere.ENCIMA:
+                objetos = lleva
+            else:
+                objetos = suelo if action.target is None else None
             if not is_available(
                 action, place, headcount, agent.needs, open_phase, agent.traits, aqui,
                 kin, agent.rango, edad_ahora, lleva_encima, lealtad_por_clase,
                 prestigio_por_clase,
-                # Con destinatario, lo que lleva él se mira después de elegirlo.
-                objetos=suelo if action.target is None else None,
+                objetos=objetos,
             ):
                 continue
             # OCTAVA PUERTA: hay a quién hacérselo, y está delante.
@@ -653,7 +675,9 @@ def candidates(world: WorldState, agent: AgentState) -> list[Decision]:
                 )
                 if destinatario is None:
                     continue
-                if action.requires_item is not None:
+                if action.requires_item is not None and (
+                    action.requires_item.where is not ItemWhere.ENCIMA
+                ):
                     llevados = [
                         pack.item_by_id[ItemId(p.objeto)]
                         for p in world.objetos_de(destinatario.spec_id)

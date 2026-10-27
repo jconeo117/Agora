@@ -1808,6 +1808,20 @@ def _propiedades_iniciales(pack: ContentPack) -> dict[PropertyId, Propiedad]:
                     tributo={},
                     lugar=lugar.id,
                 )
+    # Lo que lleva encima cada agente del pack al empezar (16b). Ids por agente,
+    # no por contador, por la misma razón que los del suelo.
+    for agente in pack.agents:
+        for item, cuantos in sorted(pack.starting_items.items()):
+            for n in range(cuantos):
+                id_obj = PropertyId(f"ajuar:{agente.id}:{item}:{n}")
+                propiedades[id_obj] = Propiedad(
+                    id=id_obj,
+                    tipo=PropertyKind.OBJETO,
+                    objeto=str(item),
+                    renta={},
+                    tributo={},
+                    dueño=agente.id,
+                )
     return propiedades
 
 
@@ -1946,6 +1960,14 @@ class WorldState:
     propiedad entre partidas se reconcilia igual que un eje nuevo o borrado.
     """
 
+    _por_dueño: dict[AgentId, set[PropertyId]] = field(default_factory=dict, repr=False)
+    """Índice de los objetos de cada agente (unidad 16b). Lo mantienen solo
+    `mudar_objeto`, `alta_objeto` y `baja_objeto`; `objetos_de` lo lee. Sin él,
+    cada pregunta recorre todas las propiedades, y con raciones son miles."""
+
+    _por_lugar: dict[PlaceId, set[PropertyId]] = field(default_factory=dict, repr=False)
+    """Índice de lo que hay en el suelo de cada sitio. Mismo dueño que el anterior."""
+
     situations: dict[SituationId, int | None] = field(default_factory=dict)
     """Las situaciones EVENTUALES encendidas -> hasta qué tick, o `None` si es
     hasta que alguien la apague.
@@ -2035,7 +2057,7 @@ class WorldState:
         agents = {spec.id: AgentState.from_spec(pack, spec) for spec in pack.agents}
         _close_relations(pack, agents)
 
-        return cls(
+        mundo = cls(
             pack=pack,
             travel=TravelMap(pack.places),
             tick=0,
@@ -2052,6 +2074,10 @@ class WorldState:
             memoria=_build_memoria(pack),
             propiedades=_propiedades_iniciales(pack),
         )
+        mundo.reindexar()
+        for agente in mundo.agents.values():
+            mundo.recalcular_ejes(agente)
+        return mundo
 
     def es_objeto(self, propiedad: Propiedad) -> bool:
         """Si es un objeto del pack (16a). No basta con `tipo`: un `OBJETO` de
@@ -2063,19 +2089,85 @@ class WorldState:
     def objetos_de(self, agente: AgentId) -> list[Propiedad]:
         """Lo que lleva encima, ordenado por id. Única forma de preguntarlo: el
         mismo dato, leído dos veces de dos maneras, acabaría divergiendo."""
-        return sorted(
-            (p for p in self.propiedades.values()
-             if self.es_objeto(p) and p.dueño == agente),
-            key=lambda p: p.id,
-        )
+        return [self.propiedades[i] for i in sorted(self._por_dueño.get(agente, ()))]
 
     def objetos_en(self, lugar: PlaceId) -> list[Propiedad]:
         """Lo que hay en el suelo de este sitio, ordenado por id."""
-        return sorted(
-            (p for p in self.propiedades.values()
-             if self.es_objeto(p) and p.lugar == lugar),
-            key=lambda p: p.id,
-        )
+        return [self.propiedades[i] for i in sorted(self._por_lugar.get(lugar, ()))]
+
+    # -- índices de objetos (16b) ---------------------------------------------
+
+    def reindexar(self) -> None:
+        """Reconstruye los índices desde `propiedades`. Lo llaman `new` y la carga:
+        son derivados, no se guardan."""
+        self._por_dueño = {}
+        self._por_lugar = {}
+        for propiedad in self.propiedades.values():
+            self._indexar(propiedad)
+
+    def _indexar(self, propiedad: Propiedad) -> None:
+        if not self.es_objeto(propiedad):
+            return
+        if propiedad.dueño is not None:
+            self._por_dueño.setdefault(propiedad.dueño, set()).add(propiedad.id)
+        if propiedad.lugar is not None:
+            self._por_lugar.setdefault(propiedad.lugar, set()).add(propiedad.id)
+
+    def _desindexar(self, propiedad: Propiedad) -> None:
+        if propiedad.dueño is not None:
+            self._por_dueño.get(propiedad.dueño, set()).discard(propiedad.id)
+        if propiedad.lugar is not None:
+            self._por_lugar.get(propiedad.lugar, set()).discard(propiedad.id)
+
+    def mudar_objeto(
+        self, propiedad: Propiedad, *, dueño: AgentId | None, lugar: PlaceId | None,
+    ) -> None:
+        """La única forma de cambiar de manos o de suelo un objeto del mundo: el
+        índice sigue a la propiedad, y nadie más escribe `dueño` o `lugar` de un
+        objeto en marcha."""
+        self._desindexar(propiedad)
+        propiedad.dueño = dueño
+        propiedad.lugar = lugar
+        self._indexar(propiedad)
+
+    def alta_objeto(self, propiedad: Propiedad) -> None:
+        """Un objeto que nace en marcha (reposición, ajuar de quien llega)."""
+        self.propiedades[propiedad.id] = propiedad
+        self._indexar(propiedad)
+
+    def baja_objeto(self, propiedad: Propiedad) -> None:
+        """Un objeto que se gasta: deja de existir."""
+        self._desindexar(propiedad)
+        del self.propiedades[propiedad.id]
+
+    def recalcular_ejes(self, agent: AgentState) -> None:
+        """La única puerta de los ejes que salen de lo que se lleva (unidad 16b).
+
+        Cada eje con `from_items` vale lo que suman los objetos que lleva, cada uno
+        con su mejor etiqueta del eje, con tope 1. Lo llaman `_mover_objeto`, el
+        consumo, la llegada y la carga. Sin ejes de ese tipo no hace nada, así que
+        un pack sin ellos no cambia. La subida y la bajada van al libro como
+        `activo` y `demanda`, igual que `apply`.
+        """
+        ejes = [n for n in self.pack.needs if n.from_items]
+        if not ejes:
+            return
+        objetos = self.objetos_de(agent.spec_id)
+        for eje in ejes:
+            total = 0.0
+            for propiedad in objetos:
+                etiquetas = self.pack.item_by_id[ItemId(propiedad.objeto)].tags
+                pesos = [eje.from_items[t] for t in sorted(etiquetas & eje.from_items.keys())]
+                if pesos:
+                    total += max(pesos)
+            nuevo = min(1.0, total)
+            viejo = agent.needs[eje.id]
+            if agent.ledger is not None and nuevo != viejo:
+                if nuevo > viejo:
+                    agent.ledger.anotar(agent.ledger.activo, eje.id, nuevo - viejo)
+                else:
+                    agent.ledger.anotar(agent.ledger.demanda, eje.id, viejo - nuevo)
+            agent.needs[eje.id] = nuevo
 
     def recalcular_equipo(self, agent: AgentState) -> None:
         """La única puerta de lo puesto a aptitud y a coste (unidad 16a).

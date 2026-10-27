@@ -110,10 +110,13 @@ needs:
   company_relief: 0.002
 - id: suministros
   label: suministros
-  decay_per_tick: 0.0005
+  decay_per_tick: 0.0
   urgency_exponent: 1.5
   initial: 0.2
   base_weight: 0.6
+  from_items:
+    comida: 0.1
+    venda: 0.15
 - id: combate
   label: combate
   decay_per_tick: 0.0
@@ -263,11 +266,18 @@ actions:
   label: buscar comida
   duration_ticks: 8
   requires_affordance: forraje
+  requires_item:
+    where: suelo
+    tags:
+    - comida
+  takes_item:
+    where: suelo
+    tags:
+    - comida
   satisfies:
     suministros: 1.0
     sustento: 0.3
   effects:
-    suministros: 0.12
     sustento: 0.05
     descanso: -0.05
   costs:
@@ -283,15 +293,18 @@ actions:
 - id: comer
   label: comer de lo que lleva
   duration_ticks: 2
-  requires:
-    suministros: 0.1
+  requires_item:
+    where: encima
+    tags:
+    - comida
+  consumes:
+    where: encima
+    tags:
+    - comida
   satisfies:
     sustento: 1.0
   effects:
-    suministros: -0.1
     sustento: 0.4
-  costs:
-    suministros: 0.5
   examples:
   - como algo
   - saco comida de la mochila
@@ -303,16 +316,20 @@ actions:
   label: saquear la cornucopia
   duration_ticks: 4
   requires_affordance: botin
+  requires_item:
+    where: suelo
+    slot: arma
   satisfies:
-    suministros: 1.0
+    combate: 1.0
   effects:
-    suministros: 0.6
     seguridad: -0.2
   costs:
     seguridad: 0.4
   situation_multipliers:
     cornucopia_agotada: 0.1
-  takes_item: {}
+  takes_item:
+    where: suelo
+    slot: arma
   examples:
   - cojo lo que pueda de la cornucopia
   - voy a por las armas
@@ -320,6 +337,85 @@ actions:
   narration:
     you: rebuscas en las cajas de la cornucopia
     them: '{a} rebusca en las cajas de la cornucopia'
+- id: saquear_armadura
+  label: ponerse una armadura de la cornucopia
+  duration_ticks: 4
+  requires_affordance: botin
+  requires_item:
+    where: suelo
+    slot: armadura
+  satisfies:
+    combate: 1.0
+  effects:
+    seguridad: -0.2
+  costs:
+    seguridad: 0.4
+  situation_multipliers:
+    cornucopia_agotada: 0.1
+  takes_item:
+    where: suelo
+    slot: armadura
+  examples:
+  - me pongo una armadura
+  - busco protección
+  - cojo algo para el pecho
+  narration:
+    you: te pones una armadura de la cornucopia
+    them: '{a} se pone una armadura de la cornucopia'
+- id: coger_provisiones
+  label: coger comida de la cornucopia
+  duration_ticks: 4
+  requires_affordance: botin
+  requires_item:
+    where: suelo
+    tags:
+    - comida
+  takes_item:
+    where: suelo
+    tags:
+    - comida
+  satisfies:
+    suministros: 1.0
+  effects:
+    seguridad: -0.2
+  costs:
+    seguridad: 0.4
+  situation_multipliers:
+    cornucopia_agotada: 0.1
+  examples:
+  - cojo comida
+  - busco provisiones
+  - cojo lo que pueda de comer
+  narration:
+    you: coges comida de lo que queda aquí
+    them: '{a} coge comida de lo que queda aquí'
+- id: coger_vendas
+  label: coger vendas de la cornucopia
+  duration_ticks: 4
+  requires_affordance: botin
+  requires_item:
+    where: suelo
+    tags:
+    - venda
+  takes_item:
+    where: suelo
+    tags:
+    - venda
+  satisfies:
+    suministros: 1.0
+  effects:
+    seguridad: -0.2
+  costs:
+    seguridad: 0.4
+  situation_multipliers:
+    cornucopia_agotada: 0.1
+  examples:
+  - cojo vendas
+  - busco vendas
+  - necesito algo para las heridas
+  narration:
+    you: coges vendas de lo que queda aquí
+    them: '{a} coge vendas de lo que queda aquí'
 - id: registrar
   label: registrar el suelo
   duration_ticks: 2
@@ -340,10 +436,11 @@ actions:
   label: rebuscar entre los escombros
   duration_ticks: 6
   requires_affordance: botin_menor
+  requires_item: {}
+  takes_item: {}
   satisfies:
     suministros: 1.0
   effects:
-    suministros: 0.3
     descanso: -0.03
   costs:
     descanso: 0.15
@@ -525,15 +622,12 @@ actions:
   requires_company: 1
   satisfies:
     suministros: 1.0
-  effects:
-    suministros: 0.3
-  takes_item: {}
+  takes_item:
+    where: objetivo
   target:
     por_desconocido: true
     max_regard: 0.05
     requires_condition: herida
-    gives:
-      suministros: -0.3
   examples:
   - le registro
   - le quito sus cosas
@@ -547,15 +641,18 @@ actions:
 - id: curarse
   label: curarse las heridas
   duration_ticks: 8
-  requires:
-    suministros: 0.2
+  requires_item:
+    where: encima
+    tags:
+    - venda
+  consumes:
+    where: encima
+    tags:
+    - venda
   satisfies:
     salud: 1.0
   effects:
     salud: 0.25
-    suministros: -0.15
-  costs:
-    suministros: 0.4
   cures:
     herida: 1.0
   examples:
@@ -620,6 +717,18 @@ items:
   costs:
     salud: 0.7
   narration: una cota de malla
+- id: racion
+  label: ración
+  slot: ninguno
+  tags:
+  - comida
+  narration: una ración de comida
+- id: venda
+  label: venda
+  slot: ninguno
+  tags:
+  - venda
+  narration: una venda
 relations:
 - id: del_distrito
   label: del mismo distrito
@@ -642,6 +751,8 @@ places:
     hacha: 10
     cuero: 12
     cota: 8
+    racion: 150
+    venda: 60
   neighbors:
     pedestal_1: 1
     pedestal_10: 1
@@ -808,6 +919,12 @@ places:
   tags:
   - selva
   - anillo_1
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     pedestal_1: 2
     ruinas_1_3: 3
@@ -841,6 +958,12 @@ places:
   tags:
   - selva
   - anillo_1
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     pedestal_3: 2
     selva_1_1: 2
@@ -858,6 +981,12 @@ places:
   tags:
   - selva
   - anillo_1
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     montana_1_0: 3
     selva_1_2: 2
@@ -873,6 +1002,12 @@ places:
   tags:
   - selva
   - anillo_2
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     ruinas_2_5: 3
     selva_1_0: 3
@@ -890,6 +1025,12 @@ places:
   tags:
   - selva
   - anillo_2
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     selva_1_0: 3
     selva_2_0: 2
@@ -906,6 +1047,12 @@ places:
   tags:
   - selva
   - anillo_2
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     selva_1_1: 3
     selva_2_1: 2
@@ -939,6 +1086,12 @@ places:
   tags:
   - selva
   - anillo_2
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     selva_1_2: 3
     selva_2_3: 2
@@ -955,6 +1108,12 @@ places:
   tags:
   - selva
   - anillo_2
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     montana_2_0: 3
     selva_1_3: 3
@@ -971,6 +1130,12 @@ places:
   tags:
   - selva
   - anillo_3
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     ruinas_3_7: 3
     selva_2_0: 3
@@ -1001,6 +1166,12 @@ places:
   tags:
   - selva
   - anillo_3
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     selva_2_1: 3
     selva_3_1: 2
@@ -1016,6 +1187,12 @@ places:
   tags:
   - selva
   - anillo_3
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     selva_2_2: 3
     selva_3_2: 2
@@ -1031,6 +1208,12 @@ places:
   tags:
   - selva
   - anillo_3
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     selva_2_3: 3
     selva_3_3: 2
@@ -1061,6 +1244,12 @@ places:
   tags:
   - selva
   - anillo_3
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     selva_2_4: 3
     selva_3_5: 2
@@ -1076,6 +1265,12 @@ places:
   tags:
   - selva
   - anillo_3
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     montana_3_0: 3
     selva_2_5: 3
@@ -1364,6 +1559,12 @@ places:
   tags:
   - playa
   - anillo_1
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     montana_1_3: 3
     playa_1_1: 2
@@ -1411,6 +1612,12 @@ places:
   tags:
   - playa
   - anillo_1
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     cienaga_1_0: 3
     pedestal_8: 2
@@ -1442,6 +1649,12 @@ places:
   tags:
   - playa
   - anillo_2
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     playa_1_0: 3
     playa_2_0: 2
@@ -1458,6 +1671,12 @@ places:
   tags:
   - playa
   - anillo_2
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     playa_1_1: 3
     playa_2_1: 2
@@ -1505,6 +1724,12 @@ places:
   tags:
   - playa
   - anillo_2
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     cienaga_2_0: 3
     playa_1_3: 3
@@ -1521,6 +1746,12 @@ places:
   tags:
   - playa
   - anillo_3
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     montana_3_7: 3
     playa_2_0: 3
@@ -1564,6 +1795,12 @@ places:
   tags:
   - playa
   - anillo_3
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     playa_2_2: 3
     playa_3_2: 2
@@ -1579,6 +1816,12 @@ places:
   tags:
   - playa
   - anillo_3
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     playa_2_3: 3
     playa_3_3: 2
@@ -1622,6 +1865,12 @@ places:
   tags:
   - playa
   - anillo_3
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     cienaga_3_0: 3
     playa_2_5: 3
@@ -1653,6 +1902,12 @@ places:
   tags:
   - cienaga
   - anillo_1
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     cienaga_1_0: 2
     cienaga_1_2: 2
@@ -1744,6 +1999,12 @@ places:
   tags:
   - cienaga
   - anillo_2
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     cienaga_1_2: 3
     cienaga_2_2: 2
@@ -1805,6 +2066,12 @@ places:
   tags:
   - cienaga
   - anillo_3
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     cienaga_2_0: 3
     cienaga_3_0: 2
@@ -1862,6 +2129,12 @@ places:
   tags:
   - cienaga
   - anillo_3
+  items:
+    racion: 20
+  regrow:
+    racion:
+      max: 20
+      every: 16
   neighbors:
     cienaga_2_3: 3
     cienaga_3_4: 2
@@ -1921,6 +2194,9 @@ places:
   tags:
   - ruinas
   - anillo_1
+  items:
+    racion: 4
+    venda: 2
   neighbors:
     ruinas_1_0: 2
     ruinas_1_2: 2
@@ -1935,6 +2211,9 @@ places:
   tags:
   - ruinas
   - anillo_1
+  items:
+    racion: 4
+    venda: 2
   neighbors:
     pedestal_11: 2
     ruinas_1_1: 2
@@ -1966,6 +2245,9 @@ places:
   tags:
   - ruinas
   - anillo_2
+  items:
+    racion: 4
+    venda: 2
   neighbors:
     cienaga_2_5: 3
     ruinas_1_0: 3
@@ -2014,6 +2296,9 @@ places:
   tags:
   - ruinas
   - anillo_2
+  items:
+    racion: 4
+    venda: 2
   neighbors:
     ruinas_1_2: 3
     ruinas_2_2: 2
@@ -2030,6 +2315,9 @@ places:
   tags:
   - ruinas
   - anillo_2
+  items:
+    racion: 4
+    venda: 2
   neighbors:
     ruinas_1_2: 3
     ruinas_2_3: 2
@@ -2076,6 +2364,9 @@ places:
   tags:
   - ruinas
   - anillo_3
+  items:
+    racion: 4
+    venda: 2
   neighbors:
     ruinas_2_0: 3
     ruinas_3_0: 2
@@ -2090,6 +2381,9 @@ places:
   tags:
   - ruinas
   - anillo_3
+  items:
+    racion: 4
+    venda: 2
   neighbors:
     ruinas_2_1: 3
     ruinas_3_1: 2
@@ -2134,6 +2428,9 @@ places:
   tags:
   - ruinas
   - anillo_3
+  items:
+    racion: 4
+    venda: 2
   neighbors:
     ruinas_2_3: 3
     ruinas_3_4: 2
@@ -2148,6 +2445,9 @@ places:
   tags:
   - ruinas
   - anillo_3
+  items:
+    racion: 4
+    venda: 2
   neighbors:
     ruinas_2_4: 3
     ruinas_3_5: 2
@@ -17921,8 +18221,8 @@ newcomer:
   home: selva_1_0
   start_at: pedestal_12
   edad_inicial: 587520
-  initial_needs:
-    suministros: 0.2
+starting_items:
+  racion: 2
 voice:
   identity_traits: []
   character_traits:

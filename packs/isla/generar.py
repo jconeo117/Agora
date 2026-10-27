@@ -113,9 +113,10 @@ def mapa() -> tuple[list[dict], dict[int, list[str]]]:
                              "affordances": ["botin", "aire", "agua"], "tags": ["centro"],
                              # Cuarenta armas y veinte armaduras (16a): pocas,
                              # porque si todos saquean armados, el arma no
-                             # distingue a nadie (medido: 107-128 saqueos).
+                             # distingue a nadie (medido: 107-128 saqueos). Y la
+                             # comida y las vendas (16b), que no se reponen aquí.
                              "items": {"cuchillo": 16, "lanza_corta": 14, "hacha": 10,
-                                       "cuero": 12, "cota": 8}}
+                                       "cuero": 12, "cota": 8, "racion": 150, "venda": 60}}
     por_anillo[0].append("cornucopia")
     for d in range(1, DISTRITOS + 1):
         pid = f"pedestal_{d}"
@@ -133,6 +134,13 @@ def mapa() -> tuple[list[dict], dict[int, list[str]]]:
                 lugares[lid] = {"id": lid, "label": f"{nombre} ({datos['label']}, {['', 'interior', 'media', 'costa'][anillo]})",
                                 "description": DESCRIPCION[nombre],
                                 "affordances": list(aff), "tags": [region, f"anillo_{anillo}"]}
+                # Lo que hay en el suelo de cada sitio (16b): el forraje se repone
+                # solo (6 raciones al día por sitio); lo rebuscado no vuelve.
+                if "forraje" in aff:
+                    lugares[lid]["items"] = {"racion": 20}
+                    lugares[lid]["regrow"] = {"racion": {"max": 20, "every": 16}}
+                if "botin_menor" in aff:
+                    lugares[lid]["items"] = {"racion": 4, "venda": 2}
                 por_anillo[anillo].append(lid)
                 if i > 0:                                    # el camino dentro del anillo
                     unir(lid, lugar_id(region, anillo, i - 1), 2)
@@ -271,7 +279,10 @@ def pack() -> dict:
             {"id": "salud", "label": "salud", "decay_per_tick": 0.0, "urgency_exponent": 2.6, "initial": 1.0, "base_weight": 1.0, "lethal_after": 8},
             {"id": "seguridad", "label": "seguridad", "decay_per_tick": 0.004, "urgency_exponent": 1.8, "initial": 0.5, "base_weight": 0.9, "strain_weight": 0.6},
             {"id": "vinculo", "label": "compañía", "decay_per_tick": 0.003, "urgency_exponent": 1.6, "initial": 0.45, "base_weight": 0.6, "strain_weight": 0.3, "company_relief": 0.002},
-            {"id": "suministros", "label": "suministros", "decay_per_tick": 0.0005, "urgency_exponent": 1.5, "initial": 0.2, "base_weight": 0.6},
+            # Sale de lo que se lleva (16b): una ración vale 0.1 y una venda 0.15.
+            # No decae: se gasta o se pierde, y por eso no puede bajar sola.
+            {"id": "suministros", "label": "suministros", "decay_per_tick": 0.0, "urgency_exponent": 1.5, "initial": 0.2, "base_weight": 0.6,
+             "from_items": {"comida": 0.1, "venda": 0.15}},
             {"id": "combate", "label": "combate", "decay_per_tick": 0.0, "initial": 0.0, "progression": True, "rank_slowdown": 1.0, "base_weight": 0.3, "urgency_exponent": 1.0},
         ],
         "traits": [
@@ -314,8 +325,9 @@ def pack() -> dict:
             {"id": "cornucopia_agotada", "label": "la cornucopia está vacía", "starts_at": AGOTADA * DIA,
              "every": 360 * DIA, "lasts": 300 * DIA, "places": ["cornucopia"], "gain_multipliers": {"suministros": 0.05}},
         ],
-        "newcomer": {"home": por_anillo[1][0], "start_at": "pedestal_12", "edad_inicial": DIA * 360 * 17,
-                     "initial_needs": {"suministros": 0.2}},
+        "newcomer": {"home": por_anillo[1][0], "start_at": "pedestal_12", "edad_inicial": DIA * 360 * 17},
+        # Lo que se lleva al empezar: dos raciones, los 0.2 de antes (16b).
+        "starting_items": {"racion": 2},
         "voice": {
             "identity_traits": [],
             "character_traits": list(CARACTER) + ["piedad", "arrojo"],
@@ -342,6 +354,11 @@ ITEMS = [
      "narration": "una armadura de cuero"},
     {"id": "cota", "label": "cota de malla", "slot": "armadura", "costs": {"salud": 0.7},
      "narration": "una cota de malla"},
+    # Lo que se come y se cura (16b). Sin `slot`: no se llevan puestos, se gastan.
+    {"id": "racion", "label": "ración", "slot": "ninguno", "tags": ["comida"],
+     "narration": "una ración de comida"},
+    {"id": "venda", "label": "venda", "slot": "ninguno", "tags": ["venda"],
+     "narration": "una venda"},
 ]
 
 # Cómo pediría cada acción un jugador (unidad 14). Las lee el intérprete de la
@@ -356,6 +373,9 @@ EJEMPLOS = {
     "saquear_cornucopia": ["cojo lo que pueda de la cornucopia", "voy a por las armas",
                            "saqueo las provisiones del cuerno"],
     "registrar": ["registro lo que hay en el suelo", "cojo lo que hay tirado", "miro qué hay aquí"],
+    "saquear_armadura": ["me pongo una armadura", "busco protección", "cojo algo para el pecho"],
+    "coger_provisiones": ["cojo comida", "busco provisiones", "cojo lo que pueda de comer"],
+    "coger_vendas": ["cojo vendas", "busco vendas", "necesito algo para las heridas"],
     "rebuscar": ["rebusco entre los escombros", "registro las ruinas", "busco algo útil"],
     "esconderse": ["me escondo", "me oculto", "me pongo a cubierto sin que me vean"],
     "vigilar": ["vigilo", "subo a un sitio alto a otear", "monto guardia"],
@@ -380,6 +400,9 @@ NARRACION = {
     "comer": ("comes de lo que llevas", "{a} come de lo que lleva", None),
     "saquear_cornucopia": ("rebuscas en las cajas de la cornucopia", "{a} rebusca en las cajas de la cornucopia", None),
     "registrar": ("registras lo que hay en el suelo", "{a} registra lo que hay en el suelo", None),
+    "saquear_armadura": ("te pones una armadura de la cornucopia", "{a} se pone una armadura de la cornucopia", None),
+    "coger_provisiones": ("coges comida de lo que queda aquí", "{a} coge comida de lo que queda aquí", None),
+    "coger_vendas": ("coges vendas de lo que queda aquí", "{a} coge vendas de lo que queda aquí", None),
     "rebuscar": ("rebuscas entre los escombros", "{a} rebusca entre los escombros", None),
     "esconderse": ("te escondes", "{a} se esconde", None),
     "vigilar": ("vigilas desde lo alto", "{a} vigila desde lo alto", None),
@@ -420,14 +443,33 @@ def _acciones() -> list[dict]:
          "satisfies": {"descanso": 0.5}, "effects": {"descanso": 0.2, "seguridad": -0.08}, "costs": {"seguridad": 0.3}},
         {"id": "beber", "label": "beber", "duration_ticks": 2, "requires_affordance": "agua",
          "satisfies": {"agua": 1.0}, "effects": {"agua": 0.6}},
+        # Los suministros salen de lo que se lleva (16b): recoger comida es coger
+        # una ración del suelo, y comerla es gastarla. Ya no hay efecto sobre el eje.
         {"id": "recolectar", "label": "buscar comida", "duration_ticks": 8, "requires_affordance": "forraje",
-         "satisfies": {"suministros": 1.0, "sustento": 0.3}, "effects": {"suministros": 0.12, "sustento": 0.05, "descanso": -0.05},
+         "requires_item": {"where": "suelo", "tags": ["comida"]}, "takes_item": {"where": "suelo", "tags": ["comida"]},
+         "satisfies": {"suministros": 1.0, "sustento": 0.3}, "effects": {"sustento": 0.05, "descanso": -0.05},
          "costs": {"descanso": 0.2}},
-        {"id": "comer", "label": "comer de lo que lleva", "duration_ticks": 2, "requires": {"suministros": 0.1},
-         "satisfies": {"sustento": 1.0}, "effects": {"suministros": -0.1, "sustento": 0.4}, "costs": {"suministros": 0.5}},
+        {"id": "comer", "label": "comer de lo que lleva", "duration_ticks": 2,
+         "requires_item": {"where": "encima", "tags": ["comida"]}, "consumes": {"where": "encima", "tags": ["comida"]},
+         "satisfies": {"sustento": 1.0}, "effects": {"sustento": 0.4}},
+        # La cornucopia se parte en dos (16b): «el mejor» de la 16a es el de mayor
+        # `gains`, y quien va por comida no debe llevarse un hacha.
         {"id": "saquear_cornucopia", "label": "saquear la cornucopia", "duration_ticks": 4, "requires_affordance": "botin",
-         "satisfies": {"suministros": 1.0}, "effects": {"suministros": 0.6, "seguridad": -0.2}, "costs": {"seguridad": 0.4}, "situation_multipliers": {"cornucopia_agotada": 0.1},
-         "takes_item": {}},
+         # Solo mientras haya un arma tirada: sin la puerta, `combate` (que empieza
+         # en 0 y es la necesidad más urgente) la elegiría con las cajas vacías.
+         "requires_item": {"where": "suelo", "slot": "arma"},
+         "satisfies": {"combate": 1.0}, "effects": {"seguridad": -0.2}, "costs": {"seguridad": 0.4}, "situation_multipliers": {"cornucopia_agotada": 0.1},
+         "takes_item": {"where": "suelo", "slot": "arma"}},
+        {"id": "saquear_armadura", "label": "ponerse una armadura de la cornucopia", "duration_ticks": 4, "requires_affordance": "botin",
+         "requires_item": {"where": "suelo", "slot": "armadura"},
+         "satisfies": {"combate": 1.0}, "effects": {"seguridad": -0.2}, "costs": {"seguridad": 0.4}, "situation_multipliers": {"cornucopia_agotada": 0.1},
+         "takes_item": {"where": "suelo", "slot": "armadura"}},
+        {"id": "coger_provisiones", "label": "coger comida de la cornucopia", "duration_ticks": 4, "requires_affordance": "botin",
+         "requires_item": {"where": "suelo", "tags": ["comida"]}, "takes_item": {"where": "suelo", "tags": ["comida"]},
+         "satisfies": {"suministros": 1.0}, "effects": {"seguridad": -0.2}, "costs": {"seguridad": 0.4}, "situation_multipliers": {"cornucopia_agotada": 0.1}},
+        {"id": "coger_vendas", "label": "coger vendas de la cornucopia", "duration_ticks": 4, "requires_affordance": "botin",
+         "requires_item": {"where": "suelo", "tags": ["venda"]}, "takes_item": {"where": "suelo", "tags": ["venda"]},
+         "satisfies": {"suministros": 1.0}, "effects": {"seguridad": -0.2}, "costs": {"seguridad": 0.4}, "situation_multipliers": {"cornucopia_agotada": 0.1}},
         # Coger lo que está en el suelo del sitio donde se está (16a). Sin
         # afordancia: cualquier sitio con algo tirado vale. Lo que se gana es
         # estar armado, no comida.
@@ -435,7 +477,8 @@ def _acciones() -> list[dict]:
          "requires_item": {}, "takes_item": {},
          "satisfies": {"seguridad": 0.2}, "costs": {"descanso": 0.05}},
         {"id": "rebuscar", "label": "rebuscar entre los escombros", "duration_ticks": 6, "requires_affordance": "botin_menor",
-         "satisfies": {"suministros": 1.0}, "effects": {"suministros": 0.3, "descanso": -0.03}, "costs": {"descanso": 0.15}},
+         "requires_item": {}, "takes_item": {},
+         "satisfies": {"suministros": 1.0}, "effects": {"descanso": -0.03}, "costs": {"descanso": 0.15}},
         {"id": "esconderse", "label": "esconderse", "duration_ticks": 12, "requires_affordance": "escondite",
          "satisfies": {"seguridad": 1.0}, "effects": {"seguridad": 0.35, "descanso": 0.05}},
         {"id": "vigilar", "label": "vigilar desde lo alto", "duration_ticks": 6, "requires_affordance": "vigia",
@@ -459,10 +502,11 @@ def _acciones() -> list[dict]:
          "satisfies": {"combate": 1.0, "seguridad": 0.5}, "effects": {"combate": 0.08, "seguridad": 0.1},
          "target": {"combate": True, "por_desconocido": True, "max_regard": 0.0, "requires_condition": "herida", "quita_por_pericia": "combate", "gives": {"salud": -0.4}}},
         {"id": "saquear", "label": "saquear a un herido", "duration_ticks": 3, "requires_company": 1,
-         "satisfies": {"suministros": 1.0}, "effects": {"suministros": 0.3}, "takes_item": {},
-         "target": {"por_desconocido": True, "max_regard": 0.05, "requires_condition": "herida", "gives": {"suministros": -0.3}}},
-        {"id": "curarse", "label": "curarse las heridas", "duration_ticks": 8, "requires": {"suministros": 0.2},
-         "satisfies": {"salud": 1.0}, "effects": {"salud": 0.25, "suministros": -0.15}, "costs": {"suministros": 0.4},
+         "satisfies": {"suministros": 1.0}, "takes_item": {"where": "objetivo"},
+         "target": {"por_desconocido": True, "max_regard": 0.05, "requires_condition": "herida"}},
+        {"id": "curarse", "label": "curarse las heridas", "duration_ticks": 8,
+         "requires_item": {"where": "encima", "tags": ["venda"]}, "consumes": {"where": "encima", "tags": ["venda"]},
+         "satisfies": {"salud": 1.0}, "effects": {"salud": 0.25},
          "cures": {"herida": 1.0}},
         {"id": "socorrer", "label": "socorrer a un aliado", "duration_ticks": 6, "requires_company": 1,
          "satisfies": {"vinculo": 0.6}, "effects": {"vinculo": 0.2},

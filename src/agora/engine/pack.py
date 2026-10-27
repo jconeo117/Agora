@@ -38,6 +38,7 @@ from agora.engine.ontology import (
     HealthSpec,
     ItemId,
     ItemSpec,
+    ItemWhere,
     NeedId,
     NeedSpec,
     NewcomerSpec,
@@ -98,6 +99,10 @@ class ContentPack(Spec):
     items: tuple[ItemSpec, ...] = ()
     """Qué tipos de objeto existen (unidad 16a). Vacío = un mundo sin objetos,
     y entonces ningún camino nuevo se activa: los packs antiguos no cambian."""
+
+    starting_items: dict[ItemId, int] = Field(default_factory=dict)
+    """Lo que lleva encima cada agente al entrar (unidad 16b): arranque y
+    llegadas. Cada uno recibe su copia."""
 
     situations: tuple[SituationSpec, ...] = ()
     """Cómo puede estar el mundo. Vacío = el mundo no tiene estados, y entonces
@@ -648,6 +653,47 @@ class ContentPack(Spec):
                 )
         return problems
 
+    def _check_consumibles(self) -> list[str]:
+        """Un eje que sale de lo que se lleva no se gasta en una acción: se gasta
+        el objeto (`consumes`), y eso es lo que lo baja. Y `consumes` solo mira lo
+        que el actor lleva encima, porque es lo único que puede gastar.
+        """
+        conocidos_objetos = frozenset(str(i.id) for i in self.items)
+        problems: list[str] = []
+        for need in self.needs:
+            if need.from_items and need.decay_per_tick != 0.0:
+                problems.append(
+                    f"necesidad {need.id!r}: con from_items no puede decaer por sí sola"
+                )
+        ejes_de_objetos = {str(n.id) for n in self.needs if n.from_items}
+        for action in self.actions:
+            gastados = {
+                *(str(k) for k in action.effects),
+                *(str(k) for k in action.costs),
+                *(str(k) for k in (action.target.gives if action.target else {})),
+            }
+            for eje in sorted(gastados & ejes_de_objetos):
+                problems.append(
+                    f"acción {action.id!r}: {eje!r} sale de los objetos y no puede "
+                    "estar en effects, costs ni target.gives"
+                )
+            if action.consumes is not None and action.consumes.where not in (
+                None, ItemWhere.ENCIMA,
+            ):
+                problems.append(
+                    f"acción {action.id!r}: consumes solo puede mirar lo que lleva encima"
+                )
+        for place in self.places:
+            for item in sorted(place.regrow):
+                if str(item) not in conocidos_objetos:
+                    problems.append(
+                        f"lugar {place.id!r}: regrow de objeto desconocido {item!r}"
+                    )
+        for item in sorted(self.starting_items):
+            if str(item) not in conocidos_objetos:
+                problems.append(f"starting_items: objeto desconocido {item!r}")
+        return problems
+
     def _check_gain_refs(self) -> list[str]:
         known = frozenset(str(n.id) for n in self.needs)
         problems: list[str] = []
@@ -1193,8 +1239,11 @@ class ContentPack(Spec):
             # Una acción dirigida que no le hace NADA al otro es contenido
             # muerto que se lee como vivo, igual que una situación sin efectos:
             # sale en el log, se elige un destinatario, y no pasa nada.
+            # Lo que se lleva del otro cuenta (16b): `saquear` a un herido no da ni
+            # quita nada en necesidades, pero sí le quita lo que lleva.
             if not (
                 destino.gives
+                or action.takes_item is not None
                 or destino.cures
                 or destino.inflicts
                 or destino.crea_deuda
@@ -1604,6 +1653,7 @@ class ContentPack(Spec):
             *self._check_elastic_is_coherent(),
             *self._check_gain_refs(),
             *self._check_item_refs(),
+            *self._check_consumibles(),
             *self._check_places_are_open_sometime(),
             *self._check_taste_refs(),
             *self._check_actions_are_reachable(),

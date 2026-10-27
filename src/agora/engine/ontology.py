@@ -168,6 +168,13 @@ class NeedSpec(Spec):
     base_weight: float = Field(default=1.0, ge=0.0)
     """Importancia base antes de que la personalidad la modifique."""
 
+    from_items: dict[Tag, PositiveFactor] = Field(default_factory=dict)
+    """El eje sale de lo que se lleva encima (unidad 16b): cada objeto con una
+    de estas etiquetas suma su valor, y el tope es 1. Un eje así no decae, y
+    ninguna acción lo gasta ni lo da en `effects`, `costs` o `target.gives`:
+    subirlo es coger cosas y bajarlo es gastarlas o perderlas, y el pack no carga
+    si se pide otra cosa. Vacío = un eje como los de siempre."""
+
     strain_weight: float = Field(default=0.0, ge=0.0)
     """Cuánto contribuye esta necesidad al desgaste cognitivo cuando escasea.
 
@@ -1202,6 +1209,15 @@ class ItemSpec(Spec):
         return math.prod(self.gains.values())
 
 
+class ItemWhere(StrEnum):
+    """Dónde mira una consulta de objeto. `None` en la consulta = lo de siempre:
+    el suelo sin destinatario, lo que lleva el objetivo con destinatario."""
+
+    SUELO = "suelo"
+    OBJETIVO = "objetivo"
+    ENCIMA = "encima"
+
+
 class ItemQuery(Spec):
     """Qué objeto hace falta o se mueve: un hueco, unas etiquetas, o ambos.
 
@@ -1211,6 +1227,8 @@ class ItemQuery(Spec):
 
     slot: ItemSlot | None = None
     tags: frozenset[Tag] = frozenset()
+    where: ItemWhere | None = None
+    """Dónde se busca. Lo que se gasta (`consumes`) solo puede ser `encima`."""
 
     def admits(self, item: ItemSpec) -> bool:
         """Única forma de preguntar si un objeto cumple: la usan la puerta, el
@@ -1584,10 +1602,24 @@ class ActionSpec(Spec):
     """Al terminar, pasa del actor al objetivo el mejor objeto que cumpla. Exige
     `target`: sin a quién darlo no hay transferencia."""
 
+    consumes: ItemQuery | None = None
+    """Al terminar, el actor gasta el objeto de id menor que cumpla y lo quita del
+    mundo (unidad 16b). Si ya no lo tiene, la acción no llega a su efecto: se
+    registra como abortada, con `sin_objeto`. Solo `where: encima`."""
+
 
 # ---------------------------------------------------------------------------
 # Lugares: nodos del grafo del mundo
 # ---------------------------------------------------------------------------
+class RegrowSpec(Spec):
+    """Cuánto de un objeto puede haber en el suelo, y cada cuántos ticks se repone
+    (unidad 16b). Determinista: sin azar, cada `every` ticks aparece uno si hay
+    menos de `max`."""
+
+    max: int = Field(ge=1)
+    every: int = Field(ge=1)
+
+
 class PlaceSpec(Spec):
     id: PlaceId
     label: str
@@ -1670,6 +1702,10 @@ class PlaceSpec(Spec):
 
     items: dict[ItemId, int] = Field(default_factory=dict)
     """Cuántos de cada objeto hay en el suelo al empezar la partida."""
+
+    regrow: dict[ItemId, RegrowSpec] = Field(default_factory=dict)
+    """Qué vuelve a aparecer en el suelo, y cada cuánto (unidad 16b). Un forraje
+    que se agota por la recolección se repone solo; sin esto, el sitio se acaba."""
 
     @model_validator(mode="after")
     def _no_self_loop(self) -> PlaceSpec:

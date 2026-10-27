@@ -368,6 +368,9 @@ def _movimiento(
     de = str(e.data.get("de"))
     a = str(e.data.get("a"))
     actor = None if e.actor is None else str(e.actor)
+    if a == "gastado":
+        # Se come, se cura: lo gasta quien lo lleva, y solo se cuenta si es del jugador.
+        return (f"gastas {nombre}", 3, True) if actor == player else None
     if de == a:
         # Se puso o se quitó: solo cuenta si es del jugador.
         if actor != player:
