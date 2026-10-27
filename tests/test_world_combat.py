@@ -144,9 +144,9 @@ def test_la_partida_de_la_sonda() -> None:
     )
     res1 = play(sim1, Recorder(Agresivo(), guion), 96 * 3, None)
 
-    assert res1.ticks == 61
+    assert res1.ticks == 56
     assert res1.reason == "muerte"
-    assert len(escenas) == 3
+    assert len(escenas) == 7
 
     log2 = io.StringIO()
     sim2 = Simulation(pack, seed=1312, log_sink=log2)

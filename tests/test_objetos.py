@@ -80,8 +80,8 @@ def test_b1_1_arma_multiplica_aptitud_y_armadura_reduce_costes() -> None:
         tributo={},
         dueño=agente_id,
     )
-    sim.state.propiedades[arma.id] = arma
-    sim.state.propiedades[armadura.id] = armadura
+    sim.state.alta_objeto(arma)
+    sim.state.alta_objeto(armadura)
 
     # Equipamos arma y armadura
     sim.equipar(agente_id, arma.id)
@@ -211,7 +211,7 @@ def test_b1_3_requires_item_puerta_dura() -> None:
         tributo={},
         lugar=lugar_vacio,
     )
-    sim.state.propiedades[objeto_suelo.id] = objeto_suelo
+    sim.state.alta_objeto(objeto_suelo)
 
     # Ahora 'registrar' SÍ debe estar disponible en ese lugar
     assert any(
@@ -265,7 +265,7 @@ def test_b1_4_al_morir_objetos_quedan_en_el_suelo_sin_equipar() -> None:
         tributo={},
         dueño=muerto_id,
     )
-    sim.state.propiedades[lanza.id] = lanza
+    sim.state.alta_objeto(lanza)
     sim.equipar(muerto_id, lanza.id)
     assert sim.state.propiedades[lanza.id].equipado
 
@@ -407,7 +407,7 @@ def test_b2_1_derive_usa_arma_equipada_y_fallback_suministros() -> None:
         dueño=agente_id,
         equipado=True,
     )
-    sim.state.propiedades[lanza.id] = lanza
+    sim.state.alta_objeto(lanza)
     sim.state.recalcular_equipo(agente)
 
     ficha_con_arma = derive(sim.state, agente_id, ruleset, binding)
@@ -514,28 +514,28 @@ def test_b2_3_escena_nombra_arma_notable_y_suelo() -> None:
     # Limpiamos las propiedades del sitio para tener contenido controlado
     for p in list(sim.state.propiedades.values()):
         if p.lugar == donde or p.dueño == notable_id:
-            del sim.state.propiedades[p.id]
+            sim.state.baja_objeto(p)
 
     # Ponemos en el suelo 1 lanza corta y 2 cuchillos
-    sim.state.propiedades[PropertyId("obj:suelo:1")] = Propiedad(
+    sim.state.alta_objeto(Propiedad(
         id=PropertyId("obj:suelo:1"), tipo=PropertyKind.OBJETO, objeto="lanza_corta",
         renta={}, tributo={}, lugar=donde,
-    )
-    sim.state.propiedades[PropertyId("obj:suelo:2")] = Propiedad(
+    ))
+    sim.state.alta_objeto(Propiedad(
         id=PropertyId("obj:suelo:2"), tipo=PropertyKind.OBJETO, objeto="cuchillo",
         renta={}, tributo={}, lugar=donde,
-    )
-    sim.state.propiedades[PropertyId("obj:suelo:3")] = Propiedad(
+    ))
+    sim.state.alta_objeto(Propiedad(
         id=PropertyId("obj:suelo:3"), tipo=PropertyKind.OBJETO, objeto="cuchillo",
         renta={}, tributo={}, lugar=donde,
-    )
+    ))
 
     # El notable tiene equipada un hacha (narration: "un hacha de batalla")
     hacha = Propiedad(
         id=PropertyId("obj:notable:hacha"), tipo=PropertyKind.OBJETO, objeto="hacha",
         renta={}, tributo={}, dueño=notable_id, equipado=True,
     )
-    sim.state.propiedades[hacha.id] = hacha
+    sim.state.alta_objeto(hacha)
     sim.state.recalcular_equipo(sim.state.agents[notable_id])
 
     # Generamos la escena

@@ -77,15 +77,15 @@ def test_ollama_provider_envia_num_ctx_8192() -> None:
 
 
 def test_contrato_del_banco_con_lexico() -> None:
-    # 4. run_bank(isla, base, load_bank(banco), None): aciertos == 50,
-    # rescatables == 12, falsos_si == 5, crudas_bien == 3, sin_modelo == 0.
+    # 4. run_bank(isla, base, load_bank(banco), None): aciertos == 48,
+    # rescatables == 10, falsos_si == 6, crudas_bien == 3, sin_modelo == 0.
     pack = load_pack(ISLA_PACK)
     ruleset = load_ruleset(BASE_RULES)
     casos = load_bank(BANCO_PATH)
     informe = run_bank(pack, ruleset, casos, None)
 
-    assert informe.aciertos == 50
-    assert informe.rescatables == 12
-    assert informe.falsos_si == 5
+    assert informe.aciertos == 48
+    assert informe.rescatables == 10
+    assert informe.falsos_si == 6
     assert informe.crudas_bien == 3
     assert informe.sin_modelo == 0

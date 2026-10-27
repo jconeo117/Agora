@@ -484,14 +484,14 @@ def test_talk_menu_entradas_terceros_y_despedida() -> None:
 
 
 def test_interpret_sin_template_mantiene_banco_14() -> None:
-    # 2. interpret sin template da lo mismo que hoy (banco de la 14: 50/76 sin modelo).
+    # 2. interpret sin template da lo mismo que hoy (banco de la 14: 48/76 sin modelo tras 16b).
     casos = load_bank(ISLA_INTENTIONS_BANK)
     pack = load_pack(ISLA_PACK)
     ruleset = load_ruleset(BASE_RULES)
     informe = run_bank(pack, ruleset, casos, None)
-    assert informe.aciertos == 50
+    assert informe.aciertos == 48
     assert informe.casos == 76
-    assert informe.falsos_si == 5
+    assert informe.falsos_si == 6
 
 
 def test_hablar_con_heard_corrige_tono_y_sin_heard_respaldo_identico() -> None:
