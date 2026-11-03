@@ -260,8 +260,8 @@ def pack() -> dict:
             {"id": "manana", "label": "mañana", "starts_at": 24},
             {"id": "tarde", "label": "tarde", "starts_at": 52},
             {"id": "noche", "label": "noche", "starts_at": 80}]},
-        "health": {"days": 12, "seeds": [1312], "max_crisis": 0.95, "max_transit": 0.6,
-                   "min_differentiation": 0.2, "may_go_unused": ["dormir_al_raso", "golpe_mortal", "atacar_con_sana"]},
+        "health": {"days": 6, "seeds": [1312], "max_crisis": 0.95, "max_transit": 0.6,
+                   "min_differentiation": 0.2, "may_go_unused": ["dormir_al_raso", "golpe_mortal", "atacar_con_sana", "luchar_a_muerte", "vigilar"]},
         "tuning": {"travel_discount": 0.94, "candidate_pool": 3, "temperature": 0.12, "loss_aversion": 1.0,
                    "saturation_recovery": 0.004, "novelty_weight": 0.3, "switch_cost": 0.8,
                    "duration_discount": 0.995, "critical_need_threshold": 0.15, "sighting_horizon": 192,
@@ -322,6 +322,14 @@ def pack() -> dict:
               for anillo, dia in ZONA.items()),
             {"id": "zona_final", "label": "la zona se cierra (solo queda la cornucopia)", "starts_at": FINAL * DIA,
              "every": 360 * DIA, "lasts": 300 * DIA, "places": pedestales, "effects": {"salud": -0.012, "seguridad": -0.01}},
+            # El final: un battle royale tiene que acabar con un solo ganador, y
+            # los dos últimos se aprecian 1.0 y atacar exige aprecio <= 0.05: sin
+            # esto dormían juntos para siempre (calibración I-011). La condición
+            # es la puerta de `luchar_a_muerte`: antes de esto, no está en el menú.
+            {"id": "sin_tregua", "label": "sin tregua", "personal": True, "effects": {"seguridad": -0.005}},
+            {"id": "arena_final", "label": "ya no hay treguas", "starts_at": FINAL * DIA,
+             "every": 360 * DIA, "lasts": 300 * DIA, "places": ["cornucopia"],
+             "inflicts": {"situation": "sin_tregua", "lasts": 300 * DIA}},
             {"id": "cornucopia_agotada", "label": "la cornucopia está vacía", "starts_at": AGOTADA * DIA,
              "every": 360 * DIA, "lasts": 300 * DIA, "places": ["cornucopia"], "gain_multipliers": {"suministros": 0.05}},
         ],
@@ -379,6 +387,7 @@ EJEMPLOS = {
     "rebuscar": ["rebusco entre los escombros", "registro las ruinas", "busco algo útil"],
     "esconderse": ["me escondo", "me oculto", "me pongo a cubierto sin que me vean"],
     "vigilar": ["vigilo", "subo a un sitio alto a otear", "monto guardia"],
+    "luchar_a_muerte": ["lucho a muerte con", "solo puede quedar uno", "acabo con esto de una vez"],
     "aliarse": ["me alío con", "le propongo ir juntos", "hago un pacto con"],
     "atacar": ["ataco a", "le pego", "me lanzo contra", "peleo con"],
     "atacar_con_sana": ["le ataco sin piedad", "voy a por todas contra", "le doy con toda mi rabia"],
@@ -406,6 +415,7 @@ NARRACION = {
     "rebuscar": ("rebuscas entre los escombros", "{a} rebusca entre los escombros", None),
     "esconderse": ("te escondes", "{a} se esconde", None),
     "vigilar": ("vigilas desde lo alto", "{a} vigila desde lo alto", None),
+    "luchar_a_muerte": ("te lanzas a matar a {o}", "{a} se lanza a matar a {o}", "{a} se lanza a matarte"),
     "aliarse": ("haces un pacto con {o}", "{a} pacta con {o}", "{a} te propone un pacto"),
     "atacar": ("atacas a {o}", "{a} ataca a {o}", "{a} te ataca"),
     "atacar_con_sana": ("te lanzas sin piedad contra {o}", "{a} se lanza sin piedad contra {o}",
@@ -417,7 +427,7 @@ NARRACION = {
     "curarse": ("te curas las heridas", "{a} se cura las heridas", None),
     "socorrer": ("curas las heridas de {o}", "{a} cura las heridas de {o}", "{a} te cura las heridas"),
 }
-CONTENIDO = {"atacar": ["violencia"], "atacar_con_sana": ["violencia"],
+CONTENIDO = {"luchar_a_muerte": ["violencia", "muerte"], "atacar": ["violencia"], "atacar_con_sana": ["violencia"],
              "golpe_mortal": ["violencia", "muerte"], "saquear": ["violencia"]}
 
 
@@ -442,7 +452,7 @@ def _acciones() -> list[dict]:
         {"id": "dormir_al_raso", "label": "dormir al raso", "duration_ticks": 16, "interruptible": True, "vulnerable": True,
          "satisfies": {"descanso": 0.5}, "effects": {"descanso": 0.2, "seguridad": -0.08}, "costs": {"seguridad": 0.3}},
         {"id": "beber", "label": "beber", "duration_ticks": 2, "requires_affordance": "agua",
-         "satisfies": {"agua": 1.0}, "effects": {"agua": 0.6}},
+         "satisfies": {"agua": 1.0}, "effects": {"agua": 0.35}},
         # Los suministros salen de lo que se lleva (16b): recoger comida es coger
         # una ración del suelo, y comerla es gastarla. Ya no hay efecto sobre el eje.
         {"id": "recolectar", "label": "buscar comida", "duration_ticks": 8, "requires_affordance": "forraje",
@@ -484,6 +494,11 @@ def _acciones() -> list[dict]:
         {"id": "vigilar", "label": "vigilar desde lo alto", "duration_ticks": 6, "requires_affordance": "vigia",
          "satisfies": {"seguridad": 0.8}, "effects": {"seguridad": 0.2, "combate": 0.01, "descanso": -0.03},
          "costs": {"descanso": 0.1}},
+        {"id": "luchar_a_muerte", "label": "luchar a muerte", "duration_ticks": 3, "requires_company": 1,
+         "satisfies": {"seguridad": 1.0, "combate": 1.0}, "effects": {"combate": 0.06, "descanso": -0.05},
+         "costs": {"descanso": 0.1}, "situation_multipliers": {"arena_final": 4.0},
+         "target": {"combate": True, "por_desconocido": True, "max_regard": 1.0, "requires_condition": "sin_tregua",
+                    "quita_por_pericia": "combate", "gives": {"salud": -0.3}, "inflicts": herida}},
         {"id": "aliarse", "label": "aliarse", "duration_ticks": 4, "requires_company": 1,
          "satisfies": {"vinculo": 1.0, "seguridad": 0.4}, "effects": {"vinculo": 0.25, "seguridad": 0.1},
          "target": {"acerca": 0.25, "regard_weight": 0.5, "gives": {"vinculo": 0.1}}},

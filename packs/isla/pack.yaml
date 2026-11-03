@@ -16,7 +16,7 @@ clock:
     label: noche
     starts_at: 80
 health:
-  days: 12
+  days: 6
   seeds:
   - 1312
   max_crisis: 0.95
@@ -26,6 +26,8 @@ health:
   - dormir_al_raso
   - golpe_mortal
   - atacar_con_sana
+  - luchar_a_muerte
+  - vigilar
 tuning:
   travel_discount: 0.94
   candidate_pool: 3
@@ -254,7 +256,7 @@ actions:
   satisfies:
     agua: 1.0
   effects:
-    agua: 0.6
+    agua: 0.35
   examples:
   - bebo
   - tengo sed
@@ -486,6 +488,45 @@ actions:
   narration:
     you: vigilas desde lo alto
     them: '{a} vigila desde lo alto'
+- id: luchar_a_muerte
+  label: luchar a muerte
+  duration_ticks: 3
+  requires_company: 1
+  satisfies:
+    seguridad: 1.0
+    combate: 1.0
+  effects:
+    combate: 0.06
+    descanso: -0.05
+  costs:
+    descanso: 0.1
+  situation_multipliers:
+    arena_final: 4.0
+  target:
+    combate: true
+    por_desconocido: true
+    max_regard: 1.0
+    requires_condition: sin_tregua
+    quita_por_pericia: combate
+    gives:
+      salud: -0.3
+    inflicts: &id001
+      situation: herida
+      marca: cuerpo
+      gravedad_min: 0.4
+      gravedad_max: 1.0
+      lasts: 192
+  examples:
+  - lucho a muerte con
+  - solo puede quedar uno
+  - acabo con esto de una vez
+  narration:
+    you: te lanzas a matar a {o}
+    them: '{a} se lanza a matar a {o}'
+    at_you: '{a} se lanza a matarte'
+  content:
+  - violencia
+  - muerte
 - id: aliarse
   label: aliarse
   duration_ticks: 4
@@ -529,12 +570,7 @@ actions:
     quita_por_pericia: combate
     gives:
       salud: -0.2
-    inflicts:
-      situation: herida
-      marca: cuerpo
-      gravedad_min: 0.4
-      gravedad_max: 1.0
-      lasts: 192
+    inflicts: *id001
   examples:
   - ataco a
   - le pego
@@ -18208,6 +18244,21 @@ situations:
   effects:
     salud: -0.012
     seguridad: -0.01
+- id: sin_tregua
+  label: sin tregua
+  personal: true
+  effects:
+    seguridad: -0.005
+- id: arena_final
+  label: ya no hay treguas
+  starts_at: 576
+  every: 34560
+  lasts: 28800
+  places:
+  - cornucopia
+  inflicts:
+    situation: sin_tregua
+    lasts: 28800
 - id: cornucopia_agotada
   label: la cornucopia está vacía
   starts_at: 480

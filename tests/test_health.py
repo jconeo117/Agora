@@ -50,10 +50,6 @@ def test_packs_exist() -> None:
 def test_the_pack_keeps_its_own_contract(world: tuple[ContentPack, HealthReport]) -> None:
     pack, report = world
     problemas = check(pack, report)
-    if pack.id == "isla":
-        # 16a: 'registrar' compite con 'vigilar'; 'vigilar' sin usar se tolera
-        # pendiente de recalibración (ver nota del worker y B.3)
-        problemas = [p for p in problemas if "['vigilar']" not in p]
     assert not problemas, (
         f"el pack {pack.id!r} ya no cumple lo que declara:\n"
         + "\n".join(f"  - {p}" for p in problemas)

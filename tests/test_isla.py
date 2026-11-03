@@ -20,14 +20,16 @@ def pack_isla() -> ContentPack:
 
 @pytest.fixture(scope="module")
 def corrida_isla(pack_isla: ContentPack) -> dict[int, set[AgentId]]:
-    """Corre la simulación de la isla hasta el día 9 en la semilla 1312
-    y guarda los vivos en los cortes de interés (día 4 y día 9).
+    """Corre la simulación de la isla hasta el día 5 en la semilla 1312
+    y guarda los vivos en los cortes de interés (día 4 y día 5). El corte tardío
+    era el día 9 hasta que la calibración acabó la partida el día 7: ya no queda
+    nadie a quien comparar.
     """
     sim = Simulation(pack_isla, seed=1312)
     cortes: dict[int, set[AgentId]] = {}
-    for dia in range(1, 10):
+    for dia in range(1, 6):
         sim.run(pack_isla.clock.ticks_per_day)
-        if dia in (4, 9):
+        if dia in (4, 5):
             cortes[dia] = set(sim.state.agents.keys())
     return cortes
 
@@ -79,7 +81,7 @@ def test_el_alfabeto_no_decide(
 def test_la_fuerza_pesa(
     pack_isla: ContentPack, corrida_isla: dict[int, set[AgentId]]
 ) -> None:
-    """A día 9 en la semilla 1312, el cuartil más fuerte tiene más vivos que
+    """A día 5 en la semilla 1312, el cuartil más fuerte tiene más vivos que
     el más débil (I-008). Además, la acción de atacar declara quita_por_pericia (M10).
     """
     accion_atacar = pack_isla.action_by_id[ActionId("atacar")]
@@ -92,10 +94,10 @@ def test_la_fuerza_pesa(
     q0_debil = set(por_fuerza[:tamano_cuartil])
     q3_fuerte = set(por_fuerza[3 * tamano_cuartil:])
 
-    vivos_dia_9 = corrida_isla[9]
-    vivos_q0 = len(vivos_dia_9 & q0_debil)
-    vivos_q3 = len(vivos_dia_9 & q3_fuerte)
+    vivos_dia_5 = corrida_isla[5]
+    vivos_q0 = len(vivos_dia_5 & q0_debil)
+    vivos_q3 = len(vivos_dia_5 & q3_fuerte)
 
     assert vivos_q3 > vivos_q0, (
-        f"A día 9 el cuartil más fuerte ({vivos_q3}) no supera al más débil ({vivos_q0})"
+        f"A día 5 el cuartil más fuerte ({vivos_q3}) no supera al más débil ({vivos_q0})"
     )
