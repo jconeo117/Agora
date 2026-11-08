@@ -89,6 +89,7 @@ from agora.engine.social import (
 )
 from agora.engine.state import (
     AgentState,
+    Baja,
     Busy,
     Condicion,
     Faccion,
@@ -96,6 +97,7 @@ from agora.engine.state import (
     Propiedad,
     Traveling,
     WorldState,
+    _sorteo_de_destinatario,
 )
 
 if TYPE_CHECKING:
@@ -246,6 +248,9 @@ class Simulation:
            hiciera durante el paso 4, un agente que aún no se ha movido
            generaría un encuentro en un lugar que está a punto de abandonar.
         """
+        # Una partida acabada no tiene reloj: el final es estado, no una pausa (19).
+        if self.state.finished is not None:
+            return
         self.state.tick += 1
         self._expire_situations()
         self._fire_triggers()
@@ -259,6 +264,20 @@ class Simulation:
         for agent in self.state.agents_in_order():
             self._resolve(agent)
         self._detect_encounters()
+        self._cerrar_si_queda_uno()
+
+    def _cerrar_si_queda_uno(self) -> None:
+        """Si queda uno solo en pie, la partida acaba con él (unidad 19). Solo con
+        `last_standing`: sin esa sección, nadie acaba nada. Si no queda nadie (no
+        debería pasar), no se cierra y no se rompe."""
+        ending = self.pack.ending
+        if (ending is None or not ending.last_standing or self.state.finished is not None
+                or len(self.state.agents) != 1):
+            return
+        ganador = next(iter(self.state.agents))
+        self.state.finished = (ganador, self.state.tick)
+        self.log.emit(tick=self.state.tick, kind=EventKind.GAME_ENDED, actor=ganador,
+                      place=self.state.agents[ganador].at)
 
     # -------------------------------------------------------------------------
     # Relaciones
@@ -483,13 +502,28 @@ class Simulation:
             for need_id, llevan in sorted(agent.agonia.items())
             if llevan >= specs[need_id].lethal_after > 0
         ]
-        for quien, need_id in sorted(condenados):
+        # Empate final (unidad 19): si los que se condenan en esta vuelta son todos
+        # los que quedan, el orden lo pone un sorteo por clave y no el id. Quien
+        # vaya último se salva por la regla de `morir`, así que el sorteo decide
+        # quién gana. Fuera de ese caso, el orden de siempre.
+        vivos = set(self.state.agents)
+        ending = self.pack.ending
+        if ending is not None and ending.last_standing and vivos <= {q for q, _ in condenados}:
+            condenados.sort(key=lambda par: (
+                _sorteo_de_destinatario(self.state.rng.seed, par[0], self.state.tick, par[0]),
+                par,
+            ))
+        else:
+            condenados.sort()
+        for quien, need_id in condenados:
             # Puede haber muerto ya por otro eje en esta misma vuelta: quien se
             # muere de sed y de hambre a la vez se muere una vez.
             if quien in self.state.agents:
                 self.morir(quien, porque=str(need_id))
 
-    def morir(self, quien: AgentId, porque: str = "a mano") -> None:
+    def morir(
+        self, quien: AgentId, porque: str = "a mano", por_quien: AgentId | None = None,
+    ) -> None:
         """Alguien deja de estar. **La primera pérdida que el motor sabe causar.**
 
         Se llama `morir` y no `matar` a propósito: la muerte es *una* causa de
@@ -542,6 +576,11 @@ class Simulation:
         noticia es el paso siguiente, y hasta que exista, *enterarse* es
         instantáneo para todo el que tuviera vínculo.
         """
+        # El último en pie no muere: es la única puerta de «siempre hay un ganador»
+        # (unidad 19), y por eso va antes que nada, incluso antes de buscarlo.
+        ending = self.pack.ending
+        if ending is not None and ending.last_standing and len(self.state.agents) == 1:
+            return
         difunto = self.state.agents.get(quien)
         if difunto is None:
             raise KeyError(
@@ -549,6 +588,20 @@ class Simulation:
                 f"{'Ya murió' if self.state.existe(quien) else 'Nunca existió'}."
             )
         donde = difunto.at
+        # Quién la causó (unidad 19): el que lo indica, o quien le pegó la condición
+        # más reciente con autor. El aprecio se mide ANTES de borrar a nadie.
+        autor = por_quien if por_quien is not None else next(
+            (c.por_quien for c in reversed(difunto.condiciones) if c.por_quien is not None),
+            None,
+        )
+        if autor is not None and autor != quien:
+            asesino = self.state.agents.get(autor)
+            aprecio = 0.0 if asesino is None else asesino.regard_for(
+                quien, self.state.tick, asesino.temperament.bond_fade,
+                asesino.relation_floor(self.pack, quien),
+            )
+            self.state.bajas.setdefault(autor, []).append(
+                Baja(quien, self.state.tick, aprecio))
         memoria = self.state.memoria
         tuning = self.pack.tuning
         # La del APRECIO, no la general: son dos escalas distintas y meterlas
@@ -2986,7 +3039,7 @@ class Simulation:
             if c.inflicts is not None:
                 self._infligir(quien, c.inflicts, porque="combate", por_quien=rival.get(c.agent))
             if c.fate is Fate.DEAD:
-                self.morir(c.agent, porque="combate")
+                self.morir(c.agent, porque="combate", por_quien=rival.get(c.agent))
                 continue
             if quien is otro and c.fate is not Fate.STANDING and otro.busy is not None:
                 self._emit(EventKind.ACTION_ABORTED, otro, action=current_intent(otro),

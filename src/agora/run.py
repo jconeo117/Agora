@@ -51,6 +51,7 @@ from agora.play import (
     Terminal,
     TerminalCombat,
     play,
+    resumen_del_final,
 )
 from agora.rules.binding import BindingSpec, load_binding
 from agora.rules.derive import census, derive, duel
@@ -349,6 +350,9 @@ def _correr(
               f"de {salto.dias_pedidos}  ({salto.ahorro:.1f}x)")
     else:
         sim.run(ticks)
+        # Sin jugador, la partida para sola al acabar, y se dice quién ganó (unidad 19).
+        for linea in resumen_del_final(sim, None):
+            print(linea)
 
     if not args.quiet:
         for line in render_log(pack, sim.log, sim.state.censo):
@@ -412,9 +416,17 @@ def _jugar(sim: Simulation, args: argparse.Namespace, ticks: int) -> None:
         sim.encounter_resolver = _resolutor(sim, args, combate, escena)
         sim.social_resolver = _engano(sim, args)
         resultado = play(sim, fuente, ticks, terminal)
-    if terminal is not None and resultado.reason == "muerte":
+    if terminal is not None and resultado.reason in ("muerte", "victoria"):
         terminal.farewell()
     print(f"\n# fin de la partida: {resultado.reason}, {resultado.ticks} ticks jugados")
+    if resultado.reason == "muerte" and sim.pack.ending is not None and sim.state.finished is None:
+        # El mundo sigue sin ti, sin preguntar ni narrar: se corre hasta que acabe o se
+        # agoten los días pedidos (unidad 19). Avisa antes, para que no parezca colgado.
+        print("# el mundo sigue sin ti…")
+        sim.run(ticks - resultado.ticks)
+    if sim.state.finished is not None:
+        for linea in resumen_del_final(sim, sim.state.player):
+            print(linea)
 
 
 def _interprete(args: argparse.Namespace) -> OpenAICompatibleProvider | None:

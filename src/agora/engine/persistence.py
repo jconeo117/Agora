@@ -52,6 +52,7 @@ from agora.engine.ontology import (
 from agora.engine.pack import ContentPack
 from agora.engine.state import (
     AgentState,
+    Baja,
     Bond,
     Condicion,
     Faccion,
@@ -245,6 +246,16 @@ def save(
         "focus": None if world.focus is None else str(world.focus),
         # Quién decide desde fuera (unidad 10): por lo mismo que el foco.
         "player": None if world.player is None else str(world.player),
+        # El final (unidad 19): quién ganó y en qué tick. Sin esto, reanudar una
+        # partida acabada la volvería a correr.
+        "finished": None if world.finished is None else [
+            str(world.finished[0]), world.finished[1]],
+        # Las bajas de cada autor (unidad 19), para el resumen. Un guardado anterior
+        # no las trae: se leen vacías.
+        "bajas": {
+            str(autor): [[str(b.victima), b.tick, b.aprecio] for b in lista]
+            for autor, lista in sorted(world.bajas.items())
+        },
         # Sin esto, al reanudar se emitiria un encuentro por cada par que ya
         # estaba junto: el mundo cargado se saludaria entero de golpe.
         "together": sorted([str(a), str(b)] for a, b in together),
@@ -746,6 +757,17 @@ def load(
     world.player = (
         AgentId(jugador) if jugador is not None and AgentId(jugador) in world.agents else None
     )
+    # El final y las bajas (unidad 19). Un guardado anterior no los trae.
+    final = datos.get("finished")
+    world.finished = (
+        None if final is None else (AgentId(str(final[0])), int(final[1]))
+    )
+    world.bajas = {
+        AgentId(str(autor)): [
+            Baja(AgentId(str(v)), int(t), float(a)) for v, t, a in lista
+        ]
+        for autor, lista in datos.get("bajas", {}).items()
+    }
 
     together = {(AgentId(a), AgentId(b)) for a, b in datos["together"]}
     return world, together, int(datos.get("seq", 0))

@@ -18247,8 +18247,6 @@ situations:
 - id: sin_tregua
   label: sin tregua
   personal: true
-  effects:
-    seguridad: -0.005
 - id: arena_final
   label: ya no hay treguas
   starts_at: 576
@@ -18274,6 +18272,8 @@ newcomer:
   edad_inicial: 587520
 starting_items:
   racion: 2
+ending:
+  last_standing: true
 voice:
   identity_traits: []
   character_traits:

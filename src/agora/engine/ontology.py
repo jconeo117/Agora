@@ -2164,6 +2164,17 @@ class PhaseSpec(Spec):
     """
 
 
+class EndingSpec(Spec):
+    """Cómo acaba una partida (unidad 19). Sin la sección, el mundo no acaba nunca
+    y ningún camino nuevo se activa.
+
+    `last_standing`: queda uno y gana. Con esto, morir no mata al último que queda:
+    es la única puerta, y el mundo siempre tiene un ganador.
+    """
+
+    last_standing: bool = False
+
+
 class ClockSpec(Spec):
     """Cómo se traduce un tick a tiempo del mundo.
 

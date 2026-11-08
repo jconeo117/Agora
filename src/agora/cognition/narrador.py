@@ -284,6 +284,10 @@ def select(
                             if e.data.get("testigo")
                             else f"te enteras de que {muerto}, a quien conocías, ha muerto")
                     add(5 if e.data.get("testigo") else 4, e, text, (muerto,), (DEATH,))
+                case EventKind.GAME_ENDED:
+                    # Solo llega aquí si el ganador es quien juega: el final de otro
+                    # lo cuenta `run`, con su nombre (unidad 19).
+                    add(6, e, "eres el último en pie")
                 case EventKind.RELATION_BEGAN if e.subject is not None:
                     rel = pack.relation_by_id.get(e.data.get("relation"))  # type: ignore[call-overload]
                     etiqueta = rel.label if rel is not None else str(e.data.get("relation"))

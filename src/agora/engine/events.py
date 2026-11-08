@@ -183,6 +183,10 @@ class EventKind(StrEnum):
     No es `PROPERTY_CREATED` ni `PROPERTY_ENDED`: el objeto no nace ni se acaba,
     cambia de manos. El log es la verdad y el narrador cuenta el movimiento."""
 
+    GAME_ENDED = "game_ended"
+    """La partida acaba: queda uno solo en pie (unidad 19). `actor` es el ganador.
+    Se emite una vez; a partir de ahí el reloj no avanza."""
+
 
 @dataclass(frozen=True, slots=True)
 class Event:

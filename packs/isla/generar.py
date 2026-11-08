@@ -326,7 +326,9 @@ def pack() -> dict:
             # los dos últimos se aprecian 1.0 y atacar exige aprecio <= 0.05: sin
             # esto dormían juntos para siempre (calibración I-011). La condición
             # es la puerta de `luchar_a_muerte`: antes de esto, no está en el menú.
-            {"id": "sin_tregua", "label": "sin tregua", "personal": True, "effects": {"seguridad": -0.005}},
+            # Sin efecto de relleno (19): es la puerta de `luchar_a_muerte`, y el
+            # validador ya cuenta eso como uso.
+            {"id": "sin_tregua", "label": "sin tregua", "personal": True},
             {"id": "arena_final", "label": "ya no hay treguas", "starts_at": FINAL * DIA,
              "every": 360 * DIA, "lasts": 300 * DIA, "places": ["cornucopia"],
              "inflicts": {"situation": "sin_tregua", "lasts": 300 * DIA}},
@@ -336,6 +338,8 @@ def pack() -> dict:
         "newcomer": {"home": por_anillo[1][0], "start_at": "pedestal_12", "edad_inicial": DIA * 360 * 17},
         # Lo que se lleva al empezar: dos raciones, los 0.2 de antes (16b).
         "starting_items": {"racion": 2},
+        # Queda uno y gana: la partida acaba con un ganador (unidad 19).
+        "ending": {"last_standing": True},
         "voice": {
             "identity_traits": [],
             "character_traits": list(CARACTER) + ["piedad", "arrojo"],

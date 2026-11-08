@@ -1907,6 +1907,18 @@ class DetailLevel(StrEnum):
     MEDIUM = "medio"
 
 
+@dataclass(frozen=True, slots=True)
+class Baja:
+    """Una muerte de la que alguien es el autor (unidad 19).
+
+    `aprecio` es lo que el autor sentía por la víctima al matarla: con uno alto,
+    la baja es una traición. Cero si el autor ya no estaba para medirlo."""
+
+    victima: AgentId
+    tick: int
+    aprecio: float
+
+
 @dataclass(slots=True)
 class WorldState:
     pack: ContentPack
@@ -2016,6 +2028,15 @@ class WorldState:
     """Quién decide desde fuera (unidad 10). Es estado y viaja en el guardado:
     una partida reanudada sin saber quién era el jugador lo pondría a decidir
     por `decide()`, y sería otro mundo sin que nadie lo notara."""
+
+    finished: tuple[AgentId, int] | None = None
+    """Quién ganó y en qué tick, si la partida ya acabó (unidad 19). `None` mientras
+    siga. Con él puesto, `tick()` no avanza el reloj: el final es estado."""
+
+    bajas: dict[AgentId, list[Baja]] = field(default_factory=dict)
+    """A quién mató cada cual, en orden (unidad 19). La clave es el autor; la
+    lista, sus víctimas. Solo lo escribe `morir`, y no emite nada: el resumen del
+    final lo lee de aquí."""
 
     @property
     def seed(self) -> int:

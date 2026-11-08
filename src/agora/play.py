@@ -836,7 +836,8 @@ class Terminal:
 class PlayResult:
     ticks: int
     reason: str
-    """«fin» (se acabaron los días), «muerte» o «salir»."""
+    """«fin» (se acabaron los días sin que nadie ganara), «muerte», «salir» o
+    «victoria» (la partida acabó y quien juega es el último en pie, unidad 19)."""
 
 
 def play(sim: Simulation, source: DecisionSource, max_ticks: int,
@@ -848,14 +849,57 @@ def play(sim: Simulation, source: DecisionSource, max_ticks: int,
         raise ValueError("esta partida no tiene jugador")
     sim.player_source = source
     for hecho in range(max_ticks):
+        if sim.state.finished is not None:
+            return _cierre(sim, hecho)
         if sim.state.player not in sim.state.agents:
             return PlayResult(hecho, "muerte")
         if quitting is not None and quitting.quit:
             return PlayResult(hecho, "salir")
         sim.tick()
+    if sim.state.finished is not None:
+        return _cierre(sim, max_ticks)
     if sim.state.player not in sim.state.agents:
         return PlayResult(max_ticks, "muerte")
     return PlayResult(max_ticks, "fin")
+
+
+def _cierre(sim: Simulation, hecho: int) -> PlayResult:
+    """Cómo acabó la partida para quien juega. Si ganó otro y el jugador ya no
+    está, es una muerte: lo que queda del mundo lo corre `run` sin él."""
+    ganador = sim.state.finished[0] if sim.state.finished is not None else None
+    if ganador == sim.state.player:
+        return PlayResult(hecho, "victoria")
+    if sim.state.player not in sim.state.agents:
+        return PlayResult(hecho, "muerte")
+    return PlayResult(hecho, "fin")
+
+
+def resumen_del_final(sim: Simulation, jugador: AgentId | None) -> list[str]:
+    """Lo que queda de la partida, en líneas (unidad 19): quién ganó y cuándo, los
+    días que duró quien juega, a quiénes mató y a quiénes traicionó. Una traición
+    es una baja suya a quien apreciaba ≥ 0.2 al matarle."""
+    tpd = sim.pack.clock.ticks_per_day
+    lineas: list[str] = []
+    nombre = {str(a): spec.label.split(",")[0] for a, spec in sim.state.censo.items()}
+    if sim.state.finished is not None:
+        ganador, tick = sim.state.finished
+        lineas.append(f"# ganó {nombre.get(str(ganador), str(ganador))}, "
+                      f"el día {tick // tpd + 1}")
+    if jugador is None:
+        return lineas
+    muerte = next((e.tick for e in sim.log if e.kind is EventKind.AGENT_DIED
+                   and e.subject == jugador), None)
+    fin = sim.state.tick if muerte is None else muerte
+    lineas.append(f"# duraste {fin // tpd + 1} días")
+    bajas = sim.state.bajas.get(jugador, [])
+    if bajas:
+        lineas.append("# a quién mataste: " + ", ".join(
+            nombre.get(str(b.victima), str(b.victima)) for b in bajas))
+    traiciones = [b for b in bajas if b.aprecio >= 0.2]
+    if traiciones:
+        lineas.append("# a quién traicionaste: " + ", ".join(
+            nombre.get(str(b.victima), str(b.victima)) for b in traiciones))
+    return lineas
 
 
 # --- La escena de combate (unidad 13) ---------------------------------------------

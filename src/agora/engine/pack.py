@@ -31,6 +31,7 @@ from agora.engine.ontology import (
     AgentId,
     AgentSpec,
     ClockSpec,
+    EndingSpec,
     FactionKindId,
     FactionKindSpec,
     GoalId,
@@ -107,6 +108,10 @@ class ContentPack(Spec):
     situations: tuple[SituationSpec, ...] = ()
     """Cómo puede estar el mundo. Vacío = el mundo no tiene estados, y entonces
     todo lo que dependa de ellos queda inerte, igual que sin franjas."""
+
+    ending: EndingSpec | None = None
+    """Cómo acaba la partida (unidad 19). `None` = no acaba: la simulación sigue
+    mientras se le pida, como siempre."""
 
     clock: ClockSpec = Field(default_factory=ClockSpec)
     """Cómo se leen los ticks. Solo lo usa la presentación; el motor cuenta
@@ -1405,6 +1410,14 @@ class ContentPack(Spec):
         """
         con_efecto = {str(s) for a in self.actions for s in a.situation_multipliers}
         con_efecto |= {str(s) for p in self.places for s in p.closed_during}
+        # Una situación que es puerta de una acción sí hace algo (unidad 19): sin
+        # su efecto de relleno, `sin_tregua` es lo que decide quién puede ser atacado.
+        con_efecto |= {
+            str(a.target.requires_condition) for a in self.actions
+            if a.target is not None and a.target.requires_condition is not None
+        }
+        con_efecto |= {str(a.forbids_condition) for a in self.actions
+                       if a.forbids_condition is not None}
         return [
             f"situación {situation.id!r}: no la menciona ninguna acción, no cierra "
             f"ningún lugar, no cambia lo que rinde nada y no le hace nada a nadie; "
