@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Callable
 from contextlib import ExitStack
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -45,6 +47,7 @@ from agora.engine.world import Simulation
 from agora.health import check, divergence, measure
 from agora.play import (
     CombatRecorder,
+    PlayResult,
     Recorder,
     Script,
     ScriptCombat,
@@ -77,7 +80,10 @@ DEFAULT_RULES = Path("rules/base/rules.yaml")
 """El sistema de rol de la mesa (D-153). Hoy hay uno: el borrador 1."""
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
+    """Los argumentos de la CLI, en una función: la web (`agora --ui`) toma de aquí
+    sus valores por omisión, para que una partida en el navegador sea la misma que
+    `--jugar` en la terminal."""
     parser = argparse.ArgumentParser(description="Simulador social Agora")
     parser.add_argument("--pack", type=Path, default=DEFAULT_PACK)
     parser.add_argument("--seed", type=int, default=1312)
@@ -251,11 +257,28 @@ def main() -> None:
     parser.add_argument("--escenario", type=Path, default=None, metavar="F",
                         help="con --combates: simula este escenario y da su informe")
     parser.add_argument(
+        "--ui", action="store_true",
+        help="la mesa en el navegador: un servidor local en 127.0.0.1 y la partida en la página",
+    )
+    parser.add_argument("--puerto", type=int, default=8765, metavar="N",
+                        help="con --ui: el puerto del servidor local")
+    parser.add_argument(
         "--relato", type=int, default=None, metavar="I",
         help="con --escenario: cuenta el encuentro número I, hecho a hecho",
     )
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
     args = parser.parse_args()
 
+    if args.ui:
+        # Antes de cargar ningún pack: cada partida de la web carga el suyo.
+        from agora.ui.server import servir
+
+        servir(args.puerto)
+        return
     if args.montecarlo:
         _report_montecarlo(load_ruleset(args.reglas), args.montecarlo, args.seed)
         return
@@ -387,46 +410,88 @@ def _correr(
         _hablar(sim, args)
 
 
-def _jugar(sim: Simulation, args: argparse.Namespace, ticks: int) -> None:
-    """Si la partida tiene jugador, se juega: también al reanudarla."""
-    terminal: Terminal | None = None
-    escena: TerminalCombat | None = None
+@dataclass(frozen=True, slots=True)
+class Cableado:
+    """Quién da la voz a los NPCs, quién entiende lo que escribes y quién cuenta lo
+    que pasa (D-166): tres instancias, ninguna ve lo que dicen las otras. La terminal
+    y la web lo montan igual; lo que cambia es por dónde entra y sale el texto."""
 
-    def ahora() -> int:
-        return sim.state.tick
+    voz: OllamaProvider | OpenAICompatibleProvider | None
+    interprete: OpenAICompatibleProvider | None
+    narrador: Narrator | None
 
-    if args.guion is not None:
-        lineas = args.guion.read_text(encoding="utf-8").splitlines()
-        fuente: DecisionSource = Script(lineas, sim)
-        combate: Policy = ScriptCombat(lineas, ahora)
-    else:
-        proveedor = _voz(args)
-        interprete = _interprete(args)
-        narrador = _narrador(args)
-        terminal = Terminal(sim, sys.stdin, sys.stdout, proveedor, interpreter=interprete,
-                            narrator=narrador)
-        fuente = terminal
-        escena = TerminalCombat(sys.stdin, sys.stdout, interprete, narrador, lambda: sim.state)
-        combate = escena
+
+def cablear(args: argparse.Namespace) -> Cableado:
+    return Cableado(_voz(args), _interprete(args), _narrador(args))
+
+
+def correr_partida(
+    sim: Simulation,
+    args: argparse.Namespace,
+    ticks: int,
+    *,
+    fuente: DecisionSource,
+    combate: Policy,
+    escena: TerminalCombat | None,
+    terminal: Terminal | None,
+    grabar: Path | None,
+) -> PlayResult:
+    """La partida, igual en la terminal, en el guion y en la web: quién decide, quién
+    pelea y qué se graba. Lo que se enseña al acabar lo decide quien llama."""
     with ExitStack() as stack:
-        if args.grabar is not None:
-            grabacion = stack.enter_context(args.grabar.open("a", encoding="utf-8"))
+        if grabar is not None:
+            grabacion = stack.enter_context(grabar.open("a", encoding="utf-8"))
             fuente = Recorder(fuente, grabacion, sim)
-            combate = CombatRecorder(combate, grabacion, ahora)
+            combate = CombatRecorder(combate, grabacion, lambda: sim.state.tick)
         sim.encounter_resolver = _resolutor(sim, args, combate, escena)
         sim.social_resolver = _engano(sim, args)
         resultado = play(sim, fuente, ticks, terminal)
     if terminal is not None and resultado.reason in ("muerte", "victoria"):
         terminal.farewell()
-    print(f"\n# fin de la partida: {resultado.reason}, {resultado.ticks} ticks jugados")
+    return resultado
+
+
+def seguir_sin_jugador(
+    sim: Simulation, ticks: int, resultado: PlayResult, aviso: Callable[[str], None]
+) -> None:
+    """Si el jugador murió y el final aún no ha llegado, el mundo sigue sin él, sin
+    preguntar ni narrar, hasta que acabe o se agoten los días pedidos (unidad 19).
+    Avisa antes, para que no parezca colgado."""
     if resultado.reason == "muerte" and sim.pack.ending is not None and sim.state.finished is None:
-        # El mundo sigue sin ti, sin preguntar ni narrar: se corre hasta que acabe o se
-        # agoten los días pedidos (unidad 19). Avisa antes, para que no parezca colgado.
-        print("# el mundo sigue sin ti…")
+        aviso("# el mundo sigue sin ti…")
         sim.run(ticks - resultado.ticks)
-    if sim.state.finished is not None:
-        for linea in resumen_del_final(sim, sim.state.player):
-            print(linea)
+
+
+def resumen_de_la_partida(sim: Simulation) -> list[str]:
+    """Lo que se dice al final, si hubo final (unidad 19)."""
+    if sim.state.finished is None:
+        return []
+    return resumen_del_final(sim, sim.state.player)
+
+
+def _jugar(sim: Simulation, args: argparse.Namespace, ticks: int) -> None:
+    """Si la partida tiene jugador, se juega: también al reanudarla."""
+    if args.guion is not None:
+        lineas = args.guion.read_text(encoding="utf-8").splitlines()
+        resultado = correr_partida(
+            sim, args, ticks, fuente=Script(lineas, sim),
+            combate=ScriptCombat(lineas, lambda: sim.state.tick),
+            escena=None, terminal=None, grabar=args.grabar,
+        )
+    else:
+        cab = cablear(args)
+        terminal = Terminal(sim, sys.stdin, sys.stdout, cab.voz, interpreter=cab.interprete,
+                            narrator=cab.narrador)
+        escena = TerminalCombat(sys.stdin, sys.stdout, cab.interprete, cab.narrador,
+                                lambda: sim.state)
+        resultado = correr_partida(
+            sim, args, ticks, fuente=terminal, combate=escena, escena=escena,
+            terminal=terminal, grabar=args.grabar,
+        )
+    print(f"\n# fin de la partida: {resultado.reason}, {resultado.ticks} ticks jugados")
+    seguir_sin_jugador(sim, ticks, resultado, print)
+    for linea in resumen_de_la_partida(sim):
+        print(linea)
 
 
 def _interprete(args: argparse.Namespace) -> OpenAICompatibleProvider | None:

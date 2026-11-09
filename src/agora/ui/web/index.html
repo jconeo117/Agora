@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>La mesa</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="barra">
+    <span class="titulo">La mesa</span>
+    <span id="cabecera" class="cabecera"></span>
+    <button id="nueva" class="sec" hidden>Otra partida</button>
+  </header>
+
+  <section id="inicio" class="inicio">
+    <form id="form-inicio" class="tarjeta">
+      <h1>Empezar una partida</h1>
+      <label>Mundo
+        <select id="mundo"></select>
+      </label>
+      <fieldset>
+        <legend>Personaje</legend>
+        <div id="personajes" class="lista"></div>
+      </fieldset>
+      <fieldset id="bloque-forasteros" hidden>
+        <legend>Forastero</legend>
+        <div id="forasteros" class="lista"></div>
+      </fieldset>
+      <label>Semilla
+        <input id="semilla" type="number" min="0" value="1" required>
+      </label>
+      <fieldset>
+        <legend>Voz</legend>
+        <label><input type="radio" name="modelo" value="1" checked> con modelo</label>
+        <label><input type="radio" name="modelo" value="0"> solo plantillas</label>
+      </fieldset>
+      <button type="submit" class="primario">Empezar</button>
+      <p id="error-inicio" class="error" hidden></p>
+    </form>
+  </section>
+
+  <main id="partida" class="partida" hidden>
+    <section id="relato" class="relato" aria-live="polite"></section>
+
+    <aside class="lateral">
+      <section id="hoja" class="hoja"></section>
+      <section class="tapete">
+        <div id="combate" class="combate"></div>
+        <div id="dados" class="dados"></div>
+        <div id="desenlace" class="desenlace"></div>
+      </section>
+    </aside>
+
+    <footer class="entrada">
+      <div id="atajos" class="atajos"></div>
+      <div id="respuestas" class="respuestas"></div>
+      <form id="form-entrada" class="fila-entrada">
+        <input id="texto" type="text" autocomplete="off" placeholder="escribe lo que haces" disabled>
+        <button id="enviar" type="submit" disabled>Enviar</button>
+      </form>
+      <div id="pensando" class="pensando" hidden>el narrador piensa…</div>
+    </footer>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -17,6 +17,9 @@ PLAN.md
 *.json
 !packs/**/*.json
 
+# Partidas jugadas en la web (`agora --ui`), grabadas como guion: estado, no producto.
+partidas/
+
 # Documentacion y registro de proceso. Viven en su propio repositorio, local:
 # `.claude/` tiene su historial aparte y no se publica. `CLAUDE.md`, `docs` y
 # `PLAN.md` son enlaces a archivos de dentro, para que sigan donde se los espera.
