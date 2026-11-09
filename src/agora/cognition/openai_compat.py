@@ -132,6 +132,9 @@ class OpenAICompatibleProvider:
         try:
             with _open(peticion, timeout=self.plazo) as r:
                 texto = json.loads(r.read())["choices"][0]["message"]["content"]
+            if schema is str:
+                # Prosa sola (20a): el contenido tal cual, o nada si vino vacío.
+                return (texto or "").strip() or None
             datos: object = json.loads(texto)
             return datos if modelo is None else modelo.model_validate(datos)
         except (urllib.error.URLError, TimeoutError, OSError, KeyError, IndexError, TypeError,

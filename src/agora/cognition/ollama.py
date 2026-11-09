@@ -33,12 +33,14 @@ class OllamaProvider:
         contestó «salir» a «remato al herido»."""
 
     def think(self, briefing: str, schema: type, semilla: int) -> object | None:
-        formato: object = (
+        # Prosa sola (20a): sin `format`, el modelo contesta texto libre.
+        formato: object | None = (
             schema.model_json_schema() if isinstance(schema, type) and issubclass(schema, BaseModel)
-            else "json"
+            else None if schema is str else "json"
         )
         cuerpo = json.dumps({
-            "model": self.modelo, "prompt": briefing, "format": formato, "stream": False,
+            "model": self.modelo, "prompt": briefing, "stream": False,
+            **({"format": formato} if formato is not None else {}),
             "options": {"temperature": self.temperatura, "seed": semilla, "num_predict": 160,
                         "num_ctx": self.contexto},
         }).encode()
@@ -48,6 +50,8 @@ class OllamaProvider:
         try:
             with urllib.request.urlopen(peticion, timeout=self.timeout) as r:
                 respuesta = json.loads(r.read())["response"]
+            if schema is str:
+                return (respuesta or "").strip() or None
             datos: object = json.loads(respuesta)
             if isinstance(schema, type) and issubclass(schema, BaseModel):
                 return schema.model_validate(datos)

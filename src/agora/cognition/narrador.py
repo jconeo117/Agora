@@ -698,11 +698,19 @@ class Told:
 
 
 def narrate(m: Moment, providers: Sequence[CognitionProvider], seed: int) -> Told:
+    """La prosa se pide entera y sola (20a): el modelo devuelve el texto, no un
+    JSON que hubiera que desenvolver. Se valida igual que antes (longitud y
+    nombres de fuera); lo que no pase, lo cuenta el siguiente proveedor, o la
+    plantilla. `Narration` se acepta por quien aún la devuelva."""
     texto = briefing(m)
     for i, p in enumerate(providers):
-        out = p.think(texto, Narration, seed)
-        if isinstance(out, Narration) and not strangers(m, out.prosa):
-            return Told(out.prosa, i)
+        out = p.think(texto, str, seed)
+        prosa = out.prosa if isinstance(out, Narration) else out if isinstance(out, str) else None
+        if prosa is None:
+            continue
+        prosa = prosa.strip()
+        if 1 <= len(prosa) <= 1200 and not strangers(m, prosa):
+            return Told(prosa, i)
     return Told(fallback(m), None)
 
 

@@ -15,6 +15,6 @@ presente, en {frases}. Reglas:
 - No decides por el jugador, no le dices qué hacer ni le preguntas qué hace.
 - Nada de números ni de nombres de reglas.
 - Frases cortas y concretas, de mesa, no de novela.{velos}
-Responde con un JSON: {{"prosa": "..."}}.
+Responde solo con la prosa, sin comillas ni JSON.
 
 {contexto}

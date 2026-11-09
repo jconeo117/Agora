@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import json
 import math
-import textwrap
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TextIO
@@ -39,17 +38,14 @@ from agora.cognition.narrador import (
     Fact,
     Narrator,
     Table,
-    Told,
     name_of,
     round_facts,
 )
 from agora.cognition.voz import Heard, hablar
-from agora.engine.consulta import ficha
 from agora.engine.events import EventKind
 from agora.engine.ontology import (
     AgentId,
     ClaimKind,
-    ItemId,
     NeedId,
     PlaceId,
     PropertyId,
@@ -59,8 +55,50 @@ from agora.engine.ontology import (
 from agora.engine.ports import Outcome
 from agora.engine.render import render_event
 from agora.engine.social import Claim, Conversation
-from agora.engine.state import AgentState, PerformingAction, Propiedad, Traveling, WorldState
+from agora.engine.state import AgentState, PerformingAction, Traveling, WorldState
 from agora.engine.world import Simulation
+from agora.present import (
+    PALABRAS_TIRADA as PALABRAS_TIRADA,
+)
+from agora.present import (
+    SIN_MODELO as SIN_MODELO,
+)
+from agora.present import (
+    SIN_NARRADOR as SIN_NARRADOR,
+)
+from agora.present import (
+    Presenter as Presenter,
+)
+from agora.present import (
+    RollView as RollView,
+)
+from agora.present import (
+    TextPresenter as TextPresenter,
+)
+from agora.present import (
+    confirms as confirms,
+)
+from agora.present import (
+    dice_line as dice_line,
+)
+from agora.present import (
+    fighter_view as fighter_view,
+)
+from agora.present import (
+    nombre_objeto as nombre_objeto,
+)
+from agora.present import (
+    picks as picks,
+)
+from agora.present import (
+    roll_line as roll_line,
+)
+from agora.present import (
+    sheet_view as sheet_view,
+)
+from agora.present import (
+    show as show,
+)
 from agora.rules.encounter import Action, ActionKind, Beat, Encounter, Fighter, Policy
 
 if TYPE_CHECKING:
@@ -232,45 +270,8 @@ AYUDA = """  número       elegir esa opción
   o escribe lo que haces: «me escondo en el arroyo», «¿quién hay aquí?»"""
 
 
-SIN_MODELO = "  (el intérprete no contestó: entiende el léxico)"
-"""Como el «(respaldo)» de la voz: que el jugador sepa por qué de pronto se
-le entiende peor. Sin esto, una API sin créditos pasaba por un léxico mudo."""
-
-
-SIN_NARRADOR = "  (el narrador no contestó: lo cuenta la plantilla)"
-
-
-def show(out: TextIO, told: Told, chain: bool) -> None:
-    """La prosa del narrador, a lo ancho de una terminal. `chain`: si había
-    algún modelo al que preguntar, para avisar cuando ninguno contestó."""
-    for linea in textwrap.wrap(told.text, width=88):
-        out.write(f"  {linea}\n")
-    if chain and told.by is None:
-        out.write(SIN_NARRADOR + "\n")
-    out.flush()
-
-
-PALABRAS_TIRADA = {
-    Outcome.FAILURE: "falla",
-    Outcome.SUCCESS_AT_COST: "éxito con coste",
-    Outcome.SUCCESS: "éxito",
-    Outcome.CRITICAL: "crítico",
-}
-
-
-def dice_line(
-    actor: str, pool_label: str, dice: Sequence[int], opposing: str | None,
-    opposing_label: str | None, opposing_dice: Sequence[int], outcome: Outcome,
-) -> str:
-    """Los dados a la vista, en una línea (unidad 18): quién tiró cuántos contra
-    qué, y cómo acabó. `opposing_label` es la frase entera antes del nombre
-    («la defensa de»), porque cada sistema lo dice a su manera."""
-    tiros = f"[{' '.join(str(d) for d in dice)}]"
-    cuerpo = f"{actor}, {pool_label} ({len(dice)})"
-    if opposing is not None:
-        cuerpo += f" contra {opposing_label} {opposing} ({len(opposing_dice)})"
-        tiros += f" contra [{' '.join(str(d) for d in opposing_dice)}]"
-    return f"🎲 {cuerpo}: {tiros} → {PALABRAS_TIRADA[outcome]}"
+# La pantalla vive en `present.py` (D-174). Se reexporta aquí: los nombres de
+# siempre siguen importables desde `play`.
 
 
 VERBOS = 5
@@ -308,31 +309,7 @@ def world_menu(world: WorldState, options: Sequence[Decision]) -> Menu:
     )
 
 
-def confirms(inp: TextIO, out: TextIO, texto: str) -> bool:
-    """El eco de lo entendido cuando va contra alguien. En el banco, «me ocupo
-    de Vidan» acabó en rematarle con los dos modelos de 70B. Enter es que sí."""
-    out.write(f"  entiendo: {texto}. ¿Sí? [S/n] ")
-    out.flush()
-    return not inp.readline().strip().lower().startswith("n")
-
-
-def _nombre_objeto(world: WorldState, p: Propiedad) -> str:
-    """Cómo se nombra un objeto en la terminal: lo que el pack dice de su tipo."""
-    spec = world.pack.item_by_id[ItemId(p.objeto)]
-    return spec.narration or spec.label
-
-
-def picks(inp: TextIO, out: TextIO, pregunta: str, textos: Sequence[str]) -> int | None:
-    """Elegir entre las candidatas del intérprete por letra, para no chocar con
-    los números del menú. Cualquier otra cosa es ninguna."""
-    letras = "abc"[: len(textos)]
-    out.write(pregunta + "\n")
-    for letra, texto in zip(letras, textos, strict=False):
-        out.write(f"    {letra}) {texto}\n")
-    out.write("  ¿cuál? ")
-    out.flush()
-    r = inp.readline().strip().lower()
-    return letras.index(r) if len(r) == 1 and r in letras else None
+_nombre_objeto = nombre_objeto
 
 
 HABLAR = "hablar"
@@ -355,10 +332,13 @@ class Terminal:
         page: int = 12,
         interpreter: CognitionProvider | None = None,
         narrator: Narrator | None = None,
+        presenter: Presenter | None = None,
     ) -> None:
         self.sim = sim
         self.inp = inp
         self.out = out
+        self.p: Presenter = presenter if presenter is not None else TextPresenter(inp, out)
+        """Por dónde se enseña y se pregunta todo (D-174): la terminal, o la web."""
         self.provider = provider
         """La voz de los NPCs."""
         self.interpreter = interpreter
@@ -380,13 +360,12 @@ class Terminal:
         """Las personas de la última lista de «hablar»: un número abre con una."""
 
     def _decir(self, texto: str) -> None:
-        self.out.write(texto + "\n")
-        self.out.flush()
+        """Un aviso suelto. Lo que tiene clase propia (suceso, opción, tirada…) va
+        por su método del presentador, no por aquí."""
+        self.p.note(texto)
 
     def _leer(self, prompt: str) -> str:
-        self.out.write(prompt)
-        self.out.flush()
-        linea = self.inp.readline()
+        linea = self.p.ask(prompt)
         if not linea:
             self.quit = True
             return "salir"
@@ -401,8 +380,8 @@ class Terminal:
         if self.narrator is not None:
             nuevos = [e for e in self.sim.log if e.seq >= self._visto]
             self._visto = self.sim.log.siguiente_seq
-            show(self.out, self.narrator.world(world, nuevos, str(agent.spec_id)),
-                 bool(self.narrator.providers))
+            self.p.told(self.narrator.world(world, nuevos, str(agent.spec_id)),
+                        bool(self.narrator.providers))
             return
         for evento in self.sim.log:
             if evento.seq < self._visto:
@@ -413,7 +392,7 @@ class Terminal:
                 evento.subject == agent.spec_id and evento.kind is not EventKind.ENCOUNTER
             )
             if suyo:
-                self._decir("  " + render_event(world.pack, evento, world.censo))
+                self.p.event(render_event(world.pack, evento, world.censo))
         self._visto = self.sim.log.siguiente_seq
 
     def _opcion(self, world: WorldState, n: int, d: Decision) -> str:
@@ -430,8 +409,8 @@ class Terminal:
 
     def _mas(self, world: WorldState, options: tuple[Decision, ...]) -> None:
         pagina, self._resto = self._resto[: self.page], self._resto[self.page:]
-        for n, i in enumerate(pagina, start=len(self._mostrada) + 1):
-            self._decir(self._opcion(world, n, options[i]))
+        self.p.options([(n, self._describir(world, options[i]))
+                        for n, i in enumerate(pagina, start=len(self._mostrada) + 1)])
         self._mostrada += pagina
 
     def _presentes(self, world: WorldState, agent: AgentState) -> list[AgentState]:
@@ -489,7 +468,7 @@ class Terminal:
     def _mirar(self, world: WorldState, agent: AgentState) -> None:
         pack = world.pack
         aqui = [o for o in world.agents_in_order() if o.at == agent.at and o is not agent]
-        self._decir(f"  en {pack.place_by_id[agent.at].label}: {len(aqui)} más")
+        filas: list[tuple[str, str, str]] = []
         for o in aqui:
             match o.busy:
                 case PerformingAction(action=a):
@@ -498,7 +477,8 @@ class Terminal:
                     que = "de paso"
                 case None:
                     que = "sin hacer nada"
-            self._decir(f"    {o.spec_id:<24} {world.censo[o.spec_id].label}: {que}")
+            filas.append((str(o.spec_id), world.censo[o.spec_id].label, que))
+        self.p.look(f"  en {pack.place_by_id[agent.at].label}: {len(aqui)} más", filas)
 
     def choose(
         self, world: WorldState, agent: AgentState, options: tuple[Decision, ...]
@@ -508,7 +488,8 @@ class Terminal:
         if self._esperar > 0:
             self._esperar -= 1
             return None
-        self._decir(f"\n# {world.censo[agent.spec_id].label}, tick {world.tick}")
+        self.p.turn(world.censo[agent.spec_id].label, world.tick)
+        self.p.status(sheet_view(world, agent))
         self._novedades(agent)
         if not options:
             self._decir("  no hay nada que puedas hacer ahora; esperas")
@@ -518,8 +499,7 @@ class Terminal:
         self._mostrada = []
         self._gente = []
         self._resto = []
-        self._decir("¿Qué haces?")
-        self._decir("  atajos: " + " · ".join(verbos))
+        self.p.prompt(verbos)
         while True:
             linea = self._leer("> ")
             orden = linea.split()
@@ -546,8 +526,8 @@ class Terminal:
                     self._mostrada = []
                     self._resto = []
                     self._gente = [str(o.spec_id) for o in presentes]
-                    for n, o in enumerate(presentes, start=1):
-                        self._decir(f"  {n}. {world.censo[o.spec_id].label} ({o.spec_id})")
+                    self.p.people([(n, world.censo[o.spec_id].label, str(o.spec_id))
+                                   for n, o in enumerate(presentes, start=1)])
                 case _ if linea.strip() in verbos:
                     self._listar(world, options, [
                         i for i in vista
@@ -588,12 +568,7 @@ class Terminal:
         otro = AgentId(sobre) if sobre is not None and AgentId(sobre) in world.agents else None
         match orden:
             case Order.SHEET:
-                hechos = (ficha(world, otro, agent.spec_id) if otro is not None
-                          else ficha(world, agent.spec_id))
-                for linea in hechos.lines():
-                    self._decir(linea)
-                if otro is None:
-                    self._equipo(world, agent)
+                self.p.sheet(sheet_view(world, agent, otro))
             case Order.LOOK:
                 self._mirar(world, agent)
             case Order.TALK if otro is not None and world.agents[otro].at == agent.at:
@@ -637,7 +612,7 @@ class Terminal:
         presentes = [(str(o.spec_id), world.censo[o.spec_id].label)
                      for o in world.agents_in_order() if o.at == agent.at and o is not agent]
         dados = [(str(p.id), _nombre_objeto(world, p)) for p in world.objetos_de(agent.spec_id)]
-        pedibles = [(str(p.id), _nombre_objeto(world, p))
+        pedibles = [(str(p.id), nombre_objeto(world, p))
                     for p in world.objetos_de(otro) if not p.equipado]
         menu = talk_menu(presentes, str(otro), dados, pedibles)
         etiquetas = {pid: label for pid, label in presentes} | dict(dados) | dict(pedibles)
@@ -656,7 +631,7 @@ class Terminal:
             if lectura.kind is Kind.ACTION and lectura.entry is not None:
                 entrada = menu.entries[lectura.entry]
             elif lectura.kind in (Kind.AMBIGUOUS, Kind.NO_FIT) and lectura.candidates:
-                cual = picks(self.inp, self.out, "  ¿qué le dices?", [
+                cual = self.p.pick("  ¿qué le dices?", [
                     ACT_HELP[menu.entries[i].action][0]
                     + (f" ({etiquetas[t]})" if (t := menu.entries[i].target) else "")
                     for i in lectura.candidates])
@@ -674,7 +649,7 @@ class Terminal:
                 opciones = [e for e in menu.entries
                             if e.action == entrada.action and e.item is not None]
                 if len(opciones) > 1:
-                    cual = picks(self.inp, self.out, "  ¿cuál?",
+                    cual = self.p.pick("  ¿cuál?",
                                  [etiquetas[str(e.item)] for e in opciones])
                     if cual is None:
                         continue
@@ -713,14 +688,18 @@ class Terminal:
             oido = Heard(frase, heard_as(acto, de_quien), r.tone, r.leaves, talk.count,
                          r.info, r.belief)
             habla, del_modelo, _ = hablar(world, otro, agent.spec_id, self.provider, oido)
-            self._decir(f"  {quien}: «{habla.dice}»  [{habla.tono}]"
-                        + ("" if del_modelo else "  (respaldo)"))
+            self.p.speech(quien, habla.dice, habla.tono, not del_modelo)
             if r.contest is not None and self._dados():
                 tirada = r.contest.resolution
-                self._decir(dice_line(
-                    name_of(world, str(agent.spec_id)), r.contest.actor_label,
-                    tirada.dice, name_of(world, str(otro)),
-                    f"{r.contest.opposing_label} de", tirada.opposing_dice, tirada.outcome))
+                self.p.roll(RollView(
+                    actor=name_of(world, str(agent.spec_id)),
+                    pool_label=r.contest.actor_label,
+                    dice=tuple(tirada.dice),
+                    opposing=name_of(world, str(otro)),
+                    opposing_label=f"{r.contest.opposing_label} de",
+                    opposing_dice=tuple(tirada.opposing_dice),
+                    outcome=tirada.outcome,
+                ))
             if r.leaves:
                 self._decir(f"  ({quien} da la conversación por terminada)")
         accion = world.pack.social.action
@@ -788,13 +767,13 @@ class Terminal:
                 if d.target is None:
                     self._decir(f"  → {descrita}")
                     return True, d
-                return (True, d) if confirms(self.inp, self.out, descrita) else (False, None)
+                return (True, d) if self.p.confirm(descrita) else (False, None)
             case Kind.ORDER if lectura.order is not None:
                 return self._orden(world, agent, lectura.order, lectura.about, options)
             case Kind.AMBIGUOUS | Kind.NO_FIT if lectura.candidates:
                 pregunta = ("  ¿cuál de estas?" if lectura.kind is Kind.AMBIGUOUS
                             else "  eso no se puede ahora; lo más parecido:")
-                cual = picks(self.inp, self.out, pregunta, [
+                cual = self.p.pick(pregunta, [
                     self._describir(world, options[i]) for i in lectura.candidates])
                 if cual is None:
                     return False, None
@@ -802,7 +781,7 @@ class Terminal:
             case Kind.QUESTION if self.narrator is not None:
                 told = self.narrator.answer(world, str(agent.spec_id), texto,
                                             nearest_places(world, options))
-                show(self.out, told, bool(self.narrator.providers))
+                self.p.told(told, bool(self.narrator.providers))
                 return False, None
             case _:
                 self._decir("  no te entiendo: escribe lo que haces, o un número («ayuda»)")
@@ -816,7 +795,7 @@ class Terminal:
         nuevos = [e for e in self.sim.log if e.seq >= self._visto]
         self._visto = self.sim.log.siguiente_seq
         told = self.narrator.world(self.sim.state, nuevos, str(self.sim.state.player))
-        show(self.out, told, bool(self.narrator.providers))
+        self.p.told(told, bool(self.narrator.providers))
 
     def interrupt(self, world: WorldState, agent: AgentState, need: NeedId) -> bool:
         """Se pregunta una vez por necesidad y ocupación: si dices que no, no
@@ -1059,13 +1038,20 @@ TIRADAS_DE_ESCENA = {
 opone (solo cuando hay dados del rival)."""
 
 
-def _linea_tirada(encounter: Encounter, b: Beat, outcome: Outcome) -> str:
+def _vista_tirada(encounter: Encounter, b: Beat, outcome: Outcome) -> RollView:
+    """La tirada de un golpe, como vista del presentador."""
     def corto(f: str) -> str:
         return encounter.fighters[f].spec.label.split(",")[0]
 
     etiqueta, contra = TIRADAS_DE_ESCENA[b.kind]
     rival = corto(b.target) if b.opposing_dice and b.target is not None else None
-    return dice_line(corto(b.actor), etiqueta, b.dice, rival, contra, b.opposing_dice, outcome)
+    return RollView(actor=corto(b.actor), pool_label=etiqueta, dice=tuple(b.dice),
+                    opposing=rival, opposing_label=contra,
+                    opposing_dice=tuple(b.opposing_dice), outcome=outcome)
+
+
+def _linea_tirada(encounter: Encounter, b: Beat, outcome: Outcome) -> str:
+    return roll_line(_vista_tirada(encounter, b, outcome))
 
 
 def _banda(f: Fighter) -> str:
@@ -1084,9 +1070,11 @@ class TerminalCombat:
     def __init__(self, inp: TextIO, out: TextIO,
                  interpreter: CognitionProvider | None = None,
                  narrator: Narrator | None = None,
-                 world: Callable[[], WorldState] | None = None) -> None:
+                 world: Callable[[], WorldState] | None = None,
+                 presenter: Presenter | None = None) -> None:
         self.inp = inp
         self.out = out
+        self.p: Presenter = presenter if presenter is not None else TextPresenter(inp, out)
         self.interpreter = interpreter
         self.narrator = narrator
         self.world = world
@@ -1094,14 +1082,10 @@ class TerminalCombat:
         self._visto: dict[str, int] = {}
 
     def _decir(self, texto: str) -> None:
-        self.out.write(texto + "\n")
-        self.out.flush()
+        self.p.note(texto)
 
     def _si(self, pregunta: str, defecto: bool) -> bool:
-        self.out.write(pregunta + (" [S/n] " if defecto else " [s/N] "))
-        self.out.flush()
-        linea = self.inp.readline().strip().lower()
-        return defecto if not linea else linea.startswith("s")
+        return self.p.yes_no(pregunta, defecto)
 
     def _nombre(self, encounter: Encounter, quien: str | None) -> str:
         return "?" if quien is None else encounter.fighters[quien].spec.label
@@ -1118,7 +1102,7 @@ class TerminalCombat:
             dano = f", {b.damage} de daño" if b.damage else ""
             nota = f" ({b.note})" if b.note else ""
             quien = self._nombre(encounter, b.actor)
-            self._decir(f"  r{b.round} {quien}: {b.kind}{a_quien}{que}{dano}{nota}")
+            self.p.beat(f"  r{b.round} {quien}: {b.kind}{a_quien}{que}{dano}{nota}")
         self._visto[encounter.id] = len(encounter.beats)
 
     def _contar(self, encounter: Encounter, me: Fighter, beats: Sequence[Beat]) -> None:
@@ -1128,35 +1112,30 @@ class TerminalCombat:
         told = self.narrator.round(world, me.id, hechos, estado, presentes,
                                    f"{encounter.id}:{encounter.round}")
         if told is not None:
-            show(self.out, told, bool(self.narrator.providers))
+            self.p.told(told, bool(self.narrator.providers))
         if self.narrator.table.dice:
             for b in beats:
                 if b.outcome is not None and b.dice and me.id in (b.actor, b.target):
-                    self._decir(_linea_tirada(encounter, b, b.outcome))
+                    self.p.roll(_vista_tirada(encounter, b, b.outcome))
 
     def report(self, lines: tuple[str, ...]) -> None:
         """Llega al acabar la pelea: la siguiente narración cuenta la escena completa."""
         if self.narrator is not None:
             self.narrator.last_was_fight = True
         if lines:
-            self._decir(lines[-1])
+            self.p.beat(lines[-1])
 
     def choose(self, encounter: Encounter, me: Fighter) -> Action:
         self._novedades(encounter, me)
-        for f in encounter.fighters.values():
-            self._decir(f"    {f.spec.label:<24} {f.vitality:>3}/{f.spec.vitality} PV"
-                        f"  fatiga {f.fatigue}/{f.spec.fatigue}  estrés {f.stress}/{f.spec.stress}"
-                        f"  {f.status.value}")
+        self.p.fighters([fighter_view(f) for f in encounter.fighters.values()])
         legales = list(encounter.legal_actions(me))
         if not encounter.exhausted(me):
             legales += [Action(a.kind, a.target, True) for a in legales
                         if a.kind is ActionKind.ATTACK]
-        for n, a in enumerate(legales, start=1):
-            self._decir(f"  {n:>3}. {self._etiqueta(encounter, a)}")
+        self.p.options([(n, self._etiqueta(encounter, a))
+                        for n, a in enumerate(legales, start=1)])
         while True:
-            self.out.write("combate> ")
-            self.out.flush()
-            linea = self.inp.readline()
+            linea = self.p.ask("combate> ")
             if not linea:
                 return legales[0]
             if linea.strip().isdigit() and 1 <= int(linea) <= len(legales):
@@ -1184,12 +1163,12 @@ class TerminalCombat:
                 if a.target is None:
                     self._decir(f"  → {self._etiqueta(encounter, a)}")
                     return a
-                return a if confirms(self.inp, self.out, self._etiqueta(encounter, a)) else None
+                return a if self.p.confirm(self._etiqueta(encounter, a)) else None
             case Kind.AMBIGUOUS | Kind.NO_FIT if lectura.candidates:
                 pregunta = ("  ¿cuál de estas?" if lectura.kind is Kind.AMBIGUOUS
                             else "  eso no se puede ahora; lo más parecido:")
-                cual = picks(self.inp, self.out, pregunta,
-                             [self._etiqueta(encounter, legales[i]) for i in lectura.candidates])
+                textos = [self._etiqueta(encounter, legales[i]) for i in lectura.candidates]
+                cual = self.p.pick(pregunta, textos)
                 return legales[lectura.candidates[cual]] if cual is not None else None
             case _:
                 self._decir("  elige un número de la lista, o escribe lo que haces")
