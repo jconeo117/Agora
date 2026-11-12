@@ -89,10 +89,11 @@ def test_la_misma_semilla_da_el_mismo_mundo_en_otro_proceso() -> None:
     el desorden se note (medido: quitar el `sorted` de los encuentros no
     cambiaba ni un evento)."""
     pack = Path(__file__).resolve().parents[1] / "packs" / "confluencia" / "pack.yaml"
+    src = str(Path(__file__).resolve().parents[1] / "src")
     huellas = [
         subprocess.run(
             [sys.executable, "-c", HIJO, str(pack)],
-            env={**os.environ, "PYTHONHASHSEED": semilla},
+            env={**os.environ, "PYTHONHASHSEED": semilla, "PYTHONPATH": src},
             capture_output=True, text=True, check=True,
         ).stdout
         for semilla in ("0", "1")
@@ -105,10 +106,11 @@ def test_el_mismo_foco_da_el_mismo_mundo_en_otro_proceso() -> None:
     byte en otro proceso con distinto PYTHONHASHSEED. Corre sobre
     `confluencia` con foco en `eris_cenizal`."""
     pack = Path(__file__).resolve().parents[1] / "packs" / "confluencia" / "pack.yaml"
+    src = str(Path(__file__).resolve().parents[1] / "src")
     huellas = [
         subprocess.run(
             [sys.executable, "-c", HIJO, str(pack), "eris_cenizal"],
-            env={**os.environ, "PYTHONHASHSEED": semilla},
+            env={**os.environ, "PYTHONHASHSEED": semilla, "PYTHONPATH": src},
             capture_output=True, text=True, check=True,
         ).stdout
         for semilla in ("0", "1")
