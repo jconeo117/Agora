@@ -3899,3 +3899,51 @@ class NewcomerSpec(Spec):
     initial_needs: dict[NeedId, float] = Field(default_factory=dict)
     traits: dict[TraitId, float] = Field(default_factory=dict)
     edad_inicial: int = Field(default=0, ge=0)
+
+
+class CreationGroupSpec(Spec):
+    """Un grupo de rasgos del que se elige uno (sexo, especie, oficio), o cero si
+    el grupo es opcional. Los grupos no comparten rasgos: un rasgo en dos sitios
+    sería una elección que el mundo no sabe cuadrar (D-175)."""
+
+    id: str
+    label: str
+    traits: tuple[TraitId, ...]
+    required: bool = True
+
+
+class PotentialsSpec(Spec):
+    """Los potenciales: números entre `min` y `max`, de `step` en `step`, que se
+    compran con puntos o se tiran. Lo que cuesta una cifra lo dice el presupuesto
+    de la dificultad, no el potencial en sí."""
+
+    traits: tuple[TraitId, ...]
+    min: float = Field(ge=0.0, le=1.0)
+    max: float = Field(ge=0.0, le=1.0)
+    step: float = Field(gt=0.0)
+
+
+class RareSpec(Spec):
+    """Un rasgo raro: nadie lo elige. Al crear, un sorteo con `chance` decide si
+    se otorga, con una intensidad uniforme en `[min, max]`. Es lo que hace que un
+    personaje sea distinto sin que el jugador lo haya pedido."""
+
+    chance: float = Field(gt=0.0, le=1.0)
+    min: float
+    max: float
+
+
+class CreationSpec(Spec):
+    """Cómo puede el jugador crear su propio personaje (unidad 21a). Opcional: sin
+    ella, la ficha se escribe a mano como siempre. El motor hace cumplir estas
+    reglas; las cifras las pone el pack, porque cuántos puntos vale un potencial
+    es del mundo y no del motor."""
+
+    groups: tuple[CreationGroupSpec, ...] = ()
+    potentials: PotentialsSpec | None = None
+    budgets: dict[str, float] = Field(default_factory=dict)
+    """Presupuesto de puntos por dificultad: `{id de dificultad: puntos}`. Vacío =
+    el mundo no deja crear con puntos."""
+    character: dict[TraitId, tuple[float, float]] = Field(default_factory=dict)
+    """Lo que se elige gratis dentro de sus rangos: `{rasgo: [min, max]}`."""
+    rare: dict[TraitId, RareSpec] = Field(default_factory=dict)

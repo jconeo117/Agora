@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from agora.ui.session import ESPERA_SSE, Partidas, mundos, personajes
+from agora.ui.session import ESPERA_SSE, Partidas, creacion, mundos, personajes
 
 WEB = Path(__file__).parent / "web"
 """Lo único que el servidor entrega de disco: la página, sus hojas de estilo y su código."""
@@ -46,6 +46,8 @@ class Manejador(BaseHTTPRequestHandler):
             self._json(mundos())
         elif ruta.path.startswith("/api/mundos/") and ruta.path.endswith("/personajes"):
             self._consulta(lambda: personajes(ruta.path[len("/api/mundos/"):-len("/personajes")]))
+        elif ruta.path.startswith("/api/mundos/") and ruta.path.endswith("/creacion"):
+            self._consulta(lambda: creacion(ruta.path[len("/api/mundos/"):-len("/creacion")]))
         elif ruta.path == "/api/eventos":
             self._eventos(parse_qs(ruta.query))
         else:
@@ -55,6 +57,8 @@ class Manejador(BaseHTTPRequestHandler):
         ruta = urlparse(self.path).path
         if ruta == "/api/partida":
             self._consulta(lambda: self._empezar())
+        elif ruta == "/api/tirada":
+            self._consulta(lambda: self.server.partidas.tirar(self._cuerpo()))
         elif ruta == "/api/entrada":
             self._entrada()
         else:

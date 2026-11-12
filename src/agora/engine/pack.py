@@ -31,6 +31,7 @@ from agora.engine.ontology import (
     AgentId,
     AgentSpec,
     ClockSpec,
+    CreationSpec,
     EndingSpec,
     FactionKindId,
     FactionKindSpec,
@@ -132,6 +133,10 @@ class ContentPack(Spec):
     newcomer: NewcomerSpec | None = None
     """Con qué llega quien viene de fuera (unidad 10). `None` = la ficha del
     jugador tiene que decirlo todo. No lo lee la simulación."""
+
+    creation: CreationSpec | None = None
+    """Cómo puede el jugador crear su personaje (unidad 21a). `None` = no se crea:
+    la ficha se escribe a mano. No lo lee la simulación: solo la creación."""
 
     social: SocialSpec = Field(default_factory=SocialSpec)
     """Cómo se habla en este mundo (unidad 15). Omitirlo usa los valores por
@@ -327,6 +332,71 @@ class ContentPack(Spec):
             ),
             *self._unknown_keys("newcomer.traits", "rasgo", nuevo.traits, rasgos),
         ]
+
+    def _check_creation(self) -> list[str]:
+        """Una sección mal formada no rompería la simulación: rompería la creación de
+        un personaje a mitad de la mesa. Por eso se rechaza al cargar el pack."""
+        cre = self.creation
+        if cre is None:
+            return []
+        rasgos = frozenset(str(t.id) for t in self.traits)
+        problems: list[str] = []
+        # Un rasgo, en un solo sitio: si estuviera en dos, la elección no tendría una
+        # respuesta única que el motor pueda hacer cumplir.
+        sitios: dict[str, list[str]] = {}
+        ids_grupo = [g.id for g in cre.groups]
+        for dup in sorted({g for g in ids_grupo if ids_grupo.count(g) > 1}):
+            problems.append(f"creation.groups: el grupo {dup!r} aparece más de una vez")
+        for g in cre.groups:
+            if not g.traits:
+                problems.append(f"creation.groups {g.id!r}: sin rasgos")
+            problems += self._unknown_keys(
+                f"creation.groups {g.id!r}", "rasgo", [str(t) for t in g.traits], rasgos
+            )
+            for t in g.traits:
+                sitios.setdefault(str(t), []).append(f"el grupo {g.id!r}")
+        if cre.potentials is not None:
+            p = cre.potentials
+            if not p.traits:
+                problems.append("creation.potentials: sin rasgos")
+            if p.min > p.max:
+                problems.append(f"creation.potentials: min {p.min} es mayor que max {p.max}")
+            problems += self._unknown_keys(
+                "creation.potentials", "rasgo", [str(t) for t in p.traits], rasgos
+            )
+            for t in p.traits:
+                sitios.setdefault(str(t), []).append("los potenciales")
+        for t, (lo, hi) in sorted(cre.character.items()):
+            if lo > hi:
+                problems.append(f"creation.character {t!r}: el rango [{lo}, {hi}] está al revés")
+            sitios.setdefault(str(t), []).append("el carácter")
+        for t, raro in sorted(cre.rare.items()):
+            if raro.min > raro.max:
+                problems.append(
+                    f"creation.rare {t!r}: el rango [{raro.min}, {raro.max}] está al revés"
+                )
+            sitios.setdefault(str(t), []).append("los raros")
+        problems += self._unknown_keys(
+            "creation.character", "rasgo", [str(t) for t in cre.character], rasgos
+        )
+        problems += self._unknown_keys("creation.rare", "rasgo", [str(t) for t in cre.rare], rasgos)
+        for name, places in sorted(sitios.items()):
+            if len(places) > 1:
+                problems.append(f"creation: el rasgo {name!r} aparece en {' y '.join(places)}")
+        # Un presupuesto que ningún reparto puede cumplir no es un presupuesto: es un
+        # error de quien escribió el pack, y se ve al cargar, no al crear.
+        if cre.budgets and cre.potentials is None:
+            problems.append("creation.budgets: hay presupuestos pero ningún potencial que comprar")
+        if cre.potentials is not None:
+            p = cre.potentials
+            n = len(p.traits)
+            for nombre, puntos in sorted(cre.budgets.items()):
+                if not p.min * n <= puntos <= p.max * n:
+                    problems.append(
+                        f"creation.budgets {nombre!r}: {puntos} puntos quedan fuera de "
+                        f"[{p.min * n:.2f}, {p.max * n:.2f}] ({n} potenciales)"
+                    )
+        return problems
 
     def _check_social(self) -> list[str]:
         """Una errata aquí no rompería nada hasta que alguien cerrara una
@@ -1649,6 +1719,7 @@ class ContentPack(Spec):
             *self._check_trait_refs(),
             *self._check_voice(),
             *self._check_newcomer(),
+            *self._check_creation(),
             *self._check_social(),
             *self._check_place_refs(),
             *self._check_phase_refs(),

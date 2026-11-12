@@ -22,10 +22,32 @@
       <fieldset>
         <legend>Personaje</legend>
         <div id="personajes" class="lista"></div>
+        <label id="opcion-crear" hidden><input type="radio" name="quien" value="c"> crear uno nuevo</label>
       </fieldset>
       <fieldset id="bloque-forasteros" hidden>
         <legend>Forastero</legend>
         <div id="forasteros" class="lista"></div>
+      </fieldset>
+      <fieldset id="bloque-creacion" class="creacion" hidden>
+        <legend>Crear personaje</legend>
+        <label>Nombre
+          <input id="crear-nombre" type="text" maxlength="60" autocomplete="off">
+        </label>
+        <fieldset>
+          <legend>Modo</legend>
+          <label><input type="radio" name="modo" value="free" checked> libre</label>
+          <label><input type="radio" name="modo" value="points"> con puntos</label>
+          <label><input type="radio" name="modo" value="roll"> tirada (una sola)</label>
+        </fieldset>
+        <label id="bloque-dificultad" hidden>Dificultad
+          <select id="crear-dificultad"></select>
+        </label>
+        <div id="crear-grupos" class="grupos"></div>
+        <p id="crear-resto" class="resto" hidden></p>
+        <div id="crear-potenciales" class="lista"></div>
+        <button type="button" id="crear-tirar" hidden>Tirar los dados</button>
+        <div id="crear-dados" class="dados" hidden></div>
+        <div id="crear-caracter" class="lista"></div>
       </fieldset>
       <label>Semilla
         <input id="semilla" type="number" min="0" value="1" required>

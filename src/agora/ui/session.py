@@ -20,10 +20,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import yaml
+
 from agora.cognition.narrador import Told
 from agora.engine.consulta import ficha
-from agora.engine.newcomer import load_sheet, newcomer_spec
-from agora.engine.ontology import AgentId
+from agora.engine.newcomer import (
+    NewcomerSheet,
+    build_sheet,
+    load_sheet,
+    newcomer_spec,
+    parse_choice,
+    roll_potentials,
+)
+from agora.engine.ontology import AgentId, TraitId
 from agora.engine.pack import ContentPack, load_pack
 from agora.engine.ports import CognitionProvider
 from agora.engine.world import Simulation
@@ -117,6 +126,35 @@ def _forasteros(mundo: str) -> dict[str, Path]:
         if ruta.is_file():
             fichas.setdefault(str(load_sheet(ruta).id), ruta)
     return fichas
+
+
+def creacion(mundo: str) -> dict[str, Any]:
+    """Lo que el mundo deja elegir al crear el personaje, con sus etiquetas para la
+    página. Sin sección `creation`, la página no ofrece crear."""
+    pack = _cargar(ruta_del_mundo(mundo))
+    spec = pack.creation
+    if spec is None:
+        return {"disponible": False}
+
+    def etiqueta(trait: TraitId) -> str:
+        return pack.trait_by_id[trait].label
+
+    potenciales = None
+    if spec.potentials is not None:
+        p = spec.potentials
+        potenciales = {"min": p.min, "max": p.max, "step": p.step,
+                       "rasgos": [{"id": str(t), "label": etiqueta(t)} for t in p.traits]}
+    return {
+        "disponible": True,
+        "grupos": [{"id": g.id, "label": g.label, "obligatorio": g.required,
+                    "rasgos": [{"id": str(t), "label": etiqueta(t)} for t in g.traits]}
+                   for g in spec.groups],
+        "potenciales": potenciales,
+        "dificultades": [{"id": nombre, "presupuesto": puntos}
+                         for nombre, puntos in sorted(spec.budgets.items(), key=lambda kv: -kv[1])],
+        "caracter": [{"id": str(t), "label": etiqueta(t), "min": lo, "max": hi}
+                     for t, (lo, hi) in sorted(spec.character.items())],
+    }
 
 
 def _como_linea(respuesta: str) -> TextPresenter:
@@ -323,15 +361,42 @@ class Game:
 
 
 class Partidas:
-    """El servidor tiene a lo sumo una partida: empezar otra cierra la anterior."""
+    """El servidor tiene a lo sumo una partida: empezar otra cierra la anterior. Y a lo
+    sumo una tirada de creación en preparación: la del personaje que se está creando."""
 
     def __init__(self) -> None:
         self.actual: Game | None = None
         self._cerrojo = threading.Lock()
+        self._tirada: dict[str, Any] | None = None
+        """La tirada de la preparación: mundo, nombre, semilla y potenciales."""
+
+    def tirar(self, pedido: dict[str, Any]) -> dict[str, Any]:
+        """Los dados de la creación. Una sola tirada por preparación: pedirla otra vez
+        devuelve la misma, y pedirla para otro nombre o semilla sería volver a tirar, así
+        que es un error. La preparación se cierra al empezar la partida."""
+        mundo = str(pedido.get("mundo", ""))
+        nombre = str(pedido.get("nombre", "")).strip()
+        semilla = int(pedido["semilla"])
+        if self._tirada is None or self._tirada["mundo"] != mundo:
+            # Otro mundo es otra preparación: la tirada de antes no le sirve.
+            if not nombre:
+                raise ValueError("el personaje necesita un nombre antes de tirar")
+            potenciales = roll_potentials(_cargar(ruta_del_mundo(mundo)), nombre, semilla)
+            self._tirada = {"mundo": mundo, "nombre": nombre, "semilla": semilla,
+                            "potenciales": potenciales}
+        elif (self._tirada["mundo"], self._tirada["nombre"], self._tirada["semilla"]) != (
+            mundo, nombre, semilla
+        ):
+            raise ValueError(
+                f"ya se tiraron los dados para «{self._tirada['nombre']}»: "
+                "esa tirada es la de este personaje"
+            )
+        return {"potenciales": self._tirada["potenciales"]}
 
     def empezar(self, pedido: dict[str, Any]) -> Game:
         """Crea la partida y la pone a correr. Lo que el pedido no cuadra con el mundo
-        (un personaje muerto o inexistente, un forastero sin ficha) es `ValueError`."""
+        (un personaje muerto o inexistente, un forastero sin ficha, una creación que las
+        reglas no admiten) es `ValueError`."""
         mundo = str(pedido.get("mundo", ""))
         ruta = ruta_del_mundo(mundo)
         semilla = int(pedido["semilla"])
@@ -341,7 +406,24 @@ class Partidas:
         )
         pack = _cargar(ruta)
         sim = Simulation(pack, seed=semilla)
-        if pedido.get("ficha") is not None:
+        ficha_creada: NewcomerSheet | None = None
+        raros: dict[TraitId, float] = {}
+        if pedido.get("crear") is not None:
+            eleccion = parse_choice(pedido["crear"])
+            if eleccion.mode == "roll":
+                tirada = self._tirada
+                if tirada is None or (tirada["mundo"], tirada["nombre"], tirada["semilla"]) != (
+                    mundo, eleccion.name.strip(), semilla
+                ):
+                    raise ValueError(
+                        "tira los dados antes de empezar: la tirada es de este personaje "
+                        "y esta semilla"
+                    )
+            ficha_creada, raros = build_sheet(pack, eleccion, semilla)
+            recien = newcomer_spec(pack, ficha_creada, sim.state.censo)
+            sim.arrive(recien)
+            quien = recien.id
+        elif pedido.get("ficha") is not None:
             fichas = _forasteros(mundo)
             nombre = str(pedido["ficha"])
             if nombre not in fichas:
@@ -359,10 +441,28 @@ class Partidas:
         partidas = raiz_del_proyecto() / "partidas"
         partidas.mkdir(exist_ok=True)
         cuando = datetime.now().strftime("%Y%m%d-%H%M%S")
-        partida = Game(args, sim, partidas / f"{mundo}-{quien}-{semilla}-{cuando}.jsonl")
+        base = f"{mundo}-{quien}-{semilla}-{cuando}"
+        partida = Game(args, sim, partidas / f"{base}.jsonl")
+        if ficha_creada is not None:
+            # La ficha junto al guion: con `--jugar-ficha` y `--guion` se reproduce la partida.
+            dato = ficha_creada.model_dump(mode="json", exclude_none=True)
+            (partidas / f"{base}.ficha.yaml").write_text(
+                yaml.safe_dump(dato, allow_unicode=True, sort_keys=False), encoding="utf-8"
+            )
+        if raros:
+            # Al empezar, no después: el jugador se entera de lo que nació con él.
+            partida.publicar(_nacio_con(pack, raros))
         with self._cerrojo:
             if self.actual is not None:
                 self.actual.cerrar()
             self.actual = partida
+            self._tirada = None
         partida.empezar()
         return partida
+
+
+def _nacio_con(pack: ContentPack, raros: dict[TraitId, float]) -> dict[str, Any]:
+    """Lo que se le cuenta a quien nació con un raro: el `label` del pack, no el id."""
+    nombres = [pack.trait_by_id[t].label for t in sorted(raros)]
+    return {"tipo": "relato", "texto": "Naciste con " + " y ".join(nombres) + ".",
+            "de_modelo": False, "sin_narrador": False}

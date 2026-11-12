@@ -463,9 +463,13 @@ async function cargarPersonajes() {
   const mundo = $("mundo").value;
   const datos = await api(`/api/mundos/${encodeURIComponent(mundo)}/personajes`);
   rellenar("personajes", datos.personajes, "p");
-  const primero = document.querySelector('input[name="quien"]');
-  if (primero) primero.checked = true;
   $("bloque-forasteros").hidden = rellenar("forasteros", datos.forasteros, "f") === 0;
+  const primero = document.querySelector('input[name="quien"][value^="p:"]');
+  if (primero) primero.checked = true;
+  creacionMundo = await api(`/api/mundos/${encodeURIComponent(mundo)}/creacion`);
+  $("opcion-crear").hidden = !creacionMundo.disponible;
+  prepararCreacion();
+  alCambiarQuien();
 }
 
 async function cargarMundos() {
@@ -482,7 +486,178 @@ function errorInicio(err) {
   p.hidden = false;
 }
 
+// -- crear el personaje (lo que el mundo deja elegir) -------------------------------
+
+let creacionMundo = null;   // lo que el mundo deja crear, o null hasta cargarlo
+let tirada = null;          // los potenciales de la tirada: una por preparación
+
+function modoElegido() {
+  return document.querySelector('input[name="modo"]:checked').value;
+}
+
+function alCambiarQuien() {
+  const quien = document.querySelector('input[name="quien"]:checked');
+  const crea = quien !== null && quien.value === "c";
+  $("bloque-creacion").hidden = !crea;
+  // Con la tirada hecha, nombre y semilla se quedan: cambiarlos sería volver a tirar.
+  $("crear-nombre").disabled = tirada !== null && crea;
+  $("semilla").disabled = tirada !== null && crea;
+}
+
+function deslizador(id, etiqueta, min, max, paso, inicial, grupo) {
+  const fila = el("label", "deslizador");
+  const rango = el("input");
+  rango.type = "range";
+  rango.min = String(min);
+  rango.max = String(max);
+  rango.step = String(paso);
+  rango.value = String(inicial);
+  rango.dataset.id = id;
+  rango.dataset.grupo = grupo;
+  const valor = el("span", "valor", Number(inicial).toFixed(2));
+  rango.addEventListener("input", () => {
+    valor.textContent = Number(rango.value).toFixed(2);
+    actualizarResto();
+  });
+  fila.append(el("span", "", etiqueta), rango, valor);
+  return fila;
+}
+
+function prepararCreacion() {
+  const c = creacionMundo;
+  tirada = null;
+  $("crear-nombre").disabled = false;
+  $("semilla").disabled = false;
+  $("crear-tirar").disabled = false;
+  $("crear-dados").hidden = true;
+  $("crear-dados").replaceChildren();
+  $("crear-grupos").replaceChildren();
+  $("crear-potenciales").replaceChildren();
+  $("crear-caracter").replaceChildren();
+  if (!c || !c.disponible) return;
+  for (const g of c.grupos) {
+    const sel = el("select");
+    sel.dataset.grupo = g.id;
+    sel.appendChild(new Option(g.obligatorio ? "elige…" : "ninguno", ""));
+    for (const r of g.rasgos) sel.appendChild(new Option(r.label, r.id));
+    const etiqueta = el("label", "grupo");
+    etiqueta.append(`${g.label} `, sel);
+    $("crear-grupos").appendChild(etiqueta);
+  }
+  $("crear-dificultad").replaceChildren(
+    ...c.dificultades.map((d) => new Option(`${d.id} (${d.presupuesto.toFixed(2)})`, d.id)),
+  );
+  if (c.potenciales) {
+    const p = c.potenciales;
+    for (const r of p.rasgos) {
+      $("crear-potenciales").appendChild(deslizador(r.id, r.label, p.min, p.max, p.step, p.min, "pot"));
+    }
+  }
+  for (const r of c.caracter) {
+    const inicial = Math.min(Math.max(0, r.min), r.max);
+    $("crear-caracter").appendChild(deslizador(r.id, r.label, r.min, r.max, 0.01, inicial, "car"));
+  }
+  alCambiarModo();
+}
+
+function alCambiarModo() {
+  const modo = modoElegido();
+  const enTirada = modo === "roll";
+  for (const r of document.querySelectorAll('#crear-potenciales input[type="range"]')) {
+    r.disabled = enTirada;
+  }
+  $("bloque-dificultad").hidden = modo !== "points";
+  $("crear-tirar").hidden = !enTirada;
+  $("crear-dados").hidden = !enTirada || tirada === null;
+  actualizarResto();
+}
+
+function sumaDePotenciales() {
+  let suma = 0;
+  for (const r of document.querySelectorAll('input[type="range"][data-grupo="pot"]')) {
+    suma += Number(r.value);
+  }
+  return suma;
+}
+
+function actualizarResto() {
+  const p = $("crear-resto");
+  const dificultad = creacionMundo && creacionMundo.disponible
+    ? creacionMundo.dificultades.find((d) => d.id === $("crear-dificultad").value)
+    : undefined;
+  if (modoElegido() !== "points" || dificultad === undefined) {
+    p.hidden = true;
+    return;
+  }
+  const resto = dificultad.presupuesto - sumaDePotenciales();
+  p.hidden = false;
+  p.textContent = `te quedan ${resto.toFixed(2)} de ${dificultad.presupuesto.toFixed(2)}`;
+  p.classList.toggle("error", resto < -1e-9);
+}
+
+async function tirarDados() {
+  const pedido = {
+    mundo: $("mundo").value,
+    nombre: $("crear-nombre").value.trim(),
+    semilla: Number($("semilla").value),
+  };
+  const r = await api("/api/tirada", "POST", pedido);
+  tirada = r.potenciales;
+  const etiquetas = new Map(creacionMundo.potenciales.rasgos.map((x) => [x.id, x.label]));
+  const dados = $("crear-dados");
+  dados.replaceChildren();
+  for (const [id, valor] of Object.entries(tirada)) {
+    const d = el("div", "d6 pot", Number(valor).toFixed(2));
+    d.title = etiquetas.get(id) || id;
+    dados.appendChild(d);
+  }
+  dados.hidden = false;
+  for (const rango of document.querySelectorAll('#crear-potenciales input[type="range"]')) {
+    const v = tirada[rango.dataset.id];
+    if (v !== undefined) {
+      rango.value = String(v);
+      rango.nextElementSibling.textContent = Number(v).toFixed(2);
+    }
+  }
+  $("crear-tirar").disabled = true;
+  alCambiarQuien();
+  actualizarResto();
+}
+
+function valoresDe(grupo, sinCeros) {
+  const salida = {};
+  for (const r of document.querySelectorAll(`input[type="range"][data-grupo="${grupo}"]`)) {
+    const v = Number(r.value);
+    if (!(sinCeros && v === 0)) salida[r.dataset.id] = v;
+  }
+  return salida;
+}
+
+function elegirCreacion() {
+  const modo = modoElegido();
+  const crear = {
+    name: $("crear-nombre").value.trim(),
+    mode: modo,
+    groups: [...document.querySelectorAll("#crear-grupos select")]
+      .map((s) => s.value)
+      .filter((v) => v !== ""),
+    character: valoresDe("car", true),
+  };
+  if (modo === "points") crear.difficulty = $("crear-dificultad").value;
+  if (modo !== "roll") crear.potentials = valoresDe("pot", false);
+  return crear;
+}
+
 $("mundo").addEventListener("change", () => cargarPersonajes().catch(errorInicio));
+
+$("form-inicio").addEventListener("change", (ev) => {
+  const t = ev.target;
+  if (t.name === "quien") alCambiarQuien();
+  if (t.name === "modo") alCambiarModo();
+  if (t.id === "crear-dificultad") actualizarResto();
+});
+
+$("crear-tirar").addEventListener("click", () => tirarDados().catch(errorInicio));
 
 $("form-inicio").addEventListener("submit", async (ev) => {
   ev.preventDefault();
@@ -493,7 +668,8 @@ $("form-inicio").addEventListener("submit", async (ev) => {
     semilla: Number($("semilla").value),
     modelo: datos.get("modelo") === "1",
   };
-  if (quien.startsWith("f:")) pedido.ficha = quien.slice(2);
+  if (quien === "c") pedido.crear = elegirCreacion();
+  else if (quien.startsWith("f:")) pedido.ficha = quien.slice(2);
   else pedido.personaje = quien.slice(2);
   $("error-inicio").hidden = true;
   try {
