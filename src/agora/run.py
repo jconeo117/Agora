@@ -1,12 +1,12 @@
 """Punto de entrada: corre una simulación y escupe el log.
 
-    uv run agora
-    uv run agora --days 3 --seed 99
-    uv run agora --jsonl corrida.jsonl
-    uv run agora --days 180 --save ano1.json
-    uv run agora --load ano1.json --days 180 --save ano2.json
-    uv run agora --days 1800 --skip 7 --quiet --save graduados.json
-    uv run agora --days 1800 --skip 14 --window 7 --jsonl cinco-anos.jsonl
+    uv run agora-sim
+    uv run agora-sim --days 3 --seed 99
+    uv run agora-sim --jsonl corrida.jsonl
+    uv run agora-sim --days 180 --save ano1.json
+    uv run agora-sim --load ano1.json --days 180 --save ano2.json
+    uv run agora-sim --days 1800 --skip 7 --quiet --save graduados.json
+    uv run agora-sim --days 1800 --skip 14 --window 7 --jsonl cinco-anos.jsonl
 
 Sin UI y sin colores a propósito. En F0 la única forma de saber si el mundo
 funciona es leer texto y comparar corridas con `diff`.
@@ -81,7 +81,7 @@ DEFAULT_RULES = Path("rules/base/rules.yaml")
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Los argumentos de la CLI, en una función: la web (`agora --ui`) toma de aquí
+    """Los argumentos de la CLI, en una función: la web (`agora-sim --ui`) toma de aquí
     sus valores por omisión, para que una partida en el navegador sea la misma que
     `--jugar` en la terminal."""
     parser = argparse.ArgumentParser(description="Simulador social Agora")

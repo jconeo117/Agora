@@ -100,11 +100,11 @@ Por si lo intentas y no sale — no es que lo estés escribiendo mal:
 cd packs/<mundo> && uv run python generar.py
 
 # El panel: contra el contrato que el propio pack promete
-uv run agora --pack packs/<mundo>/pack.yaml --health
+uv run agora-sim --pack packs/<mundo>/pack.yaml --health
 
 # El eje vivo/aleatorio: cuánto cambia la vida de la MISMA persona
 # entre semillas. Si el azar pesa tanto como el carácter, nada se explica
-uv run agora --pack packs/<mundo>/pack.yaml --divergence 3
+uv run agora-sim --pack packs/<mundo>/pack.yaml --divergence 3
 ```
 
 **El `pack.yaml` generado NO se edita a mano.** Se edita el generador.

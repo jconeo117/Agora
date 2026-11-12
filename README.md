@@ -44,13 +44,13 @@ después**. Cuando una métrica no se mueve, sospecha de la métrica.
 ```bash
 uv sync
 
-uv run agora --pack packs/ciudad/pack.yaml            # una semana, log legible
-uv run agora --pack packs/ciudad/pack.yaml --health   # panel de calibración
-uv run agora --days 3 --quiet                         # solo el resumen
+uv run agora-sim --pack packs/ciudad/pack.yaml            # una semana, log legible
+uv run agora-sim --pack packs/ciudad/pack.yaml --health   # panel de calibración
+uv run agora-sim --days 3 --quiet                         # solo el resumen
 
 # corridas largas
-uv run agora --days 1800 --skip 14 --window 7 --save graduados.json
-uv run agora --load graduados.json --days 360 --jsonl siguiente.jsonl
+uv run agora-sim --days 1800 --skip 14 --window 7 --save graduados.json
+uv run agora-sim --load graduados.json --days 360 --jsonl siguiente.jsonl
 ```
 
 Reloj: **1 tick = 15 minutos**, 96 ticks por día.
