@@ -72,11 +72,30 @@ if TYPE_CHECKING:
 
     from agora.engine.ports import DecisionSource
 
-DEFAULT_PACK = Path("packs/barrio/pack.yaml")
+def _es_raiz(carpeta: Path) -> bool:
+    return (carpeta / "packs").is_dir() and (carpeta / "rules").is_dir()
+
+
+def raiz_del_proyecto() -> Path:
+    """La carpeta donde están `packs/` y `rules/`, y donde se graban las partidas de la
+    web. Se busca desde la carpeta actual hacia arriba, porque `agora-sim` se lanza
+    desde cualquier sitio; si no aparece, la del repositorio donde vive este código; y
+    si tampoco, la actual. No se hace `chdir`: cambiaría la carpeta de todo el proceso."""
+    actual = Path.cwd()
+    for carpeta in (actual, *actual.parents):
+        if _es_raiz(carpeta):
+            return carpeta
+    repositorio = Path(__file__).resolve().parents[2]
+    if _es_raiz(repositorio):
+        return repositorio
+    return actual
+
+
+DEFAULT_PACK = raiz_del_proyecto() / "packs/barrio/pack.yaml"
 """El mundo de trabajo. `dark_fantasy` existe para probar el agnosticismo del
 motor, no para jugarse, así que hay que pedirlo explícitamente."""
 
-DEFAULT_RULES = Path("rules/base/rules.yaml")
+DEFAULT_RULES = raiz_del_proyecto() / "rules/base/rules.yaml"
 """El sistema de rol de la mesa (D-153). Hoy hay uno: el borrador 1."""
 
 
@@ -277,6 +296,7 @@ def main() -> None:
         # Antes de cargar ningún pack: cada partida de la web carga el suyo.
         from agora.ui.server import servir
 
+        print(f"# mundos en {raiz_del_proyecto() / 'packs'}")
         servir(args.puerto)
         return
     if args.montecarlo:

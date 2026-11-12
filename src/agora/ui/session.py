@@ -34,6 +34,7 @@ from agora.run import (
     build_parser,
     cablear,
     correr_partida,
+    raiz_del_proyecto,
     resumen_de_la_partida,
     seguir_sin_jugador,
 )
@@ -41,11 +42,11 @@ from agora.run import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-RAIZ = Path("packs")
-"""Los mundos, como en la CLI: desde la raíz del proyecto."""
+def _packs() -> Path:
+    """Los mundos, en la raíz del proyecto y no en la carpeta desde la que se lanza:
+    la pantalla de inicio no puede depender de dónde esté el usuario."""
+    return raiz_del_proyecto() / "packs"
 
-PARTIDAS = Path("partidas")
-"""Cada partida de la web se graba aquí como guion (`--guion` la vuelve a jugar)."""
 
 ESPERA_SSE = 15.0
 """Segundos sin novedades antes de mandar un comentario que mantenga viva la conexión."""
@@ -76,7 +77,7 @@ def _resumenes(ruta: Path) -> dict[str, str]:
 def ruta_del_mundo(mundo: str) -> Path:
     if not mundo or "/" in mundo or mundo.startswith("."):
         raise ValueError(f"mundo desconocido: {mundo!r}")
-    ruta = RAIZ / mundo / "pack.yaml"
+    ruta = _packs() / mundo / "pack.yaml"
     if not ruta.is_file():
         raise ValueError(f"mundo desconocido: {mundo!r}")
     return ruta
@@ -84,7 +85,7 @@ def ruta_del_mundo(mundo: str) -> Path:
 
 def mundos() -> list[dict[str, str]]:
     return [{"id": ruta.parent.name, "label": _cargar(ruta).label}
-            for ruta in sorted(RAIZ.glob("*/pack.yaml"))]
+            for ruta in sorted(_packs().glob("*/pack.yaml"))]
 
 
 def personajes(mundo: str) -> dict[str, list[dict[str, str]]]:
@@ -106,10 +107,16 @@ def personajes(mundo: str) -> dict[str, list[dict[str, str]]]:
 
 
 def _forasteros(mundo: str) -> dict[str, Path]:
-    carpeta = RAIZ / mundo / "fichas"
-    if not carpeta.is_dir():
-        return {}
-    return {p.stem: p for p in sorted(carpeta.glob("*.yaml"))}
+    """Las fichas de forastero del mundo, por su `id` (es el nombre que llega en el
+    pedido). Primero `forastero.yaml`, luego `fichas/*.yaml`; si dos dicen el mismo
+    `id`, gana la primera."""
+    carpeta = _packs() / mundo
+    candidatas = [carpeta / "forastero.yaml", *sorted((carpeta / "fichas").glob("*.yaml"))]
+    fichas: dict[str, Path] = {}
+    for ruta in candidatas:
+        if ruta.is_file():
+            fichas.setdefault(str(load_sheet(ruta).id), ruta)
+    return fichas
 
 
 def _como_linea(respuesta: str) -> TextPresenter:
@@ -347,9 +354,12 @@ class Partidas:
             if quien not in sim.state.agents:
                 raise ValueError(f"{quien!r} no está vivo en este mundo")
         sim.set_player(quien)
-        PARTIDAS.mkdir(exist_ok=True)
+        # Cada partida se graba como guion en la raíz del proyecto (`--guion` la vuelve a
+        # jugar), venga la petición de la carpeta que venga.
+        partidas = raiz_del_proyecto() / "partidas"
+        partidas.mkdir(exist_ok=True)
         cuando = datetime.now().strftime("%Y%m%d-%H%M%S")
-        partida = Game(args, sim, PARTIDAS / f"{mundo}-{quien}-{semilla}-{cuando}.jsonl")
+        partida = Game(args, sim, partidas / f"{mundo}-{quien}-{semilla}-{cuando}.jsonl")
         with self._cerrojo:
             if self.actual is not None:
                 self.actual.cerrar()
