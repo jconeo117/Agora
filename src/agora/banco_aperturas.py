@@ -92,7 +92,8 @@ def run_opening_bank(
     resultados: list[ResultadoApertura] = []
     for caso in casos:
         sim, quien = _abrir(caso)
-        m = opening_moment(sim.state, quien, [], Table())
+        # Lo que la apertura vería en la partida: lo que trae el guardado, si lo hay.
+        m = opening_moment(sim.state, quien, sim.log.previos, Table())
         t0 = time.perf_counter()
         told, motivos = narrate_con_motivos(m, cadena, semilla_de_apertura(sim.state, quien))
         segundos = time.perf_counter() - t0

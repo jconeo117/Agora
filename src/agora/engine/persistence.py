@@ -25,13 +25,13 @@ parado. Esa propiedad se decidio en F0 y esta es la primera vez que se cobra.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
 
-from agora.engine.events import EventKind
+from agora.engine.events import Event, EventKind
 from agora.engine.memory import Recuerdo
 from agora.engine.ontology import (
     ActionId,
@@ -226,6 +226,7 @@ def save(
     together: set[tuple[AgentId, AgentId]],
     path: Path,
     siguiente_seq: int = 0,
+    log: Iterable[Event] = (),
 ) -> None:
     """Vuelca la partida. El pack NO va dentro: se pasa al cargar.
 
@@ -341,8 +342,22 @@ def save(
             for p in sorted(world.propiedades.values(), key=lambda p: p.id)
             if world.es_objeto(p)
         ],
+        # La última semana del log (unidad 22): lo que la apertura cuenta al reanudar,
+        # como líneas JSONL. Un guardado anterior no la trae: se lee vacía.
+        "log": [evento.to_json() for evento in log],
     }
     path.write_text(json.dumps(datos, indent=1, ensure_ascii=False), encoding="utf-8")
+
+
+DIAS_DE_LOG_AL_GUARDAR = 7
+"""Cuántos días de log lleva el guardado: los que la apertura necesita para contar lo
+que se mueve (unidad 22). Más no hace falta, y el archivo pesa por cada día."""
+
+
+def load_log(path: Path) -> tuple[Event, ...]:
+    """La última semana del log que trae el guardado, o vacía si no la trae."""
+    datos = json.loads(path.read_text(encoding="utf-8"))
+    return tuple(Event.from_json(linea) for linea in datos.get("log", []))
 
 
 # -----------------------------------------------------------------------------

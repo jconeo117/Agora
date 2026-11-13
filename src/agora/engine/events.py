@@ -248,6 +248,23 @@ class Event:
             campos["data"] = dict(self.data)
         return json.dumps(campos, separators=(",", ":"), ensure_ascii=False)
 
+    @staticmethod
+    def from_json(linea: str) -> Event:
+        """La inversa de `to_json`: lo que un guardado trae del log de su última semana
+        (unidad 22). Lo que `to_json` omite (lo vacío) vuelve vacío."""
+        campos = json.loads(linea)
+        datos = campos.get("data")
+        return Event(
+            seq=int(campos["seq"]),
+            tick=int(campos["tick"]),
+            kind=EventKind(campos["kind"]),
+            actor=None if "actor" not in campos else AgentId(campos["actor"]),
+            place=None if "place" not in campos else PlaceId(campos["place"]),
+            action=None if "action" not in campos else ActionId(campos["action"]),
+            subject=None if "subject" not in campos else AgentId(campos["subject"]),
+            data=SIN_DATOS if not datos else MappingProxyType(dict(datos)),
+        )
+
 
 @dataclass(slots=True)
 class Recuento:
@@ -344,6 +361,7 @@ class EventLog:
         "_by_place",
         "_desalojados",
         "_events",
+        "_previos",
         "_primer_seq",
         "_sin_purgar",
         "_sink",
@@ -356,7 +374,12 @@ class EventLog:
         window: int | None = None,
         sink: TextIO | None = None,
         primer_seq: int = 0,
+        previos: Iterable[Event] = (),
     ) -> None:
+        self._previos: tuple[Event, ...] = tuple(previos)
+        """Lo que trae el guardado de la última semana (unidad 22). Va aparte del log
+        de este proceso: no cuenta en `emitidos`, no se purga y no entra en los índices.
+        El motor no lo lee para decidir: lo lee la apertura, para contar lo que se mueve."""
         self._events: list[Event] = []
         # Deques y no listas: el desalojo va en orden de `seq`, así que el que
         # se va siempre es la cabeza, y `popleft` en un deque es O(1).
@@ -475,6 +498,12 @@ class EventLog:
     @property
     def desalojados(self) -> int:
         return self._desalojados
+
+    @property
+    def previos(self) -> tuple[Event, ...]:
+        """Los eventos de la última semana del guardado del que se reanudó, si lo hubo.
+        Vacío en una partida nueva o en un guardado sin ese tramo."""
+        return self._previos
 
     @property
     def siguiente_seq(self) -> int:

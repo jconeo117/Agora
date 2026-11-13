@@ -41,6 +41,7 @@ from agora.engine.ontology import (
     RelationId,
     Spec,
 )
+from agora.engine.persistence import DIAS_DE_LOG_AL_GUARDAR
 from agora.engine.ports import CognitionProvider
 from agora.engine.state import PerformingAction, Traveling, WorldState
 
@@ -112,8 +113,9 @@ PROSA_MAX = 1200
 APERTURA_MAX = 3500
 """Lo más largo que se acepta de la apertura: unas 500 palabras con holgura."""
 
-MOVIMIENTO_DIAS = 7
-"""Hasta dónde mira la apertura en el log para contar lo que se mueve (unidad 22)."""
+MOVIMIENTO_DIAS = DIAS_DE_LOG_AL_GUARDAR
+"""Hasta dónde mira la apertura en el log para contar lo que se mueve (unidad 22). Es
+el mismo número que guarda un estado: lo que la apertura lee es lo que el guardado trae."""
 
 MOVIMIENTO_TOP = 5
 """Cuántos hechos caben en lo que se mueve; lo demás no se cuenta."""

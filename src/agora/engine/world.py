@@ -183,15 +183,17 @@ class Simulation:
     # -------------------------------------------------------------------------
 
     def save(self, path: Path) -> None:
-        """Vuelca la partida. El LOG NO VA: es historia, no estado.
-
-        Un ano de ciento veintisiete agentes son cientos de megas de eventos. Al
-        reanudar, el mundo es el mismo pero nadie recuerda como llego ahi. Lo que
-        sí va es por dónde iba la numeración (`siguiente_seq`): sin ella la
+        """Vuelca la partida. De la historia va solo la última semana del log (lo que
+        la apertura cuenta al reanudar, unidad 22): un año de ciento veintisiete agentes
+        son cientos de megas de eventos, y el resto no lo necesita nadie al reanudar.
+        Lo que sí va es por dónde iba la numeración (`siguiente_seq`): sin ella la
         partida reanudada repetía `seq`.
         """
+        tope = self.state.tick - persistence.DIAS_DE_LOG_AL_GUARDAR * self.pack.clock.ticks_per_day
+        retenidos = (*self.log.previos, *self.log)
         persistence.save(
-            self.state, self._together, path, siguiente_seq=self.log.siguiente_seq
+            self.state, self._together, path, siguiente_seq=self.log.siguiente_seq,
+            log=[e for e in retenidos if e.tick >= tope],
         )
 
     @classmethod
@@ -212,7 +214,10 @@ class Simulation:
         state, together, siguiente_seq = persistence.load(path, pack)
         sim = cls.__new__(cls)
         sim.state = state
-        sim.log = EventLog(log_window, log_sink, primer_seq=siguiente_seq)
+        sim.log = EventLog(
+            log_window, log_sink, primer_seq=siguiente_seq,
+            previos=persistence.load_log(path),
+        )
         sim._together = together
         sim.player_source = None
         sim.encounter_resolver = None

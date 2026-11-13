@@ -762,7 +762,9 @@ class Terminal:
         if self.narrator is None:
             return
         por_dia = world.pack.clock.ticks_per_day
-        recientes = [e for e in self.sim.log if e.tick >= world.tick - MOVIMIENTO_DIAS * por_dia]
+        # Lo que trae el guardado (si se reanudó) y lo que ha pasado en este proceso.
+        historia = (*self.sim.log.previos, *self.sim.log)
+        recientes = [e for e in historia if e.tick >= world.tick - MOVIMIENTO_DIAS * por_dia]
         told = self.narrator.opening(world, str(agent.spec_id), recientes)
         self.p.opening(told, bool(self.narrator.providers))
         self._visto = self.sim.log.siguiente_seq
