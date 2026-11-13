@@ -503,7 +503,7 @@ def _jugar(sim: Simulation, args: argparse.Namespace, ticks: int) -> None:
         terminal = Terminal(sim, sys.stdin, sys.stdout, cab.voz, interpreter=cab.interprete,
                             narrator=cab.narrador)
         escena = TerminalCombat(sys.stdin, sys.stdout, cab.interprete, cab.narrador,
-                                lambda: sim.state)
+                                lambda: sim.state, empezada=terminal.quitar_piloto)
         resultado = correr_partida(
             sim, args, ticks, fuente=terminal, combate=escena, escena=escena,
             terminal=terminal, grabar=args.grabar,

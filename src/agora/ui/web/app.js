@@ -12,6 +12,7 @@ let activa = false;          // si la partida espera una respuesta del jugador
 let completar = null;        // completa el tecleo en curso, si lo hay
 let instantaneo = false;     // al retomar una partida, la historia se pinta sin tecleo
 let enPartida = false;
+let enTurno = false;         // si estamos dentro de un turno (entre `turno` y la pregunta)
 
 const DESENLACE = {
   failure: "falla",
@@ -74,7 +75,18 @@ function setActiva(valor) {
   $("texto").disabled = !valor;
   $("enviar").disabled = !valor;
   document.querySelectorAll(".accion").forEach((b) => { b.disabled = !valor; });
-  if (valor) $("texto").focus();
+  if (valor) {
+    enTurno = false;
+    mostrarVivir(false);
+    $("texto").focus();
+  }
+}
+
+// Mientras el personaje vive sin decidir (21b) no llega ninguna pregunta: solo
+// `estado`, cada hora de juego. Un turno, en cambio, empieza con `turno`.
+function mostrarVivir(visible) {
+  $("viviendo").hidden = !visible;
+  $("parar").hidden = !visible;
 }
 
 async function responder(texto, eco = true) {
@@ -216,12 +228,15 @@ function pintarCombate(filas) {
 
 const MANEJADORES = {
   turno(e) {
+    enTurno = true;
+    mostrarVivir(false);
     $("cabecera").textContent = `${e.nombre} · tick ${e.tick}`;
     añadir(el("div", "turno", `${e.nombre}, tick ${e.tick}`));
   },
 
   estado(e) {
     pintarHoja(e);
+    if (!enTurno) mostrarVivir(true);
   },
 
   relato(e) {
@@ -361,6 +376,7 @@ const MANEJADORES = {
 
   final(e) {
     setActiva(false);
+    mostrarVivir(false);
     $("respuestas").replaceChildren();
     $("atajos").replaceChildren();
     const f = añadir(el("div", "final"));
@@ -696,6 +712,12 @@ relato.addEventListener("click", () => { if (completar) completar(); });
 
 document.addEventListener("keydown", () => {
   if (completar && document.activeElement?.tagName !== "INPUT") completar();
+});
+
+$("vivir-boton").addEventListener("click", () => responder($("vivir-hasta").value));
+
+$("parar").addEventListener("click", () => {
+  api("/api/parar", "POST").catch((err) => aviso(err.message, "aviso error"));
 });
 
 $("nueva").addEventListener("click", () => {

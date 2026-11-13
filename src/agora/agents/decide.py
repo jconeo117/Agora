@@ -785,7 +785,16 @@ def decide(
     como "no merece la pena interrumpir"; un agente ocioso vuelve a preguntar
     sin restricción.
     """
-    pool = options(world, agent, must_address)
+    return choose_among(world, agent, options(world, agent, must_address))
+
+
+def choose_among(
+    world: WorldState, agent: AgentState, pool: Sequence[Decision]
+) -> Decision | None:
+    """La elección de un NPC entre un menú ya ordenado (de mejor a peor): softmax
+    sobre los `candidate_pool` mejores. Es la única puerta por la que se elige, y
+    la usa el piloto de la unidad 21b con un menú más corto: un NPC y el jugador
+    en piloto eligen con la misma cuenta y el mismo sorteo."""
     if not pool:
         return None
 

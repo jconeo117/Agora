@@ -77,6 +77,16 @@
     <footer class="entrada">
       <div id="atajos" class="atajos"></div>
       <div id="respuestas" class="respuestas"></div>
+      <div class="vivir">
+        <select id="vivir-hasta" aria-label="hasta cuándo vivir">
+          <option value="vivir">hasta que pase algo</option>
+          <option value="vivir 1">una hora</option>
+          <option value="vivir hasta mañana">hasta mañana</option>
+        </select>
+        <button id="vivir-boton" type="button" class="accion">Vivir</button>
+        <span id="viviendo" class="pensando" hidden>viviendo…</span>
+        <button id="parar" type="button" hidden>Parar</button>
+      </div>
       <form id="form-entrada" class="fila-entrada">
         <input id="texto" type="text" autocomplete="off" placeholder="escribe lo que haces" disabled>
         <button id="enviar" type="submit" disabled>Enviar</button>

@@ -18,11 +18,12 @@ from __future__ import annotations
 
 import json
 import math
+import threading
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TextIO
 
-from agora.agents.decide import Decision
+from agora.agents.decide import Decision, choose_among, critical_needs
 from agora.cognition.conversa import (
     ACT_HELP,
     CONVERSA,
@@ -42,7 +43,7 @@ from agora.cognition.narrador import (
     round_facts,
 )
 from agora.cognition.voz import Heard, hablar
-from agora.engine.events import EventKind
+from agora.engine.events import Event, EventKind
 from agora.engine.ontology import (
     AgentId,
     ClaimKind,
@@ -50,6 +51,7 @@ from agora.engine.ontology import (
     PlaceId,
     PropertyId,
     QuestionKind,
+    RelationId,
     SocialAct,
 )
 from agora.engine.ports import Outcome
@@ -262,6 +264,7 @@ def hint(utility: float, best: float, temperature: float) -> str:
 AYUDA = """  número       elegir esa opción
   más          ver más opciones
   esperar N    dejar pasar N cuartos de hora sin hacer nada
+  vivir [N]    que tu vida siga sola: hasta que pase algo, N horas, o «vivir hasta mañana»
   ficha [id]   lo que se sabe de ti, o de otro
   mirar        quién está aquí y qué hace
   hablar id    preguntarle qué tal le va a alguien que esté aquí
@@ -319,6 +322,92 @@ POR_VERBO = 3
 """Opciones de cada verbo en la primera página; el resto, con «más»."""
 
 
+# --- El piloto automático (unidad 21b) -----------------------------------------------
+
+
+@dataclass
+class Piloto:
+    """Vivir sin decidir: el personaje hace lo que haría un NPC hasta que algo le
+    devuelve el control. `visto` es desde qué punto del log mirar; `hasta_tick`, el
+    límite que pidió (o ninguno), y `texto_limite`, cómo se lo cuenta al volver."""
+
+    hasta_tick: int | None
+    texto_limite: str
+    visto: int
+
+
+GENTE = frozenset({
+    EventKind.AGENT_DIED, EventKind.AGENT_BORN,
+    EventKind.RELATION_BEGAN, EventKind.RELATION_ENDED,
+})
+"""Lo que pasa a la gente de uno: interrumpe si la persona le toca, o si la conoce."""
+
+
+def _ticks_por_hora(world: WorldState) -> int:
+    return max(1, 60 // world.pack.clock.minutes_per_tick)
+
+
+def _nombre(world: WorldState, quien: AgentId | None) -> str:
+    if quien is None:
+        return "alguien"
+    return world.censo[quien].label if quien in world.censo else str(quien)
+
+
+def conoce(world: WorldState, agent: AgentState, otro: AgentId) -> bool:
+    """Conocer, a efectos del piloto (21b, §3.3): tener con esa persona una relación
+    con nombre, o un aprecio de 0,3 o más. Una sola función: lo que interrumpe y lo
+    que se cuenta usan la misma."""
+    if agent.related_to(otro):
+        return True
+    fade = agent.temperament.bond_fade
+    return agent.regard_for(otro, world.tick, fade, agent.relation_floor(world.pack, otro)) >= 0.3
+
+
+def _motivo_de_evento(world: WorldState, agent: AgentState, evento: Event) -> str | None:
+    """Lo que dice este evento de tu vida, si te devuelve el control (A.3)."""
+    yo = agent.spec_id
+    if evento.kind is EventKind.SOCIAL_ACT and evento.subject == yo and evento.actor != yo:
+        return f"{_nombre(world, evento.actor)} te habla"
+    if (evento.kind is EventKind.ACTION_STARTED and evento.actor != yo
+            and evento.data.get("target") == str(yo)):
+        return f"{_nombre(world, evento.actor)} se dirige a ti"
+    if (evento.kind is EventKind.ENCOUNTER and evento.actor == yo
+            and evento.subject is not None and conoce(world, agent, evento.subject)):
+        return f"llega {_nombre(world, evento.subject)}"
+    if evento.kind in GENTE:
+        implicados = [x for x in (evento.actor, evento.subject) if x is not None]
+        if yo in implicados or any(conoce(world, agent, x) for x in implicados if x != yo):
+            return _texto_de_gente(world, evento)
+    return None
+
+
+def _texto_de_gente(world: WorldState, evento: Event) -> str:
+    if evento.kind is EventKind.AGENT_DIED:
+        return f"ha muerto {_nombre(world, evento.subject)}"
+    if evento.kind is EventKind.AGENT_BORN:
+        return f"ha nacido {_nombre(world, evento.actor)}"
+    relacion = world.pack.relation_by_id[RelationId(str(evento.data["relation"]))].label
+    pareja = f"{_nombre(world, evento.actor)} y {_nombre(world, evento.subject)}"
+    if evento.kind is EventKind.RELATION_BEGAN:
+        return f"{pareja} son ahora {relacion}"
+    return f"{pareja} ya no son {relacion}"
+
+
+def _limite_de_vivir(world: WorldState, resto: list[str]) -> tuple[int | None, str] | None:
+    """Hasta cuándo vive, según lo que se escribió tras «vivir»: nada (hasta que pase
+    algo), N horas de juego, o hasta mañana. `None` si no es una forma de vivir."""
+    if not resto:
+        return None, ""
+    if resto == ["hasta", "mañana"]:
+        por_dia = world.pack.clock.ticks_per_day
+        return ((world.tick // por_dia) + 1) * por_dia, "es de mañana"
+    if len(resto) == 1 and resto[0].isdigit() and int(resto[0]) > 0:
+        horas = int(resto[0])
+        return (world.tick + horas * _ticks_por_hora(world),
+                "ya ha pasado el tiempo que pediste")
+    return None
+
+
 class Terminal:
     """Una persona delante del teclado. Lo que consulta no cambia el mundo:
     ficha, mirar y hablar son lectura (reglas 1 y 4)."""
@@ -333,12 +422,19 @@ class Terminal:
         interpreter: CognitionProvider | None = None,
         narrator: Narrator | None = None,
         presenter: Presenter | None = None,
+        parada: threading.Event | None = None,
     ) -> None:
         self.sim = sim
         self.inp = inp
         self.out = out
         self.p: Presenter = presenter if presenter is not None else TextPresenter(inp, out)
         """Por dónde se enseña y se pregunta todo (D-174): la terminal, o la web."""
+        self.parada = parada
+        """Una bandera que la web pone con «Parar»: el piloto la mira en cada decisión."""
+        self.piloto: Piloto | None = None
+        """Si el personaje vive sin decidir (21b). `None` = turno normal."""
+        self._ultimo_estado: int | None = None
+        """El tick del último `status` del piloto: uno por hora de juego."""
         self.provider = provider
         """La voz de los NPCs."""
         self.interpreter = interpreter
@@ -485,6 +581,10 @@ class Terminal:
     ) -> Decision | None:
         if self.quit:
             return None
+        if self.piloto is not None:
+            activo, elegida = self._piloto(world, agent, options)
+            if activo:
+                return elegida
         if self._esperar > 0:
             self._esperar -= 1
             return None
@@ -533,6 +633,10 @@ class Terminal:
                         i for i in vista
                         if world.pack.action_by_id[options[i].action].label == linea.strip()
                     ])
+                case ["vivir", *resto] if (limite := _limite_de_vivir(world, resto)) is not None:
+                    hecho, elegida = self._empezar_piloto(world, agent, options, limite)
+                    if hecho:
+                        return elegida
                 case ["esperar"]:
                     return None
                 case ["esperar", cuantos] if cuantos.isdigit() and int(cuantos) > 0:
@@ -577,7 +681,78 @@ class Terminal:
                 self._decir("  no hay nadie así aquí con quien hablar")
             case Order.WAIT:
                 return True, None
+            case Order.LIVE:
+                return self._empezar_piloto(world, agent, options, (None, ""))
         return False, None
+
+    def _empezar_piloto(
+        self, world: WorldState, agent: AgentState, options: tuple[Decision, ...],
+        limite: tuple[int | None, str],
+    ) -> tuple[bool, Decision | None]:
+        """Pone al personaje a vivir (21b). Devuelve lo mismo que `_orden`: si ya hay
+        decisión, cuál; si el piloto no llega a arrancar porque algo le devuelve el
+        control al instante, el turno sigue como siempre."""
+        hasta, texto = limite
+        if self.parada is not None:
+            self.parada.clear()
+        self.piloto = Piloto(hasta_tick=hasta, texto_limite=texto, visto=self.sim.log.siguiente_seq)
+        self._ultimo_estado = None
+        return self._piloto(world, agent, options)
+
+    def _piloto(
+        self, world: WorldState, agent: AgentState, options: tuple[Decision, ...]
+    ) -> tuple[bool, Decision | None]:
+        """Un turno del piloto. Activo: lo que habría decidido un NPC entre lo que no
+        se dirige a nadie, sin pedir nada, sin turno ni relato; y un `status` cada hora
+        de juego, para que la hoja se mueva. Inactivo: algo le devolvió el control."""
+        motivo = self._motivo_de_vuelta(world, agent, options)
+        if motivo is not None:
+            self.quitar_piloto(motivo)
+            return False, None
+        hora = _ticks_por_hora(world)
+        if self._ultimo_estado is None or world.tick - self._ultimo_estado >= hora:
+            self._ultimo_estado = world.tick
+            self.p.status(sheet_view(world, agent))
+        menu = [d for d in options if d.target is None]
+        return True, choose_among(world, agent, menu)
+
+    def _motivo_de_vuelta(
+        self, world: WorldState, agent: AgentState, options: tuple[Decision, ...]
+    ) -> str | None:
+        """Por qué le toca volver al control, si le toca (A.3): la parada de la web, lo
+        que le pasa a alguien que le importa, un crítico, o el límite de tiempo. Lo que
+        mira son los eventos nuevos desde la última vez. Una necesidad crítica solo
+        devuelve el control si la rutina no la atiende: si no, el piloto la atiende, y
+        volver a preguntar sin que pase el tiempo no le sirve a nadie."""
+        piloto = self.piloto
+        if piloto is None:
+            return None
+        if self.parada is not None and self.parada.is_set():
+            self.parada.clear()
+            return "paras"
+        for evento in self.sim.log:
+            if evento.seq < piloto.visto:
+                continue
+            motivo = _motivo_de_evento(world, agent, evento)
+            if motivo is not None:
+                return motivo
+        piloto.visto = self.sim.log.siguiente_seq
+        criticas = critical_needs(world, agent)
+        if criticas and not any(
+            world.pack.action_by_id[d.action].satisfies.get(n, 0.0) > 0.0
+            for d in options if d.target is None for n in criticas
+        ):
+            return f"te falta {world.pack.need_by_id[criticas[0]].label} de verdad"
+        if piloto.hasta_tick is not None and world.tick >= piloto.hasta_tick:
+            return piloto.texto_limite
+        return None
+
+    def quitar_piloto(self, motivo: str) -> None:
+        """Quita el piloto, y lo dice: «Vuelves en ti: …». Lo llama también la escena
+        de combate, que empieza sin que el log lo cuente (21b, A.2)."""
+        if self.piloto is not None:
+            self.piloto = None
+            self.p.note(f"  Vuelves en ti: {motivo}.")
 
     @staticmethod
     def _lugares(world: WorldState, options: tuple[Decision, ...]) -> dict[str, tuple[int, str]]:
@@ -804,6 +979,8 @@ class Terminal:
         if self.quit or clave in self._rechazos:
             return False
         etiqueta = world.pack.need_by_id[need].label
+        # Con el piloto puesto, la pregunta de abajo ya dice por qué vuelve el control.
+        self.piloto = None
         respuesta = self._leer(f"  te falta {etiqueta} de verdad. ¿Lo dejas todo? [s/N] ")
         if respuesta.lower().startswith("s"):
             return True
@@ -1071,7 +1248,8 @@ class TerminalCombat:
                  interpreter: CognitionProvider | None = None,
                  narrator: Narrator | None = None,
                  world: Callable[[], WorldState] | None = None,
-                 presenter: Presenter | None = None) -> None:
+                 presenter: Presenter | None = None,
+                 empezada: Callable[[str], None] | None = None) -> None:
         self.inp = inp
         self.out = out
         self.p: Presenter = presenter if presenter is not None else TextPresenter(inp, out)
@@ -1079,6 +1257,8 @@ class TerminalCombat:
         self.narrator = narrator
         self.world = world
         """El mundo de ahora, para el narrador: la escena no lo conoce."""
+        self.empezada = empezada
+        """Avisa de una escena nueva con el motivo: quien vive sin decidir (21b) la deja."""
         self._visto: dict[str, int] = {}
 
     def _decir(self, texto: str) -> None:
@@ -1091,6 +1271,8 @@ class TerminalCombat:
         return "?" if quien is None else encounter.fighters[quien].spec.label
 
     def _novedades(self, encounter: Encounter, me: Fighter | None = None) -> None:
+        if encounter.id not in self._visto and self.empezada is not None:
+            self.empezada("empieza una escena de combate")
         visto = self._visto.get(encounter.id, 0)
         if self.narrator is not None and self.world is not None and me is not None:
             self._contar(encounter, me, encounter.beats[visto:])

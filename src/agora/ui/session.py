@@ -283,6 +283,8 @@ class Game:
         self.cv = threading.Condition()
         self._respuestas: queue.Queue[str] = queue.Queue()
         self._esperando = False
+        self.parada = threading.Event()
+        """«Parar» de la página: el piloto (21b) la mira en cada decisión."""
         self.presentador = WebPresenter(self)
         cab: Cableado = cablear(args)
         self._voz = cab.voz
@@ -343,9 +345,10 @@ class Game:
         # presentador, todo lo que se enseña y se pregunta pasa por él.
         terminal = Terminal(self.sim, io.StringIO(), io.StringIO(), self._voz,
                             interpreter=self._interprete, narrator=self._narrador,
-                            presenter=self.presentador)
+                            presenter=self.presentador, parada=self.parada)
         escena = TerminalCombat(io.StringIO(), io.StringIO(), self._interprete, self._narrador,
-                                lambda: self.sim.state, presenter=self.presentador)
+                                lambda: self.sim.state, presenter=self.presentador,
+                                empezada=terminal.quitar_piloto)
         try:
             resultado = correr_partida(
                 self.sim, self.args, self.ticks, fuente=terminal, combate=escena,
@@ -392,6 +395,15 @@ class Partidas:
                 "esa tirada es la de este personaje"
             )
         return {"potenciales": self._tirada["potenciales"]}
+
+    def parar(self) -> bool:
+        """«Parar»: si el personaje vive sin decidir (21b), vuelve al control en su
+        próxima decisión. `False` si no hay partida que parar."""
+        partida = self.actual
+        if partida is None or partida.cerrada:
+            return False
+        partida.parada.set()
+        return True
 
     def empezar(self, pedido: dict[str, Any]) -> Game:
         """Crea la partida y la pone a correr. Lo que el pedido no cuadra con el mundo

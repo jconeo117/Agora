@@ -37,14 +37,16 @@ class Kind(StrEnum):
 
 
 class Order(StrEnum):
-    """Lo que la terminal hace sin que pase el tiempo, salvo esperar. Salir no
-    está a propósito: una orden que no tiene vuelta atrás solo se acepta
-    escrita tal cual (en el banco, un 7B contestó «salir» a «remato al herido»)."""
+    """Lo que la terminal hace sin decidir cada cuarto de hora. Mirar, ficha y
+    hablar no pasan el tiempo; esperar y vivir sí. Salir no está a propósito: una
+    orden que no tiene vuelta atrás solo se acepta escrita tal cual (en el banco, un
+    7B contestó «salir» a «remato al herido»)."""
 
     LOOK = "mirar"
     SHEET = "ficha"
     WAIT = "esperar"
     TALK = "hablar"
+    LIVE = "vivir"
 
 
 ORDER_HELP: dict[Order, tuple[str, tuple[str, ...]]] = {
@@ -56,6 +58,8 @@ ORDER_HELP: dict[Order, tuple[str, tuple[str, ...]]] = {
                  ("espero", "dejo pasar el tiempo", "no hago nada")),
     Order.TALK: ("preguntarle a alguien qué tal le va",
                  ("hablo con", "le pregunto qué tal", "saludo a")),
+    Order.LIVE: ("seguir con tu vida sola hasta que pase algo",
+                 ("sigo con mi vida", "vivir hasta mañana", "dejo que el día pase")),
 }
 
 

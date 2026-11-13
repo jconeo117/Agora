@@ -61,6 +61,11 @@ class Manejador(BaseHTTPRequestHandler):
             self._consulta(lambda: self.server.partidas.tirar(self._cuerpo()))
         elif ruta == "/api/entrada":
             self._entrada()
+        elif ruta == "/api/parar":
+            if self.server.partidas.parar():
+                self._json({"ok": True})
+            else:
+                self._error(409, "no hay partida que parar")
         else:
             self._error(404, "no existe")
 
