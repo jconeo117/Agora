@@ -35,6 +35,7 @@ from agora.engine.newcomer import (
 from agora.engine.ontology import AgentId, TraitId
 from agora.engine.pack import ContentPack, load_pack
 from agora.engine.ports import CognitionProvider
+from agora.engine.state import WorldState
 from agora.engine.world import Simulation
 from agora.play import Terminal, TerminalCombat
 from agora.present import FighterView, RollView, SheetView, TextPresenter, roll_line
@@ -97,22 +98,65 @@ def mundos() -> list[dict[str, str]]:
             for ruta in sorted(_packs().glob("*/pack.yaml"))]
 
 
-def personajes(mundo: str) -> dict[str, list[dict[str, str]]]:
+NUEVO = "nuevo"
+"""El mundo tal como lo escribió el pack, en el tick cero. Lo demás son estados guardados."""
+
+
+def guardados(mundo: str) -> list[dict[str, str]]:
+    """Desde dónde se puede empezar en este mundo: nuevo, o un estado guardado en
+    `packs/<mundo>/mundos/*.json` (unidad 22)."""
+    ruta_del_mundo(mundo)  # valida el nombre
+    carpeta = _packs() / mundo / "mundos"
+    salida = [{"id": NUEVO, "label": "mundo nuevo"}]
+    if carpeta.is_dir():
+        salida += [{"id": p.stem, "label": p.stem.replace("-", " ")}
+                   for p in sorted(carpeta.glob("*.json"))]
+    return salida
+
+
+def _ruta_guardado(mundo: str, nombre: str) -> Path:
+    if "/" in nombre or nombre.startswith(".") or not nombre:
+        raise ValueError(f"estado guardado desconocido: {nombre!r}")
+    ruta = _packs() / mundo / "mundos" / f"{nombre}.json"
+    if not ruta.is_file():
+        raise ValueError(f"estado guardado desconocido: {nombre!r}")
+    return ruta
+
+
+@functools.cache
+def _simulacion_guardada(ruta: Path, ruta_pack: Path) -> Simulation:
+    """Un estado guardado, reanudado una vez por ruta: la lista de personajes lo lee."""
+    return Simulation.resume(ruta, _cargar(ruta_pack))
+
+
+def personajes(mundo: str, guardado: str = NUEVO) -> dict[str, list[dict[str, str]]]:
     """Los agentes del pack (con su resumen) y, si el mundo trae fichas de forastero
-    en `fichas/`, esas. Sin carpeta de fichas, no hay forasteros que ofrecer."""
+    en `fichas/`, esas. Sin carpeta de fichas, no hay forasteros que ofrecer. Con un
+    estado guardado, los personajes son los residentes **vivos** de ese estado."""
     ruta = ruta_del_mundo(mundo)
-    resumen = _resumenes(ruta)
     pack = _cargar(ruta)
     forasteros: list[dict[str, str]] = []
     for nombre, ruta_ficha in _forasteros(mundo).items():
         sheet = load_sheet(ruta_ficha)
         forasteros.append({"id": nombre, "label": sheet.label,
                            "resumen": ", ".join(str(t) for t in sheet.traits) or "-"})
+    if guardado in (None, "", NUEVO):
+        resumen = _resumenes(ruta)
+        gente = [(s.id, s.label) for s in pack.agents]
+    else:
+        sim = _simulacion_guardada(_ruta_guardado(mundo, guardado), ruta)
+        resumen = {str(a): _resumen_de(sim.state, a) for a in sim.state.agents}
+        gente = [(a, sim.state.censo[a].label) for a in sim.state.agents]
     return {
-        "personajes": [{"id": str(s.id), "label": s.label, "resumen": resumen.get(str(s.id), "")}
-                       for s in pack.agents],
+        "personajes": [{"id": str(a), "label": etiqueta, "resumen": resumen.get(str(a), "")}
+                       for a, etiqueta in gente],
         "forasteros": forasteros,
     }
+
+
+def _resumen_de(world: WorldState, agente: AgentId) -> str:
+    f = ficha(world, agente)
+    return f"{', '.join(f.caracter) or 'sin rasgos marcados'} · {f.lugar}"
 
 
 def _forasteros(mundo: str) -> dict[str, Path]:
@@ -193,6 +237,11 @@ class WebPresenter:
 
     def told(self, told: Told, chain: bool) -> None:
         self._partida.publicar({"tipo": "relato", "texto": told.text,
+                                "de_modelo": told.by is not None,
+                                "sin_narrador": chain and told.by is None})
+
+    def opening(self, told: Told, chain: bool) -> None:
+        self._partida.publicar({"tipo": "apertura", "texto": told.text,
                                 "de_modelo": told.by is not None,
                                 "sin_narrador": chain and told.by is None})
 
@@ -292,6 +341,8 @@ class Game:
         self._narrador = None if cab.narrador is None else replace(
             cab.narrador,
             providers=tuple(_Pensando(p, self.presentador) for p in cab.narrador.providers),
+            opening_providers=None if cab.narrador.opening_providers is None else tuple(
+                _Pensando(p, self.presentador) for p in cab.narrador.opening_providers),
         )
         self._hilo = threading.Thread(target=self._correr, name="partida", daemon=True)
 
@@ -343,9 +394,10 @@ class Game:
     def _correr(self) -> None:
         # La terminal y la escena reciben flujos de texto que aquí no se usan: con
         # presentador, todo lo que se enseña y se pregunta pasa por él.
+        # Una partida de la web siempre llega: se cuenta la apertura (unidad 22).
         terminal = Terminal(self.sim, io.StringIO(), io.StringIO(), self._voz,
                             interpreter=self._interprete, narrator=self._narrador,
-                            presenter=self.presentador, parada=self.parada)
+                            presenter=self.presentador, parada=self.parada, apertura=True)
         escena = TerminalCombat(io.StringIO(), io.StringIO(), self._interprete, self._narrador,
                                 lambda: self.sim.state, presenter=self.presentador,
                                 empezada=terminal.quitar_piloto)
@@ -417,7 +469,13 @@ class Partidas:
             ["--pack", str(ruta), "--seed", str(semilla), *([] if modelo else ["--sin-llm"])]
         )
         pack = _cargar(ruta)
-        sim = Simulation(pack, seed=semilla)
+        guardado = pedido.get("guardado")
+        if guardado in (None, "", NUEVO):
+            sim = Simulation(pack, seed=semilla)
+        else:
+            # Un mundo que ya tiene días: se reanuda el estado guardado, con el pack de
+            # hoy (unidad 22). El log no viaja con el guardado: se guarda el estado.
+            sim = Simulation.resume(_ruta_guardado(mundo, str(guardado)), pack)
         ficha_creada: NewcomerSheet | None = None
         raros: dict[TraitId, float] = {}
         if pedido.get("crear") is not None:

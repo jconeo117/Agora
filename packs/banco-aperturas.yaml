@@ -1,0 +1,51 @@
+# El banco de aperturas (unidad 22, A.6): diez casos, para medir con
+#   .venv/bin/python -m agora.run --banco-aperturas packs/banco-aperturas.yaml
+# con la clave en el entorno (fish -c). Las rutas son relativas a este archivo.
+# El caso «tras 90 días» necesita el estado guardado: se genera con
+#   .venv/bin/python -m agora.run --pack packs/confluencia/pack.yaml --days 90 --skip 7 \
+#     --save packs/confluencia/mundos/tras-90-dias.json
+# (pesa unos 10 MB: no se commitea).
+casos:
+  - nombre: confluencia nuevo, residente
+    mundo: confluencia/pack.yaml
+    personaje: cyra_nieblalta
+    semilla: 1
+  - nombre: confluencia nuevo, residente 2
+    mundo: confluencia/pack.yaml
+    personaje: adze_piedraparda
+    semilla: 2
+  - nombre: confluencia nuevo, forastero
+    mundo: confluencia/pack.yaml
+    ficha: confluencia/forastero.yaml
+    semilla: 3
+  - nombre: confluencia nuevo, forastero 2
+    mundo: confluencia/pack.yaml
+    ficha: confluencia/forastero.yaml
+    semilla: 4
+  - nombre: confluencia tras 90 días, residente
+    mundo: confluencia/pack.yaml
+    guardado: confluencia/mundos/tras-90-dias.json
+    personaje: adze_nieblalta
+    semilla: 5
+  - nombre: confluencia tras 90 días, residente 2
+    mundo: confluencia/pack.yaml
+    guardado: confluencia/mundos/tras-90-dias.json
+    personaje: cyra_nieblalta
+    semilla: 6
+  - nombre: confluencia tras 90 días, forastero
+    mundo: confluencia/pack.yaml
+    guardado: confluencia/mundos/tras-90-dias.json
+    ficha: confluencia/forastero.yaml
+    semilla: 7
+  - nombre: isla nuevo, residente
+    mundo: isla/pack.yaml
+    personaje: elor_d1
+    semilla: 8
+  - nombre: isla nuevo, residente 2
+    mundo: isla/pack.yaml
+    personaje: halzetu_d1
+    semilla: 9
+  - nombre: isla nuevo, residente 3
+    mundo: isla/pack.yaml
+    personaje: orlo_d5
+    semilla: 10

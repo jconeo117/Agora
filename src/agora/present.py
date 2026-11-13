@@ -170,6 +170,12 @@ class Presenter(Protocol):
     def told(self, told: Told, chain: bool) -> None:
         """La prosa del narrador. `chain`: si había algún modelo al que preguntar."""
 
+    def opening(self, told: Told, chain: bool) -> None:
+        """La apertura (unidad 22): el mundo, dónde llegas y quién eres, y lo que se
+        mueve. Se cuenta una vez, antes del primer turno de una partida nueva. Por
+        defecto no se enseña: un presentador que no la quiera no tiene que decirlo."""
+        return None
+
     def event(self, texto: str) -> None:
         """Un suceso que te toca, sin narrador (lo que dice el log)."""
 
@@ -276,6 +282,18 @@ class TextPresenter:
 
     def told(self, told: Told, chain: bool) -> None:
         show(self.out, told, chain)
+
+    def opening(self, told: Told, chain: bool) -> None:
+        """Como `show`, pero con los párrafos de la apertura en su sitio: `show` los
+        funde en uno, y aquí el mundo, la llegada y quién eres son partes distintas."""
+        self.out.write("\n")
+        for parrafo in told.text.split("\n\n"):
+            for linea in textwrap.wrap(parrafo.replace("\n", " "), width=88):
+                self.out.write(f"  {linea}\n")
+            self.out.write("\n")
+        if chain and told.by is None:
+            self.out.write(SIN_NARRADOR + "\n")
+        self.out.flush()
 
     def event(self, texto: str) -> None:
         self._linea("  " + texto)

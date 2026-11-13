@@ -227,6 +227,22 @@ function pintarCombate(filas) {
 // -- los eventos ---------------------------------------------------------------
 
 const MANEJADORES = {
+  apertura(e) {
+    // La apertura (unidad 22): el mundo, la llegada y quién eres, párrafo a párrafo, con
+    // su máquina de escribir. Clic o tecla completan el párrafo que se escribe.
+    const caja = añadir(el("div", "apertura"));
+    let cadena = Promise.resolve();
+    for (const parrafo of e.texto.split(/\n\n+/)) {
+      const p = el("p");
+      caja.appendChild(p);
+      cadena = cadena.then(() => escribir(p, parrafo));
+    }
+    if (e.sin_narrador) {
+      cadena = cadena.then(() => aviso("el narrador no contestó: lo cuenta la plantilla"));
+    }
+    return cadena;
+  },
+
   turno(e) {
     enTurno = true;
     mostrarVivir(false);
@@ -477,12 +493,21 @@ function rellenar(id, items, prefijo) {
 
 async function cargarPersonajes() {
   const mundo = $("mundo").value;
-  const datos = await api(`/api/mundos/${encodeURIComponent(mundo)}/personajes`);
+  const enc = encodeURIComponent(mundo);
+  // Desde dónde se empieza: el mundo tal como lo escribió el pack, o un estado guardado.
+  const guardados = await api(`/api/mundos/${enc}/guardados`);
+  const sel = $("guardado");
+  const previo = sel.value;
+  sel.replaceChildren(...guardados.map((g) => new Option(g.label, g.id)));
+  if (guardados.some((g) => g.id === previo)) sel.value = previo;
+  const datos = await api(
+    `/api/mundos/${enc}/personajes?guardado=${encodeURIComponent(sel.value || "nuevo")}`,
+  );
   rellenar("personajes", datos.personajes, "p");
   $("bloque-forasteros").hidden = rellenar("forasteros", datos.forasteros, "f") === 0;
   const primero = document.querySelector('input[name="quien"][value^="p:"]');
   if (primero) primero.checked = true;
-  creacionMundo = await api(`/api/mundos/${encodeURIComponent(mundo)}/creacion`);
+  creacionMundo = await api(`/api/mundos/${enc}/creacion`);
   $("opcion-crear").hidden = !creacionMundo.disponible;
   prepararCreacion();
   alCambiarQuien();
@@ -665,6 +690,7 @@ function elegirCreacion() {
 }
 
 $("mundo").addEventListener("change", () => cargarPersonajes().catch(errorInicio));
+$("guardado").addEventListener("change", () => cargarPersonajes().catch(errorInicio));
 
 $("form-inicio").addEventListener("change", (ev) => {
   const t = ev.target;
@@ -681,6 +707,7 @@ $("form-inicio").addEventListener("submit", async (ev) => {
   const quien = String(datos.get("quien") || "");
   const pedido = {
     mundo: $("mundo").value,
+    guardado: $("guardado").value || "nuevo",
     semilla: Number($("semilla").value),
     modelo: datos.get("modelo") === "1",
   };

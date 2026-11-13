@@ -13,7 +13,15 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from agora.ui.session import ESPERA_SSE, Partidas, creacion, mundos, personajes
+from agora.ui.session import (
+    ESPERA_SSE,
+    NUEVO,
+    Partidas,
+    creacion,
+    guardados,
+    mundos,
+    personajes,
+)
 
 WEB = Path(__file__).parent / "web"
 """Lo único que el servidor entrega de disco: la página, sus hojas de estilo y su código."""
@@ -45,9 +53,13 @@ class Manejador(BaseHTTPRequestHandler):
         elif ruta.path == "/api/mundos":
             self._json(mundos())
         elif ruta.path.startswith("/api/mundos/") and ruta.path.endswith("/personajes"):
-            self._consulta(lambda: personajes(ruta.path[len("/api/mundos/"):-len("/personajes")]))
+            guardado = parse_qs(ruta.query).get("guardado", [NUEVO])[0]
+            self._consulta(lambda: personajes(
+                ruta.path[len("/api/mundos/"):-len("/personajes")], guardado))
         elif ruta.path.startswith("/api/mundos/") and ruta.path.endswith("/creacion"):
             self._consulta(lambda: creacion(ruta.path[len("/api/mundos/"):-len("/creacion")]))
+        elif ruta.path.startswith("/api/mundos/") and ruta.path.endswith("/guardados"):
+            self._consulta(lambda: guardados(ruta.path[len("/api/mundos/"):-len("/guardados")]))
         elif ruta.path == "/api/eventos":
             self._eventos(parse_qs(ruta.query))
         else:

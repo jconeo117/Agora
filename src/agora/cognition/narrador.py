@@ -32,10 +32,13 @@ from agora.engine.ontology import (
     ActionId,
     AgentId,
     ContentTag,
+    FactionId,
     ItemId,
     ItemSlot,
     NarrationSpec,
+    NeedId,
     PlaceId,
+    RelationId,
     Spec,
 )
 from agora.engine.ports import CognitionProvider
@@ -44,6 +47,7 @@ from agora.engine.state import PerformingAction, Traveling, WorldState
 PROMPTS = Path(__file__).parent / "prompts"
 TELL = (PROMPTS / "narrador.txt").read_text(encoding="utf-8")
 ANSWER = (PROMPTS / "pregunta.txt").read_text(encoding="utf-8")
+OPENING_PROMPT = (PROMPTS / "apertura.txt").read_text(encoding="utf-8")
 
 DEATH = "muerte"
 """La etiqueta de contenido de una muerte. Es la única que pone el código: la
@@ -99,6 +103,20 @@ class Kind(StrEnum):
     WORLD = "mundo"
     ROUND = "ronda"
     QUESTION = "pregunta"
+    OPENING = "apertura"
+
+
+PROSA_MAX = 1200
+"""Lo más largo que se acepta de una narración de turno."""
+
+APERTURA_MAX = 3500
+"""Lo más largo que se acepta de la apertura: unas 500 palabras con holgura."""
+
+MOVIMIENTO_DIAS = 7
+"""Hasta dónde mira la apertura en el log para contar lo que se mueve (unidad 22)."""
+
+MOVIMIENTO_TOP = 5
+"""Cuántos hechos caben en lo que se mueve; lo demás no se cuenta."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,6 +163,23 @@ class Moment:
     everyone: tuple[str, ...] = ()
     """Todos los nombres del censo: lo que el anclaje busca en la prosa."""
     scene: Scene | None = None
+    # Lo que solo tiene la apertura (unidad 22). Los momentos de turno los dejan vacíos.
+    places: tuple[str, ...] = ()
+    """Todos los nombres de lugar del pack: lo que la apertura comprueba en la prosa."""
+    premise: tuple[str, ...] = ()
+    """El texto del mundo, párrafo a párrafo (`mundo.yaml`). Vacío sin ese archivo."""
+    tone: str | None = None
+    known: tuple[str, ...] = ()
+    neighbors: tuple[str, ...] = ()
+    """Los lugares contiguos, con lo que cuesta llegar a cada uno."""
+    population: int = 0
+    groups: tuple[str, ...] = ()
+    """Los grupos más grandes, por nombre."""
+    calendar: str | None = None
+    who: tuple[str, ...] = ()
+    """Quién eres, en líneas: la ficha, y para un residente, su familia y su gremio."""
+    moving: tuple[str, ...] = ()
+    """Lo que se mueve en los últimos días del log, ya contado."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -619,6 +654,8 @@ def _lista(partes: list[str]) -> str:
 
 
 def briefing(m: Moment) -> str:
+    if m.kind is Kind.OPENING:
+        return _briefing_apertura(m)
     lines = [f"PERSONAJE: {m.player} (el jugador: tú)", f"LUGAR: {m.place}"]
     if m.description:
         lines.append(f"CÓMO ES: {m.description}")
@@ -653,18 +690,24 @@ class Narration(BaseModel):
 
 
 def strangers(m: Moment, prose: str) -> tuple[str, ...]:
-    """Nombres del censo que la prosa dice y el briefing no. Basta uno para
-    descartar la narración: es la única invención que se puede comprobar sin
-    otro modelo, y la que más rompe la mesa (un muerto que reaparece)."""
+    """Nombres del censo, y lugares del pack, que la prosa dice y el briefing no.
+    Basta uno para descartar la narración: es la única invención que se puede
+    comprobar sin otro modelo, y la que más rompe la mesa (un muerto que reaparece,
+    un lugar que no está). Los lugares solo se miran en la apertura, que es la única
+    que los nombra por su cuenta; un turno solo nombra gente."""
     told = briefing(m)
 
     def says(text: str, n: str) -> bool:
         return re.search(rf"\b{re.escape(n)}\b", text) is not None
 
-    return tuple(n for n in m.everyone if says(prose, n) and not says(told, n))
+    nombres = tuple(n for n in m.everyone if says(prose, n) and not says(told, n))
+    lugares = tuple(p for p in m.places if says(prose, p) and not says(told, p))
+    return nombres + lugares
 
 
 def fallback(m: Moment) -> str:
+    if m.kind is Kind.OPENING:
+        return _apertura_plantilla(m)
     if m.kind is Kind.QUESTION:
         # Lo que sabe y comparte alguna palabra con la pregunta: «¿dónde puedo
         # beber agua?» encuentra «beber: en la cornucopia», con las mismas
@@ -690,6 +733,218 @@ def _escena_plantilla(m: Moment, s: Scene) -> list[str]:
     return [f"Estás en {m.place}.", *([m.description] if m.description else []), aqui]
 
 
+GRUPOS_TOP = 5
+"""Cuántos grupos, por tamaño, caben en la apertura."""
+
+PRIORIDAD_MOVIMIENTO = {
+    EventKind.AGENT_DIED: 0,
+    EventKind.FACTION_FOUNDED: 1,
+    EventKind.FACTIONS_AT_ODDS: 1,
+    EventKind.AGENT_BORN: 2,
+    EventKind.RELATION_BEGAN: 3,
+    EventKind.RELATION_ENDED: 3,
+    EventKind.RANK_UP: 4,
+}
+"""Qué se cuenta primero de lo que se mueve (unidad 22): la muerte antes que el
+nacimiento, y así. Dentro de cada prioridad, lo más reciente."""
+
+
+def opening_moment(
+    world: WorldState, player: str, events: Iterable[Event], table: Table
+) -> Moment:
+    """La apertura (unidad 22): el mundo, dónde llegas y quién eres, y lo que se
+    mueve. Solo lee: nada de esto cambia el mundo (regla 1)."""
+    pack = world.pack
+    base = _base(world, player, Kind.OPENING, (), table)
+    yo = world.agents.get(AgentId(player))
+    estados = list(base.state)
+    vecinos: tuple[str, ...] = ()
+    quien: tuple[str, ...] = ()
+    if yo is not None:
+        estados += [f"eres {pack.situation_by_id[c.situacion].label}"
+                    for c in yo.condiciones if pack.situation_by_id[c.situacion].personal]
+        lugar = pack.place_by_id[yo.at]
+        vecinos = tuple(
+            f"{pack.place_by_id[n].label} (a {_minutos(t * pack.clock.minutes_per_tick)})"
+            for n, t in sorted(lugar.neighbors.items(), key=lambda par: (par[1], str(par[0])))
+        )
+        quien = _quien_eres(world, player)
+    grupos = sorted(world.facciones.values(),
+                    key=lambda f: (-len(world.miembros_de(f.id)), str(f.id)))
+    lore = pack.world
+    return replace(
+        base,
+        state=tuple(estados),
+        places=tuple(sorted({p.label for p in pack.places})),
+        premise=tuple(p.strip() for p in lore.premise.split("\n\n") if p.strip()) if lore else (),
+        tone=lore.tone if lore else None,
+        known=tuple(lore.known) if lore else (),
+        neighbors=vecinos,
+        population=len(world.agents),
+        groups=tuple(f.label for f in grupos[:GRUPOS_TOP]),
+        calendar=f"día {world.tick // pack.clock.ticks_per_day + 1}",
+        who=quien,
+        moving=_se_mueve(world, events),
+    )
+
+
+def _minutos(minutos: int) -> str:
+    return f"{minutos} minutos"
+
+
+def _quien_eres(world: WorldState, player: str) -> tuple[str, ...]:
+    """Lo que el personaje sabe de sí: identidad, carácter, a quién aprecia o detesta,
+    y para un residente, su familia y su gremio. Un forastero no conoce a nadie: sus
+    listas de gente salen vacías porque no tiene nada que nombrar. Lo que falta
+    (carencias) ya está en el ESTADO, y no se repite aquí."""
+    yo = world.agents[AgentId(player)]
+    f = ficha(world, AgentId(player))
+    lineas: list[str] = []
+    if f.identidad:
+        lineas.append(f"identidad: {', '.join(f.identidad)}")
+    if f.caracter:
+        lineas.append(f"carácter: {', '.join(f.caracter)}")
+    if f.aprecia:
+        lineas.append(f"aprecia a: {', '.join(f.aprecia)}")
+    if f.detesta:
+        lineas.append(f"detesta a: {', '.join(f.detesta)}")
+    for rel, quienes in sorted(yo.relations.items()):
+        spec = world.pack.relation_by_id.get(rel)
+        etiqueta = rel if spec is None else spec.label
+        lineas += [f"{etiqueta}: {name_of(world, str(otro))}" for otro in sorted(quienes)]
+    for fid in sorted(yo.lealtad):
+        grupo = world.facciones.get(fid)
+        if grupo is not None:
+            lineas.append(f"gremio: {grupo.label}")
+    return tuple(lineas)
+
+
+def _se_mueve(world: WorldState, events: Iterable[Event]) -> tuple[str, ...]:
+    """Lo notable de los últimos días, en frases (unidad 22). Una muerte cuenta una
+    vez por víctima, aunque la emitan todos sus dolientes (`AGENT_DIED` se repite
+    por superviviente). Por prioridad y, dentro de cada una, lo más reciente."""
+    desde = world.tick - MOVIMIENTO_DIAS * world.pack.clock.ticks_per_day
+    recientes = sorted(
+        (e for e in events if e.tick >= desde and e.kind in PRIORIDAD_MOVIMIENTO),
+        key=lambda e: -e.seq,
+    )
+    muertos: set[str] = set()
+    hechos: list[tuple[int, int, str]] = []
+    for e in recientes:
+        texto = _hecho_que_se_mueve(world, e, muertos)
+        if texto is not None:
+            hechos.append((PRIORIDAD_MOVIMIENTO[e.kind], -e.seq, texto))
+    hechos.sort()
+    return tuple(texto for _, _, texto in hechos[:MOVIMIENTO_TOP])
+
+
+def _hecho_que_se_mueve(world: WorldState, e: Event, muertos: set[str]) -> str | None:
+    pack = world.pack
+
+    def dato(clave: str) -> str | None:
+        valor = e.data.get(clave)
+        return None if valor is None else str(valor)
+
+    match e.kind:
+        case EventKind.AGENT_DIED:
+            victima = None if e.subject is None else str(e.subject)
+            if victima is None or victima in muertos:
+                return None
+            muertos.add(victima)
+            return f"ha muerto {name_of(world, victima)}"
+        case EventKind.AGENT_BORN if e.actor is not None:
+            return f"ha nacido {name_of(world, str(e.actor))}"
+        case EventKind.FACTION_FOUNDED if dato("faccion") is not None:
+            return f"se funda {_grupo(world, dato('faccion') or '')}"
+        case EventKind.FACTIONS_AT_ODDS if dato("una") and dato("otra"):
+            return (f"{_grupo(world, dato('una') or '')} y "
+                    f"{_grupo(world, dato('otra') or '')} se enfrentan")
+        case EventKind.RELATION_BEGAN | EventKind.RELATION_ENDED if (
+            dato("relation") is not None and e.subject is not None
+        ):
+            pareja = f"{name_of(world, str(e.actor))} y {name_of(world, str(e.subject))}"
+            rel = RelationId(dato("relation") or "")
+            spec = pack.relation_by_id.get(rel)
+            etiqueta = str(rel) if spec is None else spec.label
+            if e.kind is EventKind.RELATION_BEGAN:
+                return f"{pareja} son ahora {etiqueta}"
+            return f"{pareja} ya no son {etiqueta}"
+        case EventKind.RANK_UP if dato("need") is not None and e.actor is not None:
+            eje = NeedId(dato("need") or "")
+            spec_eje = pack.need_by_id.get(eje)
+            etiqueta = str(eje) if spec_eje is None else spec_eje.label
+            return f"{name_of(world, str(e.actor))} sube de rango en {etiqueta}"
+    return None
+
+
+def _grupo(world: WorldState, faccion: str) -> str:
+    grupo = world.facciones.get(FactionId(faccion))
+    return faccion if grupo is None else grupo.label
+
+
+def _briefing_apertura(m: Moment) -> str:
+    lines: list[str] = []
+    if m.premise or m.tone or m.known:
+        lines.append("MUNDO:")
+        lines += [f"  {p}" for p in m.premise]
+        if m.tone:
+            lines.append(f"TONO: {m.tone}")
+        if m.known:
+            lines.append("TODOS SABEN:")
+            lines += [f"  - {k}" for k in m.known]
+    lines += [f"PERSONAJE: {m.player} (tú)", f"LUGAR: {m.place}"]
+    if m.description:
+        lines.append(f"CÓMO ES: {m.description}")
+    if m.calendar:
+        lines.append(f"CUÁNDO: {m.calendar}")
+    if m.phase:
+        lines.append(f"HORA: {m.phase}")
+    if m.neighbors:
+        lines.append("LUGARES CONTIGUOS: " + "; ".join(m.neighbors))
+    if m.present:
+        extra = f" y {len(m.present) - 6} más" if len(m.present) > 6 else ""
+        lines.append(f"AQUÍ HAY: {', '.join(m.present[:6])}{extra}")
+    else:
+        lines.append("AQUÍ HAY: nadie más")
+    if m.population:
+        lines.append(f"EN EL MUNDO VIVEN: {m.population} personas")
+    if m.groups:
+        lines.append("GRUPOS MÁS GRANDES: " + "; ".join(m.groups))
+    if m.state:
+        lines.append("ESTADO: " + "; ".join(m.state))
+    if m.who:
+        lines.append("QUIÉN ERES:")
+        lines += [f"  {w}" for w in m.who]
+    if m.moving:
+        lines.append("LO QUE SE MUEVE:")
+        lines += [f"  - {x}" for x in m.moving]
+    return OPENING_PROMPT.format(contexto="\n".join(lines))
+
+
+def _apertura_plantilla(m: Moment) -> str:
+    """Sin modelo, o si el modelo nombra a alguien o a un lugar que no se le dio: el
+    mundo, luego la llegada con sus vecinos, luego quién eres, y lo que se mueve."""
+    parrafos = list(m.premise)
+    llegada = f"Llegas a {m.place}."
+    if m.description:
+        llegada += f" {m.description}"
+    if m.neighbors:
+        llegada += f" Desde aquí se llega a {_lista(list(m.neighbors))}."
+    if m.present:
+        extra = f" y {len(m.present) - 6} más" if len(m.present) > 6 else ""
+        llegada += f" Aquí: {_lista(list(m.present[:6]))}{extra}."
+    else:
+        llegada += " Aquí: nadie más."
+    parrafos.append(llegada)
+    quien = [f"Eres {m.player}."]
+    quien += [f"{s[0].upper()}{s[1:]}." for s in m.state]
+    quien += [f"{w[0].upper()}{w[1:]}." for w in m.who]
+    parrafos.append(" ".join(quien))
+    if m.moving:
+        parrafos.append(f"Lo que se mueve: {_lista(list(m.moving))}.")
+    return "\n\n".join(parrafos)
+
+
 @dataclass(frozen=True, slots=True)
 class Told:
     text: str
@@ -702,20 +957,42 @@ def narrate(m: Moment, providers: Sequence[CognitionProvider], seed: int) -> Tol
     JSON que hubiera que desenvolver. Se valida igual que antes (longitud y
     nombres de fuera); lo que no pase, lo cuenta el siguiente proveedor, o la
     plantilla. `Narration` se acepta por quien aún la devuelva."""
+    return narrate_con_motivos(m, providers, seed)[0]
+
+
+def narrate_con_motivos(
+    m: Moment, providers: Sequence[CognitionProvider], seed: int
+) -> tuple[Told, tuple[str, ...]]:
+    """Lo mismo que `narrate`, y además por qué cada proveedor no valió (el banco de
+    aperturas lo muestra). Una sola puerta: `narrate` no tiene otra lógica."""
     texto = briefing(m)
+    motivos: list[str] = []
     for i, p in enumerate(providers):
         out = p.think(texto, str, seed)
         prosa = out.prosa if isinstance(out, Narration) else out if isinstance(out, str) else None
         if prosa is None:
+            motivos.append(f"proveedor {i}: sin respuesta")
             continue
         prosa = prosa.strip()
-        if 1 <= len(prosa) <= 1200 and not strangers(m, prosa):
-            return Told(prosa, i)
-    return Told(fallback(m), None)
+        tope = APERTURA_MAX if m.kind is Kind.OPENING else PROSA_MAX
+        if not 1 <= len(prosa) <= tope:
+            motivos.append(f"proveedor {i}: longitud {len(prosa)}")
+            continue
+        nombres = strangers(m, prosa)
+        if nombres:
+            motivos.append(f"proveedor {i}: nombra a {', '.join(nombres)}")
+            continue
+        return Told(prosa, i), tuple(motivos)
+    return Told(fallback(m), None), tuple(motivos)
 
 
 def _seed(world: WorldState, player: str, what: str) -> int:
     return world.rng.stream("narrador", what, player, world.tick).randrange(2**31)
+
+
+def semilla_de_apertura(world: WorldState, player: str) -> int:
+    """La semilla de la apertura: la misma para la partida y para el banco."""
+    return _seed(world, player, "apertura")
 
 
 @dataclass
@@ -733,6 +1010,9 @@ class Narrator:
     last_was_fight: bool = False
     """Acabó una escena de combate desde la última narración. La marca quien
     lleva la pelea (`TerminalCombat.report`) y la gasta la siguiente narración."""
+    opening_providers: tuple[CognitionProvider, ...] | None = None
+    """La cadena de la apertura, si la prosa de la apertura necesita más tokens que
+    la de un turno (unidad 22). `None` = la misma cadena."""
 
     def world(self, world: WorldState, events: Iterable[Event], player: str) -> Told:
         """Siempre hay momento: aunque no pase nada, la escena se cuenta (unidad 18)."""
@@ -749,6 +1029,20 @@ class Narrator:
                 str(o.spec_id) for o in world.agents_in_order() if o.at == a.at))
         m = world_moment(world, player, facts, self.table, last, scene)
         return narrate(m, self.providers, _seed(world, player, "mundo"))
+
+    def opening(self, world: WorldState, player: str, events: Iterable[Event]) -> Told:
+        """La apertura (unidad 22): una vez, antes del primer turno. Deja al narrador
+        donde está el jugador, para que el primer turno cuente lo que pase desde aquí
+        y no la escena entera otra vez."""
+        m = opening_moment(world, player, events, self.table)
+        cadena = self.providers if self.opening_providers is None else self.opening_providers
+        told = narrate(m, cadena, semilla_de_apertura(world, player))
+        a = world.agents.get(AgentId(player))
+        if a is not None:
+            self.seen = Sighting(str(a.at), frozenset(
+                str(o.spec_id) for o in world.agents_in_order() if o.at == a.at))
+        self.last_tick = world.tick
+        return told
 
     def answer(self, world: WorldState, player: str, question: str,
                nearest: Mapping[str, tuple[str, int]]) -> Told:

@@ -32,6 +32,9 @@ from agora.banco import (
     run_claims_bank,
     run_tell_bank,
 )
+from agora.banco_aperturas import cargar_casos, run_opening_bank
+from agora.banco_aperturas import lineas as lineas_aperturas
+from agora.cognition.borrador import BorradorError, escribir_borrador, pedir_borrador
 from agora.cognition.narrador import Narrator, Table, load_table
 from agora.cognition.ollama import OllamaProvider
 from agora.cognition.openai_compat import OpenAICompatibleProvider
@@ -239,6 +242,17 @@ def build_parser() -> argparse.ArgumentParser:
         "mesa.yaml junto al pack si existe",
     )
     parser.add_argument(
+        "--borrador-mundo", type=Path, default=None, metavar="OUT",
+        help="un LLM autor escribe el texto del mundo y las descripciones de lugares "
+        "a partir de lo que el pack declara, en OUT (unidad 22). Nunca escribe mundo.yaml: "
+        "lo revisas y lo guardas tú",
+    )
+    parser.add_argument(
+        "--banco-aperturas", type=Path, default=None, metavar="F",
+        help="abre cada caso de F (un mundo, quién juegas, una semilla) y mide la apertura "
+        "con el narrador: aceptada o plantilla, palabras y segundos (unidad 22)",
+    )
+    parser.add_argument(
         "--banco-narracion", type=Path, default=None, metavar="F",
         help="narra los momentos de este archivo con --narrador y mide (unidad 17); "
         "con --muestras, escribe cada narración para leerla",
@@ -311,6 +325,12 @@ def main() -> None:
 
     if args.health:
         _report_health(pack)
+        return
+    if args.borrador_mundo is not None:
+        _borrador(args, pack)
+        return
+    if args.banco_aperturas is not None:
+        _banco_aperturas(args)
         return
     if args.banco_narracion is not None:
         narrador = _narrador(args)
@@ -500,8 +520,11 @@ def _jugar(sim: Simulation, args: argparse.Namespace, ticks: int) -> None:
         )
     else:
         cab = cablear(args)
+        # Se cuenta la apertura al llegar: una partida nueva, o un forastero que llega
+        # a un mundo guardado. Reanudar la propia partida no la vuelve a contar.
+        llega = args.load is None or args.jugar_ficha is not None
         terminal = Terminal(sim, sys.stdin, sys.stdout, cab.voz, interpreter=cab.interprete,
-                            narrator=cab.narrador)
+                            narrator=cab.narrador, apertura=llega)
         escena = TerminalCombat(sys.stdin, sys.stdout, cab.interprete, cab.narrador,
                                 lambda: sim.state, empezada=terminal.quitar_piloto)
         resultado = correr_partida(
@@ -527,6 +550,32 @@ def _interprete(args: argparse.Namespace) -> OpenAICompatibleProvider | None:
     return proveedor
 
 
+def _borrador(args: argparse.Namespace, pack: ContentPack) -> None:
+    """El borrador del texto del mundo (unidad 22, A.2). Un proveedor propio: ni el del
+    narrador ni el de la voz (D-166). Sin clave, no hay borrador que hacer."""
+    proveedor = OpenAICompatibleProvider(modelo=args.interprete, url=args.interprete_url,
+                                         plazo=120.0, temperatura=0.7, max_tokens=3000)
+    if not proveedor.clave:
+        print("# sin OPENROUTER_API_KEY: el borrador necesita el modelo")
+        raise SystemExit(1)
+    try:
+        lore, descripciones = pedir_borrador(pack, proveedor, args.seed)
+        escribir_borrador(args.borrador_mundo, lore, descripciones)
+    except BorradorError as exc:
+        print(f"# no se escribe el borrador: {exc}")
+        raise SystemExit(1) from exc
+    print(f"# borrador -> {args.borrador_mundo}  ({len(descripciones)} lugares descritos)")
+
+
+def _banco_aperturas(args: argparse.Namespace) -> None:
+    """El banco de aperturas (unidad 22, A.6): mide con el narrador de la partida."""
+    casos = cargar_casos(args.banco_aperturas)
+    narrador = _narrador(args)
+    cadena = () if narrador is None else (narrador.opening_providers or narrador.providers)
+    resultados = run_opening_bank(casos, cadena)
+    print("\n".join(lineas_aperturas(resultados)))
+
+
 def _narrador(args: argparse.Namespace) -> Narrator | None:
     """Su propia cadena de proveedores (D-166): ni el intérprete ni la voz ven
     lo que se le cuenta a él."""
@@ -544,7 +593,13 @@ def _narrador(args: argparse.Namespace) -> Narrator | None:
     if not all(p.clave for p in cadena):
         print("# sin OPENROUTER_API_KEY: lo que pasa lo cuentan las plantillas")
         return Narrator((), mesa)
-    return Narrator(cadena, mesa)
+    # La apertura son 300-500 palabras: con 400 tokens se corta (unidad 22).
+    cadena_apertura = tuple(
+        OpenAICompatibleProvider(modelo=m.strip(), plazo=args.narrador_plazo,
+                                 temperatura=0.8, max_tokens=1000)
+        for m in args.narrador.split(",") if m.strip()
+    )
+    return Narrator(cadena, mesa, opening_providers=cadena_apertura)
 
 
 def _engano(sim: Simulation, args: argparse.Namespace) -> WorldSocial | None:

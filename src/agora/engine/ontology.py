@@ -3947,3 +3947,22 @@ class CreationSpec(Spec):
     character: dict[TraitId, tuple[float, float]] = Field(default_factory=dict)
     """Lo que se elige gratis dentro de sus rangos: `{rasgo: [min, max]}`."""
     rare: dict[TraitId, RareSpec] = Field(default_factory=dict)
+
+
+class WorldLore(Spec):
+    """Lo que el mundo es, en texto, para que la primera escena no sea genérica
+    (unidad 22). Lo redacta un autor fuera de la partida y lo aprueba quien juega:
+    queda en el pack, fijo, y la partida no inventa el mundo.
+
+    Nada de esto lo lee el motor. Lo leen el narrador y la página; por eso vive en
+    `mundo.yaml` y no en el `pack.yaml` que genera `generar.py`."""
+
+    premise: str = Field(min_length=1, max_length=4000)
+    """Qué es este mundo, en uno a tres párrafos."""
+    tone: str = Field(min_length=1, max_length=300)
+    """Cómo se cuenta: una línea."""
+    known: tuple[str, ...] = ()
+    """Lo que todo el mundo sabe (quién manda, la magia, las tensiones), frases sueltas."""
+    places: dict[PlaceId, str] = Field(default_factory=dict)
+    """Descripciones para los lugares que el pack no describe. Un lugar descrito en
+    el pack no se describe aquí: es error tener las dos."""

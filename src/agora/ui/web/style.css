@@ -131,6 +131,15 @@ input, select {
 
 .relato p { margin: 0.4em 0; }
 .relato .narracion { font-size: 1.12em; }
+/* La apertura: lo primero que se lee, en un bloque propio y con más aire. */
+.relato .apertura {
+  border-left: 3px solid var(--acento);
+  padding: 0.4em 1em;
+  margin: 0.2em 0 1em;
+  font-size: 1.1em;
+  line-height: 1.6;
+}
+.relato .apertura p { margin: 0.7em 0; }
 .relato .narracion.plantilla { color: #d8cdbd; }
 .relato .suceso { color: var(--tenue); font-size: 0.88em; margin: 0.25em 0; }
 .relato .aviso { color: var(--tenue); font-style: italic; font-size: 0.9em; margin: 0.25em 0; }

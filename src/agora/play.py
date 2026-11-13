@@ -35,6 +35,7 @@ from agora.cognition.conversa import (
 from agora.cognition.intencion import Entry, Kind, Menu, Order, _representatives, interpret
 from agora.cognition.narrador import (
     DEATH,
+    MOVIMIENTO_DIAS,
     BeatView,
     Fact,
     Narrator,
@@ -423,12 +424,16 @@ class Terminal:
         narrator: Narrator | None = None,
         presenter: Presenter | None = None,
         parada: threading.Event | None = None,
+        apertura: bool = False,
     ) -> None:
         self.sim = sim
         self.inp = inp
         self.out = out
         self.p: Presenter = presenter if presenter is not None else TextPresenter(inp, out)
         """Por dónde se enseña y se pregunta todo (D-174): la terminal, o la web."""
+        self._apertura = apertura
+        """Si falta contar la apertura (unidad 22): antes del primer turno, una vez.
+        Una partida que se reanuda y no es una llegada no la cuenta."""
         self.parada = parada
         """Una bandera que la web pone con «Parar»: el piloto la mira en cada decisión."""
         self.piloto: Piloto | None = None
@@ -581,6 +586,9 @@ class Terminal:
     ) -> Decision | None:
         if self.quit:
             return None
+        if self._apertura:
+            self._apertura = False
+            self._abrir(world, agent)
         if self.piloto is not None:
             activo, elegida = self._piloto(world, agent, options)
             if activo:
@@ -746,6 +754,18 @@ class Terminal:
         if piloto.hasta_tick is not None and world.tick >= piloto.hasta_tick:
             return piloto.texto_limite
         return None
+
+    def _abrir(self, world: WorldState, agent: AgentState) -> None:
+        """La apertura (unidad 22): lo que el narrador cuenta antes de la primera
+        pregunta. Lo que ya pasó lo cuenta la apertura, así que el primer turno empieza
+        desde aquí: el log se marca como visto."""
+        if self.narrator is None:
+            return
+        por_dia = world.pack.clock.ticks_per_day
+        recientes = [e for e in self.sim.log if e.tick >= world.tick - MOVIMIENTO_DIAS * por_dia]
+        told = self.narrator.opening(world, str(agent.spec_id), recientes)
+        self.p.opening(told, bool(self.narrator.providers))
+        self._visto = self.sim.log.siguiente_seq
 
     def quitar_piloto(self, motivo: str) -> None:
         """Quita el piloto, y lo dice: «Vuelves en ti: …». Lo llama también la escena

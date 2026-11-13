@@ -16,6 +16,9 @@ PLAN.md
 # Partidas guardadas: son estado, no producto. Se regeneran corriendo.
 *.json
 !packs/**/*.json
+# Los estados de un mundo («tras 90 días») pesan ~10 MB: no van al repo. Se regeneran
+# con `--days 90 --skip 7 --save packs/<mundo>/mundos/<nombre>.json` (unidad 22).
+packs/*/mundos/
 
 # Partidas jugadas en la web (`agora --ui`), grabadas como guion: estado, no producto.
 partidas/

@@ -1,0 +1,15 @@
+Eres el autor de un mundo para una partida de rol. Vas a escribir el texto de fondo de
+un mundo que ya existe: lo que es, cómo se cuenta, y lo que todo el mundo sabe. El
+texto lo revisará una persona antes de usarlo. Reglas:
+- Solo lo que está en el MUNDO de abajo. Nada de personas, ni de nombres propios de
+  gente. Puedes nombrar tipos de grupo, tipos de rasgo, necesidades y lugares, pero
+  no inventes lugares, grupos concretos ni sucesos.
+- premise: uno a tres párrafos (separados por una línea en blanco) de qué es este
+  mundo, en segunda persona del plural o en tercera; sin adornos.
+- tone: una sola línea: cómo se cuenta (sobria, cálida, de crónica, de cuento…).
+- known: de tres a cinco frases sueltas de lo que todo el mundo sabe (quién manda,
+  qué escasea, qué se disputa).
+- Responde con el JSON del esquema, sin nada más.
+
+MUNDO:
+{contexto}

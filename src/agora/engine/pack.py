@@ -20,6 +20,7 @@ from collections import Counter
 from collections.abc import Iterable, Mapping
 from functools import cached_property
 from pathlib import Path
+from typing import Any
 
 import yaml
 from pydantic import Field, ValidationError, model_validator
@@ -59,6 +60,7 @@ from agora.engine.ontology import (
     TraitSpec,
     TuningSpec,
     VoiceSpec,
+    WorldLore,
 )
 from agora.engine.topology import is_strongly_connected
 
@@ -137,6 +139,10 @@ class ContentPack(Spec):
     creation: CreationSpec | None = None
     """Cómo puede el jugador crear su personaje (unidad 21a). `None` = no se crea:
     la ficha se escribe a mano. No lo lee la simulación: solo la creación."""
+
+    world: WorldLore | None = None
+    """El texto del mundo (unidad 22), de `mundo.yaml`. `None` = el pack no tiene
+    texto y la apertura empieza por la llegada. No lo lee la simulación."""
 
     social: SocialSpec = Field(default_factory=SocialSpec)
     """Cómo se habla en este mundo (unidad 15). Omitirlo usa los valores por
@@ -1754,6 +1760,35 @@ class ContentPack(Spec):
         return self
 
 
+def _con_mundo(raw: Mapping[str, Any], ruta: Path) -> dict[str, Any]:
+    """Funde `mundo.yaml` en el pack antes de validarlo. Va aparte, y no en el
+    validador del pack, porque el texto del mundo no es del pack: lo puso alguien
+    después, al lado, y los packs generados no se tocan.
+
+    Una descripción de lugar vive en un solo sitio: si el pack ya describe el lugar,
+    `mundo.yaml` no puede volver a describirlo."""
+    try:
+        lore = WorldLore.model_validate(yaml.safe_load(ruta.read_text(encoding="utf-8")) or {})
+    except ValidationError as exc:
+        raise PackError(f"no se pudo cargar {ruta}:\n{exc}") from exc
+    lugares = {str(p.get("id")): p for p in raw.get("places", [])}
+    problemas: list[str] = []
+    for lugar, texto in sorted(lore.places.items()):
+        pack_lugar = lugares.get(str(lugar))
+        if pack_lugar is None:
+            problemas.append(f"{ruta}: places.{lugar}: no existe ese lugar en el pack")
+        elif pack_lugar.get("description"):
+            problemas.append(
+                f"{ruta}: places.{lugar}: el pack ya describe ese lugar; "
+                "una descripción va en un solo sitio"
+            )
+        else:
+            pack_lugar["description"] = texto
+    if problemas:
+        raise PackError("\n".join(problemas))
+    return {**raw, "world": lore.model_dump(exclude={"places"})}
+
+
 def load_pack(path: Path) -> ContentPack:
     """Lee un pack desde disco.
 
@@ -1767,6 +1802,9 @@ def load_pack(path: Path) -> ContentPack:
     tipo propio y no una excepción de la librería.
     """
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    mundo = path.parent / "mundo.yaml"
+    if mundo.is_file():
+        raw = _con_mundo(raw, mundo)
     try:
         return ContentPack.model_validate(raw)
     except ValidationError as exc:

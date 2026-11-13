@@ -1,0 +1,68 @@
+# borrador de mundo, escrito por un modelo: revísalo y guárdalo como `mundo.yaml` junto al pack.
+# No se usa hasta que lo guardes.
+premise: Este mundo es un lugar de gran diversidad, donde diferentes especies y razas
+  coexisten en un entorno de magia y aventuras. La sociedad está organizada en torno
+  a gremios y casas, y las personas se dedican a various oficios y aficiones. El mundo
+  está lleno de lugares emblemáticos, como la plaza mayor, el mercado central y la
+  academia arcana, donde la gente se reúne para intercambiar bienes y conocimientos.
+tone: Se cuenta de manera sobria y objetiva, sin adornos ni emociones exageradas.
+known:
+- La magia es una parte fundamental de la vida en este mundo.
+- La lucha por el poder y el dominio es constante.
+- La escasez de recursos naturales es un problema común.
+- El conocimiento y la sabiduría son altamente valorados.
+- La seguridad y la protección son necesidades básicas que deben ser satisfechas.
+places:
+  academia_arcana: Un edificio imponente con torres y bibliotecas.
+  arboleda_ancestral: Un bosque denso y con árboles antiguos
+  archivo_prohibido: Un área restringida con secretos ocultos.
+  campamento_orco: Un campamento desordenado con tiendas de cuero
+  campo_de_caza: Terreno abierto para cacería y entrenamiento.
+  campo_de_practica_elemental: Un espacio abierto para prácticas mágicas.
+  campo_gigante: Terreno vasto para entrenamiento y competencias.
+  cantera: Área de extracción de piedra con actividad laboral.
+  casa_de_pruebas: Un edificio misterioso y con puertas
+  catacumbas_profundas: Túneles y cámaras subterráneas oscuros.
+  claro_del_ogro: Un claro en el bosque con un gran árbol caído
+  cripta_olvidada: Un lugar abandonado y lleno de polvo.
+  dormitorios_academia: Habitaciones sencillas para estudiantes.
+  enfermeria: Un lugar para curar heridas y enfermedades.
+  entrada_catacumbas: Una entrada oscura a un mundo subterráneo.
+  forjas: Lugar de trabajo intenso con fraguas y martillos.
+  gran_biblioteca: Un espacio lleno de libros y conocimiento.
+  granja: Lugar de cultivo y cría de animales con ambiente rural.
+  gremio_aventureros: Un edificio sólido y funcional
+  guarida_goblin: Una cueva oscura y estrecha con escondites
+  linde_salvaje: Un bosque denso y silvestre con árboles altos
+  mazmorra_mayor: Una gran cámara subterránea con techo abovedado
+  mazmorra_media: Un lugar oscuro y húmedo con paredes de piedra
+  mazmorra_menor: Un calabozo pequeño y sombrío.
+  mercado_central: Un lugar bullicioso y lleno de puestos
+  mercado_de_artefactos: Un lugar para comprar y vender objetos mágicos.
+  mina: Túneles oscuros y polvorientos con sonidos de picadura.
+  muelle: Estructura sobre el agua para embarcaciones y carga.
+  muelle_de_contrabandistas: Lugar clandestino para actividades ilícitas.
+  nido_dragonewt: Un nido de ramas y hojas en lo alto de un árbol
+  patio_de_duelos: Un área para competiciones y desafíos.
+  plaza_demihumana: Espacio comunitario con arquitectura única y mercado.
+  plaza_elfica: Un espacio elegante y con árboles
+  plaza_enana: Un espacio sólido y con forjas
+  plaza_gigante: Espacio abierto con estructuras grandiosas y actividad bulliciosa.
+  plaza_mayor: Un espacio abierto y concurrido
+  plaza_portuaria: Área concurrida con muelles y comercio marítimo.
+  posada_central: Un lugar acogedor y con habitaciones
+  posada_de_la_manada: Alojamiento acogedor con decoración de caza y chimenea.
+  posada_elfica: Un lugar refinado y con habitaciones
+  posada_enana: Establecimiento cálido con decoración enana y buena cerveza.
+  posada_marea: Un lugar acogedor con vistas al mar.
+  prision: Un lugar sombrío y con celdas
+  puerta_norte: Una entrada amplia y con guardias
+  refectorio_academico: Un comedor grande para la comunidad.
+  risco_de_los_majin: Un risco rocoso con una vista panorámica
+  salon_comunal_gigante: Sala grande para reuniones y celebraciones.
+  salon_del_consejo: Un espacio formal y con sillas
+  santuario_del_viento: Un lugar tranquilo y con estatuas
+  taberna_central: Un local animado y con mesas
+  templo_central: Un edificio imponente y sagrado
+  templo_mareas: Edificio sagrado dedicado al culto de las mareas.
+  torre_observacion: Una torre alta con vistas panorámicas.
