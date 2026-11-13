@@ -127,9 +127,9 @@ def test_schema_representantes_y_validacion() -> None:
 
 
 def test_order_no_tiene_salir() -> None:
-    # 6. Order no tiene salir ni nada parecido: set(Order) == {mirar, ficha, esperar, hablar}.
-    assert set(Order) == {Order.LOOK, Order.SHEET, Order.WAIT, Order.TALK}
-    assert {o.value for o in Order} == {"mirar", "ficha", "esperar", "hablar"}
+    # 6. Order no tiene salir: set(Order) == {mirar, ficha, esperar, hablar, vivir}.
+    assert set(Order) == {Order.LOOK, Order.SHEET, Order.WAIT, Order.TALK, Order.LIVE}
+    assert {o.value for o in Order} == {"mirar", "ficha", "esperar", "hablar", "vivir"}
 
 
 def test_interpret_con_proveedor_none() -> None:
