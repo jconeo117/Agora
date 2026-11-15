@@ -3488,6 +3488,12 @@ class TuningSpec(Spec):
     empiezan, aunque se estén muriendo.
     """
 
+    perception_days: int = Field(default=14, ge=1)
+    """Hasta cuántos días atrás guarda cada persona lo que vio delante (unidad 23-0)."""
+    perception_max: int = Field(default=300, ge=1)
+    """Cuántos hechos presenciados guarda cada persona, como mucho. Pasado el tope se
+    descartan los más viejos."""
+
     memory_capacity: int = Field(default=0, ge=0)
     """Cuántos recuerdos retiene cada agente. **0 desactiva la memoria episódica.**
 

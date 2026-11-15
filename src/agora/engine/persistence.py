@@ -25,6 +25,7 @@ parado. Esa propiedad se decidio en F0 y esta es la primera vez que se cobra.
 from __future__ import annotations
 
 import json
+from collections import deque
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
@@ -50,6 +51,7 @@ from agora.engine.ontology import (
     TraitId,
 )
 from agora.engine.pack import ContentPack
+from agora.engine.perception import Percepcion
 from agora.engine.state import (
     AgentState,
     Baja,
@@ -256,6 +258,17 @@ def save(
         "bajas": {
             str(autor): [[str(b.victima), b.tick, b.aprecio] for b in lista]
             for autor, lista in sorted(world.bajas.items())
+        },
+        # Lo que cada uno ha visto delante (unidad 23-0). Un guardado anterior no lo
+        # trae: los búferes cargan vacíos. Solo se escriben los que tienen algo.
+        "percepcion": {
+            str(quien): [
+                [p.seq, p.tick, p.kind.value, str(p.actor),
+                 None if p.target is None else str(p.target),
+                 str(p.place), None if p.action is None else str(p.action)]
+                for p in buffer
+            ]
+            for quien, buffer in sorted(world.percepcion.items()) if buffer
         },
         # Sin esto, al reanudar se emitiria un encuentro por cada par que ya
         # estaba junto: el mundo cargado se saludaria entero de golpe.
@@ -782,6 +795,19 @@ def load(
             Baja(AgentId(str(v)), int(t), float(a)) for v, t, a in lista
         ]
         for autor, lista in datos.get("bajas", {}).items()
+    }
+    world.percepcion = {
+        AgentId(str(quien)): deque(
+            Percepcion(
+                seq=int(seq), tick=int(tick), kind=EventKind(kind),
+                actor=AgentId(str(actor)),
+                target=None if destino is None else AgentId(str(destino)),
+                place=PlaceId(str(lugar)),
+                action=None if accion is None else ActionId(str(accion)),
+            )
+            for seq, tick, kind, actor, destino, lugar, accion in lista
+        )
+        for quien, lista in datos.get("percepcion", {}).items()
     }
 
     together = {(AgentId(a), AgentId(b)) for a, b in datos["together"]}

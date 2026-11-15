@@ -73,6 +73,7 @@ from agora.engine.outcome import (
     signed_saturation,
 )
 from agora.engine.pack import ContentPack
+from agora.engine.perception import anotar, percepcion_de
 from agora.engine.ports import Fate
 from agora.engine.social import (
     Belief,
@@ -281,7 +282,7 @@ class Simulation:
             return
         ganador = next(iter(self.state.agents))
         self.state.finished = (ganador, self.state.tick)
-        self.log.emit(tick=self.state.tick, kind=EventKind.GAME_ENDED, actor=ganador,
+        self._registrar(tick=self.state.tick, kind=EventKind.GAME_ENDED, actor=ganador,
                       place=self.state.agents[ganador].at)
 
     # -------------------------------------------------------------------------
@@ -340,7 +341,7 @@ class Simulation:
         elif spec.inverse is not None:
             self.state.agents[other].relations.setdefault(spec.inverse, set()).add(one)
 
-        self.log.emit(
+        self._registrar(
             tick=self.state.tick,
             kind=EventKind.RELATION_BEGAN,
             actor=one,
@@ -362,7 +363,7 @@ class Simulation:
         if del_otro is not None:
             self.state.agents[other].relations.get(del_otro, set()).discard(one)
 
-        self.log.emit(
+        self._registrar(
             tick=self.state.tick,
             kind=EventKind.RELATION_ENDED,
             actor=one,
@@ -407,7 +408,7 @@ class Simulation:
         self.state.situations[situation] = (
             None if ticks is None else self.state.tick + ticks
         )
-        self.log.emit(
+        self._registrar(
             tick=self.state.tick,
             kind=EventKind.SITUATION_BEGAN,
             data={
@@ -471,7 +472,7 @@ class Simulation:
             raise KeyError(f"no está entre los vivos: {quien!r}")
         cuantas = agente.aliviar(situacion, marca=marca)
         if cuantas:
-            self.log.emit(
+            self._registrar(
                 tick=self.state.tick,
                 kind=EventKind.SITUATION_ENDED,
                 actor=quien,
@@ -650,7 +651,7 @@ class Simulation:
             if aprecio <= 0.0:
                 continue
             testigo = deudo.at == donde
-            evento = self.log.emit(
+            evento = self._registrar(
                 tick=self.state.tick,
                 kind=EventKind.AGENT_DIED,
                 actor=otro_id,
@@ -704,13 +705,15 @@ class Simulation:
         del self.state.agents[quien]
         # Lo que sabía y no compartió, se va con él.
         memoria.borrar(quien)
+        # Y lo que vio delante.
+        self.state.percepcion.pop(quien, None)
 
     def end_situation(self, situation: SituationId) -> None:
         """Que deje de pasar. Silencioso si no estaba pasando."""
         if situation not in self.state.situations:
             return
         del self.state.situations[situation]
-        self.log.emit(
+        self._registrar(
             tick=self.state.tick,
             kind=EventKind.SITUATION_ENDED,
             data={"situation": str(situation)},
@@ -902,7 +905,7 @@ class Simulation:
             # mismo `endure`: una herida no es una decisión suya, así que se
             # archiva como pasivo igual que una ventisca.
             for vencida in agent.expirar_condiciones(self.state.tick):
-                self.log.emit(
+                self._registrar(
                     tick=self.state.tick,
                     kind=EventKind.SITUATION_ENDED,
                     actor=agent.spec_id,
@@ -976,7 +979,7 @@ class Simulation:
                     # No pasa por `_emit`, y esa es toda la corrección: `_emit`
                     # sella el evento con `agent.at`, que para una herida es
                     # dónde te diste cuenta y no dónde te la hicieron.
-                    event = self.log.emit(
+                    event = self._registrar(
                         tick=self.state.tick,
                         kind=EventKind.NEED_CRITICAL,
                         actor=agent.spec_id,
@@ -1082,7 +1085,7 @@ class Simulation:
 
         for id_prop, porque in extintas:
             propiedad = self.state.propiedades.pop(id_prop)
-            self.log.emit(
+            self._registrar(
                 tick=self.state.tick,
                 kind=EventKind.PROPERTY_ENDED,
                 actor=propiedad.dueño,
@@ -1525,7 +1528,7 @@ class Simulation:
         # no al empezar: vendarse a medias no cura.
         for curada, cuanto in sorted(spec.cures.items()):
             if agent.aliviar(curada, cuanto):
-                self.log.emit(
+                self._registrar(
                     tick=self.state.tick,
                     kind=EventKind.SITUATION_ENDED,
                     actor=agent.spec_id,
@@ -1601,7 +1604,7 @@ class Simulation:
         viejo = objeto.dueño
         self.state.mudar_objeto(objeto, dueño=dueño, lugar=lugar)
         objeto.equipado = False
-        self.log.emit(
+        self._registrar(
             tick=self.state.tick,
             kind=EventKind.ITEM_MOVED,
             actor=actor,
@@ -1637,7 +1640,7 @@ class Simulation:
         """Quita del mundo un objeto que el agente gasta. Su `ITEM_MOVED` lleva
         `a: gastado` para que el log distinga gastar de soltar."""
         self.state.baja_objeto(objeto)
-        self.log.emit(
+        self._registrar(
             tick=self.state.tick,
             kind=EventKind.ITEM_MOVED,
             actor=agent.spec_id,
@@ -1670,7 +1673,7 @@ class Simulation:
                     lugar=lugar.id,
                 )
                 self.state.alta_objeto(nuevo)
-                self.log.emit(
+                self._registrar(
                     tick=self.state.tick,
                     kind=EventKind.ITEM_MOVED,
                     place=lugar.id,
@@ -1723,7 +1726,7 @@ class Simulation:
         self.state.recalcular_equipo(agente)
 
     def _emit_puesto(self, agente: AgentState, objeto: Propiedad, *, puesto: bool) -> None:
-        self.log.emit(
+        self._registrar(
             tick=self.state.tick,
             kind=EventKind.ITEM_MOVED,
             actor=agente.spec_id,
@@ -1935,7 +1938,7 @@ class Simulation:
             # el vínculo es asimétrico en lo que se siente, no en quién se ve.
             self.state.agents[actor].meet(subject, self.state.tick)
             self.state.agents[subject].meet(actor, self.state.tick)
-            self.log.emit(
+            self._registrar(
                 tick=self.state.tick,
                 kind=EventKind.ENCOUNTER,
                 actor=actor,
@@ -1969,6 +1972,44 @@ class Simulation:
             if delta > 0.0 and self.pack.need_by_id[need_id].company_relief > 0.0:
                 libro.anotar(libro.incondicional, need_id, delta)
 
+    def _registrar(
+        self,
+        *,
+        tick: int,
+        kind: EventKind,
+        actor: AgentId | None = None,
+        place: PlaceId | None = None,
+        action: ActionId | None = None,
+        subject: AgentId | None = None,
+        data: Payload | None = None,
+    ) -> Event:
+        """La única puerta por la que un hecho entra en el log. Lo presenciado se
+        anota después de emitirlo, porque la percepción guarda el `seq` ya sellado."""
+        evento = self.log.emit(
+            tick=tick, kind=kind, actor=actor, place=place,
+            action=action, subject=subject, data=data,
+        )
+        self._percibir(evento)
+        return evento
+
+    def _percibir(self, evento: Event) -> None:
+        percepcion = percepcion_de(evento)
+        if percepcion is None:
+            return
+        presentes = [
+            agente.spec_id
+            for agente in self.state.agents_in_order()
+            if agente.at == evento.place and agente.spec_id != evento.actor
+        ]
+        tuning = self.pack.tuning
+        anotar(
+            self.state.percepcion,
+            percepcion,
+            presentes,
+            tuning.perception_days * self.pack.clock.ticks_per_day,
+            tuning.perception_max,
+        )
+
     def _emit(
         self,
         kind: EventKind,
@@ -1983,7 +2024,7 @@ class Simulation:
         hecho entero, no su id: el recuerdo se lleva una copia de lo saliente
         para sobrevivir a la ventana del log y a un `save`/`load`.
         """
-        return self.log.emit(
+        return self._registrar(
             tick=self.state.tick,
             kind=kind,
             actor=agent.spec_id,
@@ -2090,7 +2131,7 @@ class Simulation:
             for otra in sorted(faccion.enemigas):
                 if otra in self.state.facciones:
                     self.state.facciones[otra].enemigas.discard(faccion_id)
-            self.log.emit(
+            self._registrar(
                 tick=self.state.tick,
                 kind=EventKind.FACTION_DISSOLVED,
                 actor=faccion.fundador,
@@ -2126,7 +2167,7 @@ class Simulation:
             fundador=agent.spec_id,
         )
         agent.lealtad[nueva] = clase.lealtad_inicial
-        self.log.emit(
+        self._registrar(
             tick=self.state.tick,
             kind=EventKind.FACTION_FOUNDED,
             actor=agent.spec_id,
@@ -2157,7 +2198,7 @@ class Simulation:
         if cual in otro.lealtad:
             return
         otro.lealtad[cual] = clase.lealtad_inicial
-        self.log.emit(
+        self._registrar(
             tick=self.state.tick,
             kind=EventKind.FACTION_JOINED,
             actor=otro.spec_id,
@@ -2189,7 +2230,7 @@ class Simulation:
                     continue
                 aqui.enemigas.add(alli.id)
                 alli.enemigas.add(aqui.id)
-                self.log.emit(
+                self._registrar(
                     tick=self.state.tick,
                     kind=EventKind.FACTIONS_AT_ODDS,
                     actor=agent.spec_id,
@@ -2222,7 +2263,7 @@ class Simulation:
                 fuera.append(faccion_id)
         for faccion_id in fuera:
             del agent.lealtad[faccion_id]
-            self.log.emit(
+            self._registrar(
                 tick=self.state.tick,
                 kind=EventKind.FACTION_LEFT,
                 actor=agent.spec_id,
@@ -2301,7 +2342,7 @@ class Simulation:
             if agent.edad(self.state.tick) < spec.desde_edad or agent.lleva(spec.id):
                 continue
             agent.afligir(spec.id, gravedad=self._ablandada_por_rango(agent, spec))
-            self.log.emit(
+            self._registrar(
                 tick=self.state.tick,
                 kind=EventKind.SITUATION_BEGAN,
                 actor=agent.spec_id,
@@ -2399,7 +2440,7 @@ class Simulation:
                 dueño=acreedor.spec_id,
                 saldo=dict(deuda.saldo),
             )
-            self.log.emit(
+            self._registrar(
                 tick=self.state.tick,
                 kind=EventKind.PROPERTY_CREATED,
                 actor=acreedor.spec_id,
@@ -2450,7 +2491,7 @@ class Simulation:
         if spec.id in self.state.censo:
             raise ValueError(f"{spec.id!r} ya está en el censo")
         agente = self.admit(spec)
-        self.log.emit(
+        self._registrar(
             tick=self.state.tick, kind=EventKind.AGENT_ARRIVED, actor=spec.id, place=agente.at
         )
         return agente
@@ -2522,7 +2563,7 @@ class Simulation:
             datos["question"] = question.value
         if r.belief is not None:
             datos["belief"] = r.belief.value
-        evento = self.log.emit(
+        evento = self._registrar(
             tick=tick,
             kind=EventKind.SOCIAL_ACT,
             actor=speaker,
@@ -2787,7 +2828,7 @@ class Simulation:
             self._infligir(criatura, birth.inflicts, porque=str(cond.situacion))
         self._heredar_pertenencia(criatura, portador, causante, birth)
 
-        self.log.emit(
+        self._registrar(
             tick=self.state.tick,
             kind=EventKind.AGENT_BORN,
             actor=nuevo,
@@ -2876,7 +2917,7 @@ class Simulation:
             # hace a sí mismo tampoco necesita apuntarse.
             por_quien=por_quien,
         )
-        self.log.emit(
+        self._registrar(
             tick=self.state.tick,
             kind=EventKind.SITUATION_BEGAN,
             actor=quien.spec_id,
@@ -2976,7 +3017,7 @@ class Simulation:
 
         # El otro lo recuerda, y lo recuerda CON NOMBRE: `about` sale del
         # `subject` del evento, que es quien actuó.
-        suyo = self.log.emit(
+        suyo = self._registrar(
             tick=self.state.tick,
             kind=EventKind.ACTION_COMPLETED,
             actor=a_quien,

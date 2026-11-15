@@ -13,6 +13,7 @@ ya nadie vuelve a comprobar.
 from __future__ import annotations
 
 import hashlib
+from collections import deque
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -55,6 +56,7 @@ from agora.engine.ontology import (
 )
 from agora.engine.outcome import company_saturation
 from agora.engine.pack import ContentPack
+from agora.engine.perception import Percepcion
 from agora.engine.rng import RngSource
 from agora.engine.topology import TravelMap
 
@@ -2018,6 +2020,9 @@ class WorldState:
     que graban recuerdos habría tres copias de la misma regla divergiendo.
 
     Apagada mientras `memory_capacity` valga 0, que es el defecto."""
+
+    percepcion: dict[AgentId, deque[Percepcion]] = field(default_factory=dict)
+    """Lo que cada persona ha visto delante (unidad 23-0). Se borra con quien muere."""
 
     focus: AgentId | None = None
     """Alrededor de quién se simula fino (D-152). `None` = nadie, y entonces el
