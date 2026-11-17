@@ -143,6 +143,9 @@ class HealthReport:
     subir el precio solo hace que la gente se quede quieta en la multitud que
     ya tiene."""
 
+    tramas: PanelTramas | None = None
+    """Las tramas del pack, si lo tiene (23a). Sin pack de tramas, no aparece."""
+
     def lines(self) -> list[str]:
         """Panel legible. Es lo que se mira mientras se calibra."""
         salida = [
@@ -173,7 +176,91 @@ class HealthReport:
                 nota = f"   de gorra {pasivo:.0%}" if pasivo > 0.0 else ""
                 marca = "  <-- muerto" if ratio > 1.3 else ""
                 salida.append(f"    {need!s:<14} {ratio:6.2f}{nota}{marca}")
+        if self.tramas is not None:
+            salida += self.tramas.lines()
         return salida
+
+
+@dataclass(frozen=True, slots=True)
+class PanelTramas:
+    """Lo que hacen las tramas en la corrida (unidad 23a, A.7). Medias sobre las semillas.
+
+    No hay jugador en la medida: sus días vacíos no se miden aquí; se miden en una
+    partida con `--jugar`, que es donde hay alguien a quien le pasa o no le pasa algo."""
+
+    arranques_por_persona_semana: float
+    por_trama_al_ano: dict[str, float]
+    latidos_a_tiempo: float
+    """Fracción de los pasos de espera que recibieron su latido antes de caducar."""
+    caducadas: int
+    nunca_salen: frozenset[str]
+    agravio_medio: float
+    """La media, sobre las personas, del agravio más alto que guarda cada una."""
+
+    def lines(self) -> list[str]:
+        salida = [
+            "",
+            "  tramas",
+            f"  empezadas por persona y semana {self.arranques_por_persona_semana:6.2f}",
+            f"  latidos a tiempo        {self.latidos_a_tiempo:6.1%}   caducadas {self.caducadas}",
+            f"  agravio medio           {self.agravio_medio:6.3f}",
+            f"  nunca salen             {sorted(self.nunca_salen) if self.nunca_salen else '—'}",
+        ]
+        for trama, veces in sorted(self.por_trama_al_ano.items(), key=lambda kv: (-kv[1], kv[0])):
+            salida.append(f"    {trama:<28} {veces:7.1f} al año")
+        return salida
+
+
+@dataclass
+class _Tramas:
+    """Cuenta lo que las tramas hacen leyendo los hechos de cada tick. Del log que se
+    acaba de emitir, no de la ventana: lo de este tick siempre está."""
+
+    arranques: Counter[str] = field(default_factory=Counter)
+    latidos: int = 0
+    caducadas: int = 0
+    persona_ticks: int = 0
+    cursor: int = 0
+
+    def leer(self, sim: Simulation) -> None:
+        self.persona_ticks += len(sim.state.agents)
+        for seq in range(self.cursor, sim.log.siguiente_seq):
+            evento = sim.log[seq]
+            if evento.kind is EventKind.PLOT_BEGAN:
+                self.arranques[str(evento.data.get("plot"))] += 1
+            elif evento.kind is EventKind.PLOT_BEAT:
+                self.latidos += 1
+            elif (evento.kind is EventKind.PLOT_STEP
+                  and evento.data.get("desenlace") == "caducada"):
+                self.caducadas += 1
+        self.cursor = sim.log.siguiente_seq
+
+
+def _agravio_maximo(sim: Simulation, quien: AgentId) -> float:
+    tuning = sim.pack.tuning
+    agravios = sim.state.memoria.agravio(
+        quien, sim.state.tick, tuning.grief_scale, tuning.agravio_de_oidas
+    )
+    return max(agravios.values(), default=0.0)
+
+
+def _panel_de_tramas(
+    pack: ContentPack, tally: _Tramas, agravios: list[float], days: int, n_seeds: int,
+) -> PanelTramas:
+    libro = pack.plots
+    assert libro is not None  # solo se llama con tramas
+    semanas = tally.persona_ticks / (7 * pack.clock.ticks_per_day)
+    anios = days / pack.clock.days_per_year * n_seeds
+    return PanelTramas(
+        arranques_por_persona_semana=sum(tally.arranques.values()) / max(semanas, 1e-9),
+        por_trama_al_ano={
+            str(p.id): tally.arranques[str(p.id)] / anios for p in libro.plots
+        },
+        latidos_a_tiempo=tally.latidos / max(tally.latidos + tally.caducadas, 1),
+        caducadas=tally.caducadas,
+        nunca_salen=frozenset(str(p.id) for p in libro.plots if tally.arranques[str(p.id)] == 0),
+        agravio_medio=sum(agravios) / len(agravios) if agravios else 0.0,
+    )
 
 
 def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] | None = None
@@ -206,6 +293,8 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
     ocurridas: set[SituationId] = set()
 
     libros: list[Ledger] = []
+    tramas_tally = _Tramas()
+    agravios: list[float] = []
     for seed in seeds:
         sim = Simulation(pack, seed=seed)
         # Se enciende la contabilidad. Solo aqui: una corrida de juego no paga
@@ -213,8 +302,11 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
         # un eje decide algo o es decorado.
         for agent in sim.state.agents_in_order():
             agent.ledger = Ledger()
+        tramas_tally.cursor = sim.log.siguiente_seq
         for _ in range(ticks):
             sim.tick()
+            if pack.plots is not None:
+                tramas_tally.leer(sim)
             # `state.situations` guarda SOLO las eventuales: las periódicas se
             # calculan del reloj y no viven ahí. Así que preguntar si está vacío
             # es exactamente preguntar si al mundo le está pasando algo que no
@@ -256,6 +348,8 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
                     out_of_bounds.append(f"{agent.spec_id}.{need} = {value}")
             if agent.ledger is not None:
                 libros.append(agent.ledger)
+        if pack.plots is not None:
+            agravios.extend(_agravio_maximo(sim, a.spec_id) for a in sim.state.agents_in_order())
 
     return HealthReport(
         days=days,
@@ -287,6 +381,9 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
         )
         - ocurridas,
         out_of_bounds=tuple(out_of_bounds),
+        tramas=None if pack.plots is None else _panel_de_tramas(
+            pack, tramas_tally, agravios, days, len(seeds)
+        ),
         **_supply_and_demand(pack, libros),
     )
 
@@ -561,5 +658,14 @@ def check(pack: ContentPack, report: HealthReport | None = None) -> list[str]:
             f"acciones declaradas que nunca ocurren: {sorted(huerfanas)}. "
             f"Si es intencional, decláralas en `health.may_go_unused`"
         )
+
+    if report.tramas is not None and pack.plots is not None:
+        opcionales = {str(p.id) for p in pack.plots.plots if p.may_go_unused}
+        sin_declarar = sorted(report.tramas.nunca_salen - opcionales)
+        if sin_declarar:
+            problems.append(
+                f"tramas que nunca salen: {sin_declarar}. Si es intencional, decláralas "
+                f"con `may_go_unused: true` en tramas.yaml"
+            )
 
     return problems

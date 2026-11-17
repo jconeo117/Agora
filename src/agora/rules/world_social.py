@@ -59,3 +59,25 @@ class WorldSocial:
         resolucion = PoolResolver.from_ruleset(self.ruleset).resolve(reto, dados)
         return Contest(resolucion, self._label(social.deceive),
                        self._opposing_label(social.notice))
+
+    def contest(
+        self, world: WorldState, actor: AgentId, rival: AgentId | None, prueba: str, key: str,
+    ) -> Contest | None:
+        """Una prueba del pack con las competencias que el enlace le asigna (23a, A.4). Sin
+        enlace para esa prueba, `None`: la regla de respaldo del motor la resuelve."""
+        enlace = self.binding.pruebas.get(prueba)
+        if enlace is None:
+            return None
+        contra = enlace.contra if rival is not None else None
+        reto = Challenge(
+            pool=self.pool(world, actor, enlace.tira),
+            opposing_pool=None if contra is None or rival is None
+            else self.pool(world, rival, contra),
+        )
+        dados = KeyedDice(world.rng.stream("prueba", key, actor, "" if rival is None else rival))
+        resolucion = PoolResolver.from_ruleset(self.ruleset).resolve(reto, dados)
+        return Contest(
+            resolucion,
+            self._label(enlace.tira),
+            "" if contra is None else self._opposing_label(contra),
+        )

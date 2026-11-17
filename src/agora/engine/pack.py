@@ -16,6 +16,7 @@ solo reporta el primer fallo convierte diez erratas en diez cargas.
 
 from __future__ import annotations
 
+import warnings
 from collections import Counter
 from collections.abc import Iterable, Mapping
 from functools import cached_property
@@ -25,7 +26,11 @@ from typing import Any
 import yaml
 from pydantic import Field, ValidationError, model_validator
 
+from agora.engine.events import EventKind
 from agora.engine.ontology import (
+    GLOBAL_KINDS,
+    PROTAGONIST_KINDS,
+    REF_KINDS,
     ActionId,
     ActionSpec,
     AflictionSpec,
@@ -33,6 +38,7 @@ from agora.engine.ontology import (
     AgentSpec,
     ClockSpec,
     CreationSpec,
+    EffectSpec,
     EndingSpec,
     FactionKindId,
     FactionKindSpec,
@@ -47,6 +53,9 @@ from agora.engine.ontology import (
     NewcomerSpec,
     PlaceId,
     PlaceSpec,
+    PlotBook,
+    PlotCondition,
+    PlotSpec,
     PropertyId,
     PropertyKind,
     PropertySpec,
@@ -56,6 +65,7 @@ from agora.engine.ontology import (
     SituationSpec,
     SocialSpec,
     Spec,
+    Step,
     TraitId,
     TraitSpec,
     TuningSpec,
@@ -137,6 +147,9 @@ class ContentPack(Spec):
     jugador tiene que decirlo todo. No lo lee la simulación."""
 
     creation: CreationSpec | None = None
+    plots: PlotBook | None = None
+    """Las tramas personales (unidad 23a), de `tramas.yaml`. `None` = el pack no tiene
+    tramas, y la simulación sigue exactamente como antes."""
     """Cómo puede el jugador crear su personaje (unidad 21a). `None` = no se crea:
     la ficha se escribe a mano. No lo lee la simulación: solo la creación."""
 
@@ -1711,6 +1724,216 @@ class ContentPack(Spec):
             "quedará varado el resto de la partida"
         ]
 
+    def _check_plots(self) -> list[str]:
+        """Una trama mal formada no rompe la simulación en el momento de cargar: rompe la
+        mesa a mitad de partida, o dispara algo que nadie escribió. Por eso se rechaza al
+        cargar (23a, B.1): ids que no existen, lados mezclados, referencias sin declarar,
+        pasos que se ciclan. Las marcas sin par son aviso, salvo con `strict_marks`."""
+        libro = self.plots
+        if libro is None:
+            return []
+        problemas: list[str] = []
+        marcas = {m.id for m in libro.marks}
+        rasgos = self.trait_by_id
+        necesidades = self.need_by_id
+        relaciones = self.relation_by_id
+        situaciones = self.situation_by_id
+        acciones = self.action_by_id
+        fases = {f.id for f in self.clock.phases}
+        eventos = {e.value for e in EventKind}
+        metas = {g.id for a in self.agents for g in a.goals}
+        pruebas = set(libro.tests)
+        problemas += self._duplicates("marcas", (m.id for m in libro.marks))
+        problemas += self._duplicates("tramas", (p.id for p in libro.plots))
+        if libro.fame is not None:
+            problemas += [
+                f"fame.on.action: la acción {accion!r} no existe"
+                for accion in sorted(libro.fame.on.action) if accion not in acciones
+            ]
+        for prueba_id, prueba in sorted(libro.tests.items()):
+            for rasgo_id in (prueba.actor, prueba.against):
+                if rasgo_id is not None and rasgo_id not in rasgos:
+                    problemas.append(f"tests.{prueba_id}: el rasgo {rasgo_id!r} no existe")
+
+        def rasgo(t: TraitId | None, donde: str) -> None:
+            if t is not None and t not in rasgos:
+                problemas.append(f"{donde}: el rasgo {t!r} no existe")
+
+        def condicion(c: PlotCondition, lado: str, donde: str, refs: set[str]) -> None:
+            k = c.kind()
+            permitidas = {"p": PROTAGONIST_KINDS, "r": REF_KINDS, "g": GLOBAL_KINDS}[lado]
+            if k not in permitidas:
+                quien = {"p": "el protagonista", "r": "una referencia", "g": "when"}[lado]
+                aviso = " (solo se lee lo observable de otro, 23a §3.5)" if lado == "r" else ""
+                problemas.append(f"{donde}: «{k}» no se puede leer de {quien}{aviso}")
+                return
+            rasgo(c.trait, donde)
+            rasgo(c.creation, donde)
+            if c.relation is not None and c.relation not in relaciones:
+                problemas.append(f"{donde}: la relación {c.relation!r} no existe")
+            for eje in (c.rank, c.need):
+                if eje is not None and eje not in necesidades:
+                    problemas.append(f"{donde}: el eje {eje!r} no existe")
+            if c.mark is not None and c.mark not in marcas:
+                problemas.append(f"{donde}: la marca {c.mark!r} no está declarada")
+            if c.fame is not None and libro.fame is None:
+                problemas.append(f"{donde}: lee la fama, y el pack no declara fama")
+            for sit in (c.situation, c.visible):
+                if sit is not None and sit not in situaciones:
+                    problemas.append(f"{donde}: la situación {sit!r} no existe")
+            if c.visible is not None and c.visible in situaciones \
+                    and not situaciones[c.visible].visible:
+                problemas.append(f"{donde}: {c.visible!r} no es una condición visible")
+            if c.phase is not None and c.phase not in fases:
+                problemas.append(f"{donde}: la fase {c.phase!r} no existe")
+            for ev in (c.recent_event, c.saw):
+                if ev is not None and ev not in eventos:
+                    problemas.append(f"{donde}: {ev!r} no es un hecho del motor")
+            for ref in (c.regard_to, c.grudge_to, c.seen_together):
+                if ref is not None and ref not in refs:
+                    problemas.append(f"{donde}: la referencia {ref!r} no está declarada antes")
+            if lado == "g" and c.personal:
+                problemas.append(f"{donde}: `when` mira al mundo, no a una persona")
+
+        def efecto(e: EffectSpec, donde: str, refs: set[str]) -> None:
+            if e.mark is not None and e.mark not in marcas:
+                problemas.append(f"{donde}: la marca {e.mark!r} no está declarada")
+            if e.fame is not None and libro.fame is None:
+                problemas.append(f"{donde}: cambia la fama, y el pack no declara fama")
+            if e.need is not None and e.need not in necesidades:
+                problemas.append(f"{donde}: la necesidad {e.need!r} no existe")
+            if e.condition is not None and e.condition not in situaciones:
+                problemas.append(f"{donde}: la situación {e.condition!r} no existe")
+            if e.goal is not None and e.goal not in metas:
+                problemas.append(f"{donde}: la meta {e.goal!r} no está en ningún agente")
+            if e.item is not None and e.item not in self.item_by_id:
+                problemas.append(f"{donde}: el objeto {e.item!r} no existe")
+            if e.action is not None and not _presta(acciones.get(e.action)):
+                problemas.append(f"{donde}: {e.action!r} no es una acción que cree deudas")
+            for ref in (e.regard, e.debt, e.forgive, e.por_quien, e.about):
+                if ref is not None and ref not in refs:
+                    problemas.append(f"{donde}: la referencia {ref!r} no está declarada")
+
+        def paso_y_opciones(paso: Step, donde: str, refs: set[str], ids: set[str]) -> None:
+            if paso.expects is not None:
+                b = paso.expects
+                if b.ref is not None and b.ref not in refs:
+                    problemas.append(f"{donde}: el latido mira a {b.ref!r}, sin declarar")
+                if b.tag is not None and not any(b.tag in a.tags for a in self.actions):
+                    problemas.append(f"{donde}: ninguna acción lleva la etiqueta {b.tag!r}")
+                for lean in paso.leanings:
+                    if lean.where_seen is not None and lean.where_seen not in refs:
+                        problemas.append(f"{donde}: la inclinación mira a {lean.where_seen!r}")
+            for opcion in paso.choices:
+                ob = f"{donde} «{opcion.label}»"
+                for c in opcion.requires:
+                    condicion(c, "p", f"{ob} requires", refs)
+                for rasgo_id in opcion.appeal:
+                    rasgo(rasgo_id, f"{ob} appeal")
+                if opcion.effects is not None:
+                    for e in opcion.effects:
+                        efecto(e, ob, refs)
+                if opcion.test is not None:
+                    t = opcion.test
+                    if t.id not in pruebas:
+                        problemas.append(f"{ob}: la prueba {t.id!r} no está declarada")
+                    if t.vs is not None and t.vs not in refs:
+                        problemas.append(f"{ob}: la prueba mira a {t.vs!r}, sin declarar")
+                    for e in (*t.on_success, *t.on_failure):
+                        efecto(e, ob, refs)
+                if opcion.act is not None:
+                    a = opcion.act
+                    if a.action not in acciones or acciones[a.action].target is None:
+                        problemas.append(f"{ob}: {a.action!r} no existe o no va a alguien")
+                    if a.to not in refs:
+                        problemas.append(f"{ob}: la acción va a {a.to!r}, sin declarar")
+                if opcion.next is not None and opcion.next not in ids:
+                    problemas.append(f"{ob}: next {opcion.next!r} no es un paso")
+
+        for trama in libro.plots:
+            donde = f"trama {trama.id!r}"
+            nombres = [r.name for r in trama.refs]
+            problemas += self._duplicates(f"{donde} referencias", nombres)
+            for c in trama.when:
+                condicion(c, "g", f"{donde} when", set())
+            for c in trama.protagonist:
+                condicion(c, "p", f"{donde} protagonist", set(nombres))
+            declaradas: set[str] = set()
+            for ref in trama.refs:
+                for c in ref.when:
+                    condicion(c, "r", f"{donde} ref {ref.name!r}", declaradas)
+                declaradas.add(ref.name)
+            ids = [s.id for s in trama.steps]
+            problemas += self._duplicates(f"{donde} pasos", ids)
+            conjunto: set[str] = {str(s) for s in ids}
+            for paso in trama.steps:
+                paso_y_opciones(paso, f"{donde} paso {paso.id!r}", set(nombres), conjunto)
+                for destino in (paso.next, paso.on_timeout):
+                    if destino is not None and destino not in conjunto:
+                        problemas.append(f"{donde} paso {paso.id!r}: {destino!r} no es un paso")
+            problemas += self._pasos_sin_ciclo(trama)
+
+        if libro.strict_marks:
+            problemas += self._marcas_sin_par()
+        return problemas
+
+    @staticmethod
+    def _pasos_sin_ciclo(trama: PlotSpec) -> list[str]:
+        """Un `next` que vuelve sobre sus pasos no acaba nunca, y por eso no carga (23a,
+        B.1.2). Se recorre en orden fijo: el resultado no depende del orden de un set."""
+        aristas: dict[str, list[str]] = {}
+        for paso in trama.steps:
+            destinos = [paso.next, paso.on_timeout, *(c.next for c in paso.choices)]
+            aristas[paso.id] = sorted({d for d in destinos if d is not None})
+        visto: set[str] = set()
+        en_pila: set[str] = set()
+
+        def recorre(nodo: str) -> bool:
+            visto.add(nodo)
+            en_pila.add(nodo)
+            for vecino in aristas.get(nodo, []):
+                if vecino in en_pila or (vecino not in visto and recorre(vecino)):
+                    return True
+            en_pila.discard(nodo)
+            return False
+
+        for paso in trama.steps:
+            if paso.id not in visto and recorre(paso.id):
+                return [f"trama {trama.id!r}: los pasos forman un ciclo"]
+        return []
+
+    def _marcas_sin_par(self) -> list[str]:
+        """Marcas que alguien lee y nadie produce, o al revés (23a, A.7). Un aviso al
+        cargar, o un error con `strict_marks`: la economía de huellas pide los dos."""
+        libro = self.plots
+        if libro is None:
+            return []
+        producidas: set[str] = set()
+        leidas: set[str] = set()
+
+        def leer(conds: tuple[PlotCondition, ...]) -> None:
+            leidas.update(str(c.mark) for c in conds if c.mark is not None)
+
+        def producir(efectos: tuple[EffectSpec, ...]) -> None:
+            producidas.update(str(e.mark) for e in efectos if e.mark is not None)
+
+        for trama in libro.plots:
+            leer(trama.when)
+            leer(trama.protagonist)
+            for ref in trama.refs:
+                leer(ref.when)
+            for paso in trama.steps:
+                for opcion in paso.choices:
+                    leer(opcion.requires)
+                    if opcion.effects is not None:
+                        producir(opcion.effects)
+                    if opcion.test is not None:
+                        producir((*opcion.test.on_success, *opcion.test.on_failure))
+        return [
+            *(f"la marca {m!r} se lee y nadie la produce" for m in sorted(leidas - producidas)),
+            *(f"la marca {m!r} se produce y nadie la lee" for m in sorted(producidas - leidas)),
+        ]
+
     # -------------------------------------------------------------------------
     # Orquestador
     # -------------------------------------------------------------------------
@@ -1718,6 +1941,7 @@ class ContentPack(Spec):
     @model_validator(mode="after")
     def _validate(self) -> ContentPack:
         problems = [
+            *self._check_plots(),
             *self._check_unique_ids(),
             *self._check_global_id_collisions(),
             *self._check_need_refs(),
@@ -1758,6 +1982,11 @@ class ContentPack(Spec):
                 f"pack {self.id!r} inválido:\n" + "\n".join(f"  - {p}" for p in problems)
             )
         return self
+
+
+def _presta(accion: ActionSpec | None) -> bool:
+    """Si la acción abre una deuda (la puerta de deudas de `World._endeudar`)."""
+    return accion is not None and accion.target is not None and accion.target.crea_deuda is not None
 
 
 def _con_mundo(raw: Mapping[str, Any], ruta: Path) -> dict[str, Any]:
@@ -1805,10 +2034,19 @@ def load_pack(path: Path) -> ContentPack:
     mundo = path.parent / "mundo.yaml"
     if mundo.is_file():
         raw = _con_mundo(raw, mundo)
+    tramas = path.parent / "tramas.yaml"
+    if tramas.is_file():
+        # Como `mundo.yaml`, pero sin fundirse en el pack: `plots` lo valida
+        # ContentPack junto a todo lo demás, con las ids del pack a la vista.
+        raw = {**raw, "plots": yaml.safe_load(tramas.read_text(encoding="utf-8")) or {}}
     try:
-        return ContentPack.model_validate(raw)
+        pack = ContentPack.model_validate(raw)
     except ValidationError as exc:
         raise PackError(f"no se pudo cargar {path}:\n{exc}") from exc
+    if pack.plots is not None and not pack.plots.strict_marks:
+        for aviso in pack._marcas_sin_par():
+            warnings.warn(f"{path}: {aviso}", stacklevel=2)
+    return pack
 
 
 def describe_pack(pack: ContentPack) -> Mapping[str, int]:

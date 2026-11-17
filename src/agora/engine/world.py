@@ -30,7 +30,7 @@ from agora.agents.decide import (
     planned_duration,
     recovery_rate,
 )
-from agora.engine import persistence
+from agora.engine import persistence, plots
 from agora.engine.disposition import urgency
 from agora.engine.events import Event, EventKind, EventLog, Payload
 from agora.engine.memory import Cue, Recuerdo, importancia_de
@@ -44,6 +44,7 @@ from agora.engine.ontology import (
     ClaimKind,
     FactionId,
     FactionKindId,
+    GoalId,
     GoalSpec,
     GoalStatus,
     ItemId,
@@ -51,6 +52,7 @@ from agora.engine.ontology import (
     ItemSlot,
     ItemSpec,
     ItemWhere,
+    MarkId,
     NeedId,
     PlaceId,
     Progenitor,
@@ -91,6 +93,7 @@ from agora.engine.social import (
 from agora.engine.state import (
     AgentState,
     Baja,
+    Bond,
     Busy,
     Condicion,
     Faccion,
@@ -108,6 +111,7 @@ if TYPE_CHECKING:
         DecisionSource,
         EncounterOutcome,
         EncounterResolver,
+        PlotView,
         SocialResolver,
     )
 
@@ -222,6 +226,7 @@ class Simulation:
         sim._together = together
         sim.player_source = None
         sim.encounter_resolver = None
+        sim.social_resolver = None
         return sim
 
     # -------------------------------------------------------------------------
@@ -260,6 +265,10 @@ class Simulation:
         self.state.tick += 1
         self._expire_situations()
         self._fire_triggers()
+        # Las tramas miran el día al empezar el reloj del día, con el mundo en un solo
+        # estado (23a): sin pack de tramas, esto no hace nada.
+        if self.pack.plots is not None and self.state.tick % self.pack.clock.ticks_per_day == 0:
+            plots.pasar_dia(self)
         self._decay_everyone()
         self._disolver_las_vacias()
         self._aplicar_rentas()
@@ -707,6 +716,11 @@ class Simulation:
         memoria.borrar(quien)
         # Y lo que vio delante.
         self.state.percepcion.pop(quien, None)
+        # Y lo que tenía de tramas: sus marcas, su fama y la trama que vivía (23a).
+        self.state.marcas.pop(quien, None)
+        self.state.fama.pop(quien, None)
+        self.state.tramas.pop(quien, None)
+        self.state.tramas_vividas.pop(quien, None)
 
     def end_situation(self, situation: SituationId) -> None:
         """Que deje de pasar. Silencioso si no estaba pasando."""
@@ -1220,6 +1234,8 @@ class Simulation:
                 continue
 
             agent.goals[goal.id] = resultado
+            if resultado is GoalStatus.ACHIEVED:
+                self._fama_de_hecho(agent.spec_id, "goal_achieved")
             event = self._emit(
                 EventKind.GOAL_ACHIEVED
                 if resultado is GoalStatus.ACHIEVED
@@ -1416,6 +1432,7 @@ class Simulation:
                 action=action_id,
                 data={"need": str(eje), "rango": agent.rango[eje]},
             )
+            self._fama_de_hecho(agent.spec_id, "rank_up")
 
         if spec.elastic is not None and done > 0:
             rate = recovery_rate(spec, agent, world_gains)
@@ -1463,6 +1480,7 @@ class Simulation:
 
         data: Payload = {"company": round(company, 4)} if spec.effects_per_company else {}
         event = self._emit(EventKind.ACTION_COMPLETED, agent, action=action_id, data=data)
+        self._fama_de_hecho(agent.spec_id, "action", action_id)
         # Lo que apretaba al empezar, no lo que queda después de saciarlo: es la
         # misma regla que gobierna `learn` y `company_premium`, y por lo mismo —
         # lo que valió el rato lo decide la necesidad que traías.
@@ -1838,6 +1856,10 @@ class Simulation:
         return self.player_source
 
     def _begin(self, agent: AgentState, must_address: NeedId | None = None) -> None:
+        # Si la trama de esta persona pide ya su acción, ese momento ocioso es suyo: no
+        # hay nada más que deliberar (23a, A.4). Sin trama, no hace nada.
+        if plots.al_quedar_ocioso(self, agent):
+            return
         if agent.spec_id == self.state.player:
             self._begin_player(agent, must_address)
             return
@@ -1991,6 +2013,134 @@ class Simulation:
         )
         self._percibir(evento)
         return evento
+
+    # -------------------------------------------------------------------------
+    # Puertas de las tramas (23a). Una por cambio: lo que una trama decide lo hace
+    # aquí el motor, por el mismo camino que cualquier otro hecho.
+    # -------------------------------------------------------------------------
+
+    def opciones_de(self, agent: AgentState) -> list[Decision]:
+        """El menú de la persona ahora: el mismo que ve el jugador y que delibera un NPC."""
+        return options(self.state, agent)
+
+    def hacer_de_trama(self, agent: AgentState, decision: Decision) -> None:
+        """Ejecuta una acción que pidió una trama, por el mismo camino que una elegida."""
+        self._carry_out(agent, decision)
+
+    def pedir_trama(self, agent: AgentState, vista: PlotView) -> int | None:
+        """La elección de un paso de trama del jugador, por su fuente."""
+        return self._fuente_del_jugador().choose_plot(self.state, agent, vista)
+
+    def _marcar(self, quien: AgentId, marca: MarkId, delta: int) -> None:
+        """Mueve una marca, acotada entre 0 y su máximo."""
+        libro = self.pack.plots
+        if libro is None:
+            return
+        spec = next(m for m in libro.marks if m.id == marca)
+        marcas = self.state.marcas.setdefault(quien, {})
+        nuevo = max(0, marcas.get(marca, 0) + delta)
+        marcas[marca] = nuevo if spec.max is None else min(spec.max, nuevo)
+
+    def _mover_fama(self, quien: AgentId, delta: float) -> None:
+        """La fama vive en [0, 1]. Sin fama declarada en el pack, no existe."""
+        libro = self.pack.plots
+        if libro is None or libro.fame is None or delta == 0.0:
+            return
+        self.state.fama[quien] = min(1.0, max(0.0, self.state.fama.get(quien, 0.0) + delta))
+
+    def _fama_de_hecho(self, quien: AgentId, hecho: str, accion: ActionId | None = None) -> None:
+        """Lo que un hecho del motor suma a la fama de quien lo vive (23a, A.1): un ascenso
+        de rango, una meta cumplida o una acción que el pack pesa."""
+        libro = self.pack.plots
+        if libro is None or libro.fame is None:
+            return
+        on = libro.fame.on
+        if hecho == "rank_up":
+            delta = on.rank_up
+        elif hecho == "goal_achieved":
+            delta = on.goal_achieved
+        else:
+            delta = 0.0 if accion is None else on.action.get(accion, 0.0)
+        self._mover_fama(quien, delta)
+
+    def _mover_necesidad(self, quien: AgentId, necesidad: NeedId, delta: float) -> None:
+        """Lo que la trama le da o le quita a una necesidad. Subir va por el libro de
+        ganancias; bajar solo toca el suelo, que es cero para todas."""
+        agente = self.state.agents[quien]
+        if delta > 0.0:
+            agente.gain(necesidad, delta)
+        else:
+            agente.needs[necesidad] = max(0.0, agente.needs[necesidad] + delta)
+
+    def _mover_aprecio(self, quien: AgentId, otro: AgentId, delta: float) -> None:
+        """El aprecio propio hacia otra persona. Se re-ancla en el tick actual, como lo
+        hace cualquier trato: el desvanecimiento no cuenta desde antes."""
+        yo = self.state.agents[quien]
+        bono = yo.bonds.get(otro)
+        if bono is None:
+            bono = Bond(last_seen=self.state.tick)
+            yo.bonds[otro] = bono
+        actual = bono.regard_at(self.state.tick, yo.temperament.bond_fade)
+        bono.regard = max(-1.0, min(1.0, actual + delta))
+        bono.last_seen = self.state.tick
+
+    def _recordar_de_trama(
+        self, quien: AgentId, otro: AgentId, valencia: float, importancia: float,
+        por_quien: AgentId | None,
+    ) -> None:
+        """Un recuerdo de trama sobre otra persona. Pasa por el mismo grabado que todo: la
+        importancia la cuenta `_grabar`, no quien lo pide."""
+        yo = self.state.agents[quien]
+        evento = self._registrar(
+            tick=self.state.tick, kind=EventKind.PLOT_STEP, actor=quien, place=yo.at,
+            subject=otro, data={"desenlace": "recuerdo"},
+        )
+        self._grabar(yo, evento, urgencia=importancia, valencia=valencia, por_quien=por_quien)
+
+    def _perdonar(self, quien: AgentId, otro: AgentId, factor: float) -> None:
+        """La válvula del agravio: rebaja lo que `quien` recuerda de `otro`."""
+        self.state.memoria.atenuar(quien, otro, factor)
+
+    def _condicion_de_trama(
+        self, quien: AgentId, situacion: SituationId, dias: int | None,
+    ) -> None:
+        """Una condición sobre sí misma (enfermedad, herida): por la puerta de aflicción."""
+        ticks = None if dias is None else dias * self.pack.clock.ticks_per_day
+        self.afligir(quien, situacion, "", ticks=ticks, porque="trama")
+
+    def _asignar_meta(self, quien: AgentId, meta: GoalId) -> None:
+        """Le da a una persona una meta que el pack ya declara en algún agente. Si ya la
+        tiene, no hace nada."""
+        yo = self.state.agents[quien]
+        if any(m.id == meta for m in yo.metas):
+            return
+        spec = next((g for a in self.pack.agents for g in a.goals if g.id == meta), None)
+        if spec is None:
+            return
+        yo.metas = (*yo.metas, spec)
+        yo.goals[meta] = GoalStatus.ACTIVE
+
+    def _prestar_de_trama(
+        self, quien: AgentId, otro: AgentId, accion: ActionId, *, presta: bool,
+    ) -> None:
+        """Abre una deuda por la puerta de deudas: `quien` presta a `otro`, o al revés."""
+        if otro not in self.state.agents:
+            return
+        acreedor, deudor = (quien, otro) if presta else (otro, quien)
+        self._endeudar(
+            self.state.agents[acreedor], self.state.agents[deudor], self.pack.action_by_id[accion],
+        )
+
+    def _soltar_de_trama(self, quien: AgentId, objeto: ItemId) -> None:
+        """Se quita un objeto suyo: lo deja en el suelo donde está."""
+        yo = self.state.agents[quien]
+        mios = sorted(
+            (p for p in self.state.propiedades.values()
+             if p.tipo is PropertyKind.OBJETO and p.dueño == quien and p.objeto == str(objeto)),
+            key=lambda p: str(p.id),
+        )
+        if mios:
+            self._mover_objeto(mios[0], actor=quien, dueño=None, lugar=yo.at, donde=yo.at)
 
     def _percibir(self, evento: Event) -> None:
         percepcion = percepcion_de(evento)
@@ -2491,6 +2641,7 @@ class Simulation:
         if spec.id in self.state.censo:
             raise ValueError(f"{spec.id!r} ya está en el censo")
         agente = self.admit(spec)
+        self.state.llegadas[spec.id] = self.state.tick
         self._registrar(
             tick=self.state.tick, kind=EventKind.AGENT_ARRIVED, actor=spec.id, place=agente.at
         )

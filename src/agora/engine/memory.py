@@ -641,6 +641,25 @@ class MemoriaEpisodica:
         """
         self._por_duenyo.pop(owner, None)
 
+    def atenuar(self, owner: AgentId, por_quien: AgentId, factor: float) -> int:
+        """Rebaja, por `factor`, lo negativo que `owner` recuerda que le hizo `por_quien`.
+
+        Es la válvula del agravio (23a, A.6): el perdón de una trama, que el agravio se
+        pueda bajar. Solo toca la valencia negativa, por la misma razón que `agravio`
+        solo suma esa: lo bueno que recuerda no se borra con un perdón. El recuerdo es
+        inmutable, así que se sustituye por otro con el mismo `seq`. Devuelve cuántos
+        cambiaron.
+        """
+        guardados = self._por_duenyo.get(owner)
+        if not guardados:
+            return 0
+        cambiados = 0
+        for i, recuerdo in enumerate(guardados):
+            if recuerdo.por_quien == por_quien and recuerdo.valencia < 0.0:
+                guardados[i] = replace(recuerdo, valencia=recuerdo.valencia * factor)
+                cambiados += 1
+        return cambiados
+
     def agravio(
         self, owner: AgentId, tick: int, escala: float, de_oidas: float = 1.0
     ) -> dict[AgentId, float]:

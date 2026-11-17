@@ -116,6 +116,14 @@ class RoleSpec(Spec):
     label: str
 
 
+class PruebaBinding(Spec):
+    """Las competencias de una prueba del pack (unidad 23a): con cuál tira quien actúa y
+    con cuál se le opone el rival, si lo hay."""
+
+    tira: str
+    contra: str | None = None
+
+
 class BindingSpec(Spec):
     system: str
     """El id del sistema al que enlaza; tiene que coincidir con el cargado."""
@@ -129,6 +137,10 @@ class BindingSpec(Spec):
     resources: ResourceNeeds
     style: StyleBinding
     roles: tuple[RoleSpec, ...] = ()
+    pruebas: dict[str, PruebaBinding] = Field(default_factory=dict)
+    """Con qué competencias se tira cada prueba que declara el pack (unidad 23a, D-159):
+    `tira` la del que actúa y `contra` la del rival, si la prueba enfrenta a dos. Una
+    prueba sin entrada aquí la resuelve la regla de respaldo del motor."""
     items: dict[ItemId, str] = Field(default_factory=dict)
     """Qué pieza del sistema es cada objeto del mundo (unidad 16a): objeto →
     id de `weapons` o `armors`. Lo que se lleva puesto sustituye al camino de
@@ -186,6 +198,12 @@ def check_binding(binding: BindingSpec, pack: ContentPack, ruleset: Ruleset) -> 
         if nombre not in competencias:
             problems.append(f"skills: competencia desconocida {nombre!r}")
         lineal(f"skills.{nombre}", spec)
+    for prueba, enlace in sorted(binding.pruebas.items()):
+        for papel, competencia in (("tira", enlace.tira), ("contra", enlace.contra)):
+            if competencia is not None and competencia not in competencias:
+                problems.append(
+                    f"pruebas.{prueba}.{papel}: competencia desconocida {competencia!r}"
+                )
     piezas: list[GearWeapon | GearArmor] = [*binding.weapons, *binding.armors]
     for pieza in piezas:
         if pieza.access.signal is not None:

@@ -42,12 +42,15 @@ from agora.engine.ontology import (
     FactionKindId,
     GoalId,
     GoalStatus,
+    MarkId,
     NeedId,
     PlaceId,
+    PlotId,
     PropertyId,
     PropertyKind,
     RelationId,
     SituationId,
+    StepId,
     TraitId,
 )
 from agora.engine.pack import ContentPack
@@ -58,7 +61,9 @@ from agora.engine.state import (
     Bond,
     Condicion,
     Faccion,
+    Intencion,
     PerformingAction,
+    PlotRun,
     Propiedad,
     Traveling,
     WorldState,
@@ -265,11 +270,27 @@ def save(
             str(quien): [
                 [p.seq, p.tick, p.kind.value, str(p.actor),
                  None if p.target is None else str(p.target),
-                 str(p.place), None if p.action is None else str(p.action)]
+                 str(p.place), None if p.action is None else str(p.action),
+                 p.acto]
                 for p in buffer
             ]
             for quien, buffer in sorted(world.percepcion.items()) if buffer
         },
+        # Las tramas (unidad 23a): marcas, fama, lo que cada uno vive ahora y lo que ha
+        # vivido. Un guardado anterior no lo trae: se leen vacíos.
+        "marcas": {
+            str(quien): {str(m): v for m, v in sorted(marcas.items())}
+            for quien, marcas in sorted(world.marcas.items()) if marcas
+        },
+        "fama": {str(quien): f for quien, f in sorted(world.fama.items())},
+        "tramas": {
+            str(quien): _trama_a_json(run) for quien, run in sorted(world.tramas.items())
+        },
+        "tramas_vividas": {
+            str(quien): {str(p): t for p, t in sorted(vividas.items())}
+            for quien, vividas in sorted(world.tramas_vividas.items()) if vividas
+        },
+        "llegadas": {str(quien): t for quien, t in sorted(world.llegadas.items())},
         # Sin esto, al reanudar se emitiria un encuentro por cada par que ya
         # estaba junto: el mundo cargado se saludaria entero de golpe.
         "together": sorted([str(a), str(b)] for a, b in together),
@@ -804,11 +825,65 @@ def load(
                 target=None if destino is None else AgentId(str(destino)),
                 place=PlaceId(str(lugar)),
                 action=None if accion is None else ActionId(str(accion)),
+                acto=None if not resto or resto[0] is None else str(resto[0]),
             )
-            for seq, tick, kind, actor, destino, lugar, accion in lista
+            for seq, tick, kind, actor, destino, lugar, accion, *resto in lista
         )
         for quien, lista in datos.get("percepcion", {}).items()
     }
+    world.marcas = {
+        AgentId(str(quien)): {MarkId(str(m)): int(v) for m, v in marcas.items()}
+        for quien, marcas in datos.get("marcas", {}).items()
+    }
+    world.fama = {AgentId(str(quien)): float(f) for quien, f in datos.get("fama", {}).items()}
+    world.tramas = {
+        AgentId(str(quien)): _trama_de_json(run) for quien, run in datos.get("tramas", {}).items()
+    }
+    world.tramas_vividas = {
+        AgentId(str(quien)): {PlotId(str(p)): int(t) for p, t in vividas.items()}
+        for quien, vividas in datos.get("tramas_vividas", {}).items()
+    }
+    world.llegadas = {AgentId(str(quien)): int(t) for quien, t in datos.get("llegadas", {}).items()}
 
     together = {(AgentId(a), AgentId(b)) for a, b in datos["together"]}
     return world, together, int(datos.get("seq", 0))
+
+
+def _trama_a_json(run: PlotRun) -> dict[str, Any]:
+    """Una trama viva. Las personas van en el orden en que la trama las nombró: reanudar
+    tiene que dar lo mismo que no haber parado, y ese orden es parte de la trama."""
+    intencion = run.intencion
+    return {
+        "plot": str(run.plot),
+        "empezo": run.empezo,
+        "refs": [[nombre, str(quien)] for nombre, quien in run.refs.items()],
+        "paso": str(run.paso),
+        "desde": run.desde,
+        "intencion": None if intencion is None else {
+            "action": str(intencion.action),
+            "ref": str(intencion.ref),
+            "vence": intencion.vence,
+            "siguiente": None if intencion.siguiente is None else str(intencion.siguiente),
+            "si_caduca": None if intencion.si_caduca is None else str(intencion.si_caduca),
+        },
+    }
+
+
+def _trama_de_json(datos_trama: dict[str, Any]) -> PlotRun:
+    intencion = datos_trama.get("intencion")
+    return PlotRun(
+        plot=PlotId(str(datos_trama["plot"])),
+        empezo=int(datos_trama["empezo"]),
+        refs={str(nombre): AgentId(str(quien)) for nombre, quien in datos_trama["refs"]},
+        paso=StepId(str(datos_trama["paso"])),
+        desde=int(datos_trama["desde"]),
+        intencion=None if intencion is None else Intencion(
+            action=ActionId(str(intencion["action"])),
+            ref=AgentId(str(intencion["ref"])),
+            vence=int(intencion["vence"]),
+            siguiente=None if intencion["siguiente"] is None
+            else StepId(str(intencion["siguiente"])),
+            si_caduca=None if intencion["si_caduca"] is None
+            else StepId(str(intencion["si_caduca"])),
+        ),
+    )

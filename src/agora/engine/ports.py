@@ -225,6 +225,25 @@ class DecisionSource(Protocol):
         no se puede hacer."""
         ...
 
+    def choose_plot(self, world: WorldState, agent: AgentState, vista: PlotView) -> int | None:
+        """Qué opción de su trama elige, por índice en `vista.options`. `None` = la
+        opción por defecto (o la última). Una trama que pide decisión interrumpe el
+        piloto: «te pasa algo» (23a, A.4)."""
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class PlotView:
+    """Lo que el jugador ve de un paso de decisión de su trama (23a). Solo texto ya
+    dicho en el pack: el motor no le da al jugador nada que no esté en la trama."""
+
+    plot: str
+    """La etiqueta de la trama, no su id."""
+    options: tuple[str, ...]
+    """Las etiquetas de las opciones que cumplen sus condiciones, en orden de pack."""
+    defecto: int | None
+    """El índice de la opción por defecto, si el paso declara una."""
+
 
 class Fate(StrEnum):
     """Cómo sale alguien de una escena de combate. Pobre a propósito, como
@@ -281,3 +300,11 @@ class SocialResolver(Protocol):
 
     def deceive(self, world: WorldState, liar: AgentId, listener: AgentId,
                 key: str) -> Contest | None: ...
+
+    def contest(self, world: WorldState, actor: AgentId, rival: AgentId | None,
+                prueba: str, key: str) -> Contest | None:
+        """Una prueba enfrentada que el pack declara por id (23a, A.4): `actor` tira con
+        la competencia que el enlace del sistema asigna a `prueba`, contra la de `rival`
+        si la hay. `None`: el sistema no sabe esa prueba y el motor sigue por su regla.
+        El engaño de la 15b es esta misma prueba con sus dos competencias."""
+        ...

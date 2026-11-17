@@ -43,14 +43,17 @@ from agora.engine.ontology import (
     GoalSpec,
     GoalStatus,
     ItemId,
+    MarkId,
     NeedId,
     NeedSpec,
     PlaceId,
     PlaceSpec,
+    PlotId,
     PropertyId,
     PropertyKind,
     RelationId,
     SituationId,
+    StepId,
     TargetSpec,
     TraitId,
 )
@@ -1922,6 +1925,36 @@ class Baja:
 
 
 @dataclass(slots=True)
+class Intencion:
+    """Una acción que la trama quiere que su protagonista haga hacia una referencia, y
+    que aún no está en su menú (23a, A.4). Espera hasta `vence`; si no llega a estarlo,
+    la trama sigue por `si_caduca`. Mientras espera, inclina la utilidad hacia la
+    referencia (A.5), sin cambiar el menú."""
+
+    action: ActionId
+    ref: AgentId
+    vence: int
+    siguiente: StepId | None
+    si_caduca: StepId | None
+
+
+@dataclass(slots=True)
+class PlotRun:
+    """La trama que vive una persona ahora (23a). Como mucho una por protagonista.
+
+    Subjetiva: `refs` son las personas que el protagonista conoce, con el nombre que
+    les dio la trama. Nadie más sabe que lo son."""
+
+    plot: PlotId
+    empezo: int
+    refs: dict[str, AgentId]
+    paso: StepId
+    desde: int
+    """Desde cuándo está en este paso: el latido se mira desde aquí, no desde antes."""
+    intencion: Intencion | None = None
+
+
+@dataclass(slots=True)
 class WorldState:
     pack: ContentPack
     travel: TravelMap
@@ -2023,6 +2056,22 @@ class WorldState:
 
     percepcion: dict[AgentId, deque[Percepcion]] = field(default_factory=dict)
     """Lo que cada persona ha visto delante (unidad 23-0). Se borra con quien muere."""
+
+    marcas: dict[AgentId, dict[MarkId, int]] = field(default_factory=dict)
+    """Las marcas de cada persona (23a): enteros ≥ 0 que declara el pack. Se borran
+    con quien muere, como lo que vio."""
+    fama: dict[AgentId, float] = field(default_factory=dict)
+    """La fama de cada persona, en [0, 1] (23a). Solo existe si el pack la declara."""
+    tramas: dict[AgentId, PlotRun] = field(default_factory=dict)
+    """La trama que vive cada protagonista ahora. Como mucho una por persona."""
+    tramas_vividas: dict[AgentId, dict[PlotId, int]] = field(default_factory=dict)
+    """Cuándo empezó cada trama que ha vivido cada persona: el cooldown y `once` se leen
+    de aquí, y por eso sobreviven a que la trama acabe."""
+
+    llegadas: dict[AgentId, int] = field(default_factory=dict)
+    """El tick en que llegó cada forastero (`arrive`). Para la condición «llegó hace N
+    días» de una trama: leerlo del log era recorrer su tramo reciente cada día y por
+    persona, y eso costaba más que la simulación."""
 
     focus: AgentId | None = None
     """Alrededor de quién se simula fino (D-152). `None` = nadie, y entonces el

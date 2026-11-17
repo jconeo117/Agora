@@ -1,0 +1,1154 @@
+# Tramas personales de confluencia (unidad 23a, anexo de la propuesta 23).
+#
+# Cada trama vive en la cabeza de su protagonista. Las referencias son personas que
+# el protagonista conoce, y solo se les mira lo que él puede ver, oír o recordar
+# (23-0). Nada de aquí lee el aprecio, el agravio, una necesidad o una marca de otro:
+# lo rechaza la carga.
+#
+# Donde la propuesta leía lo privado de otro, se reescribe con lo observable:
+#   - «les has visto juntos 3 veces en 7 días» → seen_together;
+#   - «el padre enfermo» → lo que se oye de él (heard), no su condición;
+#   - «un rival de mi oficio que subió de rango» → lo que se oye de él (heard);
+#   - «el hermano o el maestro con mucha más fama» → su fama, que es pública.
+#
+# Los latidos del anexo van como pasos de espera, con una inclinación suave hacia
+# donde el protagonista ha visto a la referencia. Lo que el anexo espera y el motor no
+# puede ver (que le feliciten, que gane delante de ti) no se espera: se decide.
+#
+# Marcas: cada una tiene productor y consumidor. Las tramas que consumen una marca
+# que otra produce (la boda, el contacto, la trampa, el favor) dependen de que la
+# otra haya pasado antes, y por eso declaran `may_go_unused`.
+#
+# También lo declaran las que piden aprecio o agravio que el mundo acumula en semanas
+# (amor secreto, el rival, la mano tendida…): el contrato de salud mira 14 días desde
+# el tick 0, y ahí todavía no hay nadie que aprecie o guarde rencor lo bastante. A 90
+# días, tras el calentamiento, salen (ver el informe de la unidad).
+
+marks:
+  - {id: secreto, label: "secreto", hidden: true, max: 9}
+  - {id: favor_debido, label: "favor debido", max: 3}
+  - {id: comprometido, label: "comprometido"}
+  - {id: suspensos, label: "suspendió", max: 9}
+  - {id: contacto, label: "contacto", max: 3}
+  - {id: saboteado, label: "saboteado", max: 3}
+  - {id: distancia, label: "distancia", max: 3}
+
+fame:
+  label: "fama"
+  decay_per_day: 0.005
+  on:
+    rank_up: 0.03
+    action:
+      desafiar: 0.02
+      escoltar: 0.01
+      curar_con_magia: 0.01
+      dar_clase_de_combate: 0.01
+
+tests:
+  persuadir: {label: "persuadir", actor: sociabilidad, against: presencia}
+  desafiar: {label: "desafiar", actor: fuerza, against: agilidad}
+  competencia: {label: "la competencia del oficio", actor: talento}
+  perdonar: {label: "perdonar", actor: templanza}
+  instinto: {label: "instinto", actor: instinto}
+
+plots:
+  # ── Amor ─────────────────────────────────────────────────────────────────────
+  - id: flechazo_prohibido
+    label: "Flechazo prohibido"
+    category: amor
+    chance: 0.05
+    cooldown_days: 60
+    protagonist:
+      - {relation: pareja}
+      - {regard_to: otro, min: 0.4}
+    refs:
+      - name: pareja
+        when: [{relation: pareja}]
+      - name: otro
+        when: [{with: true}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Ceder"
+            appeal: {impulsividad: 1.0, apego: -0.5}
+            effects:
+              - {mark: secreto, delta: 1}
+              - {regard: otro, delta: 0.2}
+            next: null
+          - label: "Contenerte"
+            appeal: {templanza: 1.0, constancia: 0.5}
+            effects:
+              - {regard: otro, delta: -0.1}
+            default: true
+            next: null
+          - label: "Confesárselo a tu pareja"
+            appeal: {docilidad: 0.5, apego: 0.5}
+            test:
+              id: persuadir
+              vs: pareja
+              on_success: [{regard: pareja, delta: 0.1}]
+              on_failure: [{mark: distancia, delta: 1}]
+            next: null
+
+  - id: la_pareja_se_enfria
+    label: "La pareja se enfría"
+    category: amor
+    chance: 0.05
+    cooldown_days: 30
+    protagonist:
+      - {relation: pareja}
+      - {regard_to: pareja, max: 0.2}
+    refs:
+      - name: pareja
+        when: [{relation: pareja}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Hablarlo"
+            requires: [{mark: distancia, max: 2}]
+            appeal: {sociabilidad: 1.0, apego: 0.5}
+            test:
+              id: persuadir
+              vs: pareja
+              on_success: [{regard: pareja, delta: 0.1}]
+              on_failure: [{mark: distancia, delta: 1}]
+            next: null
+          - label: "Dejarlo"
+            appeal: {impulsividad: 0.5, apego: -1.0}
+            effects:
+              - {mark: distancia, delta: 2}
+            next: null
+          - label: "Ignorarlo"
+            appeal: {pereza: 1.0}
+            effects:
+              - {mark: distancia, delta: 1}
+            default: true
+            next: null
+
+  - id: celos
+    label: "Celos"
+    category: amor
+    chance: 0.05
+    cooldown_days: 30
+    protagonist:
+      - {relation: pareja}
+    refs:
+      - name: pareja
+        when: [{relation: pareja}]
+      - name: tercero
+        when: [{seen_together: pareja, min: 3, days: 7}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Confrontar a tu pareja"
+            appeal: {audacia: 0.5, apego: 0.5}
+            test:
+              id: persuadir
+              vs: pareja
+              on_success: [{regard: pareja, delta: 0.05}]
+              on_failure: [{mark: distancia, delta: 1}]
+            next: null
+          - label: "Confrontar al tercero"
+            appeal: {audacia: 1.0, impulsividad: 0.5}
+            test:
+              id: desafiar
+              vs: tercero
+              on_success: [{memory: true, about: tercero, valence: 0.3, importance: 1}]
+              on_failure: [{memory: true, about: tercero, valence: -0.5, importance: 1, por_quien: tercero}]
+            next: null
+          - label: "Callar"
+            appeal: {templanza: 1.0, aprension: 0.5}
+            effects:
+              - {regard: tercero, delta: -0.1}
+            default: true
+            next: null
+
+  - id: la_propuesta
+    may_go_unused: true
+    label: "La propuesta"
+    category: amor
+    chance: 0.03
+    once: true
+    protagonist:
+      - {relation: pareja}
+      - {regard_to: pareja, min: 0.7}
+    refs:
+      - name: pareja
+        when: [{relation: pareja}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Proponer"
+            appeal: {apego: 1.0, audacia: 0.5}
+            effects:
+              - {mark: comprometido, delta: 1}
+              - {fame: true, delta: 0.02}
+            next: null
+          - label: "Esperar"
+            appeal: {aprension: 1.0}
+            effects: []
+            default: true
+            next: null
+
+  - id: amor_secreto
+    may_go_unused: true
+    label: "Amor secreto"
+    category: amor
+    chance: 0.05
+    cooldown_days: 60
+    protagonist:
+      - {regard_to: otro, min: 0.5}
+    refs:
+      - name: otro
+        when: [{alive: true}]
+    steps:
+      - id: fijarse
+        expects: {beat: talked_with, ref: otro}
+        within_days: 14
+        on_timeout: decidir
+        leanings:
+          - {where_seen: otro, multiplier: 1.3}
+        next: decidir
+      - id: decidir
+        choices:
+          - label: "Acercarte"
+            appeal: {sociabilidad: 0.5, aprension: 0.5}
+            effects:
+              - {regard: otro, delta: 0.05}
+            next: null
+          - label: "Declararte"
+            appeal: {audacia: 1.0, sociabilidad: 0.5}
+            act: {action: cortejar, to: otro, within_days: 7, on_timeout: renunciar}
+            next: fin
+          - label: "Renunciar"
+            appeal: {aprension: 1.0}
+            effects:
+              - {mark: secreto, delta: 1}
+            default: true
+            next: null
+      - id: renunciar
+        choices:
+          - label: "Rendirte"
+            effects:
+              - {mark: secreto, delta: 1}
+            next: null
+      - id: fin
+        choices:
+          - label: "Seguir adelante"
+            effects:
+              - {fame: true, delta: 0.01}
+            next: null
+
+  - id: el_amigo_de_la_infancia
+    may_go_unused: true
+    label: "El amigo de la infancia"
+    category: amor
+    chance: 0.03
+    cooldown_days: 90
+    protagonist:
+      - {regard_to: amigo, min: 0.6}
+    refs:
+      - name: amigo
+        when: [{alive: true}]
+    steps:
+      - id: verle_con_otro
+        expects: {beat: seen_with, ref: amigo}
+        within_days: 14
+        leanings:
+          - {where_seen: amigo, multiplier: 1.3}
+        next: decidir
+      - id: decidir
+        choices:
+          - label: "Decírselo"
+            appeal: {audacia: 0.5, sociabilidad: 0.5}
+            test:
+              id: persuadir
+              vs: amigo
+              on_success: [{regard: amigo, delta: 0.05}]
+              on_failure: [{regard: amigo, delta: -0.05}]
+            next: null
+          - label: "Esperar"
+            appeal: {templanza: 1.0}
+            effects: []
+            next: null
+          - label: "Apartarte"
+            appeal: {aprension: 0.5, apego: -0.5}
+            effects:
+              - {mark: distancia, delta: 1}
+            default: true
+            next: null
+
+  - id: la_boda
+    label: "La boda"
+    category: amor
+    chance: 0.1
+    cooldown_days: 365
+    may_go_unused: true
+    protagonist:
+      - {mark: comprometido, min: 1}
+    refs:
+      - name: pareja
+        when: [{relation: pareja}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Boda grande"
+            appeal: {ambicion: 1.0, sociabilidad: 0.5}
+            effects:
+              - {fame: true, delta: 0.05}
+              - {need: dinero, delta: -0.2}
+              - {mark: comprometido, delta: -1}
+            next: null
+          - label: "Boda íntima"
+            appeal: {apego: 1.0}
+            effects:
+              - {regard: pareja, delta: 0.1}
+              - {mark: comprometido, delta: -1}
+            default: true
+            next: null
+          - label: "Echarte atrás"
+            appeal: {impulsividad: 1.0, apego: -1.0}
+            effects:
+              - {memory: true, about: pareja, valence: -0.5, importance: 1, por_quien: pareja}
+              - {mark: comprometido, delta: -1}
+            next: null
+
+  # ── Rivalidad ────────────────────────────────────────────────────────────────
+  - id: el_rival
+    may_go_unused: true
+    label: "El rival"
+    category: rivalidad
+    chance: 0.05
+    cooldown_days: 30
+    protagonist:
+      - {grudge_to: otro, min: 0.3}
+      - {trait: guerrero, min: 0.3}
+    refs:
+      - name: otro
+        when: [{creation: guerrero}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Desafiarle"
+            appeal: {audacia: 1.0, ambicion: 0.5}
+            test:
+              id: desafiar
+              vs: otro
+              on_success: [{fame: true, delta: 0.03}]
+              on_failure: [{memory: true, about: otro, valence: -0.4, importance: 1, por_quien: otro}]
+            next: null
+          - label: "Humillarle en público"
+            requires: [{mark: saboteado, min: 1}]
+            appeal: {impulsividad: 1.0}
+            effects:
+              - {regard: otro, delta: -0.2}
+              - {mark: saboteado, delta: -1}
+            next: null
+          - label: "Dejarlo estar"
+            appeal: {templanza: 1.0}
+            effects: []
+            default: true
+            next: null
+
+  - id: rival_unilateral
+    label: "Rival unilateral"
+    category: rivalidad
+    chance: 0.05
+    cooldown_days: 60
+    protagonist:
+      - {trait: guerrero, min: 0.3}
+    refs:
+      - name: otro
+        when:
+          - {creation: guerrero}
+          - {heard: true, days: 30}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Entrenar"
+            appeal: {constancia: 1.0, tenacidad: 0.5}
+            effects:
+              - {goal: hacerse_un_nombre_con_las_armas}
+            next: null
+          - label: "Desafiarle"
+            appeal: {audacia: 1.0, ambicion: 0.5}
+            test:
+              id: desafiar
+              vs: otro
+              on_success: [{fame: true, delta: 0.02}]
+              on_failure:
+                - {memory: true, about: otro, valence: -0.5, importance: 1, por_quien: otro}
+                - {mark: suspensos, delta: 1}
+            next: null
+          - label: "Dejarlo"
+            appeal: {pereza: 1.0}
+            effects: []
+            default: true
+            next: null
+
+  - id: volverme_mas_fuerte
+    label: "Volverme más fuerte"
+    category: rivalidad
+    chance: 0.08
+    cooldown_days: 30
+    protagonist:
+      - {mark: suspensos, min: 1}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Entrenar"
+            appeal: {constancia: 1.0, tenacidad: 0.5}
+            effects:
+              - {goal: hacerse_un_nombre_con_las_armas}
+            next: null
+          - label: "Buscar un maestro"
+            appeal: {docilidad: 1.0}
+            effects:
+              - {goal: que_le_conozcan_en_la_ciudad}
+            next: null
+          - label: "Rendirte"
+            appeal: {pereza: 1.0}
+            effects:
+              - {mark: suspensos, delta: -1}
+            default: true
+            next: null
+
+  - id: el_rencor_estalla
+    label: "El rencor estalla"
+    category: rivalidad
+    chance: 0.05
+    cooldown_days: 30
+    protagonist:
+      - {grudge_to: otro, min: 0.5}
+    refs:
+      - name: otro
+        when: [{with: true}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Encararle"
+            appeal: {audacia: 1.0, impulsividad: 0.5}
+            test:
+              id: desafiar
+              vs: otro
+              on_success: [{fame: true, delta: 0.02}]
+              on_failure: [{memory: true, about: otro, valence: -0.4, importance: 1, por_quien: otro}]
+            next: null
+          - label: "Vengarte a escondidas"
+            appeal: {calculo: 1.0}
+            effects:
+              - {memory: true, about: otro, valence: -0.5, importance: 1}
+              - {mark: secreto, delta: 1}
+            next: null
+          - label: "Tragártelo"
+            appeal: {templanza: 1.0, aprension: 0.5}
+            effects:
+              - {need: vinculo, delta: -0.05}
+            default: true
+            next: null
+
+  - id: la_humillacion
+    may_go_unused: true
+    label: "La humillación"
+    category: rivalidad
+    chance: 0.03
+    cooldown_days: 60
+    protagonist:
+      - {fame: true, min: 0.05, max: 0.3}
+      - {mark: suspensos, min: 1}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Recuperar el honor"
+            appeal: {ambicion: 1.0, tenacidad: 0.5}
+            effects:
+              - {goal: que_su_nombre_pese_en_la_torre}
+            next: null
+          - label: "Marcharte un tiempo"
+            appeal: {aprension: 1.0}
+            effects:
+              - {need: descanso, delta: 0.2}
+            next: null
+          - label: "Aceptarlo"
+            appeal: {templanza: 1.0}
+            effects: []
+            default: true
+            next: null
+
+  - id: a_la_sombra_de
+    label: "A la sombra de"
+    category: rivalidad
+    chance: 0.05
+    cooldown_days: 60
+    protagonist:
+      - {fame: true, max: 0.05}
+    refs:
+      - name: modelo
+        when:
+          - {relation: hermano}
+          - {fame: true, min: 0.1}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Competir"
+            appeal: {ambicion: 1.0, audacia: 0.5}
+            test:
+              id: desafiar
+              vs: modelo
+              on_success: [{fame: true, delta: 0.03}]
+              on_failure: [{memory: true, about: modelo, valence: -0.3, importance: 1, por_quien: modelo}]
+            next: null
+          - label: "Apoyarle"
+            appeal: {apego: 1.0, docilidad: 0.5}
+            effects:
+              - {regard: modelo, delta: 0.1}
+            next: null
+          - label: "Irte"
+            appeal: {impulsividad: 0.5, arraigo: -1.0}
+            effects:
+              - {regard: modelo, delta: -0.1}
+              - {mark: distancia, delta: 1}
+            default: true
+            next: null
+
+  - id: la_envidia
+    label: "La envidia"
+    category: rivalidad
+    chance: 0.03
+    cooldown_days: 60
+    protagonist:
+      - {rank: dominio, min: 2}
+    refs:
+      - name: envidioso
+        when:
+          - {creation: guerrero}
+          - {with: true}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Vigilarle"
+            test:
+              id: instinto
+              vs: envidioso
+              on_success: [{fame: true, delta: 0.03}]
+              on_failure: [{need: dinero, delta: -0.1}, {mark: saboteado, delta: 1}]
+            default: true
+            next: null
+
+  # ── Maestro y discípulo ──────────────────────────────────────────────────────
+  - id: el_maestro_me_saca_del_apuro
+    label: "El maestro me saca del apuro"
+    category: maestro
+    chance: 0.05
+    cooldown_days: 60
+    protagonist:
+      - {relation: discipulo}
+      - {need: sustento, max: 0.3}
+    refs:
+      - name: maestro
+        when: [{relation: maestro}]
+    steps:
+      - id: esperar
+        expects: {beat: talked_with, ref: maestro}
+        within_days: 7
+        leanings:
+          - {where_seen: maestro, multiplier: 1.3}
+        next: decidir
+      - id: decidir
+        choices:
+          - label: "Aceptar"
+            appeal: {docilidad: 1.0}
+            effects:
+              - {mark: favor_debido, delta: 1}
+              - {need: sustento, delta: 0.3}
+            default: true
+            next: null
+          - label: "Rechazar"
+            appeal: {ambicion: 1.0}
+            effects:
+              - {regard: maestro, delta: -0.1}
+            next: null
+
+  - id: el_favor_del_maestro
+    label: "El favor del maestro"
+    category: maestro
+    chance: 0.1
+    cooldown_days: 30
+    may_go_unused: true
+    protagonist:
+      - {relation: discipulo}
+      - {mark: favor_debido, min: 1}
+    refs:
+      - name: maestro
+        when: [{relation: maestro}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Hacerlo"
+            appeal: {docilidad: 1.0, apego: 0.5}
+            effects:
+              - {mark: favor_debido, delta: -1}
+              - {regard: maestro, delta: 0.1}
+            default: true
+            next: null
+          - label: "Negarte"
+            appeal: {ambicion: 1.0}
+            effects:
+              - {regard: maestro, delta: -0.1}
+            next: null
+
+  - id: la_prueba_del_maestro
+    label: "La prueba del maestro"
+    category: maestro
+    chance: 0.05
+    cooldown_days: 60
+    protagonist:
+      - {relation: discipulo}
+      - {rank: dominio, min: 1}
+    refs:
+      - name: maestro
+        when: [{relation: maestro}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Pedir la prueba"
+            test:
+              id: competencia
+              vs: maestro
+              on_success: [{fame: true, delta: 0.02}]
+              on_failure: [{mark: suspensos, delta: 1}]
+            default: true
+            next: null
+
+  - id: superar_al_maestro
+    label: "Superar al maestro"
+    category: maestro
+    chance: 0.03
+    cooldown_days: 120
+    protagonist:
+      - {relation: discipulo}
+      - {rank: dominio, min: 3}
+    refs:
+      - name: maestro
+        when: [{relation: maestro}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Decírselo"
+            appeal: {audacia: 1.0}
+            test:
+              id: persuadir
+              vs: maestro
+              on_success: [{regard: maestro, delta: 0.1}]
+              on_failure: [{regard: maestro, delta: -0.1}]
+            next: null
+          - label: "Callarlo"
+            appeal: {docilidad: 1.0}
+            effects: []
+            default: true
+            next: null
+          - label: "Irte por tu cuenta"
+            appeal: {ambicion: 1.0, arraigo: -0.5}
+            effects:
+              - {regard: maestro, delta: -0.2}
+            next: null
+
+  - id: tomar_un_aprendiz
+    may_go_unused: true
+    label: "Tomar un aprendiz"
+    category: maestro
+    chance: 0.03
+    cooldown_days: 120
+    protagonist:
+      - {rank: dominio, min: 2}
+    refs:
+      - name: aprendiz
+        when:
+          - {creation: guerrero}
+          - {age: true, max: 30}
+    steps:
+      - id: que_me_lo_pida
+        expects: {beat: talked_with, ref: aprendiz}
+        within_days: 14
+        leanings:
+          - {where_seen: aprendiz, multiplier: 1.3}
+        next: decidir
+      - id: decidir
+        choices:
+          - label: "Aceptarle"
+            appeal: {sociabilidad: 0.5, piedad: 0.5}
+            effects:
+              - {regard: aprendiz, delta: 0.1}
+            next: null
+          - label: "Ponerle a prueba"
+            appeal: {calculo: 1.0}
+            test:
+              id: competencia
+              vs: aprendiz
+              on_success: [{fame: true, delta: 0.02}]
+              on_failure: [{regard: aprendiz, delta: -0.05}]
+            next: null
+          - label: "Rechazarle"
+            appeal: {pereza: 1.0}
+            effects: []
+            default: true
+            next: null
+
+  - id: colgar_las_herramientas
+    label: "Colgar las herramientas"
+    category: maestro
+    chance: 0.03
+    cooldown_days: 365
+    may_go_unused: true
+    protagonist:
+      - {age: true, min: 55}
+      - {rank: dominio, min: 2}
+    refs:
+      - name: aprendiz
+        when: [{with: true}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Retirarte"
+            appeal: {pereza: 1.0}
+            effects:
+              - {need: descanso, delta: 0.2}
+            default: true
+            next: null
+          - label: "Pasar el testigo"
+            appeal: {piedad: 1.0}
+            effects:
+              - {regard: aprendiz, delta: 0.1}
+            next: null
+          - label: "Aferrarte"
+            appeal: {tenacidad: 1.0}
+            test:
+              id: competencia
+              on_success: [{fame: true, delta: 0.01}]
+              on_failure: [{mark: suspensos, delta: 1}]
+            next: null
+
+  # ── Familia ──────────────────────────────────────────────────────────────────
+  - id: el_hermano_en_apuros
+    label: "El hermano en apuros"
+    category: familia
+    chance: 0.05
+    cooldown_days: 60
+    protagonist:
+      - {relation: hermano}
+    refs:
+      - name: hermano
+        when:
+          - {relation: hermano}
+          - {heard: true, days: 30}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Prestarle"
+            appeal: {apego: 1.0, calculo: 0.5}
+            effects:
+              - {debt: hermano, action: prestar_dinero, direction: presto}
+            next: null
+          - label: "Darle"
+            appeal: {piedad: 1.0}
+            effects:
+              - {need: dinero, delta: -0.1}
+              - {regard: hermano, delta: 0.1}
+            next: null
+          - label: "Negarte"
+            appeal: {codicia: 1.0}
+            effects:
+              - {memory: true, about: hermano, valence: -0.4, importance: 1, por_quien: hermano}
+            default: true
+            next: null
+
+  - id: el_padre_enfermo
+    may_go_unused: true
+    label: "El padre enfermo"
+    category: familia
+    chance: 0.05
+    cooldown_days: 60
+    protagonist:
+      - {relation: hijo_de_padre}
+    refs:
+      - name: padre
+        when:
+          - {relation: padre}
+          - {heard: true, days: 30}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Cuidarle"
+            appeal: {apego: 1.0, piedad: 0.5}
+            effects:
+              - {regard: padre, delta: 0.1}
+              - {goal: no_volver_a_estar_solo}
+            next: null
+          - label: "Pagar a un sanador"
+            appeal: {calculo: 1.0}
+            effects:
+              - {need: dinero, delta: -0.1}
+              - {regard: padre, delta: 0.1}
+            next: null
+          - label: "No ir"
+            appeal: {pereza: 1.0, apego: -1.0}
+            effects:
+              - {memory: true, about: padre, valence: -0.3, importance: 1, por_quien: padre}
+            default: true
+            next: null
+
+  - id: el_duelo
+    label: "El duelo"
+    category: familia
+    chance: 0.02
+    cooldown_days: 60
+    protagonist:
+      - {recent_event: agent_died, days: 7}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Buscar al culpable"
+            appeal: {impulsividad: 1.0, audacia: 0.5}
+            effects:
+              - {goal: hacerse_un_nombre_con_las_armas}
+            next: null
+          - label: "Honrarle"
+            appeal: {devocion: 1.0}
+            effects:
+              - {fame: true, delta: 0.02}
+            next: null
+          - label: "Retirarte"
+            appeal: {aprension: 1.0}
+            effects:
+              - {need: descanso, delta: 0.1}
+            default: true
+            next: null
+
+  - id: la_herencia
+    label: "La herencia"
+    category: familia
+    chance: 0.02
+    cooldown_days: 120
+    protagonist:
+      - {recent_event: agent_died, days: 14}
+      - {relation: hermano}
+    refs:
+      - name: hermano
+        when: [{relation: hermano}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Quedarte lo mejor"
+            appeal: {codicia: 1.0}
+            effects:
+              - {mark: distancia, delta: 1}
+              - {need: dinero, delta: 0.2}
+            next: null
+          - label: "Repartir"
+            appeal: {templanza: 1.0}
+            effects:
+              - {regard: hermano, delta: 0.05}
+            next: null
+          - label: "Cedérselo"
+            appeal: {piedad: 1.0, apego: 0.5}
+            effects:
+              - {regard: hermano, delta: 0.1}
+              - {need: dinero, delta: -0.1}
+            default: true
+            next: null
+
+  # ── Ascenso y fama ───────────────────────────────────────────────────────────
+  - id: la_invitacion
+    label: "La invitación"
+    category: comunidad
+    chance: 0.05
+    cooldown_days: 30
+    protagonist:
+      - {fame: true, min: 0.1}
+    refs:
+      - name: anfitrion
+        when: [{fame: true, min: 0.1}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Aceptar"
+            appeal: {sociabilidad: 1.0, ambicion: 0.5}
+            effects:
+              - {mark: contacto, delta: 1}
+              - {regard: anfitrion, delta: 0.1}
+            default: true
+            next: null
+          - label: "Rechazar"
+            appeal: {aprension: 1.0}
+            effects:
+              - {fame: true, delta: -0.02}
+            next: null
+
+  - id: cobrar_el_contacto
+    label: "Cobrar el contacto"
+    category: comunidad
+    chance: 0.1
+    cooldown_days: 60
+    may_go_unused: true
+    protagonist:
+      - {mark: contacto, min: 1}
+    refs:
+      - name: contacto
+        when: [{with: true}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Pedir ayuda"
+            appeal: {sociabilidad: 1.0}
+            effects:
+              - {mark: contacto, delta: -1}
+              - {regard: contacto, delta: 0.05}
+            next: null
+          - label: "Tragarte el orgullo"
+            appeal: {ambicion: 0.5, docilidad: -0.5}
+            effects: []
+            next: null
+          - label: "Usarlo contra un rival"
+            appeal: {calculo: 1.0, codicia: 0.5}
+            effects:
+              - {mark: contacto, delta: -1}
+              - {mark: secreto, delta: 1}
+            default: true
+            next: null
+
+  - id: el_secreto
+    may_go_unused: true
+    label: "El secreto"
+    category: comunidad
+    chance: 0.05
+    cooldown_days: 30
+    protagonist:
+      - {mark: secreto, min: 1}
+      - {grudge_to: chantajista, min: 0.3}
+    refs:
+      - name: chantajista
+        when: [{with: true}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Pagar"
+            appeal: {aprension: 1.0}
+            effects:
+              - {need: dinero, delta: -0.2}
+              - {mark: secreto, delta: -1}
+            next: null
+          - label: "Plantarle cara"
+            appeal: {audacia: 1.0}
+            test:
+              id: persuadir
+              vs: chantajista
+              on_success: [{mark: secreto, delta: -1}]
+              on_failure: [{fame: true, delta: -0.05}]
+            next: null
+          - label: "Confesarlo"
+            appeal: {devocion: 1.0, templanza: 0.5}
+            effects:
+              - {fame: true, delta: -0.1}
+              - {mark: secreto, delta: -1}
+            default: true
+            next: null
+
+  - id: la_trampa
+    label: "La trampa"
+    category: comunidad
+    chance: 0.08
+    cooldown_days: 30
+    may_go_unused: true
+    protagonist:
+      - {mark: suspensos, min: 2}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Hacer trampa"
+            appeal: {calculo: 1.0, codicia: 0.5}
+            test:
+              id: persuadir
+              on_success: [{mark: secreto, delta: 1}, {mark: suspensos, delta: -1}]
+              on_failure: [{mark: suspensos, delta: 1}]
+            next: null
+          - label: "Rendirte"
+            appeal: {pereza: 1.0}
+            effects:
+              - {mark: suspensos, delta: -1}
+            next: null
+          - label: "Intentarlo limpio"
+            appeal: {constancia: 1.0}
+            effects:
+              - {fame: true, delta: 0.01}
+            default: true
+            next: null
+
+  # ── Comunidad ────────────────────────────────────────────────────────────────
+  - id: la_deuda_pendiente
+    label: "La deuda pendiente"
+    category: comunidad
+    chance: 0.05
+    cooldown_days: 60
+    protagonist:
+      - {debt: le_deben}
+    refs:
+      - name: deudor
+        when: [{with: true}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Cobrar por las buenas"
+            appeal: {sociabilidad: 1.0}
+            test:
+              id: persuadir
+              vs: deudor
+              on_success: [{need: dinero, delta: 0.1}]
+              on_failure: []
+            next: null
+          - label: "Cobrar por las malas"
+            appeal: {audacia: 1.0, codicia: 0.5}
+            test:
+              id: desafiar
+              vs: deudor
+              on_success: [{need: dinero, delta: 0.1}]
+              on_failure: [{memory: true, about: deudor, valence: -0.4, importance: 1, por_quien: deudor}]
+            next: null
+          - label: "Perdonarla"
+            appeal: {piedad: 1.0}
+            effects:
+              - {regard: deudor, delta: 0.1}
+              - {fame: true, delta: 0.02}
+            default: true
+            next: null
+
+  - id: el_recien_llegado
+    label: "El recién llegado"
+    category: comunidad
+    chance: 0.2
+    cooldown_days: 365
+    may_go_unused: true
+    protagonist:
+      - {newcomer: 14}
+    refs:
+      - name: alguien
+        when: [{with: true}]
+    steps:
+      - id: que_me_hablen
+        expects: {beat: talked_with, ref: alguien}
+        within_days: 7
+        on_timeout: decidir
+        leanings:
+          - {where_seen: alguien, multiplier: 1.3}
+        next: decidir
+      - id: decidir
+        choices:
+          - label: "Buscar a alguien"
+            appeal: {sociabilidad: 1.0}
+            effects:
+              - {need: vinculo, delta: 0.1}
+              - {regard: alguien, delta: 0.05}
+            next: null
+          - label: "Quedarte al margen"
+            appeal: {aprension: 1.0}
+            effects:
+              - {need: vinculo, delta: -0.05}
+            default: true
+            next: null
+
+  - id: el_concurso_del_festival
+    label: "El concurso del festival"
+    category: comunidad
+    chance: 0.2
+    cooldown_days: 30
+    may_go_unused: true
+    when:
+      - {situation: festival_cosecha}
+    protagonist:
+      - {age: true, min: 16}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Participar"
+            appeal: {ambicion: 1.0, audacia: 0.5}
+            test:
+              id: competencia
+              on_success: [{fame: true, delta: 0.03}]
+              on_failure: []
+            next: null
+          - label: "Apostar"
+            appeal: {codicia: 1.0}
+            effects:
+              - {need: dinero, delta: -0.05}
+            next: null
+          - label: "Mirar"
+            appeal: {pereza: 0.5}
+            effects: []
+            default: true
+            next: null
+
+  # ── Válvulas del agravio ─────────────────────────────────────────────────────
+  - id: la_mano_tendida
+    may_go_unused: true
+    label: "La mano tendida"
+    category: valvula
+    chance: 0.05
+    cooldown_days: 60
+    protagonist:
+      - {grudge_to: otro, min: 0.3}
+    refs:
+      - name: otro
+        when: [{alive: true}]
+    steps:
+      - id: coincidir
+        expects: {beat: arrived, ref: otro}
+        within_days: 14
+        leanings:
+          - {where_seen: otro, multiplier: 1.3}
+        next: decidir
+      - id: decidir
+        choices:
+          - label: "Pedir perdón"
+            appeal: {piedad: 1.0, templanza: 0.5}
+            test:
+              id: perdonar
+              vs: otro
+              on_success:
+                - {forgive: otro, factor: 0.5}
+                - {regard: otro, delta: 0.05}
+              on_failure: []
+            next: null
+          - label: "Seguir con el orgullo"
+            appeal: {ambicion: 1.0, dureza: 0.5}
+            effects: []
+            default: true
+            next: null
+
+  - id: enemigo_en_apuros
+    label: "Enemigo en apuros"
+    category: valvula
+    chance: 0.05
+    cooldown_days: 60
+    protagonist:
+      - {grudge_to: otro, min: 0.3}
+    refs:
+      - name: otro
+        when: [{heard: true, days: 30}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Ayudarle"
+            appeal: {piedad: 1.0}
+            effects:
+              - {forgive: otro, factor: 0.7}
+              - {regard: otro, delta: 0.05}
+            next: null
+          - label: "Regodearte"
+            appeal: {dureza: 1.0}
+            effects:
+              - {fame: true, delta: -0.01}
+            next: null
+          - label: "No hacer nada"
+            appeal: {pereza: 0.5}
+            effects: []
+            default: true
+            next: null

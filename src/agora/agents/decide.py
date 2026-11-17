@@ -61,7 +61,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import assert_never
 
 from agora.engine.disposition import urgency
@@ -84,6 +84,7 @@ from agora.engine.ontology import (
 )
 from agora.engine.outcome import company_saturation
 from agora.engine.pack import ContentPack
+from agora.engine.plots import inclinacion
 from agora.engine.state import AgentState, PerformingAction, Propiedad, Traveling, WorldState
 from agora.engine.topology import INFINITE
 
@@ -785,7 +786,24 @@ def decide(
     como "no merece la pena interrumpir"; un agente ocioso vuelve a preguntar
     sin restricción.
     """
-    return choose_among(world, agent, options(world, agent, must_address))
+    return choose_among(world, agent, inclinar(world, agent, options(world, agent, must_address)))
+
+
+def inclinar(world: WorldState, agent: AgentState, pool: Sequence[Decision]) -> list[Decision]:
+    """El menú con lo que la trama del protagonista empuja (23a, A.5). Sin trama, el menú
+    tal cual. Con ella, la utilidad se multiplica si es positiva y se divide si no, así el
+    factor siempre acerca la opción a la que la trama quiere. El orden se rehace con el
+    criterio de siempre. El menú que ve el jugador no pasa por aquí."""
+    if agent.spec_id not in world.tramas:
+        return list(pool)
+    ajustadas = []
+    for decision in pool:
+        factor = inclinacion(world, agent, decision)
+        utilidad = decision.utility * factor if decision.utility > 0.0 \
+            else decision.utility / factor
+        ajustadas.append(replace(decision, utility=utilidad))
+    ajustadas.sort(key=_rank)
+    return ajustadas
 
 
 def choose_among(

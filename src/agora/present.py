@@ -114,9 +114,31 @@ def sheet_view(world: WorldState, agent: AgentState, otro: AgentId | None = None
             (pack.situation_by_id[c.situacion].label, c.gravedad) for c in sujeto.condiciones
         ),
         objetos=objetos,
-        lineas=tuple(ficha(world, sujeto.spec_id, None if propia else agent.spec_id).lines()),
+        lineas=tuple(ficha(world, sujeto.spec_id, None if propia else agent.spec_id).lines())
+        + (_lineas_de_tramas(world, agent) if propia else ()),
         propia=propia,
     )
+
+
+def _lineas_de_tramas(world: WorldState, agent: AgentState) -> tuple[str, ...]:
+    """Lo que la hoja propia lleva de tramas (23a, A.7): la fama, las marcas que se ven y la
+    trama en curso. Las ocultas no salen nunca. La hoja de otro no lleva nada de esto: es
+    lo que el protagonista guarda para sí."""
+    libro = world.pack.plots
+    if libro is None:
+        return ()
+    salida: list[str] = []
+    if libro.fame is not None:
+        salida.append(f"{libro.fame.label}: {world.fama.get(agent.spec_id, 0.0):.2f}")
+    marcas = world.marcas.get(agent.spec_id, {})
+    for marca in libro.marks:
+        if not marca.hidden and marcas.get(marca.id, 0) > 0:
+            salida.append(f"{marca.label}: {marcas[marca.id]}")
+    run = world.tramas.get(agent.spec_id)
+    if run is not None:
+        trama = next(t for t in libro.plots if t.id == run.plot)
+        salida.append(f"En curso: {trama.label}")
+    return tuple(salida)
 
 
 def fighter_view(f: Fighter) -> FighterView:

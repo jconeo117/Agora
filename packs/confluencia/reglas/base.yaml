@@ -104,3 +104,13 @@ roles:
   - {attributes: [voluntad, presencia], label: líder}
   - {attributes: [voluntad, resonancia], label: canalizador}
   - {attributes: [presencia, resonancia], label: invocador}
+
+# Con qué competencias se tira cada prueba de las tramas (unidad 23a, D-159): `tira` la
+# de quien actúa, `contra` la del rival si la prueba enfrenta a dos. Una prueba sin
+# entrada aquí la resuelve la regla de respaldo del motor, con los rasgos del pack.
+pruebas:
+  persuadir: {tira: porte, contra: alerta}
+  desafiar: {tira: armas_cuerpo_a_cuerpo, contra: defensa}
+  competencia: {tira: artesania}
+  perdonar: {tira: porte}
+  instinto: {tira: alerta}

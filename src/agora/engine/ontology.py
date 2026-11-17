@@ -18,7 +18,7 @@ from __future__ import annotations
 import math
 import string
 from enum import StrEnum
-from typing import Annotated, NewType
+from typing import Annotated, Literal, NewType
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -3494,6 +3494,10 @@ class TuningSpec(Spec):
     """Cuántos hechos presenciados guarda cada persona, como mucho. Pasado el tope se
     descartan los más viejos."""
 
+    plot_lean_max: float = Field(default=1.5, ge=1.0)
+    """Tope de cualquier multiplicador de inclinación de una trama, en los dos sentidos
+    (unidad 23a): ni un lugar ni una acción pueden dominar la utilidad."""
+
     memory_capacity: int = Field(default=0, ge=0)
     """Cuántos recuerdos retiene cada agente. **0 desactiva la memoria episódica.**
 
@@ -3972,3 +3976,366 @@ class WorldLore(Spec):
     places: dict[PlaceId, str] = Field(default_factory=dict)
     """Descripciones para los lugares que el pack no describe. Un lugar descrito en
     el pack no se describe aquí: es error tener las dos."""
+
+
+# ---------------------------------------------------------------------------
+# Tramas personales (unidad 23a, D-178)
+#
+# Una trama vive en la cabeza de su protagonista. Los demás son referencias: el
+# motor solo les mira lo que el protagonista puede ver, oír o recordar (23-0),
+# y nunca lo que sienten. Por eso el vocabulario de condiciones se parte en dos
+# listas cerradas, una para cada lado, y la carga rechaza lo que se salga.
+# ---------------------------------------------------------------------------
+MarkId = NewType("MarkId", str)
+PlotId = NewType("PlotId", str)
+StepId = NewType("StepId", str)
+TestId = NewType("TestId", str)
+
+
+class BeatKind(StrEnum):
+    """Lo que puede pasar y que una trama espera (A.3). Vocabulario cerrado: un latido
+    que el pack invente no lo reconocería ningún hecho del motor."""
+
+    TALKED_WITH = "talked_with"
+    HELPED_BY = "helped_by"
+    SEEN_WITH = "seen_with"
+    WON_AGAINST = "won_against"
+    LOST_TO = "lost_to"
+    REF_RANK_UP = "ref_rank_up"
+    DECLARED_TO = "declared_to"
+    REF_DIED = "ref_died"
+    ARRIVED = "arrived"
+    SITUATION_BEGAN = "situation_began"
+
+
+PROTAGONIST_KINDS = frozenset({
+    "trait", "relation", "regard_to", "grudge_to", "rank", "need", "mark", "fame", "age",
+    "situation", "place", "phase", "recent_event", "debt", "newcomer",
+})
+"""Lo que se puede leer del protagonista: todo lo suyo (A.2)."""
+
+REF_KINDS = frozenset({
+    "relation", "group", "creation", "fame", "age", "visible", "alive",
+    "seen_together", "saw", "heard", "with",
+})
+"""Lo que se puede leer de una referencia: solo lo observable (A.2, §3.5). Un aprecio,
+un agravio, una necesidad o una marca ajena no están en esta lista, y la carga lo rechaza."""
+
+GLOBAL_KINDS = frozenset({"situation", "phase"})
+"""Lo que puede ir en `when`: lo que es del mundo, no de una persona."""
+
+
+class PlotCondition(Spec):
+    """Una condición de trama. Exactamente una clave del vocabulario por condición
+    (`{trait: sociable, min: 0.6}`); `min`, `max` y `days` acotan la de la clave.
+
+    Un campo por clave y no un diccionario libre a propósito: `extra="forbid"` hace que
+    una clave fuera del vocabulario no cargue, en lugar de no hacer nada en silencio."""
+
+    trait: TraitId | None = None
+    relation: RelationId | None = None
+    regard_to: str | None = None
+    grudge_to: str | None = None
+    rank: NeedId | None = None
+    need: NeedId | None = None
+    mark: MarkId | None = None
+    fame: bool | None = None
+    age: bool | None = None
+    situation: SituationId | None = None
+    personal: bool = False
+    place: PlaceId | None = None
+    phase: PhaseId | None = None
+    recent_event: str | None = None
+    """Un `EventKind` del motor por su valor. Lo valida el pack: `events.py` importa
+    de aquí, así que este módulo no puede nombrar ese tipo."""
+    debt: Literal["debe", "le_deben"] | None = None
+    newcomer: int | None = Field(default=None, ge=0)
+    group: bool | None = None
+    creation: TraitId | None = None
+    visible: SituationId | None = None
+    alive: bool | None = None
+    seen_together: str | None = None
+    saw: str | None = None
+    heard: bool | None = None
+    with_: bool | None = Field(default=None, alias="with")
+    min: float | None = None
+    max: float | None = None
+    days: int | None = Field(default=None, ge=1)
+
+    model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
+
+    def kind(self) -> str:
+        """La clave del vocabulario que usa esta condición. Exactamente una."""
+        usadas = [k for k, campo in _CLAVES_ORDENADAS if getattr(self, campo) is not None]
+        if len(usadas) != 1:
+            raise ValueError(
+                "una condición lleva exactamente una clave del vocabulario, "
+                f"no {usadas or 'ninguna'}"
+            )
+        return usadas[0]
+
+    @model_validator(mode="after")
+    def _one_kind(self) -> PlotCondition:
+        self.kind()
+        if self.min is not None and self.max is not None and self.min > self.max:
+            raise ValueError("min es mayor que max")
+        return self
+
+
+def _campo(kind: str) -> str:
+    """`with` es palabra reservada en Python: su campo se llama `with_`."""
+    return "with_" if kind == "with" else kind
+
+
+_CLAVES_ORDENADAS = tuple(
+    (k, _campo(k)) for k in sorted(PROTAGONIST_KINDS | REF_KINDS)
+)
+"""Las claves del vocabulario y su campo, en orden fijo. Se calcula una vez: `kind()` se
+llama por persona y por día, y rehacer el conjunto cada vez era un tercio del coste."""
+
+
+class Leaning(Spec):
+    """Una inclinación mientras un paso espera (A.5): un multiplicador suave sobre la
+    utilidad del protagonista, por un lugar donde vio a la referencia o por una acción
+    con una etiqueta. Nunca toca a la referencia."""
+
+    where_seen: str | None = None
+    action_tag: ContentTag | None = None
+    multiplier: float = Field(gt=0.0)
+
+    @model_validator(mode="after")
+    def _one(self) -> Leaning:
+        if (self.where_seen is None) == (self.action_tag is None):
+            raise ValueError(
+                "una inclinación va por `where_seen` o por `action_tag`, no por las dos"
+            )
+        return self
+
+
+class Beat(Spec):
+    """Lo que un paso de espera aguarda (A.3)."""
+
+    kind: BeatKind = Field(alias="beat")
+    ref: str | None = None
+    tag: ContentTag | None = None
+    """Solo para `helped_by`: la etiqueta que el pack pone a una acción de ayuda."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
+
+    @model_validator(mode="after")
+    def _shape(self) -> Beat:
+        necesita_ref = self.kind is not BeatKind.SITUATION_BEGAN
+        if necesita_ref and self.ref is None:
+            raise ValueError(f"el latido {self.kind.value} necesita una referencia")
+        if not necesita_ref and self.ref is not None:
+            raise ValueError("situation_began no mira a ninguna referencia")
+        if self.tag is not None and self.kind is not BeatKind.HELPED_BY:
+            raise ValueError("solo helped_by lleva etiqueta")
+        return self
+
+
+class EffectSpec(Spec):
+    """Un efecto de vocabulario cerrado (A.6). Solo toca al protagonista, y lo que toca a
+    otro pasa por el mundo (una acción dirigida), nunca por aquí. Una clave por efecto."""
+
+    mark: MarkId | None = None
+    fame: bool | None = None
+    regard: str | None = None
+    memory: bool | None = None
+    need: NeedId | None = None
+    condition: SituationId | None = None
+    goal: GoalId | None = None
+    debt: str | None = None
+    direction: Literal["presto", "pido"] | None = None
+    """Para `debt`: `presto` = la persona presta a la referencia; `pido` = la
+    referencia le presta a ella."""
+    forgive: str | None = None
+    item: ItemId | None = None
+    delta: float | None = None
+    valence: float | None = Field(default=None, ge=-1.0, le=1.0)
+    importance: float | None = Field(default=None, ge=0.0)
+    por_quien: str | None = None
+    about: str | None = None
+    action: ActionId | None = None
+    """Para `debt`: la acción de préstamo del pack que abre la deuda (la puerta de
+    deudas existente)."""
+    days: int | None = Field(default=None, ge=1)
+    factor: float | None = Field(default=None, gt=0.0, le=1.0)
+    """Para `forgive`: qué parte del agravio queda."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    @model_validator(mode="after")
+    def _one(self) -> EffectSpec:
+        claves = [
+            k for k in ("mark", "fame", "regard", "memory", "need", "condition", "goal",
+                        "debt", "forgive", "item")
+            if getattr(self, k) is not None and getattr(self, k) is not False
+        ]
+        if len(claves) != 1:
+            raise ValueError(f"un efecto lleva exactamente una clave, no {claves or 'ninguna'}")
+        if claves[0] in ("mark", "fame", "need", "regard") and self.delta is None:
+            raise ValueError(f"el efecto {claves[0]} necesita `delta`")
+        if self.mark is not None and self.delta is not None and not float(self.delta).is_integer():
+            raise ValueError(f"una marca cambia en enteros, no en {self.delta}")
+        if self.memory and (self.valence is None or self.importance is None or self.about is None):
+            raise ValueError("un efecto memory necesita valence, importance y about")
+        if self.debt is not None and (self.action is None or self.direction is None):
+            raise ValueError("un efecto debt necesita la acción de préstamo y el sentido")
+        if self.forgive is not None and self.factor is None:
+            raise ValueError("un efecto forgive necesita `factor`")
+        return self
+
+
+class TestUse(Spec):
+    """Una prueba enfrentada en un paso (A.4). `vs` es la referencia con la que se tira,
+    si la hay; sin ella, la prueba es contra la dificultad que declara el pack."""
+
+    id: TestId
+    vs: str | None = None
+    on_success: tuple[EffectSpec, ...] = ()
+    on_failure: tuple[EffectSpec, ...] = ()
+
+
+class ActUse(Spec):
+    """Una acción del pack dirigida a una referencia (A.4). La ejecuta el motor por sus
+    puertas, no la trama."""
+
+    action: ActionId
+    to: str
+    within_days: int = Field(ge=1)
+    """Cuánto espera la intención a que la acción esté en el menú del protagonista."""
+    on_timeout: StepId | None = None
+    """Adónde pasa la trama si la intención caduca. `None` = la trama acaba."""
+
+
+class Choice(Spec):
+    """Una opción de un paso de decisión (A.1): exactamente uno de `effects`, `test` o
+    `act`, y luego `next`."""
+
+    label: str = Field(min_length=1, max_length=160)
+    requires: tuple[PlotCondition, ...] = ()
+    appeal: dict[TraitId, float] = Field(default_factory=dict)
+    default: bool = False
+    effects: tuple[EffectSpec, ...] | None = None
+    test: TestUse | None = None
+    act: ActUse | None = None
+    next: StepId | None = None
+
+    @model_validator(mode="after")
+    def _one(self) -> Choice:
+        usos = [x for x in (self.effects, self.test, self.act) if x is not None]
+        if len(usos) != 1:
+            raise ValueError(
+                f"la opción {self.label!r} lleva exactamente uno de effects, test o act"
+            )
+        return self
+
+
+class Step(Spec):
+    """Un paso: de espera (`expects`) o de decisión (`choices`), nunca de los dos."""
+
+    id: StepId
+    expects: Beat | None = None
+    within_days: int | None = Field(default=None, ge=1)
+    on_timeout: StepId | None = None
+    leanings: tuple[Leaning, ...] = ()
+    next: StepId | None = None
+    """Tras el latido, en un paso de espera. `None` = la trama acaba."""
+    choices: tuple[Choice, ...] = ()
+
+    @model_validator(mode="after")
+    def _shape(self) -> Step:
+        if (self.expects is None) == (not self.choices):
+            raise ValueError(f"el paso {self.id!r} es de espera o de decisión, no de las dos")
+        if self.expects is not None and self.within_days is None:
+            raise ValueError(f"el paso de espera {self.id!r} necesita within_days")
+        if self.expects is None and self.leanings:
+            raise ValueError(f"solo un paso de espera lleva inclinaciones ({self.id!r})")
+        if self.choices and sum(1 for c in self.choices if c.default) > 1:
+            raise ValueError(f"el paso {self.id!r} tiene más de una opción default")
+        return self
+
+
+class RefSpec(Spec):
+    """Una referencia: a quién mira la trama, nombrada, y las condiciones que cumple
+    desde el protagonista. Sus condiciones son del lado de referencia."""
+
+    name: str = Field(min_length=1, max_length=40, pattern=r"^[a-z_]+$")
+    when: tuple[PlotCondition, ...] = ()
+
+
+class PlotSpec(Spec):
+    """Una trama subjetiva (A.1). `protagonist` mira a quien la vive; `refs`, a quienes
+    conoce; `when`, al mundo (situación, fase)."""
+
+    id: PlotId
+    label: str = Field(min_length=1, max_length=120)
+    category: str = Field(min_length=1, max_length=40)
+    content: tuple[ContentTag, ...] = ()
+    when: tuple[PlotCondition, ...] = ()
+    protagonist: tuple[PlotCondition, ...] = ()
+    refs: tuple[RefSpec, ...] = ()
+    chance: float = Field(gt=0.0, le=1.0)
+    cooldown_days: int = Field(default=0, ge=0)
+    once: bool = False
+    may_go_unused: bool = False
+    """Que el panel de salud no avise si la trama no sale nunca: una trama que depende de
+    algo raro (una muerte, un festival) puede no dispararse en una corrida."""
+    steps: tuple[Step, ...] = Field(min_length=1)
+
+
+class MarkSpec(Spec):
+    """Una marca de persona: un entero ≥ 0 (A.1). `hidden` = no se ve en la hoja."""
+
+    id: MarkId
+    label: str = Field(min_length=1, max_length=80)
+    hidden: bool = False
+    max: int | None = Field(default=None, ge=1)
+
+
+class FameOn(Spec):
+    """Qué hechos del motor suben o bajan la fama, y cuánto (A.1)."""
+
+    rank_up: float = 0.0
+    goal_achieved: float = 0.0
+    action: dict[ActionId, float] = Field(default_factory=dict)
+
+
+class FameSpec(Spec):
+    """La fama: un valor en [0, 1] por persona, que baja cada día (A.1)."""
+
+    label: str = Field(min_length=1, max_length=80)
+    decay_per_day: float = Field(ge=0.0, le=1.0)
+    on: FameOn = Field(default_factory=FameOn)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _la_clave_on(cls, datos: object) -> object:
+        """YAML 1.1 lee una clave `on` sin comillas como el booleano `True`. El pack la
+        escribe como dice el contrato, sin comillas, y aquí se recoloca."""
+        if isinstance(datos, dict) and True in datos and "on" not in datos:
+            datos = {**{k: v for k, v in datos.items() if k is not True}, "on": datos[True]}
+        return datos
+
+
+class TestSpec(Spec):
+    """Una prueba enfrentada del pack (A.4). El pack dice qué rasgos cuentan si no hay
+    sistema de rol; el enlace del sistema dice con qué competencias se tira (D-159)."""
+
+    label: str = Field(min_length=1, max_length=120)
+    actor: TraitId
+    against: TraitId | None = None
+
+
+class PlotBook(Spec):
+    """`tramas.yaml`, junto al pack (A.1). Marcas, fama, pruebas y las tramas."""
+
+    marks: tuple[MarkSpec, ...] = ()
+    fame: FameSpec | None = None
+    tests: dict[TestId, TestSpec] = Field(default_factory=dict)
+    plots: tuple[PlotSpec, ...] = ()
+    strict_marks: bool = False
+    """Con él, una marca consumida que nadie produce (o al revés) no carga: error, y no
+    aviso."""
+

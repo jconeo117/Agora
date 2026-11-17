@@ -23,7 +23,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TextIO
 
-from agora.agents.decide import Decision, choose_among, critical_needs
+from agora.agents.decide import Decision, choose_among, critical_needs, inclinar
 from agora.cognition.conversa import (
     ACT_HELP,
     CONVERSA,
@@ -55,7 +55,7 @@ from agora.engine.ontology import (
     RelationId,
     SocialAct,
 )
-from agora.engine.ports import Outcome
+from agora.engine.ports import Outcome, PlotView
 from agora.engine.render import render_event
 from agora.engine.social import Claim, Conversation
 from agora.engine.state import AgentState, PerformingAction, Traveling, WorldState
@@ -131,6 +131,8 @@ class Script:
         self.sim = sim
         self.decisiones: dict[int, tuple[str, str, str | None]] = {}
         self.interrupciones: dict[int, bool] = {}
+        self.tramas: dict[int, int] = {}
+        """La opción que se eligió en un paso de trama, por tick (23a)."""
         self.charlas: dict[int, list[dict[str, Any]]] = {}
         for n, linea in enumerate(lines, start=1):
             if not linea.strip():
@@ -142,6 +144,8 @@ class Script:
                 self.decisiones[tick] = (d["accion"], d["lugar"], d.get("destinatario"))
             elif "interrumpir" in dato:
                 self.interrupciones[tick] = bool(dato["interrumpir"])
+            elif "trama" in dato:
+                self.tramas[tick] = int(dato["trama"])
             elif HABLAR in dato:
                 self.charlas.setdefault(tick, []).append(dato[HABLAR])
             elif not any(k in dato for k in COMBATE):
@@ -183,6 +187,9 @@ class Script:
 
     def interrupt(self, world: WorldState, agent: AgentState, need: NeedId) -> bool:
         return self.interrupciones.get(world.tick, False)
+
+    def choose_plot(self, world: WorldState, agent: AgentState, vista: PlotView) -> int | None:
+        return self.tramas.get(world.tick)
 
 
 class Recorder:
@@ -235,6 +242,13 @@ class Recorder:
             self.out.write(json.dumps({"tick": world.tick, "interrumpir": True}) + "\n")
             self.out.flush()
         return si
+
+    def choose_plot(self, world: WorldState, agent: AgentState, vista: PlotView) -> int | None:
+        indice = self.source.choose_plot(world, agent, vista)
+        if indice is not None:
+            self.out.write(json.dumps({"tick": world.tick, "trama": indice}) + "\n")
+            self.out.flush()
+        return indice
 
 
 def hint(utility: float, best: float, temperature: float) -> str:
@@ -722,7 +736,7 @@ class Terminal:
             self._ultimo_estado = world.tick
             self.p.status(sheet_view(world, agent))
         menu = [d for d in options if d.target is None]
-        return True, choose_among(world, agent, menu)
+        return True, choose_among(world, agent, inclinar(world, agent, menu))
 
     def _motivo_de_vuelta(
         self, world: WorldState, agent: AgentState, options: tuple[Decision, ...]
@@ -768,6 +782,23 @@ class Terminal:
         told = self.narrator.opening(world, str(agent.spec_id), recientes)
         self.p.opening(told, bool(self.narrator.providers))
         self._visto = self.sim.log.siguiente_seq
+
+    def choose_plot(self, world: WorldState, agent: AgentState, vista: PlotView) -> int | None:
+        """Una trama le pregunta al jugador qué hace (23a, A.4). Interrumpe el piloto: «te
+        pasa algo». Un número elige; una respuesta vacía, la opción por defecto (o la
+        última). Vacío no es «salir»: aquí no se cierra la partida."""
+        self.quitar_piloto("te pasa algo")
+        self.p.note(f"  {vista.plot}:")
+        for n, etiqueta in enumerate(vista.options, start=1):
+            marca = "  (por defecto)" if vista.defecto == n - 1 else ""
+            self.p.note(f"  {n}. {etiqueta}{marca}")
+        while True:
+            linea = (self.p.ask("  ¿Qué haces? ") or "").strip()
+            if not linea:
+                return vista.defecto
+            if linea.isdigit() and 1 <= int(linea) <= len(vista.options):
+                return int(linea) - 1
+            self._decir("  Elige un número de la lista.")
 
     def quitar_piloto(self, motivo: str) -> None:
         """Quita el piloto, y lo dice: «Vuelves en ti: …». Lo llama también la escena

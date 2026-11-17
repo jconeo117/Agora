@@ -41,6 +41,7 @@ from agora.engine.ontology import (
     RelationId,
     Spec,
 )
+from agora.engine.pack import ContentPack
 from agora.engine.persistence import DIAS_DE_LOG_AL_GUARDAR
 from agora.engine.ports import CognitionProvider
 from agora.engine.state import PerformingAction, Traveling, WorldState
@@ -277,6 +278,14 @@ def select(
         target = None if raw is None else str(raw)
         spec = pack.action_by_id[e.action] if e.action is not None else None
         content = spec.content if spec is not None else ()
+        if e.kind in PLOT_KINDS:
+            # Las tramas del jugador se cuentan; las ajenas no entran en el relato nunca
+            # (23a, A.7): ni su nombre ni su trama, solo lo que ya se ve en el mundo.
+            if actor == player:
+                texto = _trama_del_jugador(pack, e)
+                if texto is not None:
+                    add(3, e, texto)
+            continue
         if e.kind is EventKind.ACTION_STARTED and actor is not None and target is not None:
             if target == player:
                 inv.add(actor)
@@ -819,6 +828,32 @@ def _quien_eres(world: WorldState, player: str) -> tuple[str, ...]:
         if grupo is not None:
             lineas.append(f"gremio: {grupo.label}")
     return tuple(lineas)
+
+
+PLOT_KINDS = frozenset({
+    EventKind.PLOT_BEGAN, EventKind.PLOT_BEAT, EventKind.PLOT_STEP, EventKind.PLOT_ENDED,
+})
+"""Los hechos internos de una trama (23a). Ninguno de ajenos llega al relato."""
+
+
+def _trama_del_jugador(pack: ContentPack, e: Event) -> str | None:
+    """Lo que se le cuenta al jugador de su propia trama. `None` si no es algo que se
+    cuente: un recuerdo que deja un paso es memoria, no un suceso."""
+    if e.kind is EventKind.PLOT_STEP and e.data.get("desenlace") == "recuerdo":
+        return None
+    libro = pack.plots
+    trama = None if libro is None else next(
+        (t for t in libro.plots if t.id == str(e.data.get("plot"))), None
+    )
+    if e.kind is EventKind.PLOT_BEGAN and trama is not None:
+        return f"algo empieza a pesar: {trama.label}"
+    if e.kind is EventKind.PLOT_BEAT:
+        return "lo que esperabas ha pasado"
+    if e.kind is EventKind.PLOT_STEP and e.data.get("opcion") is not None:
+        return f"decides: {e.data['opcion']}"
+    if e.kind is EventKind.PLOT_ENDED and trama is not None:
+        return f"se cierra: {trama.label}"
+    return None
 
 
 def _se_mueve(world: WorldState, events: Iterable[Event]) -> tuple[str, ...]:

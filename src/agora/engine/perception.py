@@ -41,6 +41,9 @@ class Percepcion:
     target: AgentId | None
     place: PlaceId
     action: ActionId | None
+    acto: str | None = None
+    """El acto social, si lo fue (`SOCIAL_ACT`): «cortejar», «confesar»… Lo necesita un
+    latido de trama (23a, `declared_to`); lo demás no lo lleva."""
 
 
 def es_presenciable(evento: Event) -> bool:
@@ -79,6 +82,7 @@ def percepcion_de(evento: Event) -> Percepcion | None:
     """Lo que se anotaría de este hecho, o `None` si no es presenciable."""
     if not es_presenciable(evento) or evento.actor is None or evento.place is None:
         return None
+    acto = evento.data.get("act") if evento.kind is EventKind.SOCIAL_ACT else None
     return Percepcion(
         seq=evento.seq,
         tick=evento.tick,
@@ -87,6 +91,7 @@ def percepcion_de(evento: Event) -> Percepcion | None:
         target=_destinatario(evento),
         place=evento.place,
         action=evento.action,
+        acto=None if acto is None else str(acto),
     )
 
 
@@ -186,6 +191,8 @@ class PublicFacts:
     """Los años que tiene, si vive."""
     condiciones: tuple[str, ...]
     """Las condiciones que el pack marca como visibles."""
+    fama: float | None
+    """Su fama, si el pack declara fama (23a). Es pública: se conoce en el barrio."""
 
 
 def public_facts(world: WorldState, quien: AgentId, otro: AgentId) -> PublicFacts | None:
@@ -218,6 +225,8 @@ def public_facts(world: WorldState, quien: AgentId, otro: AgentId) -> PublicFact
         rasgos=rasgos,
         edad=None if persona is None else persona.edad(world.tick),
         condiciones=visibles,
+        fama=world.fama.get(otro) if pack.plots is not None and pack.plots.fame is not None
+        else None,
     )
 
 

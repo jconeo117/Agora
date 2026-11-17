@@ -187,6 +187,16 @@ class EventKind(StrEnum):
     """La partida acaba: queda uno solo en pie (unidad 19). `actor` es el ganador.
     Se emite una vez; a partir de ahí el reloj no avanza."""
 
+    PLOT_BEGAN = "plot_began"
+    """Empieza una trama personal (23a). `actor` es su protagonista; `data` lleva la
+    trama. Interno: el narrador solo cuenta al jugador las suyas."""
+    PLOT_BEAT = "plot_beat"
+    """Ocurre lo que un paso de espera aguardaba (23a, A.3)."""
+    PLOT_STEP = "plot_step"
+    """Un paso de decisión se resuelve: la opción elegida y su desenlace."""
+    PLOT_ENDED = "plot_ended"
+    """La trama acaba, por su último paso o porque caduca un plazo."""
+
 
 @dataclass(frozen=True, slots=True)
 class Event:
