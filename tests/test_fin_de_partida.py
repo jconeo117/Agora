@@ -331,6 +331,9 @@ class _PrimeraOpcionSource:
     def interrupt(self, world: Any, agent: Any, need: Any) -> bool:
         return False
 
+    def choose_plot(self, world: Any, agent: Any, vista: Any) -> int | None:
+        return None
+
 
 def test_b3_1_play_devuelve_victoria_si_jugador_es_el_ultimo() -> None:
     """1. play() devuelve victoria si el jugador es el último."""

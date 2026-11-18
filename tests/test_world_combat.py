@@ -122,6 +122,9 @@ class Agresivo:
     def interrupt(self, world: Any, agent: Any, need: Any) -> bool:
         return True
 
+    def choose_plot(self, world: Any, agent: Any, vista: Any) -> int | None:
+        return None
+
 
 def test_la_partida_de_la_sonda() -> None:
     """La sonda (sonda_partida.py) como test: reason == "muerte" en el tick 41,

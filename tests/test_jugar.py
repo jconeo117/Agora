@@ -16,7 +16,7 @@ from agora.cognition.narrador import Narrator, Table
 from agora.engine.newcomer import load_sheet, newcomer_spec
 from agora.engine.ontology import ActionId, AgentId, NeedId
 from agora.engine.pack import load_pack
-from agora.engine.ports import CognitionProvider, Outcome
+from agora.engine.ports import CognitionProvider, Outcome, PlotView
 from agora.engine.rng import RngSource
 from agora.engine.state import AgentState, PerformingAction, WorldState
 from agora.engine.world import Simulation
@@ -62,6 +62,9 @@ def test_grabar_y_volver_a_jugar_da_el_mismo_mundo(tmp_path: Path) -> None:
         def interrupt(self, world: WorldState, agent: AgentState, need: NeedId) -> bool:
             return False
 
+        def choose_plot(self, world: WorldState, agent: AgentState, vista: PlotView) -> int | None:
+            return None
+
     script_path = tmp_path / "guion.jsonl"
     with script_path.open("w", encoding="utf-8") as f:
         rec = Recorder(FirstSource(), f)
@@ -102,6 +105,9 @@ def test_reanudar_con_guion_es_no_haber_parado(tmp_path: Path) -> None:
 
         def interrupt(self, world: WorldState, agent: AgentState, need: NeedId) -> bool:
             return False
+
+        def choose_plot(self, world: WorldState, agent: AgentState, vista: PlotView) -> int | None:
+            return None
 
     script_buf = io.StringIO()
     rec = Recorder(FirstSource(), script_buf)
@@ -358,6 +364,9 @@ def test_la_muerte_acaba_la_partida() -> None:
 
         def interrupt(self, world: WorldState, agent: AgentState, need: NeedId) -> bool:
             return False
+
+        def choose_plot(self, world: WorldState, agent: AgentState, vista: PlotView) -> int | None:
+            return None
 
     res = play(sim, KillingSource(), max_ticks=10)
     assert res.reason == "muerte"

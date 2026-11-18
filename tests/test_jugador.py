@@ -14,6 +14,7 @@ from agora.engine.events import EventKind
 from agora.engine.ontology import ActionId, AgentId, AgentSpec, NeedId, PlaceId
 from agora.engine.pack import load_pack
 from agora.engine.persistence import load
+from agora.engine.ports import PlotView
 from agora.engine.state import AgentState, PerformingAction, WorldState
 from agora.engine.world import Simulation
 
@@ -45,6 +46,9 @@ class _SpySource:
     def interrupt(self, world: WorldState, agent: AgentState, need: NeedId) -> bool:
         self.interrupt_calls.append((agent.spec_id, str(need)))
         return self.interrupt_val
+
+    def choose_plot(self, world: WorldState, agent: AgentState, vista: PlotView) -> int | None:
+        return None
 
 
 def test_sin_jugador_el_mundo_no_cambia() -> None:

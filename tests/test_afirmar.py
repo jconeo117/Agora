@@ -220,6 +220,11 @@ def test_verdadera_creida_sin_tirada() -> None:
         ) -> Contest | None:
             raise AssertionError("No debe tirar si la afirmación es verdadera")
 
+        def contest(
+            self, world: Any, actor: AgentId, rival: AgentId | None, prueba: str, key: str
+        ) -> Contest | None:
+            raise AssertionError("No debe tirar si la afirmación es verdadera")
+
     sim.social_resolver = FailingResolver()
     talk = Conversation(listener)
 
@@ -244,6 +249,11 @@ def test_contradicha_pillada_sin_tirada() -> None:
     class FailingResolver:
         def deceive(
             self, world: Any, liar: AgentId, listener_id: AgentId, key: str
+        ) -> Contest | None:
+            raise AssertionError("No debe tirar si la afirmación contradice lo que sabe")
+
+        def contest(
+            self, world: Any, actor: AgentId, rival: AgentId | None, prueba: str, key: str
         ) -> Contest | None:
             raise AssertionError("No debe tirar si la afirmación contradice lo que sabe")
 
@@ -312,6 +322,11 @@ def test_tirada_con_resolver_distintos_desenlaces() -> None:
                 effect=1,
             )
             return Contest(resolution=res, actor_label="Porte", opposing_label="Instinto + Alerta")
+
+        def contest(
+            self, world: Any, actor: AgentId, rival: AgentId | None, prueba: str, key: str
+        ) -> Contest | None:
+            return None
 
     mock = MockResolver()
     sim.social_resolver = mock

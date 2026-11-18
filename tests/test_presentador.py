@@ -292,6 +292,7 @@ def test_b1_1_guion_terminal_salida_reproducible() -> None:
         "  le falta      vinculo (mucha), dinero (mucha)\n"
         "  aprecia       -\n"
         "  detesta       -\n"
+        "fama: 0.00\n"
         "  no llevas nada\n"
         ">   no llevas nada\n"
         ">   en la puerta norte: 0 más\n"
