@@ -197,6 +197,25 @@ class EventKind(StrEnum):
     PLOT_ENDED = "plot_ended"
     """La trama acaba, por su último paso o porque caduca un plazo."""
 
+    ARC_BEGAN = "arc_began"
+    """Empieza un arco del mundo (23b-1). `data` lleva el arco y su primera fase. El
+    narrador no lo cuenta: lo que se ve de él llega por `ARC_PHASE`."""
+    ARC_PHASE = "arc_phase"
+    """Un arco entra en una fase. Se emite una vez por lugar donde se presencia (con
+    `place`), para que quien está allí lo viva y los demás solo se enteren de oídas.
+    Sin lugar, es un hecho del mundo que nadie presencia."""
+    ARC_ENDED = "arc_ended"
+    """Un arco acaba en una rama. `data` lleva la rama y el reconocido, si lo hubo."""
+
+    AGENT_LEFT = "agent_left"
+    """Alguien sale del mundo sin morir: un llegado de arco que se marcha al acabar su
+    fase. Queda en el censo y en la memoria de los demás; ya no está en el reparto."""
+
+    COMBAT = "combat"
+    """Un combate de arco tiene ganador: `actor` gana, `subject` pierde. `data` lleva el
+    bando del ganador. Solo lo emiten los packs con `arcos.yaml`: en los demás, el log
+    no cambia."""
+
 
 @dataclass(frozen=True, slots=True)
 class Event:

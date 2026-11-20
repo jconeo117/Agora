@@ -25,6 +25,7 @@ from agora.engine.events import EventKind
 from agora.engine.ontology import (
     PROTAGONIST_KINDS,
     REF_KINDS,
+    ArcSide,
     Beat,
     BeatKind,
     Choice,
@@ -65,9 +66,12 @@ def _ventana(mundo: World, c: PlotCondition) -> int:
 
 
 def _global(mundo: World, c: PlotCondition) -> bool:
-    """Lo que va en `when`: una situación del mundo o una fase del reloj."""
+    """Lo que va en `when`: una situación del mundo, una fase del reloj o una fase de arco
+    en curso (23b-1). Esta última es la siembra: la trama solo empieza dentro de ella."""
     if c.situation is not None:
         return c.situation in mundo.state.active_situations()
+    if c.arc_phase is not None:
+        return mundo.state.arco_en_fase(c.arc_phase.arc, c.arc_phase.phase)
     return mundo.pack.clock.phase_at(mundo.state.tick) == c.phase
 
 
@@ -356,6 +360,17 @@ def _ocurrio(mundo: World, yo: AgentState, run: PlotRun, beat: Beat) -> bool:
         return any(r.kind is EventKind.AGENT_DIED and r.about == ref and r.tick >= desde
                    for r in s.memoria.de(me))
     vistos = [p for p in saw(s, me, days=dias) if p.tick >= desde]
+    if k is BeatKind.PROTECTED_BY:
+        # La referencia peleó, delante de mí, contra un llegado hostil. Ella no es del bando
+        # hostil: el rival, sí. Los bandos son los del momento del combate (`_anotar_combate`).
+        for p in vistos:
+            if p.kind is not EventKind.COMBAT or ref not in (p.actor, p.target):
+                continue
+            bando_ref = p.bando_actor if p.actor == ref else p.bando_otro
+            bando_rival = p.bando_otro if p.actor == ref else p.bando_actor
+            if bando_rival == ArcSide.ARRIVALS and bando_ref != ArcSide.ARRIVALS:
+                return True
+        return False
     if k is BeatKind.TALKED_WITH:
         return any(p.actor == ref and p.target == me for p in vistos)
     if k is BeatKind.DECLARED_TO:
@@ -436,17 +451,29 @@ def _avanzar_dia(mundo: World, yo: AgentState, run: PlotRun) -> None:
     paso = _paso(_trama(mundo, run.plot), run.paso)
     if paso.expects is None:
         return  # un paso de decisión espera a que la persona quede ociosa
-    if _ocurrio(mundo, yo, run, paso.expects):
+    latido = _latido_vigente(mundo, paso, paso.expects)
+    if _ocurrio(mundo, yo, run, latido):
         mundo._registrar(
             tick=s.tick, kind=EventKind.PLOT_BEAT, actor=yo.spec_id, place=yo.at,
             data={"plot": str(run.plot), "paso": str(paso.id),
-                  "latido": paso.expects.kind.value},
+                  "latido": latido.kind.value},
         )
         _ir_a(mundo, yo, run, paso.next, "fin")
         return
     if paso.within_days is not None and s.tick - run.desde >= paso.within_days * tpd:
         _caduca(mundo, yo, run)
         _ir_a(mundo, yo, run, paso.on_timeout, "caducada")
+
+
+def _latido_vigente(mundo: World, paso: Step, base: Beat) -> Beat:
+    """El latido que el paso espera hoy (23b-1, A.3): el del tinte de la primera fase de
+    arco activa que lo declare, por orden de clave; si ninguna está activa, el suyo.
+    Al acabar la fase, el paso vuelve solo a su latido: nada que deshacer."""
+    for clave in sorted(paso.tint):
+        arco, _, fase = clave.partition(".")
+        if mundo.state.arco_en_fase(arco, fase):
+            return paso.tint[clave]
+    return base
 
 
 def _caduca(mundo: World, yo: AgentState, run: PlotRun) -> None:
@@ -635,6 +662,8 @@ def _efecto(mundo: World, yo: AgentState, run: PlotRun, e: EffectSpec) -> None:
             mundo._perdonar(yo.spec_id, otro, e.factor or 1.0)
     elif e.item is not None:
         mundo._soltar_de_trama(yo.spec_id, e.item)
+    elif e.arc_tally is not None:
+        mundo._sumar_aporte_de_arco(yo.spec_id, e.arc_tally.counter, e.arc_tally.n)
 
 
 def _probar(mundo: World, yo: AgentState, run: PlotRun, uso: TestUse) -> bool:

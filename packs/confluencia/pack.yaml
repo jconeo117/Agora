@@ -62,6 +62,12 @@ health:
   - disputa_de_gremios
   - honrar_a_la_casa
   - ensenyar_el_oficio
+  # Los combates y el cuidado de los arcos (23b-1) salen solo cuando hay una incursión o una
+  # epidemia en curso. Los arcos se miden aparte (forzados el día 31): en catorce días sin
+  # arco no hay quien pelee ni quien cuide.
+  - defender
+  - asaltar
+  - cuidar
 tuning:
   travel_discount: 0.94
   candidate_pool: 3
@@ -753,6 +759,93 @@ actions:
     # deuda real, `agravio_weight` ya hace que pese mucho más que el azar.
     min_agravio: 0.0
     agravio_weight: 0.8
+# Combate y cuidado de los arcos del mundo (23b-1). `defender` lo hacen los residentes
+# contra quien lleva la condición `hostil`; `asaltar`, los llegados hostiles contra quien no
+# la lleva. Un golpe que prende gana el que pega (`COMBAT`); con el jugador dentro, la escena
+# de la mesa decide. `cuidar` quita la fiebre de quien la lleva.
+- id: defender
+  label: defender
+  duration_ticks: 3
+  requires_company: 1
+  forbids_condition: hostil
+  satisfies:
+    dominio: 0.9
+  effects:
+    dominio: 0.03
+    descanso: -0.05
+  costs:
+    descanso: 0.15
+  target:
+    combate: true
+    requires_condition: hostil
+    inflicts:
+      situation: herida
+      marca: tajo
+      chance: 0.5
+      gravedad_min: 0.3
+      gravedad_max: 1.2
+  examples:
+  - defiendo a
+  - me interpongo ante
+  narration:
+    you: te interpones frente a {o}
+    them: '{a} se interpone frente a {o}'
+    at_you: '{a} te cierra el paso'
+  content:
+  - violencia
+- id: asaltar
+  label: asaltar
+  duration_ticks: 3
+  requires_company: 1
+  requires_condition: hostil
+  satisfies:
+    dominio: 0.8
+  effects:
+    dominio: 0.03
+    descanso: -0.05
+  costs:
+    descanso: 0.15
+  target:
+    combate: true
+    forbids_condition: hostil
+    inflicts:
+      situation: herida
+      marca: tajo
+      chance: 0.5
+      gravedad_min: 0.3
+      gravedad_max: 1.2
+  examples:
+  - ataco a
+  - me lanzo contra
+  narration:
+    you: asaltas a {o}
+    them: '{a} asalta a {o}'
+    at_you: '{a} te asalta'
+  content:
+  - violencia
+- id: cuidar
+  label: cuidar
+  duration_ticks: 2
+  requires_company: 1
+  satisfies:
+    vinculo: 0.6
+  effects:
+    vinculo: 0.02
+    descanso: -0.03
+  costs:
+    descanso: 0.05
+  target:
+    requires_condition: fiebre
+    cures:
+      fiebre: 1.0
+    acerca: 0.05
+  examples:
+  - cuido a
+  - me quedo junto a
+  narration:
+    you: cuidas a {o}
+    them: '{a} cuida a {o}'
+    at_you: '{a} te cuida'
 # Primera cadena económica: minar -> forjar -> vender, y un servicio aparte.
 # Ninguna lleva `requires_traits` (D-060): cualquiera puede intentarlo, y lo
 # que varía es la calidad -- la aptitud de quien fabrica o enseña, nunca el
@@ -12893,6 +12986,40 @@ situations:
   gain_multipliers:
     dinero: 0.6
     mana: 1.6
+
+# Situaciones de los arcos del mundo (23b-1). Ninguna la enciende el azar: las enciende una
+# fase de un arco (`arcos.yaml`) o la secuela de su rama. `hostil` la llevan los llegados de
+# una incursión, y se ve: es lo que los distingue de los residentes.
+- id: alarma_frontera
+  label: alarma en la frontera
+  places:
+  - linde_salvaje
+  - puerta_norte
+  - granja
+  gain_multipliers:
+    dominio: 1.2
+- id: brote_inicial
+  label: primeros enfermos
+  places:
+  - enfermeria
+  - posada_central
+  gain_multipliers:
+    sustento: 0.85
+  inflicts:
+    situation: fiebre
+    chance: 0.002
+    gravedad_min: 0.4
+    gravedad_max: 2.6
+- id: luto_comun
+  label: luto
+  gain_multipliers:
+    dominio: 0.85
+  temperament_multipliers:
+    novelty_weight: 0.9
+- id: hostil
+  label: hostil
+  personal: true
+  visible: true
 
 voice:
   identity_traits: [varon, mujer, humano, enano, gigante, elfo, demihumano,

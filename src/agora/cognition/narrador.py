@@ -39,6 +39,7 @@ from agora.engine.ontology import (
     NeedId,
     PlaceId,
     RelationId,
+    SituationId,
     Spec,
 )
 from agora.engine.pack import ContentPack
@@ -346,6 +347,19 @@ def select(
                 hilos.pending[actor] = (str(spec.id), str(e.tick))
             add(5, e, tell(spec.narration, spec.label, actor, target, player, name),
                 (name(actor),), content)
+            continue
+        if e.kind is EventKind.ARC_PHASE:
+            # Lo que un arco hace donde estás se cuenta por lo que se ve: la situación por su
+            # nombre y los llegados que siguen aquí. Nunca el arco, ni su id, ni sus contadores
+            # (23b-1, A.4): ni `arco` ni `fase` salen de este bloque.
+            if here is not None and e.place is not None and str(e.place) == here:
+                sit = pack.situation_by_id.get(SituationId(str(e.data.get("situacion", ""))))
+                if sit is not None:
+                    add(4, e, f"empieza para ti: {sit.label}", (), sit.content)
+                for quien in str(e.data.get("llegados", "")).split(","):
+                    llegado = world.agents.get(AgentId(quien)) if quien else None
+                    if llegado is not None and str(llegado.at) == here:
+                        add(3, e, f"llega {name(quien)}", (name(quien),), mine=False)
             continue
         if e.place is None or str(e.place) != here or actor is None:
             continue

@@ -30,7 +30,7 @@ from agora.agents.decide import (
     planned_duration,
     recovery_rate,
 )
-from agora.engine import persistence, plots
+from agora.engine import arcs, persistence, plots
 from agora.engine.disposition import urgency
 from agora.engine.events import Event, EventKind, EventLog, Payload
 from agora.engine.memory import Cue, Recuerdo, importancia_de
@@ -40,8 +40,10 @@ from agora.engine.ontology import (
     AflictionSpec,
     AgentId,
     AgentSpec,
+    ArcId,
     BirthSpec,
     ClaimKind,
+    CounterId,
     FactionId,
     FactionKindId,
     GoalId,
@@ -265,6 +267,10 @@ class Simulation:
         self.state.tick += 1
         self._expire_situations()
         self._fire_triggers()
+        # Los arcos van antes que las tramas: una trama que siembra en una fase la ve ya
+        # encendida. Sin `arcos.yaml`, esto no hace nada (23b-1).
+        if self.pack.arcs is not None and self.state.tick % self.pack.clock.ticks_per_day == 0:
+            arcs.pasar_dia(self)
         # Las tramas miran el día al empezar el reloj del día, con el mundo en un solo
         # estado (23a): sin pack de tramas, esto no hace nada.
         if self.pack.plots is not None and self.state.tick % self.pack.clock.ticks_per_day == 0:
@@ -617,6 +623,9 @@ class Simulation:
             )
             self.state.bajas.setdefault(autor, []).append(
                 Baja(quien, self.state.tick, aprecio))
+        # Antes de borrar al difunto: su bando (y por tanto si cuenta para un arco) se mira
+        # mientras todavía está en el reparto.
+        arcs.alimentar_muerte(self, quien, donde, autor)
         memoria = self.state.memoria
         tuning = self.pack.tuning
         # La del APRECIO, no la general: son dos escalas distintas y meterlas
@@ -2012,6 +2021,8 @@ class Simulation:
             action=action, subject=subject, data=data,
         )
         self._percibir(evento)
+        if self.state.arcos:
+            arcs.alimentar(self, evento)
         return evento
 
     # -------------------------------------------------------------------------
@@ -2647,6 +2658,40 @@ class Simulation:
         )
         return agente
 
+    def partir(self, quien: AgentId) -> None:
+        """Sale del mundo sin morir (23b-1): un llegado de arco que se marcha al acabar su
+        fase.
+
+        Es lo que separa partir de morir, y se escribe aquí y no en `morir` porque la
+        diferencia es de quién se entera. Sale del reparto y se queda en el censo, como
+        un muerto. Pero **no se borra de la memoria de los demás**: nadie lo ha perdido,
+        se ha ido. Lo que lleva encima se queda en el suelo de donde se marcha, y lo que
+        tenía de tramas se acaba, igual que al morir."""
+        agente = self.state.agents.get(quien)
+        if agente is None:
+            raise KeyError(f"no está entre los vivos: {quien!r}")
+        donde = agente.at
+        for objeto in self.state.objetos_de(quien):
+            self._mover_objeto(objeto, actor=quien, dueño=None, lugar=donde, donde=donde)
+        for propiedad in self.state.propiedades.values():
+            if propiedad.dueño == quien:
+                propiedad.dueño = None
+        del self.state.agents[quien]
+        self.state.memoria.borrar(quien)
+        self.state.percepcion.pop(quien, None)
+        self.state.marcas.pop(quien, None)
+        self.state.fama.pop(quien, None)
+        self.state.tramas.pop(quien, None)
+        self.state.tramas_vividas.pop(quien, None)
+        self._registrar(
+            tick=self.state.tick, kind=EventKind.AGENT_LEFT, actor=quien, place=donde,
+        )
+
+    def begin_arc(self, arco: str, porque: str = "a mano") -> None:
+        """Empieza un arco que no está en curso (23b-1). Es la puerta a mano: la medición
+        forzada la usa para arrancar un arco el día que se quiere, y el log dice `porque`."""
+        arcs.comenzar_por_id(self, ArcId(arco), porque)
+
     def set_player(self, quien: AgentId) -> None:
         """El jugador es también el foco del LOD (D-152): donde se juega se
         simula fino."""
@@ -3118,8 +3163,11 @@ class Simulation:
         # Con el jugador dentro, una acción de combate es una escena con las
         # reglas de la mesa, y su desenlace sustituye a `gives`, `cures` e
         # `inflicts` (unidad 13, D-161). Lo demás (enemistad, memoria) sigue.
+        lugar = agent.at
         desenlace = self._escena(agent, otro, destino)
         if desenlace is not None:
+            if self.pack.arcs is not None:
+                self._anotar_combate_de_escena(desenlace, agent.spec_id, a_quien, lugar)
             self._aplicar_desenlace(desenlace, agent, otro)
             if agent.spec_id not in self.state.agents or a_quien not in self.state.agents:
                 return
@@ -3143,10 +3191,14 @@ class Simulation:
             otro.endure(sufre, self.pack.need_by_id)
         for curada, cuanto in sorted(destino.cures.items() if desenlace is None else ()):
             otro.aliviar(curada, cuanto)
+        golpe: bool | None = None
         if destino.inflicts is not None and desenlace is None:
-            self._infligir(
+            golpe = self._infligir(
                 otro, destino.inflicts, porque=str(spec.id), por_quien=agent.spec_id
             )
+        if golpe is not None and destino.combate and self.pack.arcs is not None:
+            # Un golpe que prende gana el que pega; uno que falla, el que aguanta.
+            self._anotar_combate(agent.spec_id, a_quien, lugar, gana_actor=golpe)
         if destino.crea_deuda is not None:
             self._endeudar(agent, otro, spec)
         if destino.acerca != 0.0:
@@ -3201,6 +3253,37 @@ class Simulation:
             por_quien=agent.spec_id,
         )
         _ = event
+
+    def _anotar_combate(
+        self, actor: AgentId, otro: AgentId, lugar: PlaceId, *, gana_actor: bool,
+    ) -> None:
+        """Un combate de arco con ganador (23b-1). Lleva el bando de cada parte **ahora**:
+        un llegado que se va después sigue siendo hostil en lo que el log cuenta."""
+        self._registrar(
+            tick=self.state.tick, kind=EventKind.COMBAT, actor=actor, subject=otro, place=lugar,
+            data={
+                "gana": "actor" if gana_actor else "otro",
+                "bando_actor": str(arcs.bando(self.state, actor)),
+                "bando_otro": str(arcs.bando(self.state, otro)),
+            },
+        )
+
+    def _anotar_combate_de_escena(
+        self, desenlace: EncounterOutcome, actor: AgentId, otro: AgentId, lugar: PlaceId,
+    ) -> None:
+        """La versión con mesa: gana quien sigue en pie cuando el otro cae o huye. Si los
+        dos siguen en pie, no hay ganador y no hay combate que contar."""
+        estado = {c.agent: c.fate for c in desenlace.combatants}
+        fate_actor = estado.get(actor)
+        fate_otro = estado.get(otro)
+        if fate_actor is Fate.STANDING and fate_otro is not Fate.STANDING:
+            self._anotar_combate(actor, otro, lugar, gana_actor=True)
+        elif fate_otro is Fate.STANDING and fate_actor is not Fate.STANDING:
+            self._anotar_combate(actor, otro, lugar, gana_actor=False)
+
+    def _sumar_aporte_de_arco(self, quien: AgentId, contador: CounterId, n: int) -> None:
+        """Lo que una trama suma al contador de un arco (`arc_tally`, 23b-1, A.3)."""
+        arcs.sumar_de_trama(self, quien, contador, n)
 
     def _escena(
         self, agent: AgentState, otro: AgentState, destino: TargetSpec

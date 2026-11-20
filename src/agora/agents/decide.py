@@ -359,7 +359,8 @@ def is_available(
     - **eres quien hay que ser** (`requires_traits`)
     - **llevas bastante tiempo aquí** (`requires_edad`, D-070)
     - **eres de los suyos** (`requires_faccion` y `requires_lealtad`, D-090)
-    - **no llevas encima el candado** (`forbids_condition`, la única en negativo)
+    - **llevas encima lo que abre y no lo que cierra** (`requires_condition`, y
+      `forbids_condition` como candado)
 
     Las dos de gente no son la misma pregunta, y confundirlas sería el error
     fácil: `requires_company` cuenta CABEZAS —una fiesta necesita cuerpos— y
@@ -422,9 +423,11 @@ def is_available(
     # otras que dependen de tener un agente delante.
     if action.requires_edad > 0 and (edad is None or edad < action.requires_edad):
         return False
-    # UNDÉCIMA, y la única en negativo: lo que llevas encima puede ser un
-    # candado. Todas las demás piden que algo esté; esta pide que no esté.
+    # UNDÉCIMA: lo que llevas encima puede ser un candado (`forbids_condition`) o una
+    # llave (`requires_condition`, la afirmativa: un bando, como los llegados hostiles).
     if action.forbids_condition is not None and action.forbids_condition in condiciones:
+        return False
+    if action.requires_condition is not None and action.requires_condition not in condiciones:
         return False
     # DUODÉCIMA: ser de los suyos, y bastante (D-090). `lealtad` llega ya
     # resuelto por clase de grupo —la mayor de las que tenga de esa clase—

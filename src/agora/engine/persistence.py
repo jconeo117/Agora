@@ -38,12 +38,15 @@ from agora.engine.ontology import (
     ActionId,
     AgentId,
     AgentSpec,
+    ArcId,
+    CounterId,
     FactionId,
     FactionKindId,
     GoalId,
     GoalStatus,
     MarkId,
     NeedId,
+    PhaseId,
     PlaceId,
     PlotId,
     PropertyId,
@@ -57,6 +60,7 @@ from agora.engine.pack import ContentPack
 from agora.engine.perception import Percepcion
 from agora.engine.state import (
     AgentState,
+    ArcRun,
     Baja,
     Bond,
     Condicion,
@@ -228,6 +232,21 @@ def _propiedad_a_dict(prop: Propiedad, del_pack: bool, objeto: bool) -> dict[str
     return datos
 
 
+def _percepcion_a_fila(p: Percepcion) -> list[Any]:
+    """Una percepción como fila del guardado. Los bandos de un combate de arco solo viajan
+    cuando existen: un guardado sin arcos queda como estaba, byte a byte."""
+    fila: list[Any] = [
+        p.seq, p.tick, p.kind.value,
+        None if p.actor is None else str(p.actor),
+        None if p.target is None else str(p.target),
+        str(p.place), None if p.action is None else str(p.action),
+        p.acto,
+    ]
+    if p.bando_actor is not None:
+        fila += [p.bando_actor, p.bando_otro]
+    return fila
+
+
 def save(
     world: WorldState,
     together: set[tuple[AgentId, AgentId]],
@@ -267,13 +286,7 @@ def save(
         # Lo que cada uno ha visto delante (unidad 23-0). Un guardado anterior no lo
         # trae: los búferes cargan vacíos. Solo se escriben los que tienen algo.
         "percepcion": {
-            str(quien): [
-                [p.seq, p.tick, p.kind.value, str(p.actor),
-                 None if p.target is None else str(p.target),
-                 str(p.place), None if p.action is None else str(p.action),
-                 p.acto]
-                for p in buffer
-            ]
+            str(quien): [_percepcion_a_fila(p) for p in buffer]
             for quien, buffer in sorted(world.percepcion.items()) if buffer
         },
         # Las tramas (unidad 23a): marcas, fama, lo que cada uno vive ahora y lo que ha
@@ -380,7 +393,49 @@ def save(
         # como líneas JSONL. Un guardado anterior no la trae: se lee vacía.
         "log": [evento.to_json() for evento in log],
     }
+    # Los arcos (23b-1) solo se escriben si hay alguno: un mundo sin ellos guarda lo mismo
+    # que antes, y un guardado anterior se lee como un mundo donde nunca hubo arcos.
+    if world.arcos or world.arcos_terminados:
+        datos["arcos"] = [_arco_a_dict(run) for _, run in sorted(world.arcos.items())]
+        datos["arcos_terminados"] = {
+            str(arco): [str(rama), tick]
+            for arco, (rama, tick) in sorted(world.arcos_terminados.items())
+        }
     path.write_text(json.dumps(datos, indent=1, ensure_ascii=False), encoding="utf-8")
+
+
+def _arco_a_dict(run: ArcRun) -> dict[str, Any]:
+    """Un arco en curso. Las personas van ordenadas por id y los aportes por contador: el
+    orden de un `dict` no es parte del guardado, y reanudar tiene que dar lo mismo."""
+    return {
+        "arco": str(run.arco),
+        "empezo": run.empezo,
+        "fase": str(run.fase),
+        "desde": run.desde,
+        "hasta": run.hasta,
+        "encendidas": [str(s) for s in run.encendidas],
+        "llegados": [[str(q), se_va] for q, se_va in sorted(run.llegados.items())],
+        "aportes": {
+            str(contador): [[str(q), n] for q, n in sorted(atribuidos.items())]
+            for contador, atribuidos in sorted(run.aportes.items())
+        },
+    }
+
+
+def _arco_de_dict(datos: dict[str, Any]) -> ArcRun:
+    return ArcRun(
+        arco=ArcId(str(datos["arco"])),
+        empezo=int(datos["empezo"]),
+        fase=PhaseId(str(datos["fase"])),
+        desde=int(datos["desde"]),
+        hasta=None if datos["hasta"] is None else int(datos["hasta"]),
+        encendidas=tuple(SituationId(str(s)) for s in datos["encendidas"]),
+        llegados={AgentId(str(q)): bool(se_va) for q, se_va in datos["llegados"]},
+        aportes={
+            CounterId(str(contador)): {AgentId(str(q)): int(n) for q, n in atribuidos}
+            for contador, atribuidos in datos["aportes"].items()
+        },
+    )
 
 
 DIAS_DE_LOG_AL_GUARDAR = 7
@@ -821,11 +876,13 @@ def load(
         AgentId(str(quien)): deque(
             Percepcion(
                 seq=int(seq), tick=int(tick), kind=EventKind(kind),
-                actor=AgentId(str(actor)),
+                actor=None if actor is None else AgentId(str(actor)),
                 target=None if destino is None else AgentId(str(destino)),
                 place=PlaceId(str(lugar)),
                 action=None if accion is None else ActionId(str(accion)),
                 acto=None if not resto or resto[0] is None else str(resto[0]),
+                bando_actor=None if len(resto) < 3 or resto[1] is None else str(resto[1]),
+                bando_otro=None if len(resto) < 3 or resto[2] is None else str(resto[2]),
             )
             for seq, tick, kind, actor, destino, lugar, accion, *resto in lista
         )
@@ -844,6 +901,19 @@ def load(
         for quien, vividas in datos.get("tramas_vividas", {}).items()
     }
     world.llegadas = {AgentId(str(quien)): int(t) for quien, t in datos.get("llegadas", {}).items()}
+    # Los arcos (23b-1). Un arco, o una fase, que el pack de hoy ya no tiene no vuelve: la
+    # misma regla que una trama o una situación borrada.
+    del_pack = {} if pack.arcs is None else {a.id: a for a in pack.arcs.arcs}
+    for crudo in datos.get("arcos", []):
+        run = _arco_de_dict(crudo)
+        spec = del_pack.get(run.arco)
+        if spec is not None and any(f.id == run.fase for f in spec.phases):
+            world.arcos[run.arco] = run
+    world.arcos_terminados = {
+        ArcId(str(arco)): (PhaseId(str(rama)), int(tick))
+        for arco, (rama, tick) in datos.get("arcos_terminados", {}).items()
+        if ArcId(str(arco)) in del_pack
+    }
 
     together = {(AgentId(a), AgentId(b)) for a, b in datos["together"]}
     return world, together, int(datos.get("seq", 0))

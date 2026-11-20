@@ -36,7 +36,12 @@ from agora.engine.ontology import (
     AflictionSpec,
     AgentId,
     AgentSpec,
+    ArcBook,
+    ArcScale,
+    ArcSpec,
+    Beat,
     ClockSpec,
+    CounterCond,
     CreationSpec,
     EffectSpec,
     EndingSpec,
@@ -150,6 +155,9 @@ class ContentPack(Spec):
     plots: PlotBook | None = None
     """Las tramas personales (unidad 23a), de `tramas.yaml`. `None` = el pack no tiene
     tramas, y la simulación sigue exactamente como antes."""
+    arcs: ArcBook | None = None
+    """Los arcos del mundo (unidad 23b-1), de `arcos.yaml`. `None` = el pack no tiene
+    arcos: no hay eventos de arco, ni llegadas, ni tinte, y el log es el de siempre."""
     """Cómo puede el jugador crear su personaje (unidad 21a). `None` = no se crea:
     la ficha se escribe a mano. No lo lee la simulación: solo la creación."""
 
@@ -1304,6 +1312,14 @@ class ContentPack(Spec):
                     f"así que nadie puede llevarla encima y el candado no cierra "
                     f"nunca"
                 )
+            if action.requires_condition is not None and (
+                str(action.requires_condition) not in personales
+            ):
+                problems.append(
+                    f"acción {action.id!r}.requires_condition: "
+                    f"{action.requires_condition!r} no es una situación personal, "
+                    f"así que nadie puede llevarla encima y la puerta no abre nunca"
+                )
             if action.inflicts is not None and (
                 str(action.inflicts.situation) not in personales
             ):
@@ -1507,6 +1523,8 @@ class ContentPack(Spec):
         }
         con_efecto |= {str(a.forbids_condition) for a in self.actions
                        if a.forbids_condition is not None}
+        con_efecto |= {str(a.requires_condition) for a in self.actions
+                       if a.requires_condition is not None}
         return [
             f"situación {situation.id!r}: no la menciona ninguna acción, no cierra "
             f"ningún lugar, no cambia lo que rinde nada y no le hace nada a nadie; "
@@ -1743,6 +1761,7 @@ class ContentPack(Spec):
         eventos = {e.value for e in EventKind}
         metas = {g.id for a in self.agents for g in a.goals}
         pruebas = set(libro.tests)
+        contadores = {c.id for a in self._arcos() for c in a.counters}
         problemas += self._duplicates("marcas", (m.id for m in libro.marks))
         problemas += self._duplicates("tramas", (p.id for p in libro.plots))
         if libro.fame is not None:
@@ -1794,6 +1813,10 @@ class ContentPack(Spec):
                     problemas.append(f"{donde}: la referencia {ref!r} no está declarada antes")
             if lado == "g" and c.personal:
                 problemas.append(f"{donde}: `when` mira al mundo, no a una persona")
+            if c.arc_phase is not None:
+                problemas.extend(
+                    self._fase_de_arco_existe(c.arc_phase.arc, c.arc_phase.phase, donde)
+                )
 
         def efecto(e: EffectSpec, donde: str, refs: set[str]) -> None:
             if e.mark is not None and e.mark not in marcas:
@@ -1808,6 +1831,10 @@ class ContentPack(Spec):
                 problemas.append(f"{donde}: la meta {e.goal!r} no está en ningún agente")
             if e.item is not None and e.item not in self.item_by_id:
                 problemas.append(f"{donde}: el objeto {e.item!r} no existe")
+            if e.arc_tally is not None and e.arc_tally.counter not in contadores:
+                problemas.append(
+                    f"{donde}: el contador {e.arc_tally.counter!r} no existe en ningún arco"
+                )
             if e.action is not None and not _presta(acciones.get(e.action)):
                 problemas.append(f"{donde}: {e.action!r} no es una acción que cree deudas")
             for ref in (e.regard, e.debt, e.forgive, e.por_quien, e.about):
@@ -1815,6 +1842,8 @@ class ContentPack(Spec):
                     problemas.append(f"{donde}: la referencia {ref!r} no está declarada")
 
         def paso_y_opciones(paso: Step, donde: str, refs: set[str], ids: set[str]) -> None:
+            for clave, latido in sorted(paso.tint.items()):
+                problemas.extend(self._tinte_valido(clave, latido, f"{donde} tinte", refs))
             if paso.expects is not None:
                 b = paso.expects
                 if b.ref is not None and b.ref not in refs:
@@ -1875,6 +1904,191 @@ class ContentPack(Spec):
 
         if libro.strict_marks:
             problemas += self._marcas_sin_par()
+        return problemas
+
+    def _arcos(self) -> tuple[ArcSpec, ...]:
+        return () if self.arcs is None else self.arcs.arcs
+
+    def _fase_de_arco_existe(self, arco: str, fase: str, donde: str) -> list[str]:
+        existe = next((a for a in self._arcos() if a.id == arco), None)
+        if existe is None:
+            return [f"{donde}: el arco {arco!r} no existe"]
+        if not any(f.id == fase for f in existe.phases):
+            return [f"{donde}: el arco {arco!r} no tiene la fase {fase!r}"]
+        return []
+
+    def _tinte_valido(self, clave: str, latido: Beat, donde: str, refs: set[str]) -> list[str]:
+        """Un tinte se escribe «arco.fase» y nombra una fase de arco que existe. Su latido
+        mira a una referencia ya declarada, como cualquier otro (23b-1, A.3)."""
+        arco, _, fase = clave.partition(".")
+        problemas = self._fase_de_arco_existe(arco, fase, donde)
+        if latido.ref is not None and latido.ref not in refs:
+            problemas.append(f"{donde}: el latido mira a {latido.ref!r}, sin declarar")
+        return problemas
+
+    def _check_arcs(self) -> list[str]:
+        """Un `arcos.yaml` mal formado no llega a la mesa: lo que hace un arco (llegar,
+        encender, sembrar, reconocer) lo hace el motor sin preguntar. Así que se rechaza
+        al cargar, como las tramas (23b-1, A.1): ids que no existen, fases inalcanzables,
+        ramas que se ciclan y contadores que alguien alimenta y nadie lee, o al revés."""
+        libro = self.arcs
+        if libro is None:
+            return []
+        problemas: list[str] = []
+        arcos = libro.arcs
+        plantillas = {str(t.id) for t in libro.templates}
+        marcas: set[str] = set() if self.plots is None else {str(m.id) for m in self.plots.marks}
+        tramas: dict[str, PlotSpec] = (
+            {} if self.plots is None else {str(p.id): p for p in self.plots.plots}
+        )
+        fases_reloj = {str(f.id) for f in self.clock.phases}
+        eventos = {e.value for e in EventKind}
+        problemas += self._duplicates("arcos", (a.id for a in arcos))
+        problemas += self._duplicates("plantillas de llegada", (t.id for t in libro.templates))
+        problemas += self._duplicates("contadores", (c.id for a in arcos for c in a.counters))
+
+        for plantilla in libro.templates:
+            donde = f"plantilla {plantilla.id!r}"
+            if plantilla.home not in self.place_by_id:
+                problemas.append(f"{donde}: el lugar {plantilla.home!r} no existe")
+            situacion = self.situation_by_id.get(plantilla.condition)
+            if situacion is None:
+                problemas.append(f"{donde}: la condición {plantilla.condition!r} no existe")
+            elif not situacion.personal:
+                problemas.append(f"{donde}: {plantilla.condition!r} no es personal")
+            problemas += [f"{donde}: el rasgo {r!r} no existe"
+                          for r in plantilla.traits if r not in self.trait_by_id]
+
+        # Las siembras declaradas por una fase tienen que coincidir con el `when` de la trama.
+        sembradas = {
+            (a.id, f.id, str(s)) for a in arcos for f in a.phases for s in f.seeds
+        }
+        for trama in tramas.values():
+            for c in trama.when:
+                if c.arc_phase is None:
+                    continue
+                if (c.arc_phase.arc, c.arc_phase.phase, str(trama.id)) not in sembradas:
+                    problemas.append(
+                        f"trama {trama.id!r}: empieza en {c.arc_phase.arc}.{c.arc_phase.phase}, "
+                        f"y esa fase no la siembra"
+                    )
+
+        alimentados = {str(e.arc_tally.counter) for e in _efectos_de_tramas(self.plots)
+                       if e.arc_tally is not None}
+        for arco in arcos:
+            problemas += self._check_arco(
+                arco, plantillas, marcas, tramas, fases_reloj, eventos, alimentados,
+            )
+        return problemas
+
+    def _check_arco(
+        self, arco: ArcSpec, plantillas: set[str], marcas: set[str],
+        tramas: dict[str, PlotSpec], fases_reloj: set[str], eventos: set[str],
+        alimentados_por_tramas: set[str],
+    ) -> list[str]:
+        donde = f"arco {arco.id!r}"
+        problemas: list[str] = []
+        if arco.scale is ArcScale.ERA:
+            problemas.append(f"{donde}: `era` aún no carga: no hay grupos que la sostengan")
+        fases = {str(f.id): f for f in arco.phases}
+        problemas += self._duplicates(f"{donde} fases", (f.id for f in arco.phases))
+        contadores = {c.id: c for c in arco.counters}
+        leidos: set[str] = set()
+
+        def lee(c: CounterCond) -> None:
+            leidos.add(str(c.counter))
+            if c.mas_que is not None:
+                leidos.add(str(c.mas_que))
+
+        for fase in arco.phases:
+            fd = f"{donde} fase {fase.id!r}"
+            for sit in fase.situations:
+                s = self.situation_by_id.get(sit)
+                if s is None:
+                    problemas.append(f"{fd}: la situación {sit!r} no existe")
+                elif s.periodic:
+                    problemas.append(
+                        f"{fd}: {sit!r} es periódica: va por su calendario, la fase no la enciende"
+                    )
+                elif s.personal:
+                    problemas.append(
+                        f"{fd}: {sit!r} es personal: una fase enciende cosas del mundo"
+                    )
+            problemas += [f"{fd}: el lugar {p!r} no existe"
+                          for p in fase.places if p not in self.place_by_id]
+            for grupo in fase.arrivals:
+                if grupo.template not in plantillas:
+                    problemas.append(f"{fd}: la plantilla {grupo.template!r} no existe")
+                if grupo.at not in self.place_by_id:
+                    problemas.append(f"{fd}: el lugar {grupo.at!r} no existe")
+            for trama_id in fase.seeds:
+                if trama_id not in tramas:
+                    problemas.append(f"{fd}: la trama {trama_id!r} no existe")
+            if fase.until is not None:
+                lee(fase.until)
+            for rama in fase.next:
+                if rama.if_ is not None:
+                    lee(rama.if_)
+                if rama.to not in fases:
+                    problemas.append(f"{fd}: la rama va a {rama.to!r}, que no es una fase")
+
+        # Las fases forman un árbol que acaba: sin ciclos, y todas alcanzables desde la
+        # primera. Un `until` no basta para cortar un ciclo: nada garantiza que el
+        # contador llegue.
+        aristas = {
+            str(f.id): [str(r.to) for r in f.next if str(r.to) in fases] for f in arco.phases
+        }
+        if _hay_ciclo(aristas):
+            problemas.append(f"{donde}: las fases forman un ciclo")
+        alcanzables = _alcanzables(str(arco.phases[0].id), aristas)
+        problemas += [f"{donde} fase {f!r}: inalcanzable desde la primera"
+                      for f in sorted(fases) if f not in alcanzables]
+        finales = {str(f.id) for f in arco.phases if not f.next}
+
+        for contador in arco.counters:
+            cd = f"{donde} contador {contador.id!r}"
+            for feed in contador.feeds:
+                if feed.action is not None and feed.action not in self.action_by_id:
+                    problemas.append(f"{cd}: la acción {feed.action!r} no existe")
+                if feed.trial is not None and not any(f.seeds for f in arco.phases):
+                    problemas.append(f"{cd}: cuenta pruebas de trama y el arco no siembra ninguna")
+
+        for final, residuo in sorted(arco.residues.items()):
+            rd = f"{donde} residuo de {final!r}"
+            if final not in finales:
+                problemas.append(f"{rd}: no es una rama final del arco")
+            problemas += [f"{rd}: la marca {m!r} no está declarada"
+                          for m in residuo.marks if m not in marcas]
+            for sit in residuo.situations:
+                s = self.situation_by_id.get(sit)
+                if s is None or s.periodic or s.personal:
+                    problemas.append(f"{rd}: {sit!r} no es una situación eventual del mundo")
+
+        if arco.recognition is not None:
+            rec = arco.recognition
+            problemas += [f"{donde} reconocimiento: el contador {c!r} no es del arco"
+                          for c in rec.counters if c not in contadores]
+            leidos.update(str(c) for c in rec.counters)
+            if rec.mark not in marcas:
+                problemas.append(f"{donde} reconocimiento: la marca {rec.mark!r} no está declarada")
+
+        for disparo in arco.trigger:
+            for cond in disparo.conditions:
+                if cond.situation is not None and cond.situation not in self.situation_by_id:
+                    problemas.append(f"{donde}: la situación {cond.situation!r} no existe")
+                if cond.clock_phase is not None and cond.clock_phase not in fases_reloj:
+                    problemas.append(f"{donde}: la fase del reloj {cond.clock_phase!r} no existe")
+                if cond.recent is not None and cond.recent.event not in eventos:
+                    problemas.append(f"{donde}: {cond.recent.event!r} no es un hecho del motor")
+
+        for c_id, contador in sorted(contadores.items()):
+            alimentado = bool(contador.feeds) or c_id in alimentados_por_tramas
+            if c_id not in leidos:
+                problemas.append(f"{donde} contador {c_id!r}: se alimenta y nadie lo lee")
+            elif not alimentado:
+                problemas.append(f"{donde} contador {c_id!r}: lo leen y nadie lo alimenta")
+        problemas += [f"{donde}: lee el contador {c!r}, que el arco no declara"
+                      for c in sorted(leidos) if c not in contadores]
         return problemas
 
     @staticmethod
@@ -1942,6 +2156,7 @@ class ContentPack(Spec):
     def _validate(self) -> ContentPack:
         problems = [
             *self._check_plots(),
+            *self._check_arcs(),
             *self._check_unique_ids(),
             *self._check_global_id_collisions(),
             *self._check_need_refs(),
@@ -1987,6 +2202,49 @@ class ContentPack(Spec):
 def _presta(accion: ActionSpec | None) -> bool:
     """Si la acción abre una deuda (la puerta de deudas de `World._endeudar`)."""
     return accion is not None and accion.target is not None and accion.target.crea_deuda is not None
+
+
+def _efectos_de_tramas(libro: PlotBook | None) -> list[EffectSpec]:
+    """Todo efecto que una trama puede aplicar: el de cada opción y el de cada prueba."""
+    if libro is None:
+        return []
+    salida: list[EffectSpec] = []
+    for trama in libro.plots:
+        for paso in trama.steps:
+            for opcion in paso.choices:
+                salida.extend(opcion.effects or ())
+                if opcion.test is not None:
+                    salida.extend((*opcion.test.on_success, *opcion.test.on_failure))
+    return salida
+
+
+def _hay_ciclo(aristas: Mapping[str, Iterable[str]]) -> bool:
+    """Si el grafo tiene un ciclo. Los nodos se recorren ordenados: el resultado no
+    depende del orden de un set."""
+    visto: set[str] = set()
+    en_pila: set[str] = set()
+
+    def recorre(nodo: str) -> bool:
+        visto.add(nodo)
+        en_pila.add(nodo)
+        for vecino in sorted(aristas.get(nodo, ())):
+            if vecino in en_pila or (vecino not in visto and recorre(vecino)):
+                return True
+        en_pila.discard(nodo)
+        return False
+
+    return any(nodo not in visto and recorre(nodo) for nodo in sorted(aristas))
+
+
+def _alcanzables(inicio: str, aristas: Mapping[str, Iterable[str]]) -> set[str]:
+    visto = {inicio}
+    pila = [inicio]
+    while pila:
+        for vecino in aristas.get(pila.pop(), ()):
+            if vecino not in visto:
+                visto.add(vecino)
+                pila.append(vecino)
+    return visto
 
 
 def _con_mundo(raw: Mapping[str, Any], ruta: Path) -> dict[str, Any]:
@@ -2039,6 +2297,10 @@ def load_pack(path: Path) -> ContentPack:
         # Como `mundo.yaml`, pero sin fundirse en el pack: `plots` lo valida
         # ContentPack junto a todo lo demás, con las ids del pack a la vista.
         raw = {**raw, "plots": yaml.safe_load(tramas.read_text(encoding="utf-8")) or {}}
+    arcos = path.parent / "arcos.yaml"
+    if arcos.is_file():
+        # Igual que las tramas: `arcs` lo valida ContentPack con las ids del pack a la vista.
+        raw = {**raw, "arcs": yaml.safe_load(arcos.read_text(encoding="utf-8")) or {}}
     try:
         pack = ContentPack.model_validate(raw)
     except ValidationError as exc:

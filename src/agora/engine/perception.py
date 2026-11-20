@@ -37,13 +37,19 @@ class Percepcion:
     seq: int
     tick: int
     kind: EventKind
-    actor: AgentId
+    actor: AgentId | None
+    """`None` solo en un `ARC_PHASE`: lo que pasa en un arco no tiene a nadie que lo haga,
+    y lo presencia quien está en el lugar (23b-1, A.4)."""
     target: AgentId | None
     place: PlaceId
     action: ActionId | None
     acto: str | None = None
     """El acto social, si lo fue (`SOCIAL_ACT`): «cortejar», «confesar»… Lo necesita un
     latido de trama (23a, `declared_to`); lo demás no lo lleva."""
+    bando_actor: str | None = None
+    """De qué bando era quien actúa en un `COMBAT` (23b-1): lo mira `protected_by`."""
+    bando_otro: str | None = None
+    """De qué bando era el otro en un `COMBAT`."""
 
 
 def es_presenciable(evento: Event) -> bool:
@@ -51,9 +57,16 @@ def es_presenciable(evento: Event) -> bool:
 
     No todo lo que pasa delante: un acto dirigido sí, una acción suelta no.
     """
-    if evento.actor is None or evento.place is None:
+    if evento.place is None:
+        return False
+    if evento.kind is EventKind.ARC_PHASE:
+        # Un arco no lo hace nadie, así que no exige actor: lo ve quien está en el lugar.
+        return True
+    if evento.actor is None:
         return False
     match evento.kind:
+        case EventKind.COMBAT:
+            return True
         case EventKind.ACTION_STARTED:
             return "target" in evento.data
         case EventKind.SOCIAL_ACT:
@@ -80,9 +93,10 @@ def _destinatario(evento: Event) -> AgentId | None:
 
 def percepcion_de(evento: Event) -> Percepcion | None:
     """Lo que se anotaría de este hecho, o `None` si no es presenciable."""
-    if not es_presenciable(evento) or evento.actor is None or evento.place is None:
+    if not es_presenciable(evento) or evento.place is None:
         return None
     acto = evento.data.get("act") if evento.kind is EventKind.SOCIAL_ACT else None
+    es_combate = evento.kind is EventKind.COMBAT
     return Percepcion(
         seq=evento.seq,
         tick=evento.tick,
@@ -92,6 +106,8 @@ def percepcion_de(evento: Event) -> Percepcion | None:
         place=evento.place,
         action=evento.action,
         acto=None if acto is None else str(acto),
+        bando_actor=str(evento.data["bando_actor"]) if es_combate else None,
+        bando_otro=str(evento.data["bando_otro"]) if es_combate else None,
     )
 
 

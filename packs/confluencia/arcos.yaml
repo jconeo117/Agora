@@ -1,0 +1,206 @@
+# Arcos del mundo de confluencia (unidad 23b-1, D-179). Cuatro arcos: festival, incursión,
+# epidemia y examen de rango.
+#
+# Lo que el arco hace al mundo lo declara cada fase: situaciones que enciende, gente que llega
+# y se marcha, y tramas que solo empiezan allí. Lo que la gente hace dentro lo cuentan los
+# contadores, atribuido a quien lo hizo; al cerrar, la rama deja residuos a quien aportó y
+# reconoce a quien más aportó. El motor no sabe qué es un festival: ver
+# `src/agora/engine/arcs.py`.
+#
+# Los eventos periódicos (`festival_cosecha`, `examen_rango`) no los enciende una fase: van
+# por su calendario, y el arco los observa. Por eso las fases de festival y de examen no
+# declaran situaciones propias.
+
+templates:
+  - id: orco_incursor
+    label: "{nombre}, orco incursor"
+    nombres: [Grumak, Urzh, Maglok, Ghash, Brukka, Zog, Thrak, Ulmo, Nakra, Skarn]
+    traits:
+      fuerza: [0.5, 0.9]
+      agilidad: [0.2, 0.6]
+      instinto: [0.4, 0.8]
+      voluntad: [0.3, 0.7]
+      arrojo: [0.4, 0.9]
+      piedad: [-0.9, -0.4]
+    home: linde_salvaje
+    condition: hostil
+
+arcs:
+  # ── Festival: calendario, con el festival que ya existe ─────────────────────────
+  - id: festival
+    label: Festival de la cosecha
+    scale: event
+    trigger:
+      - calendar: {every_days: 360, start_day: 22}
+    phases:
+      - id: preparacion
+        label: preparativos
+        days: {min: 3, max: 3}
+        places: [granja, plaza_demihumana]
+        next:
+          - {to: festival}
+      - id: festival
+        label: festival
+        days: {min: 3, max: 3}
+        places: [granja, plaza_demihumana]
+        seeds: [el_concurso_del_festival, la_boda]
+        next:
+          - {to: cierre}
+      - id: cierre
+        label: cierre del festival
+        days: {min: 1, max: 1}
+
+  # ── Incursión: señales, ataque y desenlace según lo que aguanta la frontera ──────
+  - id: incursion
+    label: Incursión de orcos
+    scale: crisis
+    trigger:
+      - expected_per_year: 1.5
+        cooldown_days: 90
+    phases:
+      - id: senales
+        label: señales en la frontera
+        days: {min: 2, max: 4}
+        situations: [alarma_frontera]
+        places: [linde_salvaje, puerta_norte, granja]
+        seeds: [algo_no_va_bien]
+        next:
+          - {to: ataque}
+      - id: ataque
+        label: ataque
+        days: {min: 3, max: 5}
+        situations: [incursion_orcos]
+        places: [linde_salvaje, puerta_norte, granja]
+        arrivals:
+          - {template: orco_incursor, count: [6, 12], at: linde_salvaje, depart: true}
+        seeds: [proteger_a_alguien, huir_o_quedarse, el_traidor]
+        next:
+          - {to: desenlace}
+      - id: desenlace
+        label: desenlace
+        days: {min: 1, max: 1}
+        next:
+          - if: {counter: defensa, mas_que: brecha}
+            to: resiste
+          - {to: cae}
+      - id: resiste
+        label: la frontera aguanta
+        days: {min: 2, max: 2}
+      - id: cae
+        label: la frontera cae
+        days: {min: 2, max: 2}
+    counters:
+      - id: defensa
+        label: combates ganados por residentes
+        feeds:
+          - {combat: residents, result: won}
+      - id: brecha
+        label: combates ganados por llegados
+        feeds:
+          - {combat: arrivals, result: won}
+    residues:
+      resiste:
+        fame: 0.05
+      cae:
+        situations: {luto_comun: 5}
+    recognition:
+      counters: [defensa]
+      mark: heroe_de_la_incursion
+      fame: 0.1
+      top: 1
+
+  # ── Epidemia: primeros casos, contagio y cura o catástrofe según los cuidados ───
+  - id: epidemia
+    label: Epidemia
+    scale: crisis
+    trigger:
+      - expected_per_year: 0.4
+        cooldown_days: 180
+    phases:
+      - id: primeros_casos
+        label: primeros casos
+        days: {min: 2, max: 3}
+        situations: [brote_inicial]
+        places: [enfermeria, posada_central]
+        next:
+          - {to: contagio}
+      - id: contagio
+        label: contagio
+        days: {min: 4, max: 6}
+        situations: [brote_enfermedad]
+        places: [enfermeria, plaza_mayor, mercado_central, posada_central]
+        seeds: [cuidar_a_alguien, huir_de_la_plaga, el_sanador]
+        next:
+          - {to: desenlace}
+      - id: desenlace
+        label: desenlace
+        days: {min: 1, max: 1}
+        next:
+          - if: {counter: cuidados, min: 5}
+            to: cura
+          - {to: catastrofe}
+      - id: cura
+        label: la plaga cede
+        days: {min: 2, max: 2}
+      - id: catastrofe
+        label: la plaga se extiende
+        days: {min: 2, max: 2}
+    counters:
+      - id: cuidados
+        label: cuidados prestados
+        feeds:
+          - {action: cuidar}
+          - {action: curar_con_magia}
+    residues:
+      cura:
+        fame: 0.03
+      catastrofe:
+        situations: {luto_comun: 5}
+    recognition:
+      counters: [cuidados]
+      mark: sanador_de_la_epidemia
+      fame: 0.1
+      top: 1
+
+  # ── Examen de rango: calendario, con el examen que ya existe ────────────────────
+  - id: examen
+    label: Examen de rango
+    scale: event
+    trigger:
+      - calendar: {every_days: 90, start_day: 28}
+    phases:
+      - id: preparacion
+        label: preparación
+        days: {min: 3, max: 3}
+        places: [torre_observacion, campo_de_practica_elemental]
+        seeds: [estudiar, la_trampa]
+        next:
+          - {to: examen}
+      - id: examen
+        label: examen
+        days: {min: 2, max: 2}
+        places: [torre_observacion, campo_de_practica_elemental]
+        seeds: [el_examen]
+        next:
+          - {to: resultados}
+      - id: resultados
+        label: resultados
+        days: {min: 1, max: 1}
+        next:
+          - if: {counter: aprobados, min: 1}
+            to: aprobados_final
+          - {to: suspensos_final}
+      - id: aprobados_final
+        label: aprobados
+        days: {min: 1, max: 1}
+      - id: suspensos_final
+        label: suspensos
+        days: {min: 1, max: 1}
+    counters:
+      - id: aprobados
+        label: pruebas de examen superadas
+        feeds:
+          - {trial: won}
+    residues:
+      aprobados_final:
+        fame: 0.05

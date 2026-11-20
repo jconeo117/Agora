@@ -37,6 +37,8 @@ from agora.engine.ontology import (
     ActionId,
     AgentId,
     AgentSpec,
+    ArcId,
+    CounterId,
     FactionId,
     FactionKindId,
     GoalId,
@@ -46,6 +48,7 @@ from agora.engine.ontology import (
     MarkId,
     NeedId,
     NeedSpec,
+    PhaseId,
     PlaceId,
     PlaceSpec,
     PlotId,
@@ -1955,6 +1958,30 @@ class PlotRun:
 
 
 @dataclass(slots=True)
+class ArcRun:
+    """Un arco del mundo en curso (23b-1). Como mucho uno por arco.
+
+    Lo que el arco sabe de sí mismo y tiene que sobrevivir a un guardado: en qué fase
+    va, hasta cuándo, a quién ha metido en el mundo y qué ha aportado cada cual. Las
+    fases, las ramas y los residuos son del pack y no se guardan."""
+
+    arco: ArcId
+    empezo: int
+    fase: PhaseId
+    desde: int
+    """Desde cuándo está en esta fase: los contadores de `until` y los días se miran desde aquí."""
+    hasta: int | None
+    """Tick en que acaba la fase, si su duración es por días. `None` si acaba por `until`."""
+    encendidas: tuple[SituationId, ...] = ()
+    """Las situaciones que esta fase encendió. Las apaga al salir, y solo esas: una que ya
+    pasaba por otra causa no se le quita a nadie."""
+    llegados: dict[AgentId, bool] = field(default_factory=dict)
+    """Quién llegó por este arco, y si se va al acabar la fase en que llegó."""
+    aportes: dict[CounterId, dict[AgentId, int]] = field(default_factory=dict)
+    """Lo que cada contador lleva, atribuido a quien lo hizo."""
+
+
+@dataclass(slots=True)
 class WorldState:
     pack: ContentPack
     travel: TravelMap
@@ -2072,6 +2099,12 @@ class WorldState:
     """El tick en que llegó cada forastero (`arrive`). Para la condición «llegó hace N
     días» de una trama: leerlo del log era recorrer su tramo reciente cada día y por
     persona, y eso costaba más que la simulación."""
+
+    arcos: dict[ArcId, ArcRun] = field(default_factory=dict)
+    """Los arcos en curso (23b-1). Un arco que no está aquí no está pasando."""
+    arcos_terminados: dict[ArcId, tuple[PhaseId, int]] = field(default_factory=dict)
+    """Cómo acabó cada arco: en qué rama (fase final) y en qué tick. Lo leen los
+    disparadores que esperan a otro arco, y el cooldown de cada uno."""
 
     focus: AgentId | None = None
     """Alrededor de quién se simula fino (D-152). `None` = nadie, y entonces el
@@ -2328,6 +2361,11 @@ class WorldState:
         """Las que alcanzan a este sitio. Una sin `places` alcanza a todos."""
         by_id = self.pack.situation_by_id
         return tuple(s for s in self.active_situations() if by_id[s].reaches(place))
+
+    def arco_en_fase(self, arco: str, fase: str) -> bool:
+        """Si el arco está ahora en esa fase. Es lo que lee una trama con `arc_phase`."""
+        run = self.arcos.get(ArcId(arco))
+        return run is not None and run.fase == fase
 
     def gains_at(
         self, place: PlaceId, situations: Sequence[SituationId] | None = None

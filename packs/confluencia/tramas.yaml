@@ -32,6 +32,9 @@ marks:
   - {id: contacto, label: "contacto", max: 3}
   - {id: saboteado, label: "saboteado", max: 3}
   - {id: distancia, label: "distancia", max: 3}
+  - {id: aprobado, label: "aprobado", max: 9}
+  - {id: heroe_de_la_incursion, label: "héroe de la incursión", max: 9}
+  - {id: sanador_de_la_epidemia, label: "sanador de la epidemia", max: 9}
 
 fame:
   label: "fama"
@@ -284,6 +287,8 @@ plots:
     chance: 0.1
     cooldown_days: 365
     may_go_unused: true
+    when:
+      - {arc_phase: {arc: festival, phase: festival}}
     protagonist:
       - {mark: comprometido, min: 1}
     refs:
@@ -959,6 +964,8 @@ plots:
     chance: 0.08
     cooldown_days: 30
     may_go_unused: true
+    when:
+      - {arc_phase: {arc: examen, phase: preparacion}}
     protagonist:
       - {mark: suspensos, min: 2}
     steps:
@@ -1062,7 +1069,7 @@ plots:
     cooldown_days: 30
     may_go_unused: true
     when:
-      - {situation: festival_cosecha}
+      - {arc_phase: {arc: festival, phase: festival}}
     protagonist:
       - {age: true, min: 16}
     steps:
@@ -1151,4 +1158,246 @@ plots:
             appeal: {pereza: 0.5}
             effects: []
             default: true
+            next: null
+
+  # ── Arcos del mundo (23b-1): tramas que solo empiezan dentro de una fase ───────
+  # Lo que siembra cada fase está en `arcos.yaml`; el `when` de aquí es lo que deja
+  # empezarlas solo allí. Donde una prueba cuenta para un arco, lo cuenta el arco.
+  - id: algo_no_va_bien
+    label: "Algo no va bien"
+    category: arco
+    chance: 0.15
+    cooldown_days: 365
+    may_go_unused: true
+    when:
+      - {arc_phase: {arc: incursion, phase: senales}}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Avisar a la guardia"
+            appeal: {arraigo: 1.0, calculo: 0.5}
+            effects:
+              - {fame: true, delta: 0.02}
+            next: null
+          - label: "Seguir con lo tuyo"
+            appeal: {pereza: 1.0}
+            effects: []
+            default: true
+            next: null
+          - label: "Coger a los tuyos y largarte"
+            appeal: {aprension: 1.0}
+            effects:
+              - {mark: distancia, delta: 1}
+            next: null
+
+  - id: proteger_a_alguien
+    label: "Proteger a alguien"
+    category: arco
+    chance: 0.2
+    cooldown_days: 365
+    may_go_unused: true
+    when:
+      - {arc_phase: {arc: incursion, phase: ataque}}
+    protagonist:
+      - {regard_to: amigo, min: 0.3}
+    refs:
+      - name: amigo
+        when: [{alive: true}]
+    steps:
+      - id: vigilar
+        expects: {beat: protected_by, ref: amigo}
+        within_days: 4
+        on_timeout: sin_ver
+        next: agradecer
+      - id: agradecer
+        choices:
+          - label: "Darle las gracias"
+            appeal: {apego: 1.0, sociabilidad: 0.5}
+            effects:
+              - {regard: amigo, delta: 0.1}
+              - {memory: true, about: amigo, valence: 0.8, importance: 1.0, por_quien: amigo}
+            next: null
+          - label: "Restarle importancia"
+            appeal: {pereza: 0.5}
+            effects: []
+            default: true
+            next: null
+      - id: sin_ver
+        choices:
+          - label: "Seguir"
+            appeal: {constancia: 0.5}
+            effects: []
+            default: true
+            next: null
+
+  - id: huir_o_quedarse
+    label: "Huir o quedarse"
+    category: arco
+    chance: 0.2
+    cooldown_days: 365
+    may_go_unused: true
+    when:
+      - {arc_phase: {arc: incursion, phase: ataque}}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Quedarte y ayudar"
+            appeal: {arrojo: 1.0, arraigo: 0.5}
+            effects:
+              - {arc_tally: {counter: defensa, n: 1}}
+              - {need: dominio, delta: 0.02}
+            next: null
+          - label: "Huir al interior"
+            appeal: {aprension: 1.0, pereza: 0.3}
+            effects:
+              - {mark: distancia, delta: 1}
+            next: null
+          - label: "Quedarte mirando"
+            appeal: {pereza: 0.5}
+            effects: []
+            default: true
+            next: null
+
+  - id: el_traidor
+    label: "El traidor"
+    category: arco
+    chance: 0.1
+    cooldown_days: 365
+    may_go_unused: true
+    when:
+      - {arc_phase: {arc: incursion, phase: ataque}}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Abrirles la puerta"
+            appeal: {codicia: 1.0, impulsividad: 0.5}
+            effects:
+              - {arc_tally: {counter: brecha, n: 1}}
+              - {need: dinero, delta: 0.1}
+              - {mark: secreto, delta: 1}
+            next: null
+          - label: "Negarte"
+            appeal: {constancia: 1.0}
+            effects: []
+            default: true
+            next: null
+
+  - id: cuidar_a_alguien
+    label: "Cuidar a alguien"
+    category: arco
+    chance: 0.2
+    cooldown_days: 365
+    may_go_unused: true
+    when:
+      - {arc_phase: {arc: epidemia, phase: contagio}}
+    refs:
+      - name: enfermo
+        when: [{alive: true}]
+    steps:
+      - id: decidir
+        choices:
+          - label: "Quedarte a su lado"
+            appeal: {apego: 1.0, arraigo: 0.5}
+            act: {action: cuidar, to: enfermo, within_days: 2, on_timeout: null}
+            next: null
+          - label: "No te metas"
+            appeal: {pereza: 1.0}
+            effects: []
+            default: true
+            next: null
+
+  - id: huir_de_la_plaga
+    label: "Huir de la plaga"
+    category: arco
+    chance: 0.15
+    cooldown_days: 365
+    may_go_unused: true
+    when:
+      - {arc_phase: {arc: epidemia, phase: contagio}}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Irte al campo"
+            appeal: {aprension: 1.0, curiosidad: 0.3}
+            effects:
+              - {mark: distancia, delta: 1}
+            next: null
+          - label: "Quedarte"
+            appeal: {constancia: 0.5, arraigo: 0.5}
+            effects: []
+            default: true
+            next: null
+
+  - id: el_sanador
+    label: "El sanador"
+    category: arco
+    chance: 0.1
+    cooldown_days: 365
+    may_go_unused: true
+    when:
+      - {arc_phase: {arc: epidemia, phase: contagio}}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Atender a los enfermos"
+            appeal: {devocion: 1.0, arraigo: 0.5}
+            effects:
+              - {arc_tally: {counter: cuidados, n: 1}}
+              - {fame: true, delta: 0.02}
+            next: null
+          - label: "Mirar desde la puerta"
+            appeal: {aprension: 0.5}
+            effects: []
+            default: true
+            next: null
+
+  - id: estudiar
+    label: "Estudiar"
+    category: arco
+    chance: 0.3
+    cooldown_days: 90
+    may_go_unused: true
+    when:
+      - {arc_phase: {arc: examen, phase: preparacion}}
+    # Quien ya aprobó repasa para el siguiente rango: así la marca `aprobado` la lee algo.
+    protagonist:
+      - {mark: aprobado, min: 1}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Estudiar de noche"
+            appeal: {constancia: 1.0, ambicion: 0.5}
+            effects:
+              - {need: descanso, delta: -0.05}
+              - {need: dominio, delta: 0.03}
+            next: null
+          - label: "Dejarlo para luego"
+            appeal: {pereza: 1.0}
+            effects: []
+            default: true
+            next: null
+
+  - id: el_examen
+    label: "El examen"
+    category: arco
+    chance: 0.5
+    cooldown_days: 90
+    may_go_unused: true
+    when:
+      - {arc_phase: {arc: examen, phase: examen}}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Presentarte"
+            appeal: {ambicion: 1.0, audacia: 0.5}
+            test:
+              id: competencia
+              on_success: [{mark: aprobado, delta: 1}]
+              on_failure: [{mark: suspensos, delta: 1}]
+            default: true
+            next: null
+          - label: "No presentarte"
+            appeal: {aprension: 1.0}
+            effects:
+              - {mark: suspensos, delta: 1}
             next: null

@@ -44,6 +44,9 @@ PropertyId = NewType("PropertyId", str)
 Affordance = NewType("Affordance", str)
 Tag = NewType("Tag", str)
 ItemId = NewType("ItemId", str)
+ArcId = NewType("ArcId", str)
+CounterId = NewType("CounterId", str)
+ArrivalId = NewType("ArrivalId", str)
 
 PositiveFactor = Annotated[float, Field(gt=0.0)]
 """Multiplicador estrictamente positivo.
@@ -1394,6 +1397,16 @@ class ActionSpec(Spec):
     ya está en uno no puede volver a entrar— y sin ella habría que modelarlo
     con un eje de necesidad que baje a cero, que es un número donde lo que hay
     es un sí o un no.
+    """
+
+    requires_condition: SituationId | None = None
+    """Solo se puede intentar llevando esto encima. `None` = da igual.
+
+    La afirmativa de `forbids_condition`, sobre quien actúa. Existe para que una
+    acción sea de un bando sin que el bando sea un rasgo: `asaltar` lo hacen los
+    llegados hostiles (23b-1), y un candado en negativo solo sabría decir a
+    quién no dejar atacar. Sin esta puerta, la misma acción estaría en el menú
+    de todo el mundo.
     """
 
     requires_traits: dict[TraitId, float] = Field(default_factory=dict)
@@ -4006,6 +4019,9 @@ class BeatKind(StrEnum):
     REF_DIED = "ref_died"
     ARRIVED = "arrived"
     SITUATION_BEGAN = "situation_began"
+    PROTECTED_BY = "protected_by"
+    """La referencia combatió contra un llegado hostil delante del protagonista
+    (23b-1, A.3). Lo mira `saw` sobre un `COMBAT`: no es un hecho de la trama."""
 
 
 PROTAGONIST_KINDS = frozenset({
@@ -4021,8 +4037,16 @@ REF_KINDS = frozenset({
 """Lo que se puede leer de una referencia: solo lo observable (A.2, §3.5). Un aprecio,
 un agravio, una necesidad o una marca ajena no están en esta lista, y la carga lo rechaza."""
 
-GLOBAL_KINDS = frozenset({"situation", "phase"})
-"""Lo que puede ir en `when`: lo que es del mundo, no de una persona."""
+GLOBAL_KINDS = frozenset({"situation", "phase", "arc_phase"})
+"""Lo que puede ir en `when`: lo que es del mundo, no de una persona. `arc_phase` es
+una fase de un arco en curso (23b-1): la siembra de una trama solo puede empezar ahí."""
+
+
+class ArcPhaseRef(Spec):
+    """Una fase concreta de un arco (23b-1): para `when` de una trama, la siembra."""
+
+    arc: ArcId
+    phase: PhaseId
 
 
 class PlotCondition(Spec):
@@ -4061,6 +4085,7 @@ class PlotCondition(Spec):
     min: float | None = None
     max: float | None = None
     days: int | None = Field(default=None, ge=1)
+    arc_phase: ArcPhaseRef | None = None
 
     model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
 
@@ -4088,7 +4113,7 @@ def _campo(kind: str) -> str:
 
 
 _CLAVES_ORDENADAS = tuple(
-    (k, _campo(k)) for k in sorted(PROTAGONIST_KINDS | REF_KINDS)
+    (k, _campo(k)) for k in sorted(PROTAGONIST_KINDS | REF_KINDS | GLOBAL_KINDS)
 )
 """Las claves del vocabulario y su campo, en orden fijo. Se calcula una vez: `kind()` se
 llama por persona y por día, y rehacer el conjunto cada vez era un tercio del coste."""
@@ -4162,6 +4187,8 @@ class EffectSpec(Spec):
     days: int | None = Field(default=None, ge=1)
     factor: float | None = Field(default=None, gt=0.0, le=1.0)
     """Para `forgive`: qué parte del agravio queda."""
+    arc_tally: ArcTallySpec | None = None
+    """Suma al contador de un arco en curso, atribuido a quien vive la trama (23b-1, A.3)."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -4169,7 +4196,7 @@ class EffectSpec(Spec):
     def _one(self) -> EffectSpec:
         claves = [
             k for k in ("mark", "fame", "regard", "memory", "need", "condition", "goal",
-                        "debt", "forgive", "item")
+                        "debt", "forgive", "item", "arc_tally")
             if getattr(self, k) is not None and getattr(self, k) is not False
         ]
         if len(claves) != 1:
@@ -4243,6 +4270,9 @@ class Step(Spec):
     next: StepId | None = None
     """Tras el latido, en un paso de espera. `None` = la trama acaba."""
     choices: tuple[Choice, ...] = ()
+    tint: dict[str, Beat] = Field(default_factory=dict)
+    """Tinte por fase de arco (23b-1, A.3): `{"arco.fase": latido}`. Mientras esa fase
+    está activa, el paso espera ese latido en vez del suyo. Sin fase activa, el suyo."""
 
     @model_validator(mode="after")
     def _shape(self) -> Step:
@@ -4252,6 +4282,8 @@ class Step(Spec):
             raise ValueError(f"el paso de espera {self.id!r} necesita within_days")
         if self.expects is None and self.leanings:
             raise ValueError(f"solo un paso de espera lleva inclinaciones ({self.id!r})")
+        if self.expects is None and self.tint:
+            raise ValueError(f"solo un paso de espera lleva tinte ({self.id!r})")
         if self.choices and sum(1 for c in self.choices if c.default) > 1:
             raise ValueError(f"el paso {self.id!r} tiene más de una opción default")
         return self
@@ -4339,3 +4371,310 @@ class PlotBook(Spec):
     """Con él, una marca consumida que nadie produce (o al revés) no carga: error, y no
     aviso."""
 
+
+
+# -----------------------------------------------------------------------------
+# Arcos del mundo (23b-1, D-179): fases que cambian el escenario, gente que llega,
+# contadores que agregan lo que hace la gente y un reconocimiento al cerrar. Lo
+# declara `arcos.yaml`, junto al pack, y lo valida `ContentPack` contra el resto.
+# -----------------------------------------------------------------------------
+
+
+class ArcScale(StrEnum):
+    """Tamaño de un arco. Es una etiqueta para quien lo lee: el motor no cambia nada
+    por ella. `era` se declara pero aún no carga: no hay grupos que la sostengan."""
+
+    EVENT = "event"
+    CRISIS = "crisis"
+    ERA = "era"
+
+
+class ArcSide(StrEnum):
+    """Los dos bandos de un combate de arco. Un llegado es hostil mientras lleve la
+    condición de la plantilla; cualquier otro es residente."""
+
+    RESIDENTS = "residents"
+    ARRIVALS = "arrivals"
+
+
+class ArcResult(StrEnum):
+    WON = "won"
+    LOST = "lost"
+
+
+class CounterCond(Spec):
+    """Una condición sobre un contador: un rango (`min`, `max`) o ir por delante de otro
+    (`mas_que`). Exactamente una de las dos formas."""
+
+    counter: CounterId
+    min: int | None = Field(default=None, ge=0)
+    max: int | None = Field(default=None, ge=0)
+    mas_que: CounterId | None = None
+
+    @model_validator(mode="after")
+    def _shape(self) -> CounterCond:
+        acota = self.min is not None or self.max is not None
+        if (self.mas_que is not None) == acota:
+            raise ValueError(
+                f"condición sobre {self.counter!r}: un rango (min/max) o `mas_que`, no las dos"
+            )
+        if self.min is not None and self.max is not None and self.min > self.max:
+            raise ValueError(f"condición sobre {self.counter!r}: min es mayor que max")
+        return self
+
+
+class ArcFeed(Spec):
+    """Qué hecho del log suma a un contador. Exactamente una de las formas.
+
+    Cada aporte se atribuye a quien lo hizo: el ganador de un combate, quien mata, quien
+    supera la prueba, quien ejecuta la acción. Por eso el reconocimiento puede nombrar
+    a una persona y no solo contar."""
+
+    combat: ArcSide | None = None
+    """Un combate del arco que gana o pierde este bando. Con `result`."""
+    result: ArcResult | None = None
+    death: ArcSide | None = None
+    """Muere alguien de este bando, y lo mata quien tiene autor en la condición."""
+    trial: ArcResult | None = None
+    """Una prueba de una trama sembrada por este arco, ganada o perdida."""
+    action: ActionId | None = None
+    """Una acción del pack hecha en un lugar del arco."""
+
+    @model_validator(mode="after")
+    def _one(self) -> ArcFeed:
+        formas = [k for k in ("combat", "death", "trial", "action") if getattr(self, k) is not None]
+        if len(formas) != 1:
+            raise ValueError(f"un aporte lleva exactamente una forma, no {formas or 'ninguna'}")
+        if self.combat is not None and self.result is None:
+            raise ValueError("un aporte de combate necesita `result`: won o lost")
+        if self.combat is None and self.result is not None:
+            raise ValueError("`result` solo va con `combat`")
+        return self
+
+
+class ArcCounter(Spec):
+    id: CounterId
+    label: str = Field(min_length=1, max_length=80)
+    """Solo para quien depura. Nada del arco llega al narrador: ni su nombre ni sus
+    contadores (A.4)."""
+    feeds: tuple[ArcFeed, ...] = Field(min_length=1)
+
+
+class ArcTallySpec(Spec):
+    """El efecto `arc_tally` de una trama: suma `n` al contador de un arco en curso."""
+
+    counter: CounterId
+    n: int = Field(default=1, ge=1)
+
+
+class ArcDays(Spec):
+    min: int = Field(ge=1)
+    max: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> ArcDays:
+        if self.min > self.max:
+            raise ValueError(f"días entre {self.min} y {self.max}: rango al revés")
+        return self
+
+
+class ArrivalGroup(Spec):
+    """Una tanda de llegados que entra al empezar la fase. `depart` dice si se va al
+    acabar esa fase; si no, se va al cerrar el arco. Nadie queda al cerrar."""
+
+    template: ArrivalId
+    count: tuple[int, int]
+    at: PlaceId
+    depart: bool = False
+
+    @model_validator(mode="after")
+    def _count(self) -> ArrivalGroup:
+        minimo, maximo = self.count
+        if not 1 <= minimo <= maximo:
+            raise ValueError(f"llegadas de {self.template!r}: cuenta {self.count} inválida")
+        return self
+
+
+class ArcBranch(Spec):
+    """Una rama de salida de una fase. `if` sobre contadores; la rama sin `if` es la de
+    por defecto y va la última."""
+
+    if_: CounterCond | None = Field(default=None, alias="if")
+    to: PhaseId
+
+    model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
+
+
+class ArcPhase(Spec):
+    """Una fase: dura unos días o hasta que un contador lo dice. Al entrar activa sus
+    situaciones y sus llegadas; al salir las retira y hace partir a quien debe."""
+
+    id: PhaseId
+    label: str = Field(min_length=1, max_length=80)
+    days: ArcDays | None = None
+    until: CounterCond | None = None
+    situations: tuple[SituationId, ...] = ()
+    """Situaciones eventuales del pack que la fase enciende (y apaga al salir). Las
+    periódicas no: van por su calendario y el arco solo las observa."""
+    places: tuple[PlaceId, ...] = ()
+    """Dónde se presencia la fase. Vacío = los lugares de sus situaciones."""
+    arrivals: tuple[ArrivalGroup, ...] = ()
+    seeds: tuple[PlotId, ...] = ()
+    """Tramas que solo pueden empezar en esta fase. La trama lo declara en su `when`."""
+    next: tuple[ArcBranch, ...] = ()
+
+    @model_validator(mode="after")
+    def _shape(self) -> ArcPhase:
+        if (self.days is None) == (self.until is None):
+            raise ValueError(f"fase {self.id!r}: lleva exactamente uno de days o until")
+        if self.next:
+            *condicionadas, por_defecto = self.next
+            if por_defecto.if_ is not None:
+                raise ValueError(
+                    f"fase {self.id!r}: la última rama tiene que ser la de por defecto"
+                )
+            if any(r.if_ is None for r in condicionadas):
+                raise ValueError(f"fase {self.id!r}: solo la última rama va sin `if`")
+        return self
+
+
+class ArcCalendar(Spec):
+    """El arco empieza cada `every_days` días, desde `start_day` (días del reloj)."""
+
+    every_days: int = Field(ge=1)
+    start_day: int = Field(default=0, ge=0)
+
+
+class ArcRecent(Spec):
+    """Al menos `n` hechos del tipo `event` en los últimos `days` días."""
+
+    event: str
+    """Un `EventKind` por su valor. Lo valida el pack."""
+    n: int = Field(default=1, ge=1)
+    days: int = Field(ge=1)
+
+
+class ArcEnded(Spec):
+    """Un arco terminado en la rama `branch`: la condición que leen otros arcos."""
+
+    arc: ArcId
+    branch: PhaseId
+
+
+class ArcCondition(Spec):
+    """Una condición del mundo para que un arco pueda empezar. Exactamente una."""
+
+    situation: SituationId | None = None
+    clock_phase: PhaseId | None = None
+    recent: ArcRecent | None = None
+    ended: ArcEnded | None = None
+
+    @model_validator(mode="after")
+    def _one(self) -> ArcCondition:
+        usadas = [k for k in ("situation", "clock_phase", "recent", "ended")
+                  if getattr(self, k) is not None]
+        if len(usadas) != 1:
+            raise ValueError(
+                f"una condición de arco lleva exactamente una, no {usadas or 'ninguna'}"
+            )
+        return self
+
+
+class ArcTrigger(Spec):
+    """Un modo de empezar. Un arco tiene uno o varios; basta que uno se cumpla."""
+
+    calendar: ArcCalendar | None = None
+    conditions: tuple[ArcCondition, ...] = ()
+    """Todas tienen que cumplirse. Con `chance`, la probabilidad diaria de empezar."""
+    chance: float = Field(default=1.0, gt=0.0, le=1.0)
+    expected_per_year: float = Field(default=0.0, ge=0.0)
+    """Veces por año, como `TriggerSpec`, hasta que la 23b-2 traiga el director."""
+    cooldown_days: int = Field(default=0, ge=0)
+    """Días desde que el arco terminó hasta que puede volver a empezar por este modo.
+    Obligatorio sin calendario: es el freno que impide que un arco vuelva al día siguiente."""
+
+    @model_validator(mode="after")
+    def _one_mode(self) -> ArcTrigger:
+        modos = [self.calendar is not None, bool(self.conditions), self.expected_per_year > 0.0]
+        if sum(modos) != 1:
+            raise ValueError(
+                "un disparador lleva exactamente uno de calendar, conditions o expected_per_year"
+            )
+        if self.calendar is None and self.cooldown_days < 1:
+            raise ValueError(
+                "un disparador sin calendario necesita cooldown_days: sin freno, el arco "
+                "volvería al día siguiente"
+            )
+        return self
+
+
+class ArcResidue(Spec):
+    """Lo que deja una rama final. Se aplica a quienes aportaron, salvo las situaciones,
+    que son del mundo."""
+
+    marks: dict[MarkId, int] = Field(default_factory=dict)
+    fame: float = Field(default=0.0, ge=0.0, le=1.0)
+    situations: dict[SituationId, int] = Field(default_factory=dict)
+    """Situaciones eventuales que quedan encendidas `días` días tras el cierre."""
+
+    @model_validator(mode="after")
+    def _days(self) -> ArcResidue:
+        if any(dias < 1 for dias in self.situations.values()):
+            raise ValueError("una situación residual dura al menos 1 día")
+        return self
+
+
+class ArcRecognition(Spec):
+    """A quien más aportó a estos contadores, al cerrar el arco: una marca y fama."""
+
+    counters: tuple[CounterId, ...] = Field(min_length=1)
+    mark: MarkId
+    fame: float = Field(default=0.0, ge=0.0, le=1.0)
+    top: Literal[1] = 1
+
+
+class ArcSpec(Spec):
+    """Un arco del mundo (23b-1). Fases, llegadas, contadores, ramas, residuos y
+    reconocimiento. El motor no sabe qué es un festival: sabe fases, días y contadores."""
+
+    id: ArcId
+    label: str = Field(min_length=1, max_length=80)
+    scale: ArcScale
+    content: tuple[ContentTag, ...] = ()
+    trigger: tuple[ArcTrigger, ...] = Field(min_length=1)
+    phases: tuple[ArcPhase, ...] = Field(min_length=1)
+    counters: tuple[ArcCounter, ...] = ()
+    residues: dict[PhaseId, ArcResidue] = Field(default_factory=dict)
+    """Por rama final: la fase en la que termina el arco."""
+    recognition: ArcRecognition | None = None
+
+
+class ArrivalTemplate(Spec):
+    """Cómo es alguien que llega desde fuera por un arco (23b-1). El id de cada llegado
+    se deriva por clave (arco, fase, índice, semilla), nunca de un contador."""
+
+    id: ArrivalId
+    label: str = Field(min_length=1, max_length=120)
+    """Con `{nombre}`: el nombre sale de `nombres` por sorteo con clave."""
+    nombres: tuple[str, ...] = Field(min_length=1)
+    traits: dict[TraitId, tuple[float, float]] = Field(default_factory=dict)
+    """Rasgo -> rango [mínimo, máximo] en -1..1, del que se sortea cada llegado."""
+    home: PlaceId
+    condition: SituationId
+    """La condición personal con la que llega (`hostil`)."""
+
+    @model_validator(mode="after")
+    def _shape(self) -> ArrivalTemplate:
+        if "{nombre}" not in self.label:
+            raise ValueError(f"plantilla {self.id!r}: el label necesita {{nombre}}")
+        for rasgo, (minimo, maximo) in self.traits.items():
+            if not -1.0 <= minimo <= maximo <= 1.0:
+                raise ValueError(f"plantilla {self.id!r}: rango de {rasgo!r} inválido")
+        return self
+
+
+class ArcBook(Spec):
+    """`arcos.yaml`, junto al pack (23b-1). Arcos y las plantillas de sus llegados."""
+
+    arcs: tuple[ArcSpec, ...] = ()
+    templates: tuple[ArrivalTemplate, ...] = ()
