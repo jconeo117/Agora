@@ -8,11 +8,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
 from pydantic import BaseModel
 
 from agora.engine.events import EventKind
 from agora.engine.memory import Recuerdo
-from agora.engine.ontology import AgentId, NeedId, PropertyId, PropertyKind
+from agora.engine.ontology import AgentId, GoalId, NeedId, PropertyId, PropertyKind, RelationId
 from agora.engine.pack import load_pack
 from agora.engine.persistence import (
     _agente_a_dict,
@@ -68,13 +69,7 @@ def foto(sim: Simulation) -> dict[str, object]:
     }
     for a in w.agents_in_order():
         for f in dataclasses.fields(a):
-            valor = getattr(a, f.name)
-            if f.name == "relations":
-                # Una relación vacía y una ausente son lo mismo para el motor
-                # (`world.py:529-533` pregunta `quien in ()`), y `save` descarta
-                # las vacías. Sin esto la foto vería una diferencia que no existe.
-                valor = {k: v for k, v in valor.items() if v}
-            salida[f"{a.spec_id}.{f.name}"] = plano(valor)
+            salida[f"{a.spec_id}.{f.name}"] = plano(getattr(a, f.name))
         salida[f"{a.spec_id}.memoria"] = plano(w.memoria.de(a.spec_id))
     return salida
 
@@ -105,6 +100,12 @@ def test_reanudar_confluencia_es_no_haber_parado(tmp_path: Path) -> None:
         if foto_seg_12[k] != foto_rean_12.get(k)
     }
     assert foto_seg_12 == foto_rean_12, f"Diferencias a 96+12 ticks: {list(diff_12.keys())}"
+
+    eventos_seg = [e.to_json() for e in seguida.log.since(97)]
+    eventos_rean = [e.to_json() for e in reanudada.log.since(97)]
+    assert len(eventos_rean) > 0, "No se emitieron eventos tras reanudar"
+    assert eventos_rean == eventos_seg, "Los eventos tras reanudar difieren de la corrida sin parar"
+    assert reanudada.log.siguiente_seq == seguida.log.siguiente_seq
 
 
 def test_reanudar_con_lod_es_no_haber_parado(tmp_path: Path) -> None:
@@ -224,3 +225,82 @@ def test_cada_campo_se_guarda_o_se_deriva(tmp_path: Path) -> None:
     assert set(_propiedad_a_dict(prop, del_pack=False, objeto=False)) == (
         {f.name for f in dataclasses.fields(Propiedad)} - {"tributo", "lugar", "equipado"}
     )
+
+
+def test_deuda_del_pack_extinguida_no_vuelve_al_reanudar(tmp_path: Path) -> None:
+    """Una deuda del pack extinguida no debe recrearse al cargar."""
+    pack = load_pack(Path(__file__).resolve().parents[1] / "packs" / "confluencia" / "pack.yaml")
+    sim = Simulation(pack, seed=1312)
+    deuda_id = PropertyId("deuda_hale_con_eris")
+    assert deuda_id in sim.state.propiedades
+
+    # Extinguimos la deuda retirándola del estado
+    sim.state.propiedades.pop(deuda_id)
+    assert deuda_id not in sim.state.propiedades
+
+    fichero = tmp_path / "partida_extinta.json"
+    sim.save(fichero)
+
+    datos = json.loads(fichero.read_text(encoding="utf-8"))
+    assert "extintas" in datos
+    assert "deuda_hale_con_eris" in datos["extintas"]
+
+    reanudada = Simulation.resume(fichero, pack)
+    assert deuda_id not in reanudada.state.propiedades
+
+
+def test_meta_asignada_por_trama_recompone_pesos_y_se_preserva_al_reanudar(tmp_path: Path) -> None:
+    """_asignar_meta debe recomponer de inmediato need_weights y preservarse al reanudar."""
+    pack = load_pack(Path(__file__).resolve().parents[1] / "packs" / "confluencia" / "pack.yaml")
+    sim = Simulation(pack, seed=1312)
+    quien = AgentId("cyra_nieblalta")
+    meta = GoalId("saldar_lo_que_debe")
+    yo = sim.state.agents[quien]
+
+    assert meta not in yo.goals
+    assert not any(g.id == meta for g in yo.metas)
+
+    peso_dinero_antes = yo.need_weights[NeedId("dinero")]
+
+    sim._asignar_meta(quien, meta)
+
+    assert meta in yo.goals
+    assert any(g.id == meta for g in yo.metas)
+    peso_dinero_despues = yo.need_weights[NeedId("dinero")]
+    assert peso_dinero_despues == pytest.approx(peso_dinero_antes * 2.2)
+    assert peso_dinero_despues != peso_dinero_antes
+
+    fichero = tmp_path / "partida_meta.json"
+    sim.save(fichero)
+
+    reanudada = Simulation.resume(fichero, pack)
+    yo_rean = reanudada.state.agents[quien]
+
+    assert meta in yo_rean.goals
+    assert any(g.id == meta for g in yo_rean.metas)
+    assert yo_rean.need_weights == yo.need_weights
+
+
+def test_relaciones_vacias_se_conservan_en_guardado_y_reanudacion(tmp_path: Path) -> None:
+    """Un agente con relación vacía conserva la clave al guardar y cargar."""
+    pack = load_pack(Path(__file__).resolve().parents[1] / "packs" / "confluencia" / "pack.yaml")
+    sim = Simulation(pack, seed=1312)
+    agente = sim.state.agents_in_order()[0]
+    rel_id = RelationId("pareja")
+
+    # Forzamos una relación vacía explícita
+    agente.relations[rel_id] = set()
+
+    fichero = tmp_path / "partida_rel_vacia.json"
+    sim.save(fichero)
+
+    datos = json.loads(fichero.read_text(encoding="utf-8"))
+    ag_datos = next(a for a in datos["agents"] if a["spec_id"] == str(agente.spec_id))
+    assert str(rel_id) in ag_datos["relations"]
+    assert ag_datos["relations"][str(rel_id)] == []
+
+    reanudada = Simulation.resume(fichero, pack)
+    ag_rean = reanudada.state.agents[agente.spec_id]
+    assert rel_id in ag_rean.relations
+    assert ag_rean.relations[rel_id] == set()
+
