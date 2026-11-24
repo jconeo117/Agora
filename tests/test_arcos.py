@@ -13,8 +13,9 @@ import pytest
 import yaml
 
 from agora.cognition.narrador import Sighting, Table, briefing, select, world_moment
-from agora.engine import arcs
+from agora.engine import arcs, plots
 from agora.engine.arcs import (
+    _cumple_contador,
     _digest,
     _rama,
     _reconocer,
@@ -25,25 +26,32 @@ from agora.engine.ontology import (
     ActionId,
     AgentId,
     ArcId,
+    ArcPeople,
+    ArcPer,
     ArcPhaseRef,
+    ArcRatio,
     Beat,
     BeatKind,
+    CounterCond,
     CounterId,
     MarkId,
     PhaseId,
     PlaceId,
     PlotCondition,
+    PlotId,
+    SituationId,
     Step,
     StepId,
 )
 from agora.engine.pack import ContentPack, PackError, load_pack
 from agora.engine.perception import saw
 from agora.engine.plots import _global, _latido_vigente
-from agora.engine.state import ArcRun
+from agora.engine.state import ArcRun, PlotRun
 from agora.engine.world import Simulation
 
 CONFLUENCIA_PACK_PATH = Path("packs/confluencia/pack.yaml")
 CIUDAD_PACK_PATH = Path("packs/ciudad/pack.yaml")
+ARCO_DE_PRUEBA_PATH = Path("packs/arco_de_prueba/pack.yaml")
 
 
 def _cargar_confluencia_crudo() -> dict[str, Any]:
@@ -625,3 +633,366 @@ def test_guardar_y_cargar_con_arco_en_curso(tmp_path: Path) -> None:
 
     # El arco terminado debe estar en arcos_terminados
     assert resumed.state.arcos_terminados.get(ArcId("festival")) == (PhaseId("cierre"), 120)
+
+
+# =============================================================================
+# 23b-1-fix (§B) — Ramas relativas (ratio/per) y hueco de arco
+# =============================================================================
+
+
+def test_condiciones_relativas_ratio_bordes() -> None:
+    """§B.1 / M1: ratio total(counter) >= x * total(over) (y <=) en bordes exactos y por debajo."""
+    run = ArcRun(arco=ArcId("prueba"), fase=PhaseId("fase1"), empezo=0, desde=0, hasta=None)
+    run.aportes[CounterId("charlas")] = {AgentId("a1"): 50}
+    run.aportes[CounterId("jornadas")] = {AgentId("a1"): 100}
+
+    # Caso borde igual con at_least: 50 >= 0.5 * 100 -> True
+    cond_least_igual = CounterCond(
+        ratio=ArcRatio(counter=CounterId("charlas"), over=CounterId("jornadas"), at_least=0.5)
+    )
+    assert _cumple_contador(run, cond_least_igual) is True
+
+    # Uno por debajo con at_least: 49 >= 0.5 * 100 -> False
+    run.aportes[CounterId("charlas")] = {AgentId("a1"): 49}
+    assert _cumple_contador(run, cond_least_igual) is False
+
+    # Caso borde igual con at_most: 50 <= 0.5 * 100 -> True
+    run.aportes[CounterId("charlas")] = {AgentId("a1"): 50}
+    cond_most_igual = CounterCond(
+        ratio=ArcRatio(counter=CounterId("charlas"), over=CounterId("jornadas"), at_most=0.5)
+    )
+    assert _cumple_contador(run, cond_most_igual) is True
+
+    # Uno por encima con at_most: 51 <= 0.5 * 100 -> False
+    run.aportes[CounterId("charlas")] = {AgentId("a1"): 51}
+    assert _cumple_contador(run, cond_most_igual) is False
+
+    # Rango cerrado at_least y at_most [0.4, 0.6] sobre 100 (40..60)
+    cond_rango = CounterCond(
+        ratio=ArcRatio(
+            counter=CounterId("charlas"), over=CounterId("jornadas"), at_least=0.4, at_most=0.6
+        )
+    )
+    run.aportes[CounterId("charlas")] = {AgentId("a1"): 40}
+    assert _cumple_contador(run, cond_rango) is True
+    run.aportes[CounterId("charlas")] = {AgentId("a1"): 39}
+    assert _cumple_contador(run, cond_rango) is False
+
+    run.aportes[CounterId("charlas")] = {AgentId("a1"): 60}
+    assert _cumple_contador(run, cond_rango) is True
+    run.aportes[CounterId("charlas")] = {AgentId("a1"): 61}
+    assert _cumple_contador(run, cond_rango) is False
+
+
+def test_condiciones_relativas_per_bordes_y_cero() -> None:
+    """§B.1: per total(counter) >= x * n en bordes exactos, y n = 0 siempre es falso."""
+    run = ArcRun(arco=ArcId("prueba"), fase=PhaseId("fase1"), empezo=0, desde=0, hasta=None)
+    run.aportes[CounterId("cuidados")] = {AgentId("a1"): 100}
+
+    # n = 0 -> Falso aunque el contador tenga valor alto
+    cond_cond_cero = CounterCond(
+        per=ArcPer(
+            counter=CounterId("cuidados"),
+            people=ArcPeople(condition=SituationId("fiebre")),
+            at_least=1.0,
+        )
+    )
+    assert _cumple_contador(run, cond_cond_cero) is False
+
+    cond_zona_cero = CounterCond(
+        per=ArcPer(counter=CounterId("cuidados"), people=ArcPeople(zone=True), at_least=1.0)
+    )
+    assert _cumple_contador(run, cond_zona_cero) is False
+
+    # Bordes con n = 5 (umbral 2.0 * 5 = 10)
+    run.llevaron[SituationId("fiebre")] = {AgentId(f"p{i}") for i in range(5)}
+    cond_per_least = CounterCond(
+        per=ArcPer(
+            counter=CounterId("cuidados"),
+            people=ArcPeople(condition=SituationId("fiebre")),
+            at_least=2.0,
+        )
+    )
+    # Borde exacto igual: 10 >= 2.0 * 5 -> True
+    run.aportes[CounterId("cuidados")] = {AgentId("a1"): 10}
+    assert _cumple_contador(run, cond_per_least) is True
+    # Uno por debajo: 9 >= 2.0 * 5 -> False
+    run.aportes[CounterId("cuidados")] = {AgentId("a1"): 9}
+    assert _cumple_contador(run, cond_per_least) is False
+
+    # Bordes con at_most: umbral 2.0 * 5 = 10
+    cond_per_most = CounterCond(
+        per=ArcPer(
+            counter=CounterId("cuidados"),
+            people=ArcPeople(condition=SituationId("fiebre")),
+            at_most=2.0,
+        )
+    )
+    # Borde exacto igual: 10 <= 2.0 * 5 -> True
+    run.aportes[CounterId("cuidados")] = {AgentId("a1"): 10}
+    assert _cumple_contador(run, cond_per_most) is True
+    # Uno por encima: 11 <= 2.0 * 5 -> False
+    run.aportes[CounterId("cuidados")] = {AgentId("a1"): 11}
+    assert _cumple_contador(run, cond_per_most) is False
+
+
+def test_condiciones_relativas_per_grupos_y_personas_unicas() -> None:
+    """§B.1 / M2: cada grupo cuenta a quien debe, y una persona dos veces con fiebre cuenta una."""
+    pack = load_pack(CONFLUENCIA_PACK_PATH)
+    sim = Simulation(pack, seed=42)
+    comenzar_por_id(sim, ArcId("incursion"), "prueba")
+    run = sim.state.arcos[ArcId("incursion")]
+    agente_1 = sim.state.agents_in_order()[0].spec_id
+    agente_2 = sim.state.agents_in_order()[1].spec_id
+
+    # 1. Grupo people: condition -> alimentar 2 veces misma persona cuenta 1 sola
+    sim._registrar(
+        tick=sim.state.tick,
+        kind=EventKind.SITUATION_BEGAN,
+        actor=agente_1,
+        place=sim.state.agents[agente_1].at,
+        data={"situation": "fiebre", "personal": True},
+    )
+    # Segunda vez la misma persona con fiebre
+    sim._registrar(
+        tick=sim.state.tick,
+        kind=EventKind.SITUATION_BEGAN,
+        actor=agente_1,
+        place=sim.state.agents[agente_1].at,
+        data={"situation": "fiebre", "personal": True},
+    )
+    # Una sola persona única
+    assert len(run.llevaron[SituationId("fiebre")]) == 1
+
+    cond_fiebre = CounterCond(
+        per=ArcPer(
+            counter=CounterId("cuidados"),
+            people=ArcPeople(condition=SituationId("fiebre")),
+            at_least=2.0,
+        )
+    )
+    # Con n = 1, si cuidados = 2 -> 2 >= 2.0 * 1 -> True (con repetidos n = 2 fallaría 2 >= 4)
+    run.aportes[CounterId("cuidados")] = {agente_1: 2}
+    assert _cumple_contador(run, cond_fiebre) is True
+
+    # at_most: si cuidados = 3 y n = 1 -> 3 <= 2.0 * 1 -> False (con repetidos n = 2 daría True)
+    cond_fiebre_most = CounterCond(
+        per=ArcPer(
+            counter=CounterId("cuidados"),
+            people=ArcPeople(condition=SituationId("fiebre")),
+            at_most=2.0,
+        )
+    )
+    run.aportes[CounterId("cuidados")] = {agente_1: 3}
+    assert _cumple_contador(run, cond_fiebre_most) is False
+
+    # Al enfermar otra persona, ahora n = 2
+    sim._registrar(
+        tick=sim.state.tick,
+        kind=EventKind.SITUATION_BEGAN,
+        actor=agente_2,
+        place=sim.state.agents[agente_2].at,
+        data={"situation": "fiebre", "personal": True},
+    )
+    assert len(run.llevaron[SituationId("fiebre")]) == 2
+    run.aportes[CounterId("cuidados")] = {agente_1: 4}
+    assert _cumple_contador(run, cond_fiebre) is True
+    run.aportes[CounterId("cuidados")] = {agente_1: 3}
+    assert _cumple_contador(run, cond_fiebre) is False
+
+    # 2. Grupo people: zone -> personas en la zona al entrar en la fase
+    run.en_zona = frozenset([agente_1, agente_2])
+    cond_zona = CounterCond(
+        per=ArcPer(counter=CounterId("defensa"), people=ArcPeople(zone=True), at_least=1.0)
+    )
+    run.aportes[CounterId("defensa")] = {agente_1: 2}
+    assert _cumple_contador(run, cond_zona) is True
+    run.aportes[CounterId("defensa")] = {agente_1: 1}
+    assert _cumple_contador(run, cond_zona) is False
+
+    # 3. Grupo people: all -> todas las personas vivas en el mundo
+    cond_all = CounterCond(
+        per=ArcPer(counter=CounterId("defensa"), people=ArcPeople(all=True), at_least=1.0)
+    )
+    num_vivos = len(sim.state.agents)
+    run.aportes[CounterId("defensa")] = {agente_1: num_vivos}
+    assert _cumple_contador(run, cond_all, sim) is True
+    run.aportes[CounterId("defensa")] = {agente_1: num_vivos - 1}
+    assert _cumple_contador(run, cond_all, sim) is False
+
+
+def test_arco_de_prueba_diez_semillas_ambas_ramas() -> None:
+    """§B.2: en packs/arco_de_prueba salen las dos ramas en 10 semillas, al menos 3 de cada."""
+    pack = load_pack(ARCO_DE_PRUEBA_PATH)
+    tpd = pack.clock.ticks_per_day
+    ramas: list[PhaseId] = []
+    for seed in range(1, 11):
+        sim = Simulation(pack, seed=seed)
+        sim.run(8 * tpd)
+        rama, _ = sim.state.arcos_terminados[ArcId("reunion")]
+        ramas.append(rama)
+
+    fiestas = ramas.count(PhaseId("fiesta"))
+    dispersiones = ramas.count(PhaseId("dispersion"))
+    assert fiestas >= 3, f"Solo salieron {fiestas} fiestas (se exigían >= 3)"
+    assert dispersiones >= 3, f"Solo salieron {dispersiones} dispersiones (se exigían >= 3)"
+    assert fiestas + dispersiones == 10
+
+
+def test_trama_personal_y_de_arco_simultaneas_latidos_y_liberacion() -> None:
+    """§B.3 / M3 / M4: personal y de arco activas simultáneamente; la personal recibe latidos;
+
+    al cerrar el arco se libera el hueco de arco y la personal sigue activa.
+    """
+    pack = load_pack(CONFLUENCIA_PACK_PATH)
+    sim = Simulation(pack, seed=42)
+    agente = sim.state.agents_in_order()[0].spec_id
+    otro = sim.state.agents_in_order()[1].spec_id
+
+    # Asegurar que comparten lugar para presenciar eventos
+    sim.state.agents[otro].at = sim.state.agents[agente].at
+
+    # 1. Trama personal activa en s.tramas
+    sim.state.tramas[agente] = PlotRun(
+        plot=PlotId("amor_secreto"),
+        empezo=sim.state.tick,
+        refs={"otro": otro},
+        paso=StepId("fijarse"),
+        desde=sim.state.tick,
+    )
+
+    # 2. Empezar arco incursion y avanzar a fase ataque
+    comenzar_por_id(sim, ArcId("incursion"), "prueba")
+    run_inc = sim.state.arcos[ArcId("incursion")]
+    spec_inc = arcs._arco(pack, ArcId("incursion"))
+    arcs._salir(sim, run_inc, arcs._fase(spec_inc, PhaseId("senales")))
+    arcs._entrar(sim, spec_inc, run_inc, arcs._fase(spec_inc, PhaseId("ataque")))
+
+    # 3. Empezar trama de arco para la misma persona en s.tramas_de_arco
+    assert pack.plots is not None
+    trama_arco = next(t for t in pack.plots.plots if t.id == "el_traidor")
+    plots._empezar(sim, sim.state.agents[agente], trama_arco, {})
+
+    # M3: verificar que la de arco fue al hueco tramas_de_arco y no pisó tramas
+    assert agente in sim.state.tramas_de_arco, "La trama de arco debe ocupar tramas_de_arco"
+    assert sim.state.tramas_de_arco[agente].plot == PlotId("el_traidor")
+    assert sim.state.tramas_de_arco[agente].arco == ArcId("incursion")
+
+    assert agente in sim.state.tramas, "La trama personal no debe ser pisada"
+    assert sim.state.tramas[agente].plot == PlotId("amor_secreto")
+    assert sim.state.tramas[agente].arco is None
+
+    # 4. La trama personal sigue activa y recibe sus latidos
+    sim._registrar(
+        tick=sim.state.tick,
+        kind=EventKind.ACTION_STARTED,
+        actor=otro,
+        subject=agente,
+        action=ActionId("charlar"),
+        place=sim.state.agents[agente].at,
+        data={"target": str(agente)},
+    )
+    plots._avanzar_dia(sim, sim.state.agents[agente], sim.state.tramas[agente])
+    assert sim.state.tramas[agente].paso == StepId("decidir")
+
+    # 5. M4: al cerrar el arco, el hueco de arco se libera y la personal sigue intacta
+    arcs._cerrar(sim, spec_inc, run_inc, PhaseId("resiste"))
+    assert agente not in sim.state.tramas_de_arco, "El hueco de arco debe quedar libre al cerrar"
+    assert agente in sim.state.tramas, "La trama personal debe seguir activa tras cerrar el arco"
+    assert sim.state.tramas[agente].plot == PlotId("amor_secreto")
+
+
+def test_trama_sin_arc_phase_no_ocupa_hueco_arco_y_no_dos_arcos_a_la_vez() -> None:
+    """§B.4: trama sin arc_phase nunca entra en tramas_de_arco; no 2 tramas de arco a la vez."""
+    pack = load_pack(CONFLUENCIA_PACK_PATH)
+    sim = Simulation(pack, seed=42)
+    yo = sim.state.agents_in_order()[0]
+    me = yo.spec_id
+
+    # 1. Sin arcos activos: sembrar hueco de arco no siembra tramas personales
+    assert me not in sim.state.tramas_de_arco
+    plots._sembrar(sim, yo, dia=1, de_arco=True)
+    assert me not in sim.state.tramas_de_arco, "Trama personal nunca debe ocupar hueco de arco"
+
+    # 2. Con arco activo, se siembra una trama de arco
+    comenzar_por_id(sim, ArcId("incursion"), "prueba")
+    run_inc = sim.state.arcos[ArcId("incursion")]
+    spec_inc = arcs._arco(pack, ArcId("incursion"))
+    arcs._salir(sim, run_inc, arcs._fase(spec_inc, PhaseId("senales")))
+    arcs._entrar(sim, spec_inc, run_inc, arcs._fase(spec_inc, PhaseId("ataque")))
+
+    assert pack.plots is not None
+    trama_arco = next(t for t in pack.plots.plots if t.id == "el_traidor")
+    plots._empezar(sim, yo, trama_arco, {})
+    assert me in sim.state.tramas_de_arco
+    primera_de_arco = sim.state.tramas_de_arco[me]
+
+    # 3. Con una trama de arco ya activa, no se siembra una segunda trama de arco
+    plots.pasar_dia(sim)
+    assert sim.state.tramas_de_arco[me] is primera_de_arco
+    tramas_arco_activas = [r for r in sim.state.tramas_de(me) if r.arco is not None]
+    assert len(tramas_arco_activas) == 1, "Solo puede haber como máximo una trama de arco a la vez"
+
+
+def test_guardar_y_cargar_con_dos_tramas_activas(tmp_path: Path) -> None:
+    """§B.5 / M5: guardar y cargar con trama personal y trama de arco activas recupera ambas."""
+    pack = load_pack(CONFLUENCIA_PACK_PATH)
+    sim = Simulation(pack, seed=42)
+    agente = sim.state.agents_in_order()[0].spec_id
+    otro = sim.state.agents_in_order()[1].spec_id
+
+    # Ambas tramas activas
+    sim.state.tramas[agente] = PlotRun(
+        plot=PlotId("amor_secreto"),
+        empezo=10,
+        refs={"otro": otro},
+        paso=StepId("fijarse"),
+        desde=10,
+    )
+    sim.state.tramas_de_arco[agente] = PlotRun(
+        plot=PlotId("el_traidor"),
+        empezo=20,
+        refs={},
+        paso=StepId("decidir"),
+        desde=20,
+        arco=ArcId("incursion"),
+    )
+
+    archivo = tmp_path / "dos_tramas.json"
+    sim.save(archivo)
+
+    resumed = Simulation.resume(archivo, pack)
+
+    # Comprobar trama personal
+    assert agente in resumed.state.tramas
+    run_personal = resumed.state.tramas[agente]
+    assert run_personal.plot == PlotId("amor_secreto")
+    assert run_personal.paso == StepId("fijarse")
+    assert run_personal.refs == {"otro": otro}
+    assert run_personal.arco is None
+
+    # M5: comprobar trama de arco
+    assert agente in resumed.state.tramas_de_arco, "tramas_de_arco debe persistir y restaurarse"
+    run_arco = resumed.state.tramas_de_arco[agente]
+    assert run_arco.plot == PlotId("el_traidor")
+    assert run_arco.paso == StepId("decidir")
+    assert run_arco.arco == ArcId("incursion")
+
+
+def test_pack_sin_arcos_log_identico_y_hueco_arco_vacio() -> None:
+    """§B.6: pack sin arcos.yaml produce log determinista idéntico y nunca usa hueco de arco."""
+    pack = load_pack(CIUDAD_PACK_PATH)
+    assert pack.arcs is None
+
+    sim1 = Simulation(pack, seed=42)
+    sim1.run(48)  # 2 días
+    eventos1 = [e.to_json() for e in sim1.log]
+    assert not sim1.state.tramas_de_arco, "Sin arcos, tramas_de_arco debe permanecer vacío"
+
+    sim2 = Simulation(pack, seed=42)
+    sim2.run(48)
+    eventos2 = [e.to_json() for e in sim2.log]
+    assert not sim2.state.tramas_de_arco
+
+    assert eventos1 == eventos2
+
