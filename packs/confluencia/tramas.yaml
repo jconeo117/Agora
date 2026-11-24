@@ -61,6 +61,10 @@ plots:
     category: amor
     chance: 0.05
     cooldown_days: 60
+    # Pide un aprecio que el mundo acumula en semanas: el contrato de catorce días no lo
+    # alcanza (ver el encabezado). Desde que las metas nuevas recomponen los pesos, la
+    # trayectoria cambia y en catorce días no sale.
+    may_go_unused: true
     protagonist:
       - {relation: pareja}
       - {regard_to: otro, min: 0.4}

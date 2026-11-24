@@ -2130,6 +2130,11 @@ class Simulation:
             return
         yo.metas = (*yo.metas, spec)
         yo.goals[meta] = GoalStatus.ACTIVE
+        # Una meta nueva cambia lo que la persona persigue, y con ello los pesos de sus
+        # necesidades (`pursuing` → `need_weights`). Sin rehacerlos, la deliberación de este
+        # tick pesaría con las metas de antes, y reanudar (que sí las rehace) daría otro mundo.
+        yo.recompose(self.pack)
+        yo.refresh_state(self.pack)
 
     def _prestar_de_trama(
         self, quien: AgentId, otro: AgentId, accion: ActionId, *, presta: bool,

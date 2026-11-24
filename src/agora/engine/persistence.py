@@ -43,6 +43,7 @@ from agora.engine.ontology import (
     FactionId,
     FactionKindId,
     GoalId,
+    GoalSpec,
     GoalStatus,
     MarkId,
     NeedId,
@@ -182,10 +183,12 @@ def _agente_a_dict(agent: AgentState, recuerdos: tuple[Recuerdo, ...]) -> dict[s
         # cargar como hace `WorldState.new` reconstruiria solo lo que el pack
         # declaro, y perderia las que nacieron durante la partida — que son
         # justo las interesantes.
+        # Las relaciones VACÍAS se guardan también. En la corrida viva una clave con conjunto
+        # vacío cuenta (`effective_company` decide por si el diccionario tiene claves), y
+        # quitarlas al guardar hacía que reanudar tomara otra rama y diera otro tipo de número.
         "relations": {
             str(rel): sorted(str(x) for x in quienes)
             for rel, quienes in sorted(agent.relations.items())
-            if quienes
         },
         # El `frozenset` no es JSON. Se ordena al escribir, no por estetica: sin
         # orden fijo dos guardados del mismo mundo diferirian byte a byte y
@@ -376,6 +379,13 @@ def save(
             for prop in sorted(world.propiedades.values(), key=lambda p: p.id)
             if not world.es_objeto(prop)
         ],
+        # Las propiedades DEL PACK que ya no están: una deuda extinta (su deudor murió, o se
+        # saldó) no vuelve al reanudar. Al cargar, `WorldState.new` las crea otra vez desde el
+        # pack, y sin esta lista la deuda de un muerto reaparecía y se extinguía de nuevo. Es la
+        # misma regla que `muertos`, para propiedades. Un guardado anterior no la trae.
+        "extintas": sorted(
+            str(p.id) for p in world.pack.properties if p.id not in world.propiedades
+        ),
         # Los objetos van enteros (16b): un objeto gastado no está aquí, y así al
         # cargar no vuelve desde el pack. Lo de las propiedades queda para lo demás.
         "objetos": [
@@ -520,6 +530,30 @@ def _lista_a_recuerdo(
     )
 
 
+def _metas_de(
+    datos: dict[str, Any], pack: ContentPack, nacidos: Mapping[AgentId, AgentSpec] | None,
+) -> tuple[GoalSpec, ...]:
+    """El catálogo de metas de la persona. La ficha da las de partida. Una trama puede añadir
+    otras (`_asignar_meta`, de la ficha de otro): esas tienen su estado en `goals`, en el orden
+    en que se asignaron, y se buscan en el catálogo del pack. Así las metas siguen siendo
+    derivadas: no hay una lista aparte que guardar."""
+    id_ficha = AgentId(datos["spec_id"])
+    ficha = (
+        pack.agent_by_id.get(id_ficha)
+        or (nacidos or {}).get(id_ficha)
+        or AgentSpec(id=id_ficha, label="", home=PlaceId(datos["at"]),
+                     start_at=PlaceId(datos["at"]))
+    ).goals
+    catalogo = {g.id: g for a in pack.agents for g in a.goals}
+    de_ficha = {g.id for g in ficha}
+    anadidas = [
+        catalogo[GoalId(str(meta))]
+        for meta in datos["goals"]
+        if GoalId(str(meta)) not in de_ficha and GoalId(str(meta)) in catalogo
+    ]
+    return (*ficha, *anadidas)
+
+
 def _dict_a_agente(
     datos: dict[str, Any], pack: ContentPack,
     nacidos: Mapping[AgentId, AgentSpec] | None = None,
@@ -553,12 +587,7 @@ def _dict_a_agente(
         # Las metas salen de la ficha, no del guardado: son catálogo, como los
         # rasgos del pack. La de quien nació en marcha viene en `nacidos`, que
         # es su unica ficha en el mundo.
-        metas=tuple(
-            (pack.agent_by_id.get(AgentId(datos["spec_id"]))
-             or (nacidos or {}).get(AgentId(datos["spec_id"]))
-             or AgentSpec(id=AgentId(datos["spec_id"]), label="", home=PlaceId(datos["at"]),
-                          start_at=PlaceId(datos["at"]))).goals
-        ),
+        metas=_metas_de(datos, pack, nacidos),
         needs=_reconciliar_necesidades(datos["needs"], pack),
         # Los rasgos borrados del pack se caen: `compose_*` los buscaria en
         # `trait_by_id` y reventaria con un KeyError sin explicacion.
@@ -800,6 +829,10 @@ def load(
             lugar = fila.get("lugar")
             propiedad.lugar = None if lugar is None else PlaceId(str(lugar))
             propiedad.equipado = bool(fila.get("equipado", False))
+    # Lo que el pack tiene y el guardado no, por haberse extinguido, no vuelve (ver
+    # `extintas` en `save`). Es lo único que el pack trae y el guardado niega a propósito.
+    for id_extinta in datos.get("extintas", []):
+        world.propiedades.pop(PropertyId(str(id_extinta)), None)
     # Los que el pack tiene y el guardado no —fichas nuevas— entran frescos, tal
     # y como los dejo `WorldState.new`. Asi se puede ampliar el elenco sin
     # perder la partida.
