@@ -4402,21 +4402,94 @@ class ArcResult(StrEnum):
     LOST = "lost"
 
 
-class CounterCond(Spec):
-    """Una condición sobre un contador: un rango (`min`, `max`) o ir por delante de otro
-    (`mas_que`). Exactamente una de las dos formas."""
+class ArcPeople(Spec):
+    """Un grupo de personas, para una condición relativa (23b-1-fix, A.1). Exactamente una
+    forma: `condition` (quien lo llevó durante el arco), `zone` (quien estaba en la zona del
+    arco al empezar la fase) o `all` (quien vive ahora)."""
+
+    condition: SituationId | None = None
+    zone: bool | None = None
+    all: bool | None = None
+
+    @model_validator(mode="after")
+    def _one(self) -> ArcPeople:
+        formas = [k for k in ("condition", "zone", "all") if getattr(self, k) is not None]
+        if len(formas) != 1:
+            raise ValueError(
+                f"un grupo de personas lleva exactamente una forma, no {formas or 'ninguna'}"
+            )
+        if (self.zone is not None and self.zone is not True) or (
+            self.all is not None and self.all is not True
+        ):
+            raise ValueError("`zone` y `all` solo valen como `true`")
+        return self
+
+
+class ArcRatio(Spec):
+    """`total(counter) ≥ at_least · total(over)`, y/o `≤ at_most · total(over)`. Relativo: el
+    umbral sigue a la población del pack, no a un número escrito a mano (23b-1-fix, A.1)."""
 
     counter: CounterId
+    over: CounterId
+    at_least: float | None = Field(default=None, gt=0.0)
+    at_most: float | None = Field(default=None, gt=0.0)
+
+    @model_validator(mode="after")
+    def _some(self) -> ArcRatio:
+        if self.at_least is None and self.at_most is None:
+            raise ValueError(f"ratio de {self.counter!r}: pide at_least, at_most o los dos")
+        return self
+
+
+class ArcPer(Spec):
+    """`total(counter) ≥ at_least · n` (y/o `≤ at_most · n`), con `n` = personas del grupo.
+    Con `n = 0` la condición es falsa: nadie a quien medir no cuenta como cumplido."""
+
+    counter: CounterId
+    people: ArcPeople
+    at_least: float | None = Field(default=None, gt=0.0)
+    at_most: float | None = Field(default=None, gt=0.0)
+
+    @model_validator(mode="after")
+    def _some(self) -> ArcPer:
+        if self.at_least is None and self.at_most is None:
+            raise ValueError(f"per de {self.counter!r}: pide at_least, at_most o los dos")
+        return self
+
+
+class CounterCond(Spec):
+    """Una condición sobre contadores, en una de cuatro formas, exactamente una:
+
+    - rango absoluto: `counter` con `min` o `max` (umbral escrito);
+    - `mas_que`: `counter` por delante de otro contador;
+    - `ratio`: relativa a otro contador (`total(a) ≥ x · total(b)`);
+    - `per`: relativa a un grupo de personas (`total(a) ≥ x · n`).
+
+    Las relativas existen porque un umbral escrito a mano deja de significar nada cuando la
+    población cambia: un pack con 200 personas y uno con 50 no pueden decir «30 heridos»."""
+
+    counter: CounterId | None = None
     min: int | None = Field(default=None, ge=0)
     max: int | None = Field(default=None, ge=0)
     mas_que: CounterId | None = None
+    ratio: ArcRatio | None = None
+    per: ArcPer | None = None
 
     @model_validator(mode="after")
     def _shape(self) -> CounterCond:
+        absoluta = self.counter is not None
         acota = self.min is not None or self.max is not None
-        if (self.mas_que is not None) == acota:
+        formas = []
+        if absoluta and (acota or self.mas_que is not None):
+            formas.append("absoluta")
+        if self.ratio is not None:
+            formas.append("ratio")
+        if self.per is not None:
+            formas.append("per")
+        if len(formas) != 1 or (formas[0] == "absoluta" and (acota == (self.mas_que is not None))):
             raise ValueError(
-                f"condición sobre {self.counter!r}: un rango (min/max) o `mas_que`, no las dos"
+                "una condición de contador es exactamente una forma: rango (counter + min/max), "
+                "mas_que, ratio o per"
             )
         if self.min is not None and self.max is not None and self.min > self.max:
             raise ValueError(f"condición sobre {self.counter!r}: min es mayor que max")

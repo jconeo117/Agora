@@ -1996,9 +1996,10 @@ class ContentPack(Spec):
         leidos: set[str] = set()
 
         def lee(c: CounterCond) -> None:
-            leidos.add(str(c.counter))
-            if c.mas_que is not None:
-                leidos.add(str(c.mas_que))
+            leidos.update(_contadores_de(c))
+            if (c.per is not None and c.per.people.condition is not None
+                    and c.per.people.condition not in self.situation_by_id):
+                problemas.append(f"{donde}: la condición {c.per.people.condition!r} no existe")
 
         for fase in arco.phases:
             fd = f"{donde} fase {fase.id!r}"
@@ -2202,6 +2203,20 @@ class ContentPack(Spec):
 def _presta(accion: ActionSpec | None) -> bool:
     """Si la acción abre una deuda (la puerta de deudas de `World._endeudar`)."""
     return accion is not None and accion.target is not None and accion.target.crea_deuda is not None
+
+
+def _contadores_de(c: CounterCond) -> list[str]:
+    """Los contadores que una condición de arco lee, en cualquiera de sus formas."""
+    leidos: list[str] = []
+    if c.counter is not None:
+        leidos.append(str(c.counter))
+    if c.mas_que is not None:
+        leidos.append(str(c.mas_que))
+    if c.ratio is not None:
+        leidos += [str(c.ratio.counter), str(c.ratio.over)]
+    if c.per is not None:
+        leidos.append(str(c.per.counter))
+    return leidos
 
 
 def _efectos_de_tramas(libro: PlotBook | None) -> list[EffectSpec]:

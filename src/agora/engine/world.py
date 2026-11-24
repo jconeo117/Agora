@@ -729,6 +729,7 @@ class Simulation:
         self.state.marcas.pop(quien, None)
         self.state.fama.pop(quien, None)
         self.state.tramas.pop(quien, None)
+        self.state.tramas_de_arco.pop(quien, None)
         self.state.tramas_vividas.pop(quien, None)
 
     def end_situation(self, situation: SituationId) -> None:
@@ -2687,6 +2688,7 @@ class Simulation:
         self.state.marcas.pop(quien, None)
         self.state.fama.pop(quien, None)
         self.state.tramas.pop(quien, None)
+        self.state.tramas_de_arco.pop(quien, None)
         self.state.tramas_vividas.pop(quien, None)
         self._registrar(
             tick=self.state.tick, kind=EventKind.AGENT_LEFT, actor=quien, place=donde,
@@ -3285,6 +3287,10 @@ class Simulation:
             self._anotar_combate(actor, otro, lugar, gana_actor=True)
         elif fate_otro is Fate.STANDING and fate_actor is not Fate.STANDING:
             self._anotar_combate(actor, otro, lugar, gana_actor=False)
+
+    def _cerrar_tramas_de_arco(self, arco: ArcId) -> None:
+        """Un arco acaba: sus tramas de arco terminan y libran su hueco (23b-1-fix, A.2)."""
+        plots.cerrar_de_arco(self, arco)
 
     def _sumar_aporte_de_arco(self, quien: AgentId, contador: CounterId, n: int) -> None:
         """Lo que una trama suma al contador de un arco (`arc_tally`, 23b-1, A.3)."""

@@ -797,7 +797,7 @@ def inclinar(world: WorldState, agent: AgentState, pool: Sequence[Decision]) -> 
     tal cual. Con ella, la utilidad se multiplica si es positiva y se divide si no, así el
     factor siempre acerca la opción a la que la trama quiere. El orden se rehace con el
     criterio de siempre. El menú que ve el jugador no pasa por aquí."""
-    if agent.spec_id not in world.tramas:
+    if not world.tramas_de(agent.spec_id):
         return list(pool)
     ajustadas = []
     for decision in pool:

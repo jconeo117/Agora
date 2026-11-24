@@ -1955,6 +1955,8 @@ class PlotRun:
     desde: int
     """Desde cuándo está en este paso: el latido se mira desde aquí, no desde antes."""
     intencion: Intencion | None = None
+    arco: ArcId | None = None
+    """El arco que la sembró, si es una trama de arco (23b-1-fix). `None` = personal."""
 
 
 @dataclass(slots=True)
@@ -1979,6 +1981,11 @@ class ArcRun:
     """Quién llegó por este arco, y si se va al acabar la fase en que llegó."""
     aportes: dict[CounterId, dict[AgentId, int]] = field(default_factory=dict)
     """Lo que cada contador lleva, atribuido a quien lo hizo."""
+    llevaron: dict[SituationId, set[AgentId]] = field(default_factory=dict)
+    """Quién llevó cada condición personal durante el arco. Lo lee una condición `per` con
+    `people: {condition: ...}` (23b-1-fix, A.1). Se anota desde el log, no se pregunta."""
+    en_zona: frozenset[AgentId] = frozenset()
+    """Quién estaba en la zona del arco al entrar en la fase actual. Lo lee `people: {zone}`."""
 
 
 @dataclass(slots=True)
@@ -2090,7 +2097,11 @@ class WorldState:
     fama: dict[AgentId, float] = field(default_factory=dict)
     """La fama de cada persona, en [0, 1] (23a). Solo existe si el pack la declara."""
     tramas: dict[AgentId, PlotRun] = field(default_factory=dict)
-    """La trama que vive cada protagonista ahora. Como mucho una por persona."""
+    """La trama personal que vive cada protagonista ahora. Como mucho una por persona."""
+    tramas_de_arco: dict[AgentId, PlotRun] = field(default_factory=dict)
+    """La trama de arco que vive cada protagonista ahora: otro hueco, aparte del personal
+    (23b-1-fix, A.2). Una persona puede llevar una de cada. Solo la siembra de un arco la
+    llena, y cuando el arco cierra la libera."""
     tramas_vividas: dict[AgentId, dict[PlotId, int]] = field(default_factory=dict)
     """Cuándo empezó cada trama que ha vivido cada persona: el cooldown y `once` se leen
     de aquí, y por eso sobreviven a que la trama acabe."""
@@ -2361,6 +2372,14 @@ class WorldState:
         """Las que alcanzan a este sitio. Una sin `places` alcanza a todos."""
         by_id = self.pack.situation_by_id
         return tuple(s for s in self.active_situations() if by_id[s].reaches(place))
+
+    def tramas_de(self, quien: AgentId) -> tuple[PlotRun, ...]:
+        """Las tramas que lleva ahora esta persona: la personal y la de arco, si tiene. La
+        personal va primero: es el orden en que se miran, y se decide por el hueco, no por id."""
+        return tuple(
+            run for run in (self.tramas.get(quien), self.tramas_de_arco.get(quien))
+            if run is not None
+        )
 
     def arco_en_fase(self, arco: str, fase: str) -> bool:
         """Si el arco está ahora en esa fase. Es lo que lee una trama con `arc_phase`."""

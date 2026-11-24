@@ -263,7 +263,7 @@ def save(
     caso normal cuando se esta calibrando.
     """
     pack_ids = {a.id for a in world.pack.agents}
-    datos = {
+    datos: dict[str, Any] = {
         "formato": FORMATO,
         "pack": world.pack.id,
         "tick": world.tick,
@@ -302,6 +302,11 @@ def save(
         "tramas": {
             str(quien): _trama_a_json(run) for quien, run in sorted(world.tramas.items())
         },
+        # El hueco de arco (23b-1-fix): solo si hay alguna, para que un mundo sin arcos guarde lo
+        # mismo que antes.
+        **({"tramas_de_arco": {
+            str(quien): _trama_a_json(run) for quien, run in sorted(world.tramas_de_arco.items())
+        }} if world.tramas_de_arco else {}),
         "tramas_vividas": {
             str(quien): {str(p): t for p, t in sorted(vividas.items())}
             for quien, vividas in sorted(world.tramas_vividas.items()) if vividas
@@ -429,6 +434,11 @@ def _arco_a_dict(run: ArcRun) -> dict[str, Any]:
             str(contador): [[str(q), n] for q, n in sorted(atribuidos.items())]
             for contador, atribuidos in sorted(run.aportes.items())
         },
+        "llevaron": {
+            str(sit): sorted(str(q) for q in quienes)
+            for sit, quienes in sorted(run.llevaron.items())
+        },
+        "en_zona": sorted(str(q) for q in run.en_zona),
     }
 
 
@@ -445,6 +455,12 @@ def _arco_de_dict(datos: dict[str, Any]) -> ArcRun:
             CounterId(str(contador)): {AgentId(str(q)): int(n) for q, n in atribuidos}
             for contador, atribuidos in datos["aportes"].items()
         },
+        # `.get`: un guardado de antes de las condiciones relativas no lleva estas dos listas.
+        llevaron={
+            SituationId(str(sit)): {AgentId(str(q)) for q in quienes}
+            for sit, quienes in datos.get("llevaron", {}).items()
+        },
+        en_zona=frozenset(AgentId(str(q)) for q in datos.get("en_zona", [])),
     )
 
 
@@ -929,6 +945,10 @@ def load(
     world.tramas = {
         AgentId(str(quien)): _trama_de_json(run) for quien, run in datos.get("tramas", {}).items()
     }
+    world.tramas_de_arco = {
+        AgentId(str(quien)): _trama_de_json(run)
+        for quien, run in datos.get("tramas_de_arco", {}).items()
+    }
     world.tramas_vividas = {
         AgentId(str(quien)): {PlotId(str(p)): int(t) for p, t in vividas.items()}
         for quien, vividas in datos.get("tramas_vividas", {}).items()
@@ -969,6 +989,8 @@ def _trama_a_json(run: PlotRun) -> dict[str, Any]:
             "siguiente": None if intencion.siguiente is None else str(intencion.siguiente),
             "si_caduca": None if intencion.si_caduca is None else str(intencion.si_caduca),
         },
+        # Solo la trama de arco lo lleva: una personal se escribe como antes.
+        **({"arco": str(run.arco)} if run.arco is not None else {}),
     }
 
 
@@ -989,4 +1011,5 @@ def _trama_de_json(datos_trama: dict[str, Any]) -> PlotRun:
             si_caduca=None if intencion["si_caduca"] is None
             else StepId(str(intencion["si_caduca"])),
         ),
+        arco=None if datos_trama.get("arco") is None else ArcId(str(datos_trama["arco"])),
     )

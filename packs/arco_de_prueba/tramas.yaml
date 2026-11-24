@@ -1,0 +1,41 @@
+# Tramas del pack de prueba de arcos (23b-1-fix, A.3). Una personal, y una de arco que solo
+# empieza en la convocatoria: así una persona puede llevar las dos a la vez (A.2).
+plots:
+  - id: charla_personal
+    label: "Una charla pendiente"
+    category: comunidad
+    chance: 0.5
+    cooldown_days: 3
+    steps:
+      - id: decidir
+        choices:
+          - label: "Hablar"
+            appeal: {sociabilidad: 1.0}
+            effects:
+              - {need: vinculo, delta: 0.05}
+            next: null
+          - label: "Callar"
+            appeal: {codicia: 0.5}
+            effects: []
+            default: true
+            next: null
+  - id: invitacion
+    label: "La invitación"
+    category: arco
+    chance: 0.5
+    cooldown_days: 365
+    when:
+      - {arc_phase: {arc: reunion, phase: convocatoria}}
+    steps:
+      - id: decidir
+        choices:
+          - label: "Ir a la reunión"
+            appeal: {sociabilidad: 1.0}
+            effects:
+              - {need: vinculo, delta: 0.05}
+            next: null
+          - label: "Quedarte en casa"
+            appeal: {laboriosidad: 0.5}
+            effects: []
+            default: true
+            next: null

@@ -1,0 +1,282 @@
+# =============================================================================
+# Pack de prueba de arcos (23b-1-fix, A.3). Es dark_fantasy con doce personas, para que los
+# contadores de un arco varíen con la semilla. No es un mundo: no hay nada que calibrar aquí.
+#
+# Este fichero es el ÚNICO sitio donde este mundo existe. El motor lo carga y
+# no sabe nada más. Cambiar de ambientación = cambiar de pack, cero código.
+#
+# Reloj: 1 tick = 15 minutos simulados -> 96 ticks por día.
+#
+# AVISO: los números de abajo están sin calibrar. Son un punto de partida
+# plausible, no una respuesta. Ajustarlos hasta que las dos vidas se lean
+# coherentes ES el trabajo de F0.
+# =============================================================================
+
+id: arco_de_prueba
+label: "Prueba del arco: la aldea de Ceniza Baja"
+
+# -----------------------------------------------------------------------------
+# CONTRATO DE SALUD — deliberadamente mínimo
+#
+# Este pack NO está calibrado, y no debe estarlo. Su trabajo es probar que el
+# motor es agnóstico: una ambientación completamente distinta corriendo sin
+# tocar una línea de código. Para eso basta con que funcione.
+#
+# Medido hoy: crisis 47 %, abandonos 22 %, diferenciación 0.026 — Mira y Toma
+# viven casi la misma vida. Se degradó al ir evolucionando el motor (costes,
+# temperamento, hastío, coste de cambio) sin volver a ajustar sus números.
+# Está aquí escrito para que sea una decisión y no un olvido.
+#
+# Por eso solo se le exigen los invariantes universales: que nadie se bloquee y
+# que ningún valor se salga de rango. Ponerle bandas que ya cumple sería
+# escribir un test para que pase, que es peor que no tenerlo.
+# -----------------------------------------------------------------------------
+health:
+  days: 7
+  seeds: [1312, 7, 99]
+  may_go_unused: [holgar]
+
+# -----------------------------------------------------------------------------
+# CALIBRACIÓN. Estas cuatro perillas no dicen QUÉ existe en el mundo, sino CÓMO
+# deciden sus habitantes. Son las que más cambian la sensación de la partida y
+# las que vas a mover más veces. Ninguna requiere tocar código.
+# -----------------------------------------------------------------------------
+tuning:
+  # Se aplica una vez por tick de viaje: descuento ** ticks.
+  #   0.95 ** 6 = 0.74  -> ir al campo cuesta un 26 % de atractivo
+  # Subirlo hacia 1.0 = agentes que cruzan la aldea por un capricho.
+  # Bajarlo = agentes sedentarios que solo usan lo que tienen a mano.
+  travel_discount: 0.95
+
+  # Cuántas de las mejores opciones entran en el sorteo final.
+  # 1 = argmax puro: determinista y robótico, todos los días idénticos.
+  candidate_pool: 3
+
+  # Cuánto pesa el azar frente a la utilidad entre los finalistas.
+  # Cerca de 0 = casi siempre gana el mejor. Alta = veleta.
+  temperature: 0.15
+
+  # Por debajo de esto, una necesidad puede interrumpir lo que se esté haciendo.
+  # Solo interrumpe si la acción en curso NO la atiende: nadie abandona la
+  # comida por hambre. 0.0 desactiva las interrupciones por completo.
+  critical_need_threshold: 0.15
+
+# -----------------------------------------------------------------------------
+# Necesidades. Nótese que "fe" no tiene nada de especial para el motor:
+# es un eje que decae, igual que el sustento. Ahí está el agnosticismo.
+# -----------------------------------------------------------------------------
+needs:
+  - id: sustento
+    label: "sustento"
+    decay_per_tick: 0.015     # vacío en ~16 h
+    initial: 0.8
+    base_weight: 1.0
+    urgency_exponent: 2.5     # apremia tarde, pero cuando apremia es tirano
+
+  - id: descanso
+    label: "descanso"
+    decay_per_tick: 0.012     # vacío en ~20 h
+    initial: 0.9
+    base_weight: 1.0
+    urgency_exponent: 2.0
+
+  - id: moneda
+    label: "moneda"
+    decay_per_tick: 0.002     # sangría lenta: vivir cuesta
+    initial: 0.5
+    base_weight: 0.8
+    urgency_exponent: 1.5     # casi lineal: se piensa en dinero siempre un poco
+
+  - id: vinculo
+    label: "vínculo"
+    decay_per_tick: 0.0035    # vacío en ~3 días
+    initial: 0.6
+    base_weight: 0.7
+    urgency_exponent: 2.0
+
+# -----------------------------------------------------------------------------
+# Rasgos: reescalan el peso de las necesidades según la intensidad del agente.
+# Un multiplicador de 1.0 es "sin efecto"; se interpola desde ahí.
+# -----------------------------------------------------------------------------
+traits:
+  - id: sociabilidad
+    label: "sociabilidad"
+    need_weight_multipliers:
+      vinculo: 2.0
+      descanso: 0.9
+
+  - id: laboriosidad
+    label: "laboriosidad"
+    need_weight_multipliers:
+      moneda: 1.5
+      descanso: 0.7          # el laborioso subestima su propio cansancio
+
+  - id: codicia
+    label: "codicia"
+    need_weight_multipliers:
+      moneda: 2.2
+      vinculo: 0.6
+
+# -----------------------------------------------------------------------------
+# Acciones estacionarias. Moverse NO está aquí: es primitiva del motor.
+#
+# `satisfies` = lo que el agente CREE al deliberar (0..1).
+# `effects`   = lo que realmente pasa al completar (delta, puede ser negativo).
+# Que difieran es intencional: permite que un NPC se equivoque.
+# -----------------------------------------------------------------------------
+actions:
+  - id: comer
+    label: "comer"
+    duration_ticks: 2                 # 30 min
+    requires_affordance: comida
+    satisfies: { sustento: 1.0 }
+    costs:    { moneda: 0.35 }
+    effects:  { sustento: +0.75, moneda: -0.06 }
+
+  - id: dormir
+    label: "dormir"
+    duration_ticks: 28                # 7 h
+    requires_affordance: lecho
+    satisfies: { descanso: 1.0 }
+    effects:  { descanso: +0.95 }
+
+  - id: trabajar
+    label: "trabajar"
+    duration_ticks: 16                # 4 h
+    requires_affordance: labor
+    satisfies: { moneda: 0.9 }
+    costs:    { descanso: 0.45, sustento: 0.25 }
+    effects:  { moneda: +0.22, descanso: -0.18, sustento: -0.08 }
+    tags: [agotadora]
+
+  - id: departir
+    label: "departir con alguien"
+    duration_ticks: 6                 # 1.5 h
+    requires_affordance: reunion
+    satisfies: { vinculo: 1.0 }
+    costs:    { descanso: 0.10 }
+    effects:  { vinculo: +0.6, descanso: -0.04 }
+    tags: [social]
+
+  - id: holgar
+    # La red de seguridad. Sin affordance -> siempre válida, en cualquier sitio.
+    # Sin esto tendrás agentes bloqueados sin ninguna opción legal.
+    label: "holgar"
+    duration_ticks: 4
+    satisfies: { descanso: 0.2 }
+    effects:  { descanso: +0.06 }
+
+# -----------------------------------------------------------------------------
+# Lugares. Grafo dirigido: `neighbors` es destino -> ticks de viaje.
+# -----------------------------------------------------------------------------
+places:
+  - id: casa_mira
+    label: "la casa de Mira"
+    affordances: [lecho, comida]
+    tags: [privado, hogar]
+    neighbors: { plaza: 2 }
+
+  - id: casa_toma
+    label: "la casa de Toma"
+    affordances: [lecho, comida]
+    tags: [privado, hogar]
+    neighbors: { plaza: 3 }
+
+  - id: plaza
+    label: "la plaza de Ceniza Baja"
+    affordances: [reunion]
+    tags: [publico, vigilado]
+    neighbors: { casa_mira: 2, casa_toma: 3, posada: 1, campo: 4 }
+
+  - id: posada
+    label: "la posada del Cuervo Manco"
+    affordances: [comida, reunion, lecho]
+    tags: [publico, calido]
+    neighbors: { plaza: 1 }
+
+  - id: campo
+    label: "los campos de labranza"
+    affordances: [labor]
+    tags: [abierto, expuesto]
+    neighbors: { plaza: 4 }
+
+# -----------------------------------------------------------------------------
+# Agentes.
+#
+# Ninguno tiene una rutina escrita. Las rutinas deben EMERGER de estos números.
+# Si no emergen, están mal las curvas o las tasas de decay: ese es el bug real
+# que F0 existe para encontrar.
+# -----------------------------------------------------------------------------
+agents:
+  - id: aska
+    label: "Aska"
+    home: casa_mira
+    start_at: casa_mira
+    traits: { sociabilidad: -0.7, laboriosidad: 0.9, codicia: -0.4 }
+    initial_needs: { moneda: 0.3, descanso: 0.5 }
+  - id: bren
+    label: "Bren"
+    home: casa_toma
+    start_at: casa_toma
+    traits: { sociabilidad: -0.57, laboriosidad: 0.75, codicia: -0.05 }
+    initial_needs: { moneda: 0.4, descanso: 0.6 }
+  - id: cael
+    label: "Cael"
+    home: casa_mira
+    start_at: casa_mira
+    traits: { sociabilidad: -0.44, laboriosidad: 0.6, codicia: 0.3 }
+    initial_needs: { moneda: 0.5, descanso: 0.7 }
+  - id: doru
+    label: "Doru"
+    home: casa_toma
+    start_at: casa_toma
+    traits: { sociabilidad: -0.31, laboriosidad: 0.45, codicia: -0.19 }
+    initial_needs: { moneda: 0.6, descanso: 0.8 }
+  - id: elda
+    label: "Elda"
+    home: casa_mira
+    start_at: casa_mira
+    traits: { sociabilidad: -0.18, laboriosidad: 0.3, codicia: 0.16 }
+    initial_needs: { moneda: 0.7, descanso: 0.5 }
+  - id: fenn
+    label: "Fenn"
+    home: casa_toma
+    start_at: casa_toma
+    traits: { sociabilidad: -0.05, laboriosidad: 0.15, codicia: -0.33 }
+    initial_needs: { moneda: 0.3, descanso: 0.6 }
+  - id: gorr
+    label: "Gorr"
+    home: casa_mira
+    start_at: casa_mira
+    traits: { sociabilidad: 0.08, laboriosidad: 0.0, codicia: 0.02 }
+    initial_needs: { moneda: 0.4, descanso: 0.7 }
+  - id: hesta
+    label: "Hesta"
+    home: casa_toma
+    start_at: casa_toma
+    traits: { sociabilidad: 0.21, laboriosidad: -0.15, codicia: 0.37 }
+    initial_needs: { moneda: 0.5, descanso: 0.8 }
+  - id: ivo
+    label: "Ivo"
+    home: casa_mira
+    start_at: casa_mira
+    traits: { sociabilidad: 0.34, laboriosidad: -0.3, codicia: -0.12 }
+    initial_needs: { moneda: 0.6, descanso: 0.5 }
+  - id: jana
+    label: "Jana"
+    home: casa_toma
+    start_at: casa_toma
+    traits: { sociabilidad: 0.47, laboriosidad: -0.45, codicia: 0.23 }
+    initial_needs: { moneda: 0.7, descanso: 0.6 }
+  - id: kell
+    label: "Kell"
+    home: casa_mira
+    start_at: casa_mira
+    traits: { sociabilidad: 0.6, laboriosidad: -0.6, codicia: -0.26 }
+    initial_needs: { moneda: 0.3, descanso: 0.7 }
+  - id: lira
+    label: "Lira"
+    home: casa_toma
+    start_at: casa_toma
+    traits: { sociabilidad: 0.73, laboriosidad: -0.75, codicia: 0.09 }
+    initial_needs: { moneda: 0.4, descanso: 0.8 }

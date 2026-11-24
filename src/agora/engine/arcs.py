@@ -36,6 +36,7 @@ from agora.engine.ontology import (
     ArcCondition,
     ArcFeed,
     ArcId,
+    ArcPeople,
     ArcPhase,
     ArcResult,
     ArcSide,
@@ -140,7 +141,38 @@ def _total(run: ArcRun, contador: CounterId) -> int:
     return sum(run.aportes.get(contador, {}).values())
 
 
-def _cumple_contador(run: ArcRun, c: CounterCond) -> bool:
+def _personas(run: ArcRun, grupo: ArcPeople, mundo: World | None) -> int:
+    """Cuántas personas forman el grupo ahora: quien llevó la condición durante el arco, quien
+    estaba en la zona al entrar en la fase, o quien vive. Solo quien vive necesita el mundo."""
+    if grupo.condition is not None:
+        return len(run.llevaron.get(grupo.condition, ()))
+    if grupo.zone:
+        return len(run.en_zona)
+    if mundo is None:
+        raise ValueError("contar a quien vive pide el mundo")
+    return len(mundo.state.agents)
+
+
+def _cumple_contador(run: ArcRun, c: CounterCond, mundo: World | None = None) -> bool:
+    """Una condición de contador en su forma (23b-1-fix, A.1). Las relativas se comparan con
+    el total multiplicado por un número declarado: con `n = 0`, las de grupo son falsas."""
+    if c.ratio is not None:
+        r = c.ratio
+        a, b = _total(run, r.counter), _total(run, r.over)
+        return (r.at_least is None or a >= r.at_least * b) and (
+            r.at_most is None or a <= r.at_most * b
+        )
+    if c.per is not None:
+        p = c.per
+        n = _personas(run, p.people, mundo)
+        if n == 0:
+            return False
+        a = _total(run, p.counter)
+        return (p.at_least is None or a >= p.at_least * n) and (
+            p.at_most is None or a <= p.at_most * n
+        )
+    if c.counter is None:  # pragma: no cover - `CounterCond` valida que haya una forma
+        raise ValueError("condición de contador sin forma")
     if c.mas_que is not None:
         return _total(run, c.counter) > _total(run, c.mas_que)
     total = _total(run, c.counter)
@@ -255,7 +287,7 @@ def _avanzar(mundo: World, arco: ArcSpec, run: ArcRun) -> None:
     if not _fase_cumplida(mundo, run, fase):
         return
     _salir(mundo, run, fase)
-    destino = _rama(run, fase)
+    destino = _rama(run, fase, mundo)
     if destino is None:
         _cerrar(mundo, arco, run, fase.id)
         return
@@ -265,14 +297,14 @@ def _avanzar(mundo: World, arco: ArcSpec, run: ArcRun) -> None:
 def _fase_cumplida(mundo: World, run: ArcRun, fase: ArcPhase) -> bool:
     if fase.days is not None:
         return run.hasta is not None and mundo.state.tick >= run.hasta
-    return fase.until is not None and _cumple_contador(run, fase.until)
+    return fase.until is not None and _cumple_contador(run, fase.until, mundo)
 
 
-def _rama(run: ArcRun, fase: ArcPhase) -> PhaseId | None:
+def _rama(run: ArcRun, fase: ArcPhase, mundo: World | None = None) -> PhaseId | None:
     """La primera rama cuyo `if` se cumple; la de por defecto va la última. Sin ramas, el
     arco acaba aquí."""
     for rama in fase.next:
-        if rama.if_ is None or _cumple_contador(run, rama.if_):
+        if rama.if_ is None or _cumple_contador(run, rama.if_, mundo):
             return rama.to
     return None
 
@@ -292,6 +324,12 @@ def _entrar(mundo: World, arco: ArcSpec, run: ArcRun, fase: ArcPhase) -> None:
     """Entra en una fase: enciende sus situaciones, hace sus llegadas y lo presencia quien
     está allí. La siembra de las tramas no hace nada aquí: lee la fase en su `when`."""
     s = mundo.state
+    # Quién está en la zona ANTES de que lleguen los de esta fase: es lo que cuenta la
+    # condición `people: {zone}` (23b-1-fix, A.1).
+    zona = _zona(mundo.pack, arco)
+    run.en_zona = frozenset(
+        agente.spec_id for agente in s.agents_in_order() if zona is None or agente.at in zona
+    )
     run.fase = fase.id
     run.desde = s.tick
     run.hasta = None if fase.days is None else s.tick + _dias(mundo, arco, run, fase) * (
@@ -344,6 +382,8 @@ def _cerrar(mundo: World, arco: ArcSpec, run: ArcRun, rama: PhaseId) -> None:
         for sit, dias in sorted(residuo.situations.items()):
             mundo.begin_situation(sit, dias * tpd, porque=f"arco {arco.id}")
 
+    # Las tramas de arco de quien quedó sin arco acaban aquí, y su hueco se libera.
+    mundo._cerrar_tramas_de_arco(arco.id)
     reconocido = _reconocer(mundo, arco, run)
     del s.arcos[arco.id]
     s.arcos_terminados[arco.id] = (rama, s.tick)
@@ -474,6 +514,12 @@ def alimentar(mundo: World, evento: Event) -> None:
     for arco_id in sorted(s.arcos):
         arco = _arco(mundo.pack, arco_id)
         run = s.arcos[arco_id]
+        # Quién llevó cada condición personal mientras el arco corre: lo mira `people`.
+        if (evento.kind is EventKind.SITUATION_BEGAN and evento.data.get("personal") is True
+                and evento.actor is not None):
+            run.llevaron.setdefault(
+                SituationId(str(evento.data.get("situation"))), set()
+            ).add(evento.actor)
         zona = _zona(mundo.pack, arco)
         sembradas = _sembradas(arco)
         for contador in arco.counters:

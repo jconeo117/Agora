@@ -1,0 +1,43 @@
+# Arco de prueba (23b-1-fix, A.3): una reunión que sale o no según una condición RELATIVA. La
+# rama `fiesta` cuelga de `ratio`: que las charlas alcancen a las jornadas, no un número escrito.
+# Es un pack de prueba: no hay nada que calibrar aquí, solo que ambas ramas salgan.
+arcs:
+  - id: reunion
+    label: Reunión de la plaza
+    scale: event
+    trigger:
+      - calendar: {every_days: 30, start_day: 2}
+    phases:
+      - id: convocatoria
+        label: convocatoria
+        days: {min: 2, max: 2}
+        places: [plaza, posada, campo]
+        seeds: [invitacion]
+        next:
+          - {to: reunion}
+      - id: reunion
+        label: reunión
+        days: {min: 3, max: 3}
+        places: [plaza, posada, campo]
+        next:
+          - if: {ratio: {counter: charlas, over: jornadas, at_least: 0.48}}
+            to: fiesta
+          - {to: dispersion}
+      - id: fiesta
+        label: fiesta
+        days: {min: 1, max: 1}
+      - id: dispersion
+        label: dispersión
+        days: {min: 1, max: 1}
+    counters:
+      - id: charlas
+        label: charlas en la plaza
+        feeds:
+          - {action: departir}
+      - id: jornadas
+        label: jornadas de trabajo
+        feeds:
+          - {action: trabajar}
+    residues:
+      fiesta:
+        fame: 0.02

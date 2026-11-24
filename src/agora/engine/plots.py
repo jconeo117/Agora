@@ -25,6 +25,7 @@ from agora.engine.events import EventKind
 from agora.engine.ontology import (
     PROTAGONIST_KINDS,
     REF_KINDS,
+    ArcId,
     ArcSide,
     Beat,
     BeatKind,
@@ -267,8 +268,32 @@ def _papeles(
     return refs
 
 
-def _sembrar(mundo: World, yo: AgentState, dia: int) -> None:
-    """Sortea, entre las tramas que cumplen, la de hoy para esta persona."""
+def _arco_de(trama: PlotSpec) -> ArcId | None:
+    """El arco que siembra esta trama, si solo puede empezar en una fase suya (23b-1-fix)."""
+    for c in trama.when:
+        if c.arc_phase is not None:
+            return ArcId(str(c.arc_phase.arc))
+    return None
+
+
+def _ranura(s: WorldState, de_arco: bool) -> dict[AgentId, PlotRun]:
+    """El hueco que ocupa una trama: el personal o el de arco. Son dos, y no se pisan."""
+    return s.tramas_de_arco if de_arco else s.tramas
+
+
+def _ranura_de(s: WorldState, quien: AgentId, run: PlotRun) -> dict[AgentId, PlotRun]:
+    """El hueco donde vive esta trama concreta. Se decide por identidad, no por la clase."""
+    return s.tramas_de_arco if s.tramas_de_arco.get(quien) is run else s.tramas
+
+
+def _sigue(s: WorldState, quien: AgentId, run: PlotRun) -> bool:
+    return s.tramas.get(quien) is run or s.tramas_de_arco.get(quien) is run
+
+
+def _sembrar(mundo: World, yo: AgentState, dia: int, de_arco: bool = False) -> None:
+    """Sortea, entre las tramas que cumplen, la de hoy para esta persona en el hueco que se
+    pide: el personal, o el de arco (23b-1-fix, A.2). Una trama de arco nunca ocupa el hueco
+    personal, y al revés."""
     s = mundo.state
     libro = mundo.pack.plots
     if libro is None:
@@ -277,6 +302,8 @@ def _sembrar(mundo: World, yo: AgentState, dia: int) -> None:
     vividas = s.tramas_vividas.get(yo.spec_id, {})
     candidatas: list[PlotSpec] = []
     for trama in libro.plots:
+        if (_arco_de(trama) is not None) != de_arco:
+            continue
         ultimo = vividas.get(trama.id)
         if ultimo is not None and (trama.once or s.tick - ultimo < trama.cooldown_days * tpd):
             continue
@@ -308,8 +335,10 @@ def _sembrar(mundo: World, yo: AgentState, dia: int) -> None:
 
 def _empezar(mundo: World, yo: AgentState, trama: PlotSpec, refs: dict[str, AgentId]) -> None:
     s = mundo.state
-    s.tramas[yo.spec_id] = PlotRun(
+    arco = _arco_de(trama)
+    _ranura(s, arco is not None)[yo.spec_id] = PlotRun(
         plot=trama.id, empezo=s.tick, refs=dict(refs), paso=trama.steps[0].id, desde=s.tick,
+        arco=arco,
     )
     s.tramas_vividas.setdefault(yo.spec_id, {})[trama.id] = s.tick
     mundo._registrar(
@@ -410,7 +439,7 @@ def _ir_a(mundo: World, yo: AgentState, run: PlotRun, paso: StepId | None, motiv
 
 def _terminar(mundo: World, yo: AgentState, run: PlotRun, motivo: str) -> None:
     s = mundo.state
-    s.tramas.pop(yo.spec_id, None)
+    _ranura_de(s, yo.spec_id, run).pop(yo.spec_id, None)
     mundo._registrar(
         tick=s.tick, kind=EventKind.PLOT_ENDED, actor=yo.spec_id, place=yo.at,
         data={"plot": str(run.plot), "motivo": motivo},
@@ -431,11 +460,14 @@ def pasar_dia(mundo: World) -> None:
         for quien in sorted(s.fama):
             s.fama[quien] = max(0.0, s.fama[quien] - libro.fame.decay_per_day)
     for yo in list(s.agents_in_order()):
-        run = s.tramas.get(yo.spec_id)
-        if run is None:
-            _sembrar(mundo, yo, dia)
-        else:
-            _avanzar_dia(mundo, yo, run)
+        # Primero el hueco personal y luego el de arco. Sin arcos, el de arco no tiene
+        # candidatas y no gasta ni un sorteo: el log de los packs de antes no cambia.
+        for de_arco in (False, True):
+            run = _ranura(s, de_arco).get(yo.spec_id)
+            if run is None:
+                _sembrar(mundo, yo, dia, de_arco)
+            else:
+                _avanzar_dia(mundo, yo, run)
 
 
 def _avanzar_dia(mundo: World, yo: AgentState, run: PlotRun) -> None:
@@ -492,12 +524,20 @@ def _caduca(mundo: World, yo: AgentState, run: PlotRun) -> None:
 
 
 def al_quedar_ocioso(mundo: World, yo: AgentState) -> bool:
-    """Lo que la trama de esta persona pide en su momento ocioso. Devuelve `True` si una
-    acción de la trama ya se ejecutó en ese momento: entonces no se delibera otra cosa.
-    Un paso de decisión se resuelve, y el momento sigue libre para deliberar."""
-    run = mundo.state.tramas.get(yo.spec_id)
-    if run is None:
-        return False
+    """Lo que las tramas de esta persona piden en su momento ocioso, la personal y la de arco
+    (23b-1-fix, A.2). Devuelve `True` si una acción de alguna trama ya se ejecutó en ese
+    momento: entonces no se delibera otra cosa. Un paso de decisión se resuelve, y el momento
+    sigue libre para deliberar."""
+    for run in mundo.state.tramas_de(yo.spec_id):
+        # Una trama puede haber acabado por la anterior de la misma vuelta.
+        if not _sigue(mundo.state, yo.spec_id, run):
+            continue
+        if _ocioso_de(mundo, yo, run):
+            return True
+    return False
+
+
+def _ocioso_de(mundo: World, yo: AgentState, run: PlotRun) -> bool:
     if run.intencion is not None:
         return _ejecutar_intencion(mundo, yo, run)
     trama = _trama(mundo, run.plot)
@@ -699,28 +739,49 @@ def _probar(mundo: World, yo: AgentState, run: PlotRun, uso: TestUse) -> bool:
 def inclinacion(state: WorldState, yo: AgentState, opcion: Decision) -> float:
     """El multiplicador que la trama de `yo` da a una opción. Sin trama, 1. Nunca toca a
     la referencia: solo la utilidad del protagonista, con el tope de `tuning`."""
-    run = state.tramas.get(yo.spec_id)
-    if run is None:
+    tramas = state.tramas_de(yo.spec_id)
+    if not tramas:
         return 1.0
     tope = state.pack.tuning.plot_lean_max
     visto = yo.sightings.get(opcion.place)
     factor = 1.0
-    if run.intencion is not None:
-        # Una acción pedida inclina hacia donde se ve a la referencia, al tope.
-        if visto is not None and run.intencion.ref in visto[1]:
-            factor *= tope
-    elif state.pack.plots is not None:
-        trama = next((t for t in state.pack.plots.plots if t.id == run.plot), None)
-        paso = None if trama is None else next(
-            (p for p in trama.steps if p.id == run.paso), None
-        )
-        if paso is not None and paso.expects is not None:
-            for lean in paso.leanings:
-                if lean.where_seen is not None:
-                    ref = run.refs.get(lean.where_seen)
-                    if ref is not None and visto is not None and ref in visto[1]:
+    # Cada trama que lleva empuja; las dos se componen (23b-1-fix, A.2). Con una sola, es lo de
+    # siempre.
+    for run in tramas:
+        if run.intencion is not None:
+            # Una acción pedida inclina hacia donde se ve a la referencia, al tope.
+            if visto is not None and run.intencion.ref in visto[1]:
+                factor *= tope
+        elif state.pack.plots is not None:
+            trama = next((t for t in state.pack.plots.plots if t.id == run.plot), None)
+            paso = None if trama is None else next(
+                (p for p in trama.steps if p.id == run.paso), None
+            )
+            if paso is not None and paso.expects is not None:
+                for lean in paso.leanings:
+                    if lean.where_seen is not None:
+                        ref = run.refs.get(lean.where_seen)
+                        if ref is not None and visto is not None and ref in visto[1]:
+                            factor *= lean.multiplier
+                    elif lean.action_tag is not None and \
+                            lean.action_tag in state.pack.action_by_id[opcion.action].tags:
                         factor *= lean.multiplier
-                elif lean.action_tag is not None and \
-                        lean.action_tag in state.pack.action_by_id[opcion.action].tags:
-                    factor *= lean.multiplier
     return min(tope, max(1.0 / tope, factor))
+
+
+def cerrar_de_arco(mundo: World, arco: ArcId) -> None:
+    """Un arco acaba: cada trama de arco que nació de él termina. Si está esperando un latido
+    con plazo de caducidad, pasa a su `on_timeout`; si no, acaba aquí (23b-1-fix, A.2). Libera
+    el hueco de arco, que es lo que la siguiente fase de otro arco necesita."""
+    s = mundo.state
+    for quien in sorted(s.tramas_de_arco):
+        run = s.tramas_de_arco.get(quien)
+        if run is None or run.arco != arco:
+            continue
+        yo = s.agents.get(quien)
+        if yo is None:  # pragma: no cover - una muerte ya la quitó del hueco
+            continue
+        paso = _paso(_trama(mundo, run.plot), run.paso)
+        run.intencion = None
+        _ir_a(mundo, yo, run, paso.on_timeout if paso.expects is not None else None,
+              "arco_cerrado")

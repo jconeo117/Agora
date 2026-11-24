@@ -134,8 +134,7 @@ def _lineas_de_tramas(world: WorldState, agent: AgentState) -> tuple[str, ...]:
     for marca in libro.marks:
         if not marca.hidden and marcas.get(marca.id, 0) > 0:
             salida.append(f"{marca.label}: {marcas[marca.id]}")
-    run = world.tramas.get(agent.spec_id)
-    if run is not None:
+    for run in world.tramas_de(agent.spec_id):
         trama = next(t for t in libro.plots if t.id == run.plot)
         salida.append(f"En curso: {trama.label}")
     return tuple(salida)
