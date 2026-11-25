@@ -53,6 +53,7 @@ PROMPTS = Path(__file__).parent / "prompts"
 TELL = (PROMPTS / "narrador.txt").read_text(encoding="utf-8")
 ANSWER = (PROMPTS / "pregunta.txt").read_text(encoding="utf-8")
 OPENING_PROMPT = (PROMPTS / "apertura.txt").read_text(encoding="utf-8")
+VUELTA_PROMPT = (PROMPTS / "vuelta.txt").read_text(encoding="utf-8")
 
 DEATH = "muerte"
 """La etiqueta de contenido de una muerte. Es la única que pone el código: la
@@ -109,6 +110,8 @@ class Kind(StrEnum):
     ROUND = "ronda"
     QUESTION = "pregunta"
     OPENING = "apertura"
+    VUELTA = "vuelta"
+    """La última vez, al continuar una partida guardada (25, A.5): un momento corto."""
 
 
 PROSA_MAX = 1200
@@ -681,6 +684,8 @@ def _lista(partes: list[str]) -> str:
 
 
 def briefing(m: Moment) -> str:
+    if m.kind is Kind.VUELTA:
+        return _briefing_vuelta(m)
     if m.kind is Kind.OPENING:
         return _briefing_apertura(m)
     lines = [f"PERSONAJE: {m.player} (el jugador: tú)", f"LUGAR: {m.place}"]
@@ -733,6 +738,8 @@ def strangers(m: Moment, prose: str) -> tuple[str, ...]:
 
 
 def fallback(m: Moment) -> str:
+    if m.kind is Kind.VUELTA:
+        return _vuelta_plantilla(m)
     if m.kind is Kind.OPENING:
         return _apertura_plantilla(m)
     if m.kind is Kind.QUESTION:
@@ -774,6 +781,18 @@ PRIORIDAD_MOVIMIENTO = {
 }
 """Qué se cuenta primero de lo que se mueve (unidad 22): la muerte antes que el
 nacimiento, y así. Dentro de cada prioridad, lo más reciente."""
+
+
+def vuelta_moment(
+    world: WorldState, player: str, events: Iterable[Event], table: Table
+) -> Moment:
+    """La última vez (25, A.5): dónde estás, quién eres, y lo que pasó desde tu lado en los días
+    del guardado (lo que viste u oíste, sin lo que no te tocó) y lo relevante de la crónica."""
+    base = opening_moment(world, player, events, table)
+    propios = tuple(f.text for f in select(world, events, player, Sighting(), table))[:8]
+    historia = tuple(texto for _, texto, _ in _historia(world, player))
+    return replace(base, kind=Kind.VUELTA,
+                   moving=tuple(dict.fromkeys(propios + historia))[:10])
 
 
 def opening_moment(
@@ -1054,6 +1073,39 @@ def _briefing_apertura(m: Moment) -> str:
     return OPENING_PROMPT.format(contexto="\n".join(lines))
 
 
+def _briefing_vuelta(m: Moment) -> str:
+    """Lo mismo que la apertura, con el enunciado de la vuelta: lo que pasó es lo de `moving`."""
+    lineas = [f"PERSONAJE: {m.player} (tú)", f"LUGAR: {m.place}"]
+    if m.description:
+        lineas.append(f"CÓMO ES: {m.description}")
+    if m.neighbors:
+        lineas.append("LUGARES CONTIGUOS: " + "; ".join(m.neighbors))
+    lineas.append("AQUÍ HAY: " + (", ".join(m.present[:6]) if m.present else "nadie más"))
+    if m.state:
+        lineas.append("ESTADO: " + "; ".join(m.state))
+    if m.who:
+        lineas.append("QUIÉN ERES:")
+        lineas += [f"  {w}" for w in m.who]
+    if m.moving:
+        lineas.append("LO QUE PASÓ:")
+        lineas += [f"  - {x}" for x in m.moving]
+    return VUELTA_PROMPT.format(contexto="\n".join(lineas))
+
+
+def _vuelta_plantilla(m: Moment) -> str:
+    """Sin modelo: dónde estás, quién eres y lo que pasó, en ese orden y sin inventar nada."""
+    parrafos = [f"Vuelves a {m.place}."]
+    if m.present:
+        parrafos.append(f"Aquí: {_lista(list(m.present[:6]))}.")
+    quien = [f"Eres {m.player}."]
+    quien += [f"{s[0].upper()}{s[1:]}." for s in m.state]
+    quien += [f"{w[0].upper()}{w[1:]}." for w in m.who]
+    parrafos.append(" ".join(quien))
+    if m.moving:
+        parrafos.append(f"Lo que pasó: {_lista(list(m.moving))}.")
+    return "\n\n".join(parrafos)
+
+
 def _apertura_plantilla(m: Moment) -> str:
     """Sin modelo, o si el modelo nombra a alguien o a un lugar que no se le dio: el
     mundo, luego la llegada con sus vecinos, luego quién eres, y lo que se mueve."""
@@ -1181,6 +1233,11 @@ class Narrator:
                 str(o.spec_id) for o in world.agents_in_order() if o.at == a.at))
         self.last_tick = world.tick
         return told
+
+    def vuelta(self, world: WorldState, player: str, events: Iterable[Event]) -> Told:
+        """La última vez: al continuar una partida propia (25, A.5). Con el log del guardado."""
+        m = vuelta_moment(world, player, events, self.table)
+        return narrate(m, self.providers, _seed(world, player, "vuelta"))
 
     def answer(self, world: WorldState, player: str, question: str,
                nearest: Mapping[str, tuple[str, int]]) -> Told:

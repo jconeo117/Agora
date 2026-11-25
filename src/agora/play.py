@@ -102,7 +102,9 @@ from agora.present import (
 from agora.present import (
     show as show,
 )
+from agora.rules.binding import BindingSpec
 from agora.rules.encounter import Action, ActionKind, Beat, Encounter, Fighter, Policy
+from agora.rules.system import Ruleset
 
 if TYPE_CHECKING:
     from agora.engine.ports import CognitionProvider, DecisionSource
@@ -439,6 +441,7 @@ class Terminal:
         presenter: Presenter | None = None,
         parada: threading.Event | None = None,
         apertura: bool = False,
+        enlace: tuple[Ruleset, BindingSpec] | None = None,
     ) -> None:
         self.sim = sim
         self.inp = inp
@@ -446,6 +449,9 @@ class Terminal:
         self.p: Presenter = presenter if presenter is not None else TextPresenter(inp, out)
         """Por dónde se enseña y se pregunta todo (D-174): la terminal, o la web."""
         self._apertura = apertura
+        self.enlace = enlace
+        """El sistema de la mesa y su enlace con este mundo, si los hay (25, A.1): de ahí sale la
+        ficha mecánica de la hoja propia. Sin ellos, la hoja sale como antes."""
         """Si falta contar la apertura (unidad 22): antes del primer turno, una vez.
         Una partida que se reanuda y no es una llegada no la cuenta."""
         self.parada = parada
@@ -611,7 +617,7 @@ class Terminal:
             self._esperar -= 1
             return None
         self.p.turn(world.censo[agent.spec_id].label, world.tick)
-        self.p.status(sheet_view(world, agent))
+        self.p.status(sheet_view(world, agent, enlace=self.enlace))
         self._novedades(agent)
         if not options:
             self._decir("  no hay nada que puedas hacer ahora; esperas")
@@ -694,7 +700,7 @@ class Terminal:
         otro = AgentId(sobre) if sobre is not None and AgentId(sobre) in world.agents else None
         match orden:
             case Order.SHEET:
-                self.p.sheet(sheet_view(world, agent, otro))
+                self.p.sheet(sheet_view(world, agent, otro, enlace=self.enlace))
             case Order.LOOK:
                 self._mirar(world, agent)
             case Order.TALK if otro is not None and world.agents[otro].at == agent.at:
@@ -734,7 +740,7 @@ class Terminal:
         hora = _ticks_por_hora(world)
         if self._ultimo_estado is None or world.tick - self._ultimo_estado >= hora:
             self._ultimo_estado = world.tick
-            self.p.status(sheet_view(world, agent))
+            self.p.status(sheet_view(world, agent, enlace=self.enlace))
         menu = [d for d in options if d.target is None]
         return True, choose_among(world, agent, inclinar(world, agent, menu))
 
@@ -785,20 +791,10 @@ class Terminal:
 
     def choose_plot(self, world: WorldState, agent: AgentState, vista: PlotView) -> int | None:
         """Una trama le pregunta al jugador qué hace (23a, A.4). Interrumpe el piloto: «te
-        pasa algo». Un número elige; una respuesta vacía, la opción por defecto (o la
-        última). Vacío no es «salir»: aquí no se cierra la partida."""
+        pasa algo». Cómo se pregunta lo decide el presentador (25, A.2): en texto, lo de
+        siempre. Vacío no es «salir»: aquí no se cierra la partida."""
         self.quitar_piloto("te pasa algo")
-        self.p.note(f"  {vista.plot}:")
-        for n, etiqueta in enumerate(vista.options, start=1):
-            marca = "  (por defecto)" if vista.defecto == n - 1 else ""
-            self.p.note(f"  {n}. {etiqueta}{marca}")
-        while True:
-            linea = (self.p.ask("  ¿Qué haces? ") or "").strip()
-            if not linea:
-                return vista.defecto
-            if linea.isdigit() and 1 <= int(linea) <= len(vista.options):
-                return int(linea) - 1
-            self._decir("  Elige un número de la lista.")
+        return self.p.plot(vista)
 
     def quitar_piloto(self, motivo: str) -> None:
         """Quita el piloto, y lo dice: «Vuelves en ti: …». Lo llama también la escena
@@ -1050,10 +1046,12 @@ class PlayResult:
 
 
 def play(sim: Simulation, source: DecisionSource, max_ticks: int,
-         quitting: Terminal | None = None) -> PlayResult:
+         quitting: Terminal | None = None,
+         entre_ticks: Callable[[Simulation], None] | None = None) -> PlayResult:
     """El bucle de la partida. Solo se para entre ticks: salir a mitad de uno
     dejaría a medio mundo resuelto, y guardarlo así rompería «reanudar = no
-    haber parado»."""
+    haber parado». `entre_ticks` es el sitio seguro para lo que quiera mirar el mundo
+    entre dos ticks (el autoguardado de la web, 25, A.4); la terminal no lo usa."""
     if sim.state.player is None:
         raise ValueError("esta partida no tiene jugador")
     sim.player_source = source
@@ -1064,6 +1062,8 @@ def play(sim: Simulation, source: DecisionSource, max_ticks: int,
             return PlayResult(hecho, "muerte")
         if quitting is not None and quitting.quit:
             return PlayResult(hecho, "salir")
+        if entre_ticks is not None:
+            entre_ticks(sim)
         sim.tick()
     if sim.state.finished is not None:
         return _cierre(sim, max_ticks)

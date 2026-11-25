@@ -133,9 +133,51 @@ function escribir(nodo, texto) {
 
 // -- la hoja y el tapete -------------------------------------------------------
 
+// La ficha de la mesa, en su pestaña (25, A.3): potenciales, competencias, equipo y marcas.
+// Solo para la hoja propia: la de otro no lleva nada de esto.
+function pintarFicha(v) {
+  const f = $("hoja-ficha");
+  f.replaceChildren(el("h2", "", v.nombre));
+  if (!v.propia) return;
+  if (!v.mecanica) {
+    f.appendChild(el("div", "vacio", "este mundo no tiene reglas de mesa enlazadas"));
+  } else {
+    const m = v.mecanica;
+    f.appendChild(el("div", "papel", `${m.papel}, nivel ${m.nivel}`));
+    f.appendChild(el("h2", "", "atributos"));
+    for (const [etiqueta, valor, potencial] of m.atributos) {
+      f.appendChild(el("div", "atributo", `${etiqueta} ${valor}/${potencial}`));
+    }
+    f.appendChild(el("h2", "", "competencias"));
+    if (m.competencias.length === 0) f.appendChild(el("div", "vacio", "ninguna"));
+    for (const [nombre, nivel] of m.competencias) {
+      f.appendChild(el("div", "competencia", `${nombre} ${nivel}`));
+    }
+    f.appendChild(el("h2", "", "equipo"));
+    f.appendChild(el("div", "", `arma: ${m.arma}`));
+    f.appendChild(el("div", "", `armadura: ${m.armadura ?? "ninguna"}`));
+  }
+  if (v.marcas.length > 0) {
+    f.appendChild(el("h2", "", "marcas"));
+    for (const [etiqueta, cuenta] of v.marcas) {
+      f.appendChild(el("div", "marca", `${etiqueta}: ${cuenta}`));
+    }
+  }
+}
+
+// Las dos pestañas de la hoja: Estado y Ficha. Cambiar de una a otra no toca la partida.
+function elegirPestana(nombre) {
+  document.querySelectorAll(".pestana").forEach((b) => {
+    b.classList.toggle("activa", b.dataset.pestana === nombre);
+  });
+  $("hoja").hidden = nombre !== "hoja";
+  $("hoja-ficha").hidden = nombre !== "ficha";
+}
+
 function pintarHoja(v) {
   const h = $("hoja");
   h.replaceChildren(el("h2", "", v.nombre));
+  if (v.fama) h.appendChild(el("div", "fama", `${v.fama[0]}: ${v.fama[1].toFixed(2)}`));
   for (const [etiqueta, valor, critica] of v.necesidades) {
     const fila = el("div", critica ? "necesidad critica" : "necesidad");
     const barra = el("div", "barra-valor");
@@ -147,6 +189,9 @@ function pintarHoja(v) {
   }
   for (const [etiqueta, gravedad] of v.condiciones) {
     h.appendChild(el("div", "condicion", `${etiqueta}, ${gravedad.toFixed(1)}`));
+  }
+  for (const [trama, en] of v.tramas) {
+    h.appendChild(el("div", "trama", `${trama}: ${en}`));
   }
   if (v.propia) {
     h.appendChild(el("h2", "", "equipo"));
@@ -252,7 +297,36 @@ const MANEJADORES = {
 
   estado(e) {
     pintarHoja(e);
+    pintarFicha(e);
     if (!enTurno) mostrarVivir(true);
+  },
+
+  trama(e) {
+    // Una decisión de trama (25, A.2): un momento destacado con un botón por opción. El botón
+    // manda su número; «lo que haría» manda vacío y se elige la opción por defecto.
+    const tarjeta = añadir(el("div", "trama-decision"));
+    tarjeta.appendChild(el("h3", "", e.titulo));
+    const botones = el("div", "opciones-trama");
+    const elegir = (texto, valor) => {
+      tarjeta.replaceChildren(el("p", "", texto));
+      añadir(el("div", "tu", `› ${texto}`));
+      responder(valor, false);
+    };
+    for (const o of e.opciones) {
+      botones.appendChild(boton(o.texto, "opcion-trama", () => elegir(o.texto, String(o.n))));
+    }
+    if (e.defecto !== null) {
+      const defecto = e.opciones[e.defecto - 1];
+      botones.appendChild(boton(
+        "lo que haría", "sec", () => elegir(`lo que haría: ${defecto.texto}`, ""),
+      ));
+    }
+    tarjeta.appendChild(botones);
+    setActiva(true);
+  },
+
+  guardado(e) {
+    aviso(`partida guardada (día ${e.dia}, ${e.motivo})`, "aviso discreto");
   },
 
   relato(e) {
@@ -420,6 +494,8 @@ function mostrarPartida() {
 
 function mostrarInicio() {
   enPartida = false;
+  $("guardar").hidden = true;
+  cargarPartidas().catch(() => {});
   if (fuente) fuente.close();
   fuente = null;
   $("partida").hidden = true;
@@ -460,6 +536,8 @@ function conectar(alRetomar) {
 function empezarVista() {
   relato.replaceChildren();
   $("hoja").replaceChildren();
+  $("hoja-ficha").replaceChildren();
+  $("guardar").hidden = false;
   $("dados").replaceChildren();
   $("desenlace").replaceChildren();
   $("combate").replaceChildren();
@@ -743,6 +821,44 @@ document.addEventListener("keydown", () => {
 
 $("vivir-boton").addEventListener("click", () => responder($("vivir-hasta").value));
 
+document.querySelectorAll(".pestana").forEach((b) => {
+  b.addEventListener("click", () => elegirPestana(b.dataset.pestana));
+});
+
+$("guardar").addEventListener("click", () => {
+  api("/api/guardar", "POST").catch((err) => aviso(err.message, "aviso error"));
+});
+
+// -- las partidas guardadas --------------------------------------------------------
+
+// Lo que hay para continuar: una fila por partida, con un botón por guardado que tiene.
+async function cargarPartidas() {
+  const partidas = await api("/api/partidas");
+  const caja = $("continuar-lista");
+  caja.replaceChildren();
+  $("continuar").hidden = partidas.length === 0;
+  for (const p of partidas) {
+    const fila = el("div", "partida-guardada");
+    fila.appendChild(el("span", "", `${p.personaje} · día ${p.dia}`));
+    for (const cual of p.cuales) {
+      const etiqueta = cual === "auto" ? "último día" : cual.replace("manual-", "guardado ");
+      fila.appendChild(boton(etiqueta, "sec", () => continuar(p.id, cual)));
+    }
+    caja.appendChild(fila);
+  }
+}
+
+async function continuar(id, cual) {
+  try {
+    await api("/api/continuar", "POST", { id, cual });
+  } catch (err) {
+    errorInicio(err);
+    return;
+  }
+  empezarVista();
+  conectar(false);
+}
+
 $("parar").addEventListener("click", () => {
   api("/api/parar", "POST").catch((err) => aviso(err.message, "aviso error"));
 });
@@ -755,4 +871,5 @@ $("nueva").addEventListener("click", () => {
 // -- arranque -------------------------------------------------------------------
 
 cargarMundos().catch(errorInicio);
+cargarPartidas().catch(() => {});
 conectar(true);

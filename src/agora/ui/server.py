@@ -20,6 +20,7 @@ from agora.ui.session import (
     creacion,
     guardados,
     mundos,
+    partidas_guardadas,
     personajes,
 )
 
@@ -60,6 +61,8 @@ class Manejador(BaseHTTPRequestHandler):
             self._consulta(lambda: creacion(ruta.path[len("/api/mundos/"):-len("/creacion")]))
         elif ruta.path.startswith("/api/mundos/") and ruta.path.endswith("/guardados"):
             self._consulta(lambda: guardados(ruta.path[len("/api/mundos/"):-len("/guardados")]))
+        elif ruta.path == "/api/partidas":
+            self._json(partidas_guardadas())
         elif ruta.path == "/api/eventos":
             self._eventos(parse_qs(ruta.query))
         else:
@@ -78,6 +81,10 @@ class Manejador(BaseHTTPRequestHandler):
                 self._json({"ok": True})
             else:
                 self._error(409, "no hay partida que parar")
+        elif ruta == "/api/guardar":
+            self._consulta(lambda: self._guardar())
+        elif ruta == "/api/continuar":
+            self._consulta(lambda: self._continuar())
         else:
             self._error(404, "no existe")
 
@@ -90,6 +97,14 @@ class Manejador(BaseHTTPRequestHandler):
 
     def _empezar(self) -> dict[str, Any]:
         self.server.partidas.empezar(self._cuerpo())
+        return {"ok": True}
+
+    def _guardar(self) -> dict[str, Any]:
+        self.server.partidas.guardar()
+        return {"ok": True}
+
+    def _continuar(self) -> dict[str, Any]:
+        self.server.partidas.continuar(self._cuerpo())
         return {"ok": True}
 
     def _entrada(self) -> None:

@@ -12,7 +12,12 @@ from __future__ import annotations
 import argparse
 import functools
 import io
+import itertools
+import json
+import os
 import queue
+import re
+import sys
 import threading
 import traceback
 from dataclasses import asdict, replace
@@ -34,7 +39,7 @@ from agora.engine.newcomer import (
 )
 from agora.engine.ontology import AgentId, TraitId
 from agora.engine.pack import ContentPack, load_pack
-from agora.engine.ports import CognitionProvider
+from agora.engine.ports import CognitionProvider, PlotView
 from agora.engine.state import WorldState
 from agora.engine.world import Simulation
 from agora.play import Terminal, TerminalCombat
@@ -44,13 +49,14 @@ from agora.run import (
     build_parser,
     cablear,
     correr_partida,
+    enlace_del_mundo,
     raiz_del_proyecto,
     resumen_de_la_partida,
     seguir_sin_jugador,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
 def _packs() -> Path:
     """Los mundos, en la raíz del proyecto y no en la carpeta desde la que se lanza:
@@ -104,14 +110,38 @@ NUEVO = "nuevo"
 
 def guardados(mundo: str) -> list[dict[str, str]]:
     """Desde dónde se puede empezar en este mundo: nuevo, o un estado guardado en
-    `packs/<mundo>/mundos/*.json` (unidad 22)."""
+    `packs/<mundo>/mundos/*.json` (unidad 22). Un estado ilegible no se ofrece, y se dice
+    por qué en el servidor (25, A.4): nunca rompe la pantalla de inicio."""
     ruta_del_mundo(mundo)  # valida el nombre
     carpeta = _packs() / mundo / "mundos"
     salida = [{"id": NUEVO, "label": "mundo nuevo"}]
     if carpeta.is_dir():
         salida += [{"id": p.stem, "label": p.stem.replace("-", " ")}
-                   for p in sorted(carpeta.glob("*.json"))]
+                   for p in sorted(carpeta.glob("*.json")) if _legible(p)]
     return salida
+
+
+@functools.cache
+def _legible_en(ruta: Path, mtime: int) -> str | None:
+    """Por qué un estado guardado no sirve, o `None` si sirve. Se mira una vez por versión del
+    archivo (ruta y fecha): un guardado de decenas de megas no se parsea en cada pantalla."""
+    if not ruta.is_file() or ruta.stat().st_size == 0:
+        return "vacío"
+    try:
+        datos = json.loads(ruta.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return f"no se lee ({exc.__class__.__name__})"
+    if not isinstance(datos, dict) or "agents" not in datos or "formato" not in datos:
+        return "no es un estado guardado"
+    return None
+
+
+def _legible(ruta: Path) -> bool:
+    motivo = _legible_en(ruta, ruta.stat().st_mtime_ns)
+    if motivo is not None:
+        print(f"# estado guardado descartado: {ruta.name}: {motivo}", file=sys.stderr)
+        return False
+    return True
 
 
 def _ruta_guardado(mundo: str, nombre: str) -> Path:
@@ -313,6 +343,94 @@ class WebPresenter:
                                              "defecto": defecto})
         return False if respuesta is None else _como_linea(respuesta).yes_no(pregunta, defecto)
 
+    def plot(self, vista: PlotView) -> int | None:
+        """Una decisión de trama (25, A.2): un momento destacado con un botón por opción. El
+        botón manda su número (1-based); «lo que haría» manda vacío y se elige la de por defecto.
+        Una respuesta que no es una opción también cae en la de por defecto."""
+        respuesta = self._partida.preguntar({
+            "tipo": "trama", "titulo": vista.plot,
+            "opciones": [{"n": n, "texto": t} for n, t in enumerate(vista.options, start=1)],
+            "defecto": None if vista.defecto is None else vista.defecto + 1,
+        })
+        if respuesta is None:
+            return vista.defecto
+        linea = respuesta.strip()
+        if linea.isdigit() and 1 <= int(linea) <= len(vista.options):
+            return int(linea) - 1
+        return vista.defecto
+
+
+def _carpeta_de_partidas() -> Path:
+    """Las partidas del jugador, una carpeta por partida, junto a los guiones de siempre."""
+    return raiz_del_proyecto() / "partidas"
+
+
+def _sanear(texto: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_-]+", "-", texto).strip("-") or "x"
+
+
+def _escribir_atomico(ruta: Path, escribir: Callable[[Path], None]) -> None:
+    """Escribe a un temporal y lo renombra: un corte a mitad no deja un archivo roto (25, A.4).
+    El anterior sigue válido hasta que el nuevo está entero."""
+    temporal = ruta.with_name(ruta.name + ".tmp")
+    escribir(temporal)
+    os.replace(temporal, ruta)
+
+
+def _contar_lineas(ruta: Path) -> int:
+    if not ruta.is_file():
+        return 0
+    with ruta.open(encoding="utf-8") as f:
+        return sum(1 for _ in f)
+
+
+def _recortar_guion(ruta: Path, lineas: int) -> None:
+    """Deja solo las primeras `lineas` del guion. Al continuar un guardado, lo que el guion
+    tenía después de ese momento era de otra continuación y no debe reproducirse (25, A.4)."""
+    if not ruta.is_file():
+        return
+    with ruta.open(encoding="utf-8") as f:
+        guardadas = [linea for linea in itertools.islice(f, lineas)]
+
+    def escribir(temporal: Path) -> None:
+        temporal.write_text("".join(guardadas), encoding="utf-8")
+
+    _escribir_atomico(ruta, escribir)
+
+
+def _leer_meta(carpeta: Path) -> dict[str, Any] | None:
+    """El `meta.json` de una partida, o `None` con el motivo en el servidor. Una partida sin meta
+    legible no se ofrece para continuar."""
+    ruta = carpeta / "meta.json"
+    try:
+        datos = json.loads(ruta.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"# partida descartada: {carpeta.name}: {exc.__class__.__name__}", file=sys.stderr)
+        return None
+    if not isinstance(datos, dict) or "mundo" not in datos or "personaje" not in datos:
+        print(f"# partida descartada: {carpeta.name}: meta incompleta", file=sys.stderr)
+        return None
+    return datos
+
+
+def partidas_guardadas() -> list[dict[str, Any]]:
+    """Las partidas del jugador con su meta, la más reciente primero. Las que no se leen
+    no salen."""
+    carpeta = _carpeta_de_partidas()
+    salida: list[dict[str, Any]] = []
+    if not carpeta.is_dir():
+        return salida
+    for sub in sorted(carpeta.iterdir()):
+        if not sub.is_dir():
+            continue
+        meta = _leer_meta(sub)
+        if meta is None:
+            continue
+        cuales = [c.stem for c in sorted(sub.glob("*.json")) if c.stem != "meta"]
+        salida.append({"id": sub.name, **meta, "cuales": cuales})
+    salida.sort(key=lambda p: str(p.get("fecha", "")), reverse=True)
+    return salida
+
 
 class Game:
     """Una partida de la web: su historia, su cola de respuestas y su hilo.
@@ -322,11 +440,22 @@ class Game:
     «salir»: en mitad de una conversación no cerraría nada, y el bucle daría vueltas
     sin fin preguntando lo mismo."""
 
-    def __init__(self, args: argparse.Namespace, sim: Simulation, grabar: Path) -> None:
+    def __init__(self, args: argparse.Namespace, sim: Simulation, grabar: Path,
+                 carpeta: Path | None = None, meta: dict[str, Any] | None = None,
+                 continuar: bool = False) -> None:
         self.args = args
         self.sim = sim
         self.grabar = grabar
         self.ticks = args.days * sim.pack.clock.ticks_per_day
+        self.carpeta = carpeta
+        """Donde viven los guardados de esta partida (25, A.4). `None` = sin guardados."""
+        self.meta: dict[str, Any] = meta if meta is not None else {}
+        self.continuar = continuar
+        """Si esta partida es la continuación de un guardado: no cuenta la apertura de nuevo,
+        y en su lugar dice «la última vez» (25, A.5)."""
+        self._dia_guardado: int | None = None
+        self._pedido_manual = threading.Event()
+        self._manuales = 0
         self.historia: list[dict[str, Any]] = []
         self.cerrada = False
         self.cv = threading.Condition()
@@ -384,6 +513,49 @@ class Game:
         self._respuestas.put(texto)
         return True
 
+    def pedir_guardado(self) -> None:
+        """«Guardar»: se hace en el siguiente punto seguro, entre dos ticks."""
+        self._pedido_manual.set()
+
+    def _entre_ticks(self, sim: Simulation) -> None:
+        """El punto seguro de la partida (25, A.4): entre dos ticks, con el mundo en un solo
+        estado. Guarda al empezar cada día de juego, y cuando alguien lo pide a mano."""
+        if self.carpeta is None:
+            return
+        if self._pedido_manual.is_set():
+            self._pedido_manual.clear()
+            self._manuales += 1
+            self._guardar(f"manual-{self._manuales}", "a mano")
+        dia = sim.state.tick // sim.pack.clock.ticks_per_day
+        if dia != self._dia_guardado:
+            self._dia_guardado = dia
+            self._guardar("auto", "día")
+
+    def _guardar(self, cual: str, motivo: str) -> None:
+        """Escribe el estado y la meta de esta partida, cada uno a un temporal y con `rename`."""
+        assert self.carpeta is not None
+        self.carpeta.mkdir(parents=True, exist_ok=True)
+        _escribir_atomico(self.carpeta / f"{cual}.json", self.sim.save)
+        dia = self.sim.state.tick // self.sim.pack.clock.ticks_per_day
+        lineas = _contar_lineas(self.grabar)
+        por_guardado = {**self.meta.get("lineas_por_guardado", {}), cual: lineas}
+        meta = {
+            **self.meta,
+            "dia": dia,
+            "tick": self.sim.state.tick,
+            "fecha": datetime.now().isoformat(timespec="seconds"),
+            "motivo": motivo,
+            "guardado": cual,
+            "lineas_por_guardado": por_guardado,
+        }
+        contenido = json.dumps(meta, ensure_ascii=False, indent=1)
+        def escribir_meta(temporal: Path) -> None:
+            temporal.write_text(contenido, encoding="utf-8")
+
+        _escribir_atomico(self.carpeta / "meta.json", escribir_meta)
+        self.meta = meta
+        self.publicar({"tipo": "guardado", "cual": cual, "motivo": motivo, "dia": dia})
+
     def cerrar(self) -> None:
         with self.cv:
             self.cerrada = True
@@ -397,14 +569,22 @@ class Game:
         # Una partida de la web siempre llega: se cuenta la apertura (unidad 22).
         terminal = Terminal(self.sim, io.StringIO(), io.StringIO(), self._voz,
                             interpreter=self._interprete, narrator=self._narrador,
-                            presenter=self.presentador, parada=self.parada, apertura=True)
+                            presenter=self.presentador, parada=self.parada,
+                            apertura=not self.continuar,
+                            enlace=enlace_del_mundo(self.args, self.sim.state.pack))
         escena = TerminalCombat(io.StringIO(), io.StringIO(), self._interprete, self._narrador,
                                 lambda: self.sim.state, presenter=self.presentador,
                                 empezada=terminal.quitar_piloto)
         try:
+            if self.continuar and self._narrador is not None and self.sim.state.player is not None:
+                # La última vez (25, A.5): antes de seguir, lo que pasó desde el guardado.
+                vuelta = self._narrador.vuelta(self.sim.state, str(self.sim.state.player),
+                                               list(self.sim.log.previos))
+                self.presentador.told(vuelta, chain=False)
             resultado = correr_partida(
                 self.sim, self.args, self.ticks, fuente=terminal, combate=escena,
                 escena=escena, terminal=terminal, grabar=self.grabar,
+                entre_ticks=self._entre_ticks,
             )
             seguir_sin_jugador(self.sim, self.ticks, resultado, self.presentador.note)
             self.presentador.ended(resultado.reason, resultado.ticks,
@@ -457,6 +637,48 @@ class Partidas:
         partida.parada.set()
         return True
 
+    def guardar(self) -> None:
+        """«Guardar»: la partida en curso guarda en su siguiente punto seguro (25, A.4)."""
+        partida = self.actual
+        if partida is None or partida.cerrada or partida.carpeta is None:
+            raise ValueError("no hay partida que guardar")
+        partida.pedir_guardado()
+
+    def continuar(self, pedido: dict[str, Any]) -> Game:
+        """Continúa una partida guardada (25, A.4): restaura el estado del guardado pedido, recorta
+        el guion a lo que tenía entonces y la pone a correr. «La última vez» la cuenta el
+        narrador al empezar (25, A.5)."""
+        pid = str(pedido.get("id", ""))
+        if not pid or "/" in pid or pid.startswith("."):
+            raise ValueError(f"partida desconocida: {pid!r}")
+        carpeta = _carpeta_de_partidas() / pid
+        meta = _leer_meta(carpeta)
+        if meta is None:
+            raise ValueError(f"la partida {pid!r} no se puede leer")
+        cual = str(pedido.get("cual", "auto"))
+        ruta = carpeta / f"{cual}.json"
+        if not ruta.is_file() or cual == "meta":
+            raise ValueError(f"no hay guardado {cual!r} en esta partida")
+        ruta_pack = ruta_del_mundo(str(meta["mundo"]))
+        pack = _cargar(ruta_pack)
+        sim = Simulation.resume(ruta, pack)
+        modelo = bool(meta.get("modelo", False))
+        args = build_parser().parse_args(
+            ["--pack", str(ruta_pack), "--seed", str(meta["semilla"]),
+             *([] if modelo else ["--sin-llm"])]
+        )
+        guion = carpeta / "guion.jsonl"
+        lineas = int(dict(meta.get("lineas_por_guardado", {})).get(cual, 0))
+        _recortar_guion(guion, lineas)
+        partida = Game(args, sim, guion, carpeta=carpeta, meta=meta, continuar=True)
+        with self._cerrojo:
+            if self.actual is not None:
+                self.actual.cerrar()
+            self.actual = partida
+            self._tirada = None
+        partida.empezar()
+        return partida
+
     def empezar(self, pedido: dict[str, Any]) -> Game:
         """Crea la partida y la pone a correr. Lo que el pedido no cuadra con el mundo
         (un personaje muerto o inexistente, un forastero sin ficha, una creación que las
@@ -508,15 +730,22 @@ class Partidas:
         sim.set_player(quien)
         # Cada partida se graba como guion en la raíz del proyecto (`--guion` la vuelve a
         # jugar), venga la petición de la carpeta que venga.
-        partidas = raiz_del_proyecto() / "partidas"
-        partidas.mkdir(exist_ok=True)
         cuando = datetime.now().strftime("%Y%m%d-%H%M%S")
-        base = f"{mundo}-{quien}-{semilla}-{cuando}"
-        partida = Game(args, sim, partidas / f"{base}.jsonl")
+        base = _sanear(f"{mundo}-{quien}-{semilla}-{cuando}")
+        carpeta = _carpeta_de_partidas() / base
+        carpeta.mkdir(parents=True, exist_ok=True)
+        meta = {
+            "mundo": mundo, "personaje": sim.state.censo[quien].label,
+            "personaje_id": str(quien), "semilla": semilla, "modelo": modelo,
+            "dia": 0, "tick": sim.state.tick,
+            "fecha": datetime.now().isoformat(timespec="seconds"),
+            "motivo": "nueva", "guardado": None, "lineas_por_guardado": {},
+        }
+        partida = Game(args, sim, carpeta / "guion.jsonl", carpeta=carpeta, meta=meta)
         if ficha_creada is not None:
             # La ficha junto al guion: con `--jugar-ficha` y `--guion` se reproduce la partida.
             dato = ficha_creada.model_dump(mode="json", exclude_none=True)
-            (partidas / f"{base}.ficha.yaml").write_text(
+            (carpeta / "ficha.yaml").write_text(
                 yaml.safe_dump(dato, allow_unicode=True, sort_keys=False), encoding="utf-8"
             )
         if raros:

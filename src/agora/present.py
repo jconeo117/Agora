@@ -21,9 +21,12 @@ from agora.agents.decide import critical_needs
 from agora.cognition.narrador import Told
 from agora.engine.consulta import ficha
 from agora.engine.ontology import AgentId, ItemId
-from agora.engine.ports import Outcome
+from agora.engine.ports import Outcome, PlotView
 from agora.engine.state import AgentState, Propiedad, WorldState
+from agora.rules.binding import BindingSpec
+from agora.rules.derive import derive
 from agora.rules.encounter import Fighter
+from agora.rules.system import Ruleset
 
 SIN_MODELO = "  (el intérprete no contestó: entiende el léxico)"
 """Como el «(respaldo)» de la voz: que el jugador sepa por qué de pronto se
@@ -43,9 +46,25 @@ PALABRAS_TIRADA = {
 
 
 @dataclass(frozen=True, slots=True)
+class MechanicalView:
+    """La ficha mecánica de la mesa, ya en datos (25, A.1): potenciales, competencias con su
+    nivel, nivel, papel, arma y armadura. Solo existe si el mundo tiene sistema enlazado."""
+
+    papel: str
+    nivel: int
+    atributos: tuple[tuple[str, int, int], ...]
+    """(etiqueta, valor, potencial), en el orden del sistema."""
+    competencias: tuple[tuple[str, int], ...]
+    """(competencia, nivel), en orden alfabético."""
+    arma: str
+    armadura: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class SheetView:
     """La hoja de alguien, lista para enseñarse. `propia`: si es la del jugador,
-    con sus objetos; la de otro no los enseña."""
+    con sus objetos; la de otro no los enseña. Los campos del final (ficha mecánica, fama,
+    marcas y tramas) solo llegan a la hoja propia (25, A.1): la de otro no lleva nada de eso."""
 
     nombre: str
     necesidades: tuple[tuple[str, float, bool], ...]
@@ -57,6 +76,14 @@ class SheetView:
     lineas: tuple[str, ...]
     """Lo que dice `ficha()`, línea a línea."""
     propia: bool
+    mecanica: MechanicalView | None = None
+    """La ficha de la mesa, si el mundo tiene sistema enlazado. `None` si no."""
+    fama: tuple[str, float] | None = None
+    """(etiqueta, valor) de la fama, si el pack la declara."""
+    marcas: tuple[tuple[str, int], ...] = ()
+    """(etiqueta, cuenta) de las marcas visibles que la persona tiene. Las ocultas, nunca."""
+    tramas: tuple[tuple[str, str], ...] = ()
+    """(etiqueta de la trama, en qué va), personales y de arco."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,8 +119,12 @@ def nombre_objeto(world: WorldState, p: Propiedad) -> str:
     return spec.narration or spec.label
 
 
-def sheet_view(world: WorldState, agent: AgentState, otro: AgentId | None = None) -> SheetView:
-    """La hoja de `agent`, o de `otro` mirado desde `agent`. Solo lee."""
+def sheet_view(
+    world: WorldState, agent: AgentState, otro: AgentId | None = None,
+    enlace: tuple[Ruleset, BindingSpec] | None = None,
+) -> SheetView:
+    """La hoja de `agent`, o de `otro` mirado desde `agent`. Solo lee. `enlace` es el sistema
+    de la mesa y su enlace con el mundo, si los hay: sin él, la hoja no lleva ficha mecánica."""
     pack = world.pack
     criticas = {str(n) for n in critical_needs(world, agent)}
     propia = otro is None
@@ -117,7 +148,69 @@ def sheet_view(world: WorldState, agent: AgentState, otro: AgentId | None = None
         lineas=tuple(ficha(world, sujeto.spec_id, None if propia else agent.spec_id).lines())
         + (_lineas_de_tramas(world, agent) if propia else ()),
         propia=propia,
+        mecanica=_mecanica_de(world, agent, enlace) if propia else None,
+        fama=_fama_de(world, agent) if propia else None,
+        marcas=_marcas_de(world, agent) if propia else (),
+        tramas=_tramas_de(world, agent) if propia else (),
     )
+
+
+def _mecanica_de(
+    world: WorldState, agent: AgentState, enlace: tuple[Ruleset, BindingSpec] | None,
+) -> MechanicalView | None:
+    """La ficha de la mesa de la persona, con el sistema y el enlace de la partida. Sin enlace,
+    `None`: el mundo no tiene reglas de mesa y la hoja no lo finge."""
+    if enlace is None:
+        return None
+    sistema, binding = enlace
+    hoja = derive(world, agent.spec_id, sistema, binding)
+    c = hoja.combatant
+    etiquetas = {a.id: a.label for a in sistema.attributes}
+    return MechanicalView(
+        papel=hoja.role,
+        nivel=hoja.level,
+        atributos=tuple(
+            (etiquetas[a], v, hoja.potentials[a]) for a, v in c.attributes.items()
+        ),
+        competencias=tuple(sorted(c.skills.items())),
+        arma=hoja.weapon.label,
+        armadura=None if hoja.armor is None else hoja.armor.label,
+    )
+
+
+def _fama_de(world: WorldState, agent: AgentState) -> tuple[str, float] | None:
+    libro = world.pack.plots
+    if libro is None or libro.fame is None:
+        return None
+    return (libro.fame.label, world.fama.get(agent.spec_id, 0.0))
+
+
+def _marcas_de(world: WorldState, agent: AgentState) -> tuple[tuple[str, int], ...]:
+    libro = world.pack.plots
+    if libro is None:
+        return ()
+    marcas = world.marcas.get(agent.spec_id, {})
+    return tuple(
+        (marca.label, marcas[marca.id])
+        for marca in libro.marks
+        if not marca.hidden and marcas.get(marca.id, 0) > 0
+    )
+
+
+def _tramas_de(world: WorldState, agent: AgentState) -> tuple[tuple[str, str], ...]:
+    """Las tramas que lleva la persona, personal y de arco, con lo que pasa en ellas en palabras:
+    si espera algo o si tiene una decisión por delante."""
+    libro = world.pack.plots
+    if libro is None:
+        return ()
+    salida: list[tuple[str, str]] = []
+    for run in world.tramas_de(agent.spec_id):
+        trama = next(t for t in libro.plots if t.id == run.plot)
+        paso = next(p for p in trama.steps if p.id == run.paso)
+        en_que = ("tiene una decisión por delante" if paso.expects is None
+                  else "espera que pase algo")
+        salida.append((trama.label, en_que))
+    return tuple(salida)
 
 
 def _lineas_de_tramas(world: WorldState, agent: AgentState) -> tuple[str, ...]:
@@ -247,6 +340,24 @@ class Presenter(Protocol):
 
     def yes_no(self, pregunta: str, defecto: bool) -> bool:
         """Una pregunta de sí o no con su defecto."""
+
+    def plot(self, vista: PlotView) -> int | None:
+        """Una trama le pregunta a la persona qué hace (23a, A.4; 25, A.2). Devuelve la opción
+        elegida; vacío o sin respuesta, la de por defecto (que puede no existir: `None`).
+
+        Por defecto, se pregunta como en texto: con `note` y `ask`. Así cualquier presentador
+        que solo sabe escribir y leer líneas funciona sin cambios; la web lo sobrescribe."""
+        self.note(f"  {vista.plot}:")
+        for n, etiqueta in enumerate(vista.options, start=1):
+            marca = "  (por defecto)" if vista.defecto == n - 1 else ""
+            self.note(f"  {n}. {etiqueta}{marca}")
+        while True:
+            linea = (self.ask("  ¿Qué haces? ") or "").strip()
+            if not linea:
+                return vista.defecto
+            if linea.isdigit() and 1 <= int(linea) <= len(vista.options):
+                return int(linea) - 1
+            self.note("  Elige un número de la lista.")
 
 
 # -- la terminal de texto -----------------------------------------------------
@@ -388,3 +499,18 @@ class TextPresenter:
         self.out.flush()
         linea = self.inp.readline().strip().lower()
         return defecto if not linea else linea.startswith("s")
+
+    def plot(self, vista: PlotView) -> int | None:
+        """Lo de siempre, byte a byte: el título, las opciones con su «(por defecto)», y la
+        pregunta hasta que la respuesta sea un número de la lista o vacía."""
+        self.note(f"  {vista.plot}:")
+        for n, etiqueta in enumerate(vista.options, start=1):
+            marca = "  (por defecto)" if vista.defecto == n - 1 else ""
+            self.note(f"  {n}. {etiqueta}{marca}")
+        while True:
+            linea = (self.ask("  ¿Qué haces? ") or "").strip()
+            if not linea:
+                return vista.defecto
+            if linea.isdigit() and 1 <= int(linea) <= len(vista.options):
+                return int(linea) - 1
+            self.note("  Elige un número de la lista.")

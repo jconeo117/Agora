@@ -301,3 +301,18 @@ input, select {
   .relato, .lateral { grid-row: auto; }
   .lateral { border-left: none; border-top: 1px solid var(--linea); }
 }
+
+/* Plan 25: las pestañas de la hoja, la decisión de trama, y las partidas para continuar. */
+.pestanas { display: flex; gap: 0.4rem; margin-bottom: 0.4rem; }
+.pestana { background: none; border: 1px solid currentColor; border-radius: 4px;
+  padding: 0.15rem 0.6rem; cursor: pointer; opacity: 0.6; }
+.pestana.activa { opacity: 1; font-weight: 600; }
+.hoja .fama, .hoja .trama, .hoja-ficha .papel { font-size: 0.9rem; margin: 0.15rem 0; }
+.hoja-ficha .atributo, .hoja-ficha .competencia, .hoja-ficha .marca { font-size: 0.9rem; }
+.trama-decision { border: 2px solid currentColor; border-radius: 6px; padding: 0.6rem 0.8rem;
+  margin: 0.6rem 0; }
+.trama-decision h3 { margin: 0 0 0.4rem; }
+.opciones-trama { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.partida-guardada { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem;
+  margin: 0.25rem 0; }
+.aviso.discreto { opacity: 0.6; font-size: 0.85rem; }

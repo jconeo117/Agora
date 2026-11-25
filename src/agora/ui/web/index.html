@@ -10,10 +10,15 @@
   <header class="barra">
     <span class="titulo">La mesa</span>
     <span id="cabecera" class="cabecera"></span>
+    <button id="guardar" class="sec" hidden>Guardar</button>
     <button id="nueva" class="sec" hidden>Otra partida</button>
   </header>
 
   <section id="inicio" class="inicio">
+    <section id="continuar" class="tarjeta" hidden>
+      <h1>Continuar</h1>
+      <div id="continuar-lista" class="lista"></div>
+    </section>
     <form id="form-inicio" class="tarjeta">
       <h1>Empezar una partida</h1>
       <label>Mundo
@@ -69,7 +74,12 @@
     <section id="relato" class="relato" aria-live="polite"></section>
 
     <aside class="lateral">
+      <nav class="pestanas" role="tablist">
+        <button type="button" class="pestana activa" data-pestana="hoja">Estado</button>
+        <button type="button" class="pestana" data-pestana="ficha">Ficha</button>
+      </nav>
       <section id="hoja" class="hoja"></section>
+      <section id="hoja-ficha" class="hoja" hidden></section>
       <section class="tapete">
         <div id="combate" class="combate"></div>
         <div id="dados" class="dados"></div>

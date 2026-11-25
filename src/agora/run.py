@@ -475,9 +475,11 @@ def correr_partida(
     escena: TerminalCombat | None,
     terminal: Terminal | None,
     grabar: Path | None,
+    entre_ticks: Callable[[Simulation], None] | None = None,
 ) -> PlayResult:
     """La partida, igual en la terminal, en el guion y en la web: quién decide, quién
-    pelea y qué se graba. Lo que se enseña al acabar lo decide quien llama."""
+    pelea y qué se graba. Lo que se enseña al acabar lo decide quien llama. `entre_ticks` lo
+    usa la web para guardar entre dos ticks (25, A.4)."""
     with ExitStack() as stack:
         if grabar is not None:
             grabacion = stack.enter_context(grabar.open("a", encoding="utf-8"))
@@ -485,7 +487,7 @@ def correr_partida(
             combate = CombatRecorder(combate, grabacion, lambda: sim.state.tick)
         sim.encounter_resolver = _resolutor(sim, args, combate, escena)
         sim.social_resolver = _engano(sim, args)
-        resultado = play(sim, fuente, ticks, terminal)
+        resultado = play(sim, fuente, ticks, terminal, entre_ticks)
     if terminal is not None and resultado.reason in ("muerte", "victoria"):
         terminal.farewell()
     return resultado
@@ -524,7 +526,8 @@ def _jugar(sim: Simulation, args: argparse.Namespace, ticks: int) -> None:
         # a un mundo guardado. Reanudar la propia partida no la vuelve a contar.
         llega = args.load is None or args.jugar_ficha is not None
         terminal = Terminal(sim, sys.stdin, sys.stdout, cab.voz, interpreter=cab.interprete,
-                            narrator=cab.narrador, apertura=llega)
+                            narrator=cab.narrador, apertura=llega,
+                            enlace=enlace_del_mundo(args, sim.state.pack))
         escena = TerminalCombat(sys.stdin, sys.stdout, cab.interprete, cab.narrador,
                                 lambda: sim.state, empezada=terminal.quitar_piloto)
         resultado = correr_partida(
@@ -610,6 +613,18 @@ def _engano(sim: Simulation, args: argparse.Namespace) -> WorldSocial | None:
     if sistema.social is None or not ruta.exists():
         return None
     return WorldSocial(sistema, load_binding(ruta, sim.state.pack, sistema))
+
+
+def enlace_del_mundo(
+    args: argparse.Namespace, pack: ContentPack,
+) -> tuple[Ruleset, BindingSpec] | None:
+    """El sistema de la mesa y su enlace con este mundo, si el mundo lo declara (D-159). Sin
+    enlace, la hoja sale sin ficha mecánica: no hay nada que decir y no se avisa."""
+    sistema = load_ruleset(args.reglas)
+    ruta = args.pack.parent / "reglas" / f"{sistema.id}.yaml"
+    if not ruta.exists():
+        return None
+    return sistema, load_binding(ruta, pack, sistema)
 
 
 def _resolutor(
