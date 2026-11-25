@@ -26,6 +26,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from agora.cognition.intencion import stems
+from agora.engine.chronicle import PUBLICOS, Entrada
 from agora.engine.consulta import ficha
 from agora.engine.events import Event, EventKind
 from agora.engine.ontology import (
@@ -43,6 +44,7 @@ from agora.engine.ontology import (
     Spec,
 )
 from agora.engine.pack import ContentPack
+from agora.engine.perception import heard
 from agora.engine.persistence import DIAS_DE_LOG_AL_GUARDAR
 from agora.engine.ports import CognitionProvider
 from agora.engine.state import PerformingAction, Traveling, WorldState
@@ -809,8 +811,88 @@ def opening_moment(
         groups=tuple(f.label for f in grupos[:GRUPOS_TOP]),
         calendar=f"día {world.tick // pack.clock.ticks_per_day + 1}",
         who=quien,
-        moving=_se_mueve(world, events),
+        moving=_se_mueve(world, events) + tuple(
+            texto for _, texto, _ in _historia(world, player)
+        ),
     )
+
+
+CRONICA_MAX = 5
+"""Cuántas entradas de la crónica entran en un momento: las más relevantes, y dentro de ellas,
+las más recientes (23b-2, A.3)."""
+
+
+def _historia(world: WorldState, player: str) -> list[tuple[int, str, tuple[str, ...]]]:
+    """Las entradas de la crónica que el jugador puede saber, las más relevantes para su sitio
+    y su grupo, en orden de tiempo. Nunca una que no pudo saber (23b-2, A.3): ni el arco, ni
+    su id, ni sus contadores; solo lo que pasó, con los nombres de quien lo vivió."""
+    if world.pack.director is None:
+        return []
+    yo = AgentId(player)
+    a = world.agents.get(yo)
+    if a is None:
+        return []
+    presentes = {str(o.spec_id) for o in world.agents_in_order() if o.at == a.at and o is not a}
+    conocidos = {str(p) for p in a.sightings}
+    candidatas: list[tuple[tuple[int, int, int], int, Entrada]] = []
+    for i, e in enumerate(world.cronica.entradas):
+        if not _ha_podido_saber(world, yo, e, conocidos):
+            continue
+        relevancia = (
+            int(any(str(q) in presentes for q in e.quienes) or yo in e.testigos)
+            + int(e.lugar is not None and e.lugar == a.at)
+            + int(e.grupo is not None and e.grupo in a.lealtad)
+        )
+        candidatas.append(((-relevancia, -e.tick, i), i, e))
+    elegidas = sorted(candidatas, key=lambda c: c[0])[:CRONICA_MAX]
+    salida: list[tuple[int, str, tuple[str, ...]]] = []
+    for _, _, e in sorted(elegidas, key=lambda c: c[1]):
+        texto, nombres = _frase_de_cronica(world, e)
+        salida.append((e.tick, texto, nombres))
+    return salida
+
+
+def _ha_podido_saber(world: WorldState, yo: AgentId, e: Entrada, conocidos: set[str]) -> bool:
+    """Lo que el jugador pudo saber: lo vivió o estaba, o es público (una muerte, o un arco en un
+    sitio que conoce), o se lo contaron (memoria de oídas sobre alguien de la entrada)."""
+    if yo in e.quienes or yo in e.testigos:
+        return True
+    if e.tipo in PUBLICOS and (
+        e.tipo == "muerte" or (e.lugar is not None and str(e.lugar) in conocidos)
+    ):
+        return True
+    return any(heard(world, yo, about=q) for q in e.quienes)
+
+
+def _frase_de_cronica(world: WorldState, e: Entrada) -> tuple[str, tuple[str, ...]]:
+    """La frase de una entrada, con los nombres que la sostienen. Los nombres de lugar y de grupo
+    salen del pack y del mundo; nunca un id ni la etiqueta de un arco."""
+    nombres = tuple(name_of(world, str(q)) for q in e.quienes)
+    lugar = world.pack.place_by_id[e.lugar].label if e.lugar is not None else None
+    donde = f" en {lugar}" if lugar else ""
+    casa = world.facciones[e.grupo].label if e.grupo in world.facciones else ""
+    if e.tipo == "muerte":
+        return f"murió {nombres[0]}{donde}", nombres
+    if e.tipo == "nacimiento":
+        return f"nació {nombres[0]} en la casa {casa}", nombres
+    if e.tipo == "pareja":
+        return f"{nombres[0]} y {nombres[1]} se hicieron pareja", nombres
+    if e.tipo == "ruptura":
+        return f"{nombres[0]} y {nombres[1]} dejaron de ser pareja", nombres
+    if e.tipo == "grupo":
+        return f"se fundó {casa}", nombres
+    if e.tipo == "enfrentamiento":
+        otra = world.facciones[FactionId(e.texto_clave)].label \
+            if FactionId(e.texto_clave) in world.facciones else ""
+        return f"{casa} y {otra} se enfrentan", nombres
+    if e.tipo == "ascenso":
+        eje = world.pack.need_by_id[NeedId(e.texto_clave)].label \
+            if NeedId(e.texto_clave) in world.pack.need_by_id else ""
+        return f"{nombres[0]} alcanzó un rango alto en {eje}", nombres
+    # arco: lo que se vio del suceso, sin nombrarlo.
+    if nombres:
+        return f"terminó un suceso{donde}; {nombres[0]} salió reconocido", nombres
+    return f"terminó un suceso{donde}", nombres
 
 
 def _minutos(minutos: int) -> str:
@@ -1068,6 +1150,11 @@ class Narrator:
     def world(self, world: WorldState, events: Iterable[Event], player: str) -> Told:
         """Siempre hay momento: aunque no pase nada, la escena se cuenta (unidad 18)."""
         facts = select(world, events, player, self.seen, self.table, self.hilos)
+        # La historia que el jugador sabe, por detrás de lo que acaba de pasar (23b-2, A.3).
+        historia = tuple(
+            Fact(2, 2 * t + 1, texto, nombres) for t, texto, nombres in _historia(world, player)
+        )
+        facts = facts + historia
         elapsed = 0 if self.last_tick is None else world.tick - self.last_tick
         scene = scene_of(world, player, self.seen, self.hilos.involved,
                          self.last_was_fight, elapsed)

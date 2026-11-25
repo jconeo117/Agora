@@ -24,9 +24,10 @@ from itertools import combinations
 
 from agora.agents.decide import critical_needs
 from agora.engine.events import EventKind
-from agora.engine.ontology import ActionId, AgentId, NeedId, PlaceId, SituationId
+from agora.engine.ontology import ActionId, AgentId, ArcId, NeedId, PlaceId, SituationId
 from agora.engine.pack import ContentPack
-from agora.engine.state import Ledger
+from agora.engine.perception import heard, saw
+from agora.engine.state import Ledger, WorldState
 from agora.engine.world import Simulation
 
 
@@ -145,6 +146,8 @@ class HealthReport:
 
     tramas: PanelTramas | None = None
     """Las tramas del pack, si lo tiene (23a). Sin pack de tramas, no aparece."""
+    director: PanelDirector | None = None
+    """El director y la crónica, si el pack los declara (23b-2). Sin director, no aparece."""
 
     def lines(self) -> list[str]:
         """Panel legible. Es lo que se mira mientras se calibra."""
@@ -178,6 +181,8 @@ class HealthReport:
                 salida.append(f"    {need!s:<14} {ratio:6.2f}{nota}{marca}")
         if self.tramas is not None:
             salida += self.tramas.lines()
+        if self.director is not None:
+            salida += self.director.lines()
         return salida
 
 
@@ -236,6 +241,98 @@ class _Tramas:
         self.cursor = sim.log.siguiente_seq
 
 
+@dataclass(frozen=True, slots=True)
+class PanelDirector:
+    """Lo que hace el director de ritmo y su crónica (unidad 23b-2, A.4). Medias sobre las
+    semillas. Solo aparece con `director` en el pack."""
+
+    arcos_por_90_dias: dict[str, float]
+    """Arcos que empiezan en 90 días, por escala. Por fuera del director también cuentan."""
+    dias_sin_arco_max: int
+    """Días seguidos sin arco en curso ni situación eventual del mundo: el peor, de las semillas."""
+    presupuesto_medio: float
+    cronica_tamano: float
+    """Entradas de la crónica al final de la corrida, de media."""
+    dias_vacios: float
+    """Fracción de (persona, día) sin nada que el narrador le contaría: ni paso de trama propio
+    ni algo percibido u oído. Es el I-012, medido sobre las personas como proxy de un jugador
+    (23b-2, A.4). Objetivo ≤ 30 %."""
+
+    def lines(self) -> list[str]:
+        salida = [
+            "",
+            "  director y crónica",
+            f"  presupuesto medio        {self.presupuesto_medio:6.3f}",
+            f"  días sin arco (máximo)   {self.dias_sin_arco_max:6}",
+            f"  crónica al final         {self.cronica_tamano:6.0f} entradas",
+            f"  días vacíos (I-012)      {self.dias_vacios:6.1%}",
+        ]
+        for escala, veces in sorted(self.arcos_por_90_dias.items()):
+            salida.append(f"  arcos por 90 días {escala:<8} {veces:6.2f}")
+        return salida
+
+
+@dataclass
+class _Director:
+    """Cuenta lo que el director y la crónica hacen, día a día. Lee el log por cursor, como
+    `_Tramas`: lo de este tick siempre está."""
+
+    arcos: Counter[str] = field(default_factory=Counter)
+    dias: int = 0
+    dias_sin_arco: int = 0
+    peor_racha: int = 0
+    presupuesto: float = 0.0
+    personas_dia: int = 0
+    vacios: int = 0
+    cursor: int = 0
+    actores_con_trama: set[AgentId] = field(default_factory=set)
+    cronica: int = 0
+
+    def leer(self, sim: Simulation) -> None:
+        for seq in range(self.cursor, sim.log.siguiente_seq):
+            evento = sim.log[seq]
+            if evento.kind is EventKind.ARC_BEGAN:
+                self.arcos[str(evento.data.get("arco"))] += 1
+            elif evento.kind in (EventKind.PLOT_STEP, EventKind.PLOT_BEAT) \
+                    and evento.actor is not None:
+                self.actores_con_trama.add(evento.actor)
+        self.cursor = sim.log.siguiente_seq
+
+    def cierra_dia(self, sim: Simulation) -> None:
+        """Al empezar un día: la racha de días sin arco y sin situación, el presupuesto, y para
+        cada persona si el día anterior tuvo algo que contarle."""
+        s = sim.state
+        self.dias += 1
+        self.presupuesto += s.presupuesto
+        if s.arcos or s.situations:
+            self.peor_racha = max(self.peor_racha, self.dias_sin_arco)
+            self.dias_sin_arco = 0
+        else:
+            self.dias_sin_arco += 1
+            self.peor_racha = max(self.peor_racha, self.dias_sin_arco)
+        for quien in s.agents_in_order():
+            self.personas_dia += 1
+            propia = quien.spec_id in self.actores_con_trama
+            if not propia and not _le_contaria_el_narrador(s, quien.spec_id):
+                self.vacios += 1
+        self.actores_con_trama.clear()
+
+
+_LO_QUE_EL_NARRADOR_CUENTA = frozenset({EventKind.AGENT_DIED, EventKind.COMBAT,
+                                        EventKind.ARC_PHASE})
+"""Lo presenciado que el narrador le cuenta a quien estaba: una muerte, una pelea, un suceso de
+arco. Lo que pasa delante y no le toca no entra (23b-2, A.4)."""
+
+
+def _le_contaria_el_narrador(state: WorldState, quien: AgentId) -> bool:
+    """Si al día de hoy hubo algo que el narrador le contaría: algo dirigido a esta persona, algo
+    de la lista de arriba que vio, o algo que oyó (memoria de oídas de este día)."""
+    if any(p.target == quien or p.kind in _LO_QUE_EL_NARRADOR_CUENTA
+           for p in saw(state, quien, days=1)):
+        return True
+    return bool(heard(state, quien, days=1))
+
+
 def _agravio_maximo(sim: Simulation, quien: AgentId) -> float:
     tuning = sim.pack.tuning
     agravios = sim.state.memoria.agravio(
@@ -260,6 +357,27 @@ def _panel_de_tramas(
         caducadas=tally.caducadas,
         nunca_salen=frozenset(str(p.id) for p in libro.plots if tally.arranques[str(p.id)] == 0),
         agravio_medio=sum(agravios) / len(agravios) if agravios else 0.0,
+    )
+
+
+def _panel_de_director(
+    pack: ContentPack, tally: _Director, days: int, n_seeds: int, seeds: tuple[int, ...],
+) -> PanelDirector:
+    assert pack.director is not None  # solo se llama con director
+    escala_de = {a.id: a.scale for a in pack.arcs.arcs} if pack.arcs is not None else {}
+    por_escala: Counter[str] = Counter()
+    for arco, veces in tally.arcos.items():
+        escala = escala_de.get(ArcId(arco))
+        if escala is not None:
+            por_escala[str(escala)] += veces
+    periodos = days * n_seeds / 90
+    return PanelDirector(
+        arcos_por_90_dias={escala: veces / max(periodos, 1e-9)
+                           for escala, veces in por_escala.items()},
+        dias_sin_arco_max=tally.peor_racha,
+        presupuesto_medio=tally.presupuesto / max(tally.dias, 1) / n_seeds,
+        cronica_tamano=tally.cronica / n_seeds,
+        dias_vacios=tally.vacios / max(tally.personas_dia, 1),
     )
 
 
@@ -294,6 +412,7 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
 
     libros: list[Ledger] = []
     tramas_tally = _Tramas()
+    director_tally = _Director()
     agravios: list[float] = []
     for seed in seeds:
         sim = Simulation(pack, seed=seed)
@@ -303,10 +422,15 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
         for agent in sim.state.agents_in_order():
             agent.ledger = Ledger()
         tramas_tally.cursor = sim.log.siguiente_seq
+        director_tally.cursor = sim.log.siguiente_seq
         for _ in range(ticks):
             sim.tick()
             if pack.plots is not None:
                 tramas_tally.leer(sim)
+            if pack.director is not None:
+                director_tally.leer(sim)
+                if sim.state.tick % pack.clock.ticks_per_day == 0:
+                    director_tally.cierra_dia(sim)
             # `state.situations` guarda SOLO las eventuales: las periódicas se
             # calculan del reloj y no viven ahí. Así que preguntar si está vacío
             # es exactamente preguntar si al mundo le está pasando algo que no
@@ -327,7 +451,8 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
                 #
                 # El bucle ya recorre a todos los agentes cada tick para el
                 # triaje, así que esto no añade recorrido — solo un contador.
-                where[agent.spec_id][agent.at] += 1
+                if agent.spec_id in where:  # un llegado de arco no es de la población del pack
+                    where[agent.spec_id][agent.at] += 1
 
         # Del recuento y no de los eventos: son los totales de la corrida entera
         # aunque el log conserve solo una ventana. Recorrer dos millones de
@@ -338,10 +463,16 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
         stalls += recuento.por_tipo[EventKind.IDLE_STALLED]
         transit += recuento.ticks_de_viaje
         for actor, acciones in recuento.por_agente_accion.items():
-            profiles[actor].update(acciones)
+            # Los llegados de un arco no están en el pack: su actividad cuenta para «acciones sin
+            # usar», pero no para la diferenciación de la población que el pack describe.
+            if actor in profiles:
+                profiles[actor].update(acciones)
             used.update(acciones)
 
-        muertes += population - len(sim.state.agents)
+        if pack.director is not None:
+            director_tally.cronica += len(sim.state.cronica)
+        # Solo la población del pack: un llegado de arco que se va no es una muerte.
+        muertes += population - sum(1 for a in pack.agents if a.id in sim.state.agents)
         for agent in sim.state.agents_in_order():
             for need, value in agent.needs.items():
                 if not 0.0 <= value <= 1.0:
@@ -383,6 +514,9 @@ def measure(pack: ContentPack, days: int | None = None, seeds: tuple[int, ...] |
         out_of_bounds=tuple(out_of_bounds),
         tramas=None if pack.plots is None else _panel_de_tramas(
             pack, tramas_tally, agravios, days, len(seeds)
+        ),
+        director=None if pack.director is None else _panel_de_director(
+            pack, director_tally, days, len(seeds), tuple(seeds),
         ),
         **_supply_and_demand(pack, libros),
     )

@@ -104,6 +104,34 @@ tuning:
   grief_scale: 0.5
   rumor_rate: 0.1
   rumor_decay: 0.5
+# El director de ritmo y la crónica del mundo (unidad 23b-2, D-179). Sin este bloque no hay
+# director: los arcos seguirían solo por sus disparadores. Los números son de partida; el
+# perfil equilibrado es el que corre por defecto. Medidos en `--health` (23b-2, §4).
+director:
+  profile: equilibrado
+  profiles:
+    tranquilo:
+      min_gap_days: 30
+      budget_per_day: 0.016
+      cost: {event: 0.4, crisis: 1.0, era: 2.0}
+      calm_events: 0.8
+    equilibrado:
+      min_gap_days: 20
+      budget_per_day: 0.024
+      cost: {event: 0.4, crisis: 1.0, era: 2.0}
+      calm_events: 1.5
+    caotico:
+      min_gap_days: 10
+      budget_per_day: 0.045
+      cost: {event: 0.4, crisis: 1.0, era: 2.0}
+      calm_events: 3.0
+  cronica:
+    muerte_fama_min: 0.3
+    muerte_deudos_min: 3
+    nacimiento_prestigio_min: 0.5
+    ascenso_rango_min: 5
+    relaciones: [pareja]
+
 needs:
 - id: mana
   label: mana

@@ -20,6 +20,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from agora.engine.chronicle import Cronica
 from agora.engine.disposition import (
     Temperament,
     compose_caps,
@@ -2116,6 +2117,18 @@ class WorldState:
     arcos_terminados: dict[ArcId, tuple[PhaseId, int]] = field(default_factory=dict)
     """Cómo acabó cada arco: en qué rama (fase final) y en qué tick. Lo leen los
     disparadores que esperan a otro arco, y el cooldown de cada uno."""
+    presupuesto: float = 0.0
+    """La intensidad que le queda al director de ritmo (23b-2): se recarga cada día y se gasta
+    al empezar un arco que él elige. Sin director, queda en cero."""
+    ultimo_arco: int | None = None
+    """Cuándo empezó el último arco, de cualquier modo. Lo mira el director para su
+    `min_gap_days`. `None` = nunca."""
+    hechos_de_ritmo: dict[int, int] = field(default_factory=dict)
+    """Cuántos hechos de ritmo hubo cada día (muertes, combates, rupturas, enfrentamientos).
+    Solo los de la última semana: lo que cae fuera se borra cada día."""
+    cronica: Cronica = field(default_factory=Cronica)
+    """La crónica del mundo (23b-2, A.2): lo que pasó y pesa, indexado por persona, lugar,
+    grupo y fecha. Vacía sin director."""
 
     focus: AgentId | None = None
     """Alrededor de quién se simula fino (D-152). `None` = nadie, y entonces el

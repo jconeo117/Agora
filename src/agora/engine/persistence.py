@@ -32,6 +32,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from agora.engine.chronicle import Cronica
 from agora.engine.events import Event, EventKind
 from agora.engine.memory import Recuerdo
 from agora.engine.ontology import (
@@ -408,6 +409,15 @@ def save(
         # como líneas JSONL. Un guardado anterior no la trae: se lee vacía.
         "log": [evento.to_json() for evento in log],
     }
+    # El director y la crónica (23b-2) solo existen con `director` en el pack: sin él no se
+    # escribe nada de esto, y el guardado es el de antes.
+    if world.pack.director is not None:
+        datos["director"] = {
+            "presupuesto": world.presupuesto,
+            "ultimo_arco": world.ultimo_arco,
+            "ritmo": {str(d): n for d, n in sorted(world.hechos_de_ritmo.items())},
+        }
+        datos["cronica"] = world.cronica.a_json()
     # Los arcos (23b-1) solo se escriben si hay alguno: un mundo sin ellos guarda lo mismo
     # que antes, y un guardado anterior se lee como un mundo donde nunca hubo arcos.
     if world.arcos or world.arcos_terminados:
@@ -954,6 +964,13 @@ def load(
         for quien, vividas in datos.get("tramas_vividas", {}).items()
     }
     world.llegadas = {AgentId(str(quien)): int(t) for quien, t in datos.get("llegadas", {}).items()}
+    # El director y la crónica (23b-2). Un guardado anterior no los trae: se leen vacíos.
+    director_guardado = datos.get("director", {})
+    world.presupuesto = float(director_guardado.get("presupuesto", 0.0))
+    ultimo = director_guardado.get("ultimo_arco")
+    world.ultimo_arco = None if ultimo is None else int(ultimo)
+    world.hechos_de_ritmo = {int(d): int(n) for d, n in director_guardado.get("ritmo", {}).items()}
+    world.cronica = Cronica.de_json(datos.get("cronica", []))
     # Los arcos (23b-1). Un arco, o una fase, que el pack de hoy ya no tiene no vuelve: la
     # misma regla que una trama o una situación borrada.
     del_pack = {} if pack.arcs is None else {a.id: a for a in pack.arcs.arcs}

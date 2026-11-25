@@ -4661,24 +4661,43 @@ class ArcTrigger(Spec):
     """Todas tienen que cumplirse. Con `chance`, la probabilidad diaria de empezar."""
     chance: float = Field(default=1.0, gt=0.0, le=1.0)
     expected_per_year: float = Field(default=0.0, ge=0.0)
-    """Veces por año, como `TriggerSpec`, hasta que la 23b-2 traiga el director."""
+    """Veces por año, como `TriggerSpec`. Lo que el director no gobierna: para ritmo del
+    mundo, `director` (23b-2)."""
+    director: DirectorTrigger | None = None
+    """Lo empieza el director de ritmo (23b-2), entre los arcos así marcados que cumplen sus
+    condiciones. Con él, `conditions` es opcional: sirven de filtro, no de disparo."""
     cooldown_days: int = Field(default=0, ge=0)
     """Días desde que el arco terminó hasta que puede volver a empezar por este modo.
-    Obligatorio sin calendario: es el freno que impide que un arco vuelva al día siguiente."""
+    Obligatorio sin calendario ni director: es el freno que impide que un arco vuelva al día
+    siguiente. Con director, lo frena el propio director (`min_gap_days`)."""
 
     @model_validator(mode="after")
     def _one_mode(self) -> ArcTrigger:
-        modos = [self.calendar is not None, bool(self.conditions), self.expected_per_year > 0.0]
+        # Con director, `conditions` es un filtro; sin él, son el disparo y no pueden faltar.
+        modos = [
+            self.calendar is not None,
+            self.director is not None,
+            self.expected_per_year > 0.0,
+            bool(self.conditions) and self.director is None,
+        ]
         if sum(modos) != 1:
             raise ValueError(
-                "un disparador lleva exactamente uno de calendar, conditions o expected_per_year"
+                "un disparador lleva exactamente uno de calendar, director, expected_per_year "
+                "o conditions"
             )
-        if self.calendar is None and self.cooldown_days < 1:
+        if self.calendar is None and self.director is None and self.cooldown_days < 1:
             raise ValueError(
-                "un disparador sin calendario necesita cooldown_days: sin freno, el arco "
-                "volvería al día siguiente"
+                "un disparador sin calendario ni director necesita cooldown_days: sin freno, el "
+                "arco volvería al día siguiente"
             )
         return self
+
+
+class DirectorTrigger(Spec):
+    """El modo `director` de un arco (23b-2, A.1): el peso con que el director lo elige entre
+    los que cumplen. Un peso mayor sale más a menudo; el sorteo es por clave, no por orden."""
+
+    weight: float = Field(gt=0.0)
 
 
 class ArcResidue(Spec):
@@ -4751,3 +4770,65 @@ class ArcBook(Spec):
 
     arcs: tuple[ArcSpec, ...] = ()
     templates: tuple[ArrivalTemplate, ...] = ()
+
+
+class DirectorProfile(Spec):
+    """Un perfil de ritmo (23b-2, A.1). Los números son del pack: el motor no decide cuánto
+    es «mucho»; solo sabe gastar un presupuesto y medir un ritmo."""
+
+    min_gap_days: int = Field(ge=1)
+    """Días que tienen que pasar desde el último arco (de cualquier modo) para que el director
+    empiece otro."""
+    budget_per_day: float = Field(gt=0.0)
+    """Intensidad que se recarga cada día. Cada arco que empieza gasta su `cost`."""
+    cost: dict[ArcScale, float]
+    """Lo que cuesta empezar un arco de cada escala. Una crisis cuesta más que un evento."""
+    calm_events: float = Field(ge=0.0)
+    """Hechos de ritmo por día (muertes, combates, rupturas, enfrentamientos) que se consideran
+    calma. Por encima de esto, el mundo está revuelto y el director no echa más leña."""
+
+    @model_validator(mode="after")
+    def _costs(self) -> DirectorProfile:
+        if set(self.cost) != set(ArcScale):
+            raise ValueError(
+                f"cost lleva una cifra por escala: {sorted(a.value for a in ArcScale)}"
+            )
+        if any(v < 0.0 for v in self.cost.values()):
+            raise ValueError("un coste no puede ser negativo")
+        return self
+
+
+class CronicaSpec(Spec):
+    """Qué entra en la crónica del mundo (23b-2, A.2). Los umbrales son del pack; el motor
+    fija solo el vocabulario de qué puede entrar."""
+
+    muerte_fama_min: float = Field(default=0.3, ge=0.0, le=1.0)
+    """Una muerte entra si la víctima tenía al menos esta fama."""
+    muerte_deudos_min: int = Field(default=3, ge=1)
+    """…o si la lloraron al menos tantos: quien le apreciaba y sobrevivió."""
+    nacimiento_prestigio_min: float = Field(default=0.5, ge=0.0, le=1.0)
+    """Un nacimiento entra si la casa del recién nacido tiene al menos este prestigio."""
+    ascenso_rango_min: int = Field(default=5, ge=1)
+    """Un ascenso entra si el rango alcanzado es al menos este."""
+    relaciones: tuple[RelationId, ...] = ()
+    """Qué relaciones cuentan como parejas (al empezar) y rupturas (al acabar)."""
+    relacion_aprecio_min: float = Field(default=0.5, ge=-1.0, le=1.0)
+    """Una pareja o una ruptura entra solo si quien la lleva aprecia de verdad a la otra
+    persona (aprecio al día de hoy). Sin esto, el mundo hace cien parejas en dos meses y la
+    crónica deja de decir cuáles importan."""
+
+
+class DirectorSpec(Spec):
+    """`director` del pack (23b-2, A.1). Sin él, no hay director ni crónica, y el mundo sigue
+    como antes: los packs sin este bloque tienen log idéntico."""
+
+    profile: str = "equilibrado"
+    """El perfil que corre en este pack. Por defecto, el equilibrado."""
+    profiles: dict[str, DirectorProfile]
+    cronica: CronicaSpec = Field(default_factory=CronicaSpec)
+
+    @model_validator(mode="after")
+    def _profile_exists(self) -> DirectorSpec:
+        if self.profile not in self.profiles:
+            raise ValueError(f"el perfil {self.profile!r} no está declarado en profiles")
+        return self

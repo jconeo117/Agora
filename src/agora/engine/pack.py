@@ -43,6 +43,7 @@ from agora.engine.ontology import (
     ClockSpec,
     CounterCond,
     CreationSpec,
+    DirectorSpec,
     EffectSpec,
     EndingSpec,
     FactionKindId,
@@ -158,6 +159,9 @@ class ContentPack(Spec):
     arcs: ArcBook | None = None
     """Los arcos del mundo (unidad 23b-1), de `arcos.yaml`. `None` = el pack no tiene
     arcos: no hay eventos de arco, ni llegadas, ni tinte, y el log es el de siempre."""
+    director: DirectorSpec | None = None
+    """El ritmo del mundo y su crónica (unidad 23b-2), en el pack. `None` = no hay director
+    ni crónica: los arcos siguen por sus disparadores y el log es el de siempre."""
     """Cómo puede el jugador crear su personaje (unidad 21a). `None` = no se crea:
     la ficha se escribe a mano. No lo lee la simulación: solo la creación."""
 
@@ -1906,6 +1910,22 @@ class ContentPack(Spec):
             problemas += self._marcas_sin_par()
         return problemas
 
+    def _check_director(self) -> list[str]:
+        """El director (23b-2, A.1) y su crónica. Un arco con disparo `director` sin director en
+        el pack nunca empezaría: se rechaza al cargar. Las relaciones de la crónica tienen que
+        existir, o nunca entrarían nada."""
+        problemas: list[str] = []
+        con_director = [a.id for a in self._arcos() if any(t.director for t in a.trigger)]
+        if con_director and self.director is None:
+            problemas.append(
+                f"los arcos {con_director} se empiezan por director, y el pack no declara director"
+            )
+        if self.director is not None:
+            for rel in self.director.cronica.relaciones:
+                if rel not in self.relation_by_id:
+                    problemas.append(f"crónica: la relación {rel!r} no existe")
+        return problemas
+
     def _arcos(self) -> tuple[ArcSpec, ...]:
         return () if self.arcs is None else self.arcs.arcs
 
@@ -2158,6 +2178,7 @@ class ContentPack(Spec):
         problems = [
             *self._check_plots(),
             *self._check_arcs(),
+            *self._check_director(),
             *self._check_unique_ids(),
             *self._check_global_id_collisions(),
             *self._check_need_refs(),

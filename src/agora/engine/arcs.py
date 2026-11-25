@@ -41,6 +41,7 @@ from agora.engine.ontology import (
     ArcResult,
     ArcSide,
     ArcSpec,
+    ArcTrigger,
     ArrivalGroup,
     ArrivalTemplate,
     CounterCond,
@@ -223,6 +224,8 @@ def _puede_empezar(mundo: World, arco: ArcSpec, dia: int) -> bool:
     cerrado = s.arcos_terminados.get(arco.id)
     tirada: float | None = None
     for disparo in arco.trigger:
+        if disparo.director is not None:
+            continue  # lo empieza el director (23b-2), no el sorteo de aquí
         if disparo.calendar is not None:
             cal = disparo.calendar
             if dia >= cal.start_day and (dia - cal.start_day) % cal.every_days == 0:
@@ -241,6 +244,12 @@ def _puede_empezar(mundo: World, arco: ArcSpec, dia: int) -> bool:
         if tirada < probabilidad:
             return True
     return False
+
+
+def condiciones_cumplen(mundo: World, disparo: ArcTrigger) -> bool:
+    """Si se cumplen todas las condiciones de un disparo. Lo mira el director para filtrar los
+    arcos que puede elegir (23b-2, A.1)."""
+    return all(_cumple(mundo, c) for c in disparo.conditions)
 
 
 def _cumple(mundo: World, c: ArcCondition) -> bool:
@@ -265,6 +274,9 @@ def comenzar(mundo: World, arco: ArcSpec, porque: str) -> None:
     disparador o de alguien a mano, y el log tiene que decir cuál."""
     s = mundo.state
     inicial = arco.phases[0]
+    # Cuenta como «último arco» vengan de donde vengan (23b-2, A.1): el director mira el tiempo
+    # desde aquí aunque el arco saliera por calendario.
+    s.ultimo_arco = s.tick
     run = ArcRun(arco=arco.id, empezo=s.tick, fase=inicial.id, desde=s.tick, hasta=None)
     s.arcos[arco.id] = run
     mundo._registrar(

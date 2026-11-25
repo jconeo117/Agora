@@ -55,8 +55,7 @@ arcs:
     label: Incursión de orcos
     scale: crisis
     trigger:
-      - expected_per_year: 1.5
-        cooldown_days: 90
+      - director: {weight: 1.0}
     phases:
       - id: senales
         label: señales en la frontera
@@ -114,8 +113,7 @@ arcs:
     label: Epidemia
     scale: crisis
     trigger:
-      - expected_per_year: 0.4
-        cooldown_days: 180
+      - director: {weight: 0.6}
     phases:
       - id: primeros_casos
         label: primeros casos

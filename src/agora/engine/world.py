@@ -30,7 +30,7 @@ from agora.agents.decide import (
     planned_duration,
     recovery_rate,
 )
-from agora.engine import arcs, persistence, plots
+from agora.engine import arcs, director, persistence, plots
 from agora.engine.disposition import urgency
 from agora.engine.events import Event, EventKind, EventLog, Payload
 from agora.engine.memory import Cue, Recuerdo, importancia_de
@@ -271,6 +271,10 @@ class Simulation:
         # encendida. Sin `arcos.yaml`, esto no hace nada (23b-1).
         if self.pack.arcs is not None and self.state.tick % self.pack.clock.ticks_per_day == 0:
             arcs.pasar_dia(self)
+        # El director (23b-2) va después de los arcos: los que salen por calendario o condición
+        # ya cuentan como último arco cuando él decide. Sin `director`, no hace nada.
+        if self.pack.director is not None and self.state.tick % self.pack.clock.ticks_per_day == 0:
+            director.pasar_dia(self)
         # Las tramas miran el día al empezar el reloj del día, con el mundo en un solo
         # estado (23a): sin pack de tramas, esto no hace nada.
         if self.pack.plots is not None and self.state.tick % self.pack.clock.ticks_per_day == 0:
@@ -646,6 +650,7 @@ class Simulation:
         # Orden fijo por id: se graban recuerdos y el olvido por capacidad
         # desempata por `seq`, así que un orden que dependiera del hash haría
         # divergir dos procesos con la misma semilla.
+        deudos = 0
         for otro_id in sorted(self.state.agents):
             if otro_id == quien:
                 continue
@@ -688,6 +693,10 @@ class Simulation:
                 importancia=signed_saturation(aprecio, escala),
                 valencia=-1.0,
             )
+            deudos += 1
+
+        # La muerte entra en la crónica una vez por víctima, con los que la lloraron (23b-2, A.2).
+        director.muerte(self, quien, donde, deudos, porque)
 
         # Y si no hay nadie de sangre, la casa (D-130). Va DETRÁS y no delante:
         # primero los tuyos, y el grupo solo cuando no queda ninguno — al revés,
@@ -2024,6 +2033,8 @@ class Simulation:
         self._percibir(evento)
         if self.state.arcos:
             arcs.alimentar(self, evento)
+        if self.pack.director is not None:
+            director.observar(self, evento)
         return evento
 
     # -------------------------------------------------------------------------
