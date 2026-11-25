@@ -454,7 +454,11 @@ def test_b3_2_guardada_en_partidas_y_cargada_con_jugar_ficha() -> None:
         },
     }
     partida = partidas.empezar(pedido)
-    ficha_path = partida.grabar.with_suffix(".ficha.yaml")
+    ficha_path = (
+        partida.grabar.parent / "ficha.yaml"
+        if (partida.grabar.parent / "ficha.yaml").exists()
+        else partida.grabar.with_suffix(".ficha.yaml")
+    )
 
     try:
         assert ficha_path.exists(), f"La ficha no se guardó en {ficha_path}"

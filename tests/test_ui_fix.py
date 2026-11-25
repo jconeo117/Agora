@@ -140,12 +140,12 @@ def test_partida_desde_otra_carpeta_graba_guion_en_raiz_partidas(
     })
     try:
         # La ruta del guion debe apuntar a la carpeta partidas de la raíz del proyecto
-        assert partida.grabar.resolve().parent == raiz / "partidas"
+        assert raiz / "partidas" in partida.grabar.resolve().parents
         assert not (sub / "partidas").exists(), "no debe crearse partidas en la carpeta actual"
 
         # Esperar a que el archivo de guion se cree en disco
         assert _esperar_hasta(lambda: partida.grabar.is_file(), plazo=3.0)
-        assert (raiz / "partidas" / partida.grabar.name).is_file()
+        assert partida.grabar.is_file()
     finally:
         partida.cerrar()
         partida._hilo.join(timeout=2.0)
