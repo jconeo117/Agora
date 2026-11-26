@@ -37,6 +37,7 @@ from agora.cognition.narrador import (
     DEATH,
     MOVIMIENTO_DIAS,
     BeatView,
+    Diario,
     Fact,
     Narrator,
     Table,
@@ -80,6 +81,11 @@ from agora.present import (
 )
 from agora.present import (
     confirms as confirms,
+)
+from agora.present import (
+    diario_lineas,
+    gente_lineas,
+    people_view,
 )
 from agora.present import (
     dice_line as dice_line,
@@ -442,6 +448,7 @@ class Terminal:
         parada: threading.Event | None = None,
         apertura: bool = False,
         enlace: tuple[Ruleset, BindingSpec] | None = None,
+        diario: Diario | None = None,
     ) -> None:
         self.sim = sim
         self.inp = inp
@@ -449,6 +456,8 @@ class Terminal:
         self.p: Presenter = presenter if presenter is not None else TextPresenter(inp, out)
         """Por dónde se enseña y se pregunta todo (D-174): la terminal, o la web."""
         self._apertura = apertura
+        self.diario = diario
+        """El diario de la partida, si la hay: «diario» lo enseña y no lo escribe (25b, A.3)."""
         self.enlace = enlace
         """El sistema de la mesa y su enlace con este mundo, si los hay (25, A.1): de ahí sale la
         ficha mecánica de la hoja propia. Sin ellos, la hoja sale como antes."""
@@ -966,6 +975,14 @@ class Terminal:
         partes = texto.strip().lower().split()
         if partes == ["equipo"]:
             self._equipo(world, agent)
+            return False, None
+        if partes == ["gente"]:
+            for linea in gente_lineas(people_view(world, agent.spec_id)):
+                self._decir(linea)
+            return False, None
+        if partes == ["diario"]:
+            for linea in diario_lineas(self.diario.entradas if self.diario is not None else []):
+                self._decir(linea)
             return False, None
         if len(partes) == 2 and partes[0] == "equipar" and partes[1].isdigit():
             self._equipar(world, agent, partes[1])

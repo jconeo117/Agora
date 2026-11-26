@@ -165,13 +165,61 @@ function pintarFicha(v) {
   }
 }
 
-// Las dos pestañas de la hoja: Estado y Ficha. Cambiar de una a otra no toca la partida.
+// Las pestañas de la lateral: Estado, Ficha, Gente y Diario. Cambiar de una a otra no toca la
+// partida, y cada una se pinta al llegarle su evento, así que abrirla no pide nada.
+const PANELES = { hoja: "hoja", ficha: "hoja-ficha", gente: "gente", diario: "diario" };
+
 function elegirPestana(nombre) {
   document.querySelectorAll(".pestana").forEach((b) => {
     b.classList.toggle("activa", b.dataset.pestana === nombre);
   });
-  $("hoja").hidden = nombre !== "hoja";
-  $("hoja-ficha").hidden = nombre !== "ficha";
+  for (const [pestana, id] of Object.entries(PANELES)) {
+    $(id).hidden = pestana !== nombre;
+  }
+}
+
+// -- tu gente y el diario (25b) -------------------------------------------------
+
+// Una persona de tu gente, en palabras. Lo que sientes sale primero; lo demás, debajo.
+function filaDePersona(f) {
+  const fila = el("div", f.vivo ? "persona" : "persona muerta");
+  const cabecera = f.relaciones.length ? `${f.nombre} (${f.relaciones.join(", ")})` : f.nombre;
+  fila.appendChild(el("h3", "", f.vivo ? cabecera : `${cabecera}, ${f.murio}`));
+  fila.appendChild(el("div", "sentir", f.rencor ? `${f.sientes}; ${f.rencor}` : f.sientes));
+  if (f.publico.length) fila.appendChild(el("div", "publico", f.publico.join(", ")));
+  if (f.ultimo) fila.appendChild(el("div", "ultimo", `lo último que te hizo: ${f.ultimo}`));
+  if (f.visto) fila.appendChild(el("div", "visto", `la viste por última vez ${f.visto}`));
+  return fila;
+}
+
+function pintarGente(e) {
+  const g = $("gente");
+  g.replaceChildren(el("h2", "", "Tu gente"));
+  if (e.vivos.length === 0 && e.muertos.length === 0) {
+    g.appendChild(el("div", "vacio", "nadie te es conocido todavía"));
+  }
+  for (const f of e.vivos) g.appendChild(filaDePersona(f));
+  if (e.muertos.length > 0) {
+    const plegado = el("details");
+    plegado.appendChild(el("summary", "", `muertos (${e.muertos.length})`));
+    for (const f of e.muertos) plegado.appendChild(filaDePersona(f));
+    g.appendChild(plegado);
+  }
+}
+
+// La más reciente arriba: el diario se relee de arriba abajo, día a día hacia atrás.
+function pintarDiario(e) {
+  const d = $("diario");
+  d.replaceChildren(el("h2", "", "Diario"));
+  if (e.entradas.length === 0) {
+    d.appendChild(el("div", "vacio", "todavía no hay nada en tu diario"));
+  }
+  for (const entrada of [...e.entradas].reverse()) {
+    const caja = el("div", entrada.de_modelo ? "entrada" : "entrada plantilla");
+    caja.appendChild(el("h3", "", `día ${entrada.dia}`));
+    caja.appendChild(el("p", "", entrada.texto));
+    d.appendChild(caja);
+  }
 }
 
 function pintarHoja(v) {
@@ -299,6 +347,14 @@ const MANEJADORES = {
     pintarHoja(e);
     pintarFicha(e);
     if (!enTurno) mostrarVivir(true);
+  },
+
+  gente(e) {
+    pintarGente(e);
+  },
+
+  diario(e) {
+    pintarDiario(e);
   },
 
   trama(e) {
@@ -537,6 +593,8 @@ function empezarVista() {
   relato.replaceChildren();
   $("hoja").replaceChildren();
   $("hoja-ficha").replaceChildren();
+  $("gente").replaceChildren();
+  $("diario").replaceChildren();
   $("guardar").hidden = false;
   $("dados").replaceChildren();
   $("desenlace").replaceChildren();

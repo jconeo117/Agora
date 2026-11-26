@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
-from agora.cognition.narrador import Told
+from agora.cognition.narrador import Diario, Narrator, Table, Told
 from agora.engine.consulta import ficha
 from agora.engine.newcomer import (
     NewcomerSheet,
@@ -43,7 +43,14 @@ from agora.engine.ports import CognitionProvider, PlotView
 from agora.engine.state import WorldState
 from agora.engine.world import Simulation
 from agora.play import Terminal, TerminalCombat
-from agora.present import FighterView, RollView, SheetView, TextPresenter, roll_line
+from agora.present import (
+    FighterView,
+    RollView,
+    SheetView,
+    TextPresenter,
+    people_view,
+    roll_line,
+)
 from agora.run import (
     Cableado,
     build_parser,
@@ -398,6 +405,14 @@ def _recortar_guion(ruta: Path, lineas: int) -> None:
     _escribir_atomico(ruta, escribir)
 
 
+def _leer_diario(carpeta: Path, cual: str) -> Diario:
+    """El diario que tenía el guardado `cual`. Sin fichero (guardado anterior al diario), vacío."""
+    ruta = carpeta / "diario" / f"{cual}.json"
+    if not ruta.is_file():
+        return Diario()
+    return Diario.de_dict(json.loads(ruta.read_text(encoding="utf-8")))
+
+
 def _leer_meta(carpeta: Path) -> dict[str, Any] | None:
     """El `meta.json` de una partida, o `None` con el motivo en el servidor. Una partida sin meta
     legible no se ofrece para continuar."""
@@ -442,7 +457,7 @@ class Game:
 
     def __init__(self, args: argparse.Namespace, sim: Simulation, grabar: Path,
                  carpeta: Path | None = None, meta: dict[str, Any] | None = None,
-                 continuar: bool = False) -> None:
+                 continuar: bool = False, diario: Diario | None = None) -> None:
         self.args = args
         self.sim = sim
         self.grabar = grabar
@@ -454,6 +469,10 @@ class Game:
         """Si esta partida es la continuación de un guardado: no cuenta la apertura de nuevo,
         y en su lugar dice «la última vez» (25, A.5)."""
         self._dia_guardado: int | None = None
+        self._dia_visto: int | None = None
+        """El día que la página ya tiene: al cambiar, se cierra el anterior y se publica."""
+        self.diario = Diario() if diario is None else diario
+        """El diario del jugador (25b): lo escrito no se regenera; se guarda con cada guardado."""
         self._pedido_manual = threading.Event()
         self._manuales = 0
         self.historia: list[dict[str, Any]] = []
@@ -519,7 +538,9 @@ class Game:
 
     def _entre_ticks(self, sim: Simulation) -> None:
         """El punto seguro de la partida (25, A.4): entre dos ticks, con el mundo en un solo
-        estado. Guarda al empezar cada día de juego, y cuando alguien lo pide a mano."""
+        estado. Guarda al empezar cada día de juego, y cuando alguien lo pide a mano. Antes de
+        guardar cierra el día que acaba de pasar: el diario entra en el mismo guardado."""
+        self._cerrar_dias(sim)
         if self.carpeta is None:
             return
         if self._pedido_manual.is_set():
@@ -531,11 +552,39 @@ class Game:
             self._dia_guardado = dia
             self._guardar("auto", "día")
 
+    def _cerrar_dias(self, sim: Simulation) -> None:
+        """Al cambiar de día, escribe las entradas del diario de los días que acaban, y publica el
+        diario y la gente a la página (25b, A.2 y A.3). Solo mira el mundo y el log."""
+        jugador = sim.state.player
+        if jugador is None:
+            return
+        dia = sim.state.tick // sim.pack.clock.ticks_per_day
+        if dia == self._dia_visto:
+            return
+        self._dia_visto = dia
+        narrador = self._narrador if self._narrador is not None else Narrator((), Table())
+        if self.diario.pendiente(sim.state):
+            self.diario.cerrar_dias(sim.state, list(sim.log), narrador, str(jugador))
+        vista = people_view(sim.state, AgentId(str(jugador)))
+        self.publicar({
+            "tipo": "gente",
+            "vivos": [asdict(f) for f in vista.vivos],
+            "muertos": [asdict(f) for f in vista.muertos],
+        })
+        self.publicar({"tipo": "diario", "entradas": [asdict(e) for e in self.diario.entradas]})
+
     def _guardar(self, cual: str, motivo: str) -> None:
-        """Escribe el estado y la meta de esta partida, cada uno a un temporal y con `rename`."""
+        """Escribe el estado, el diario y la meta de esta partida, cada uno a un temporal y con
+        `rename`. El diario va en `diario/`, aparte: `guardados` no lo toma por otro guardado."""
         assert self.carpeta is not None
         self.carpeta.mkdir(parents=True, exist_ok=True)
+        (self.carpeta / "diario").mkdir(exist_ok=True)
         _escribir_atomico(self.carpeta / f"{cual}.json", self.sim.save)
+        datos = json.dumps(self.diario.a_dict(), ensure_ascii=False)
+        def escribir_diario(temporal: Path) -> None:
+            temporal.write_text(datos, encoding="utf-8")
+
+        _escribir_atomico(self.carpeta / "diario" / f"{cual}.json", escribir_diario)
         dia = self.sim.state.tick // self.sim.pack.clock.ticks_per_day
         lineas = _contar_lineas(self.grabar)
         por_guardado = {**self.meta.get("lineas_por_guardado", {}), cual: lineas}
@@ -670,7 +719,9 @@ class Partidas:
         guion = carpeta / "guion.jsonl"
         lineas = int(dict(meta.get("lineas_por_guardado", {})).get(cual, 0))
         _recortar_guion(guion, lineas)
-        partida = Game(args, sim, guion, carpeta=carpeta, meta=meta, continuar=True)
+        diario = _leer_diario(carpeta, cual)
+        partida = Game(args, sim, guion, carpeta=carpeta, meta=meta, continuar=True,
+                       diario=diario)
         with self._cerrojo:
             if self.actual is not None:
                 self.actual.cerrar()

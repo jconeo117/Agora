@@ -29,6 +29,7 @@ from agora.cognition.intencion import stems
 from agora.engine.chronicle import PUBLICOS, Entrada
 from agora.engine.consulta import ficha
 from agora.engine.events import Event, EventKind
+from agora.engine.memory import Recuerdo
 from agora.engine.ontology import (
     ActionId,
     AgentId,
@@ -54,6 +55,10 @@ TELL = (PROMPTS / "narrador.txt").read_text(encoding="utf-8")
 ANSWER = (PROMPTS / "pregunta.txt").read_text(encoding="utf-8")
 OPENING_PROMPT = (PROMPTS / "apertura.txt").read_text(encoding="utf-8")
 VUELTA_PROMPT = (PROMPTS / "vuelta.txt").read_text(encoding="utf-8")
+DIARY_PROMPT = (PROMPTS / "diario.txt").read_text(encoding="utf-8")
+DIARIO_PALABRAS = 120
+"""Lo más largo que se acepta de una entrada del diario, en palabras (25b, A.2)."""
+
 
 DEATH = "muerte"
 """La etiqueta de contenido de una muerte. Es la única que pone el código: la
@@ -112,6 +117,8 @@ class Kind(StrEnum):
     OPENING = "apertura"
     VUELTA = "vuelta"
     """La última vez, al continuar una partida guardada (25, A.5): un momento corto."""
+    DIARY = "diario"
+    """El diario del personaje al cerrarse un día (25b, A.2): primera persona, ≤ 120 palabras."""
 
 
 PROSA_MAX = 1200
@@ -288,7 +295,7 @@ def select(
             # Las tramas del jugador se cuentan; las ajenas no entran en el relato nunca
             # (23a, A.7): ni su nombre ni su trama, solo lo que ya se ve en el mundo.
             if actor == player:
-                texto = _trama_del_jugador(pack, e)
+                texto = trama_del_jugador(pack, e)
                 if texto is not None:
                     add(3, e, texto)
             continue
@@ -684,6 +691,8 @@ def _lista(partes: list[str]) -> str:
 
 
 def briefing(m: Moment) -> str:
+    if m.kind is Kind.DIARY:
+        return _briefing_diario(m)
     if m.kind is Kind.VUELTA:
         return _briefing_vuelta(m)
     if m.kind is Kind.OPENING:
@@ -738,6 +747,8 @@ def strangers(m: Moment, prose: str) -> tuple[str, ...]:
 
 
 def fallback(m: Moment) -> str:
+    if m.kind is Kind.DIARY:
+        return _diario_plantilla(m)
     if m.kind is Kind.VUELTA:
         return _vuelta_plantilla(m)
     if m.kind is Kind.OPENING:
@@ -951,7 +962,7 @@ PLOT_KINDS = frozenset({
 """Los hechos internos de una trama (23a). Ninguno de ajenos llega al relato."""
 
 
-def _trama_del_jugador(pack: ContentPack, e: Event) -> str | None:
+def trama_del_jugador(pack: ContentPack, e: Event) -> str | None:
     """Lo que se le cuenta al jugador de su propia trama. `None` si no es algo que se
     cuente: un recuerdo que deja un paso es memoria, no un suceso."""
     if e.kind is EventKind.PLOT_STEP and e.data.get("desenlace") == "recuerdo":
@@ -1073,6 +1084,100 @@ def _briefing_apertura(m: Moment) -> str:
     return OPENING_PROMPT.format(contexto="\n".join(lines))
 
 
+VISTOS_DEL_DIARIO = frozenset({EventKind.COMBAT, EventKind.AGENT_DIED, EventKind.ARC_PHASE})
+"""Lo presenciado que el diario recoge: los mismos hechos que el narrador ya contaría (25b, A.2)."""
+
+
+def diary_moment(
+    world: WorldState, player: str, dia: int, events: list[Event], table: Table
+) -> Moment | None:
+    """El momento del diario de un día: lo que pasó ese día desde el lado del jugador, en el orden
+    del diario. `None` si ese día no tuvo nada que contar: no hay entrada (25b, §3.2).
+
+    `events` es una lista y no un iterable: se recorre dos veces (para los hechos y para el
+    momento base), y un generador se agotaría en la primera."""
+    hechos = _hechos_del_dia(world, player, dia, events, table)
+    if not hechos:
+        return None
+    base = opening_moment(world, player, events, table)
+    return replace(base, kind=Kind.DIARY, moving=_hasta_palabras(hechos))
+
+
+def _hechos_del_dia(
+    world: WorldState, player: str, dia: int, events: list[Event], table: Table,
+) -> list[str]:
+    """Plot del jugador, luego sus tres recuerdos más importantes del día, luego hasta dos hechos
+    presenciados, y al final lo que la crónica del día le dejó saber. Orden fijo: el diario no se
+    reordena al releerlo."""
+    pack = world.pack
+    tpd = pack.clock.ticks_per_day
+    t0, t1 = dia * tpd, dia * tpd + tpd
+    yo = AgentId(player)
+    del_dia = [e for e in events if t0 <= e.tick < t1]
+    hechos: list[str] = []
+    for e in del_dia:
+        if e.kind in PLOT_KINDS and e.actor is not None and str(e.actor) == player:
+            texto = trama_del_jugador(pack, e)
+            if texto is not None:
+                hechos.append(texto)
+    # Solo los que tienen acción: sin ella no hay frase que decir, y «algo pasó» tres veces
+    # no es un diario.
+    recuerdos = sorted(
+        (r for r in world.memoria.de(yo) if t0 <= r.tick < t1 and r.action is not None),
+        key=lambda r: (-r.importancia, -r.seq),
+    )[:3]
+    hechos += [_frase_de_recuerdo(world, r) for r in recuerdos]
+    vistos = [e for e in del_dia if e.kind in VISTOS_DEL_DIARIO]
+    hechos += [f.text for f in select(world, vistos, player, Sighting(), table)][:2]
+    a = world.agents.get(yo)
+    if pack.director is not None and a is not None:
+        conocidos = {str(p) for p in a.sightings}
+        hechos += [
+            _frase_de_cronica(world, e)[0]
+            for e in world.cronica.entradas
+            if t0 <= e.tick < t1 and _ha_podido_saber(world, yo, e, conocidos)
+        ]
+    return hechos
+
+
+def _frase_de_recuerdo(world: WorldState, r: Recuerdo) -> str:
+    """Un recuerdo del día en una frase corta: lo que hizo, con quién y dónde."""
+    pack = world.pack
+    if r.action is None:
+        raise ValueError("un recuerdo sin acción no tiene frase: no entra en el diario")
+    partes = [pack.action_by_id[r.action].label]
+    if r.about is not None:
+        partes.append(f"con {name_of(world, str(r.about))}")
+    if r.place is not None:
+        partes.append(f"en {pack.place_by_id[r.place].label}")
+    return " ".join(partes)
+
+
+def _hasta_palabras(hechos: list[str]) -> tuple[str, ...]:
+    """Los hechos en su orden, mientras quepan en la entrada: el límite es de 120 palabras, y lo que
+    no cabe se queda fuera entero, no a medias."""
+    salida: list[str] = []
+    total = 0
+    for h in hechos:
+        n = len(h.split())
+        if total + n > DIARIO_PALABRAS:
+            break
+        salida.append(h)
+        total += n
+    return tuple(salida)
+
+
+def _briefing_diario(m: Moment) -> str:
+    lineas = [f"PERSONAJE: {m.player} (tú)", "LO QUE PASÓ HOY:"]
+    lineas += [f"  - {h}" for h in m.moving]
+    return DIARY_PROMPT.format(contexto="\n".join(lineas))
+
+
+def _diario_plantilla(m: Moment) -> str:
+    """Sin modelo: una frase por hecho, en el orden del diario y sin añadir nada."""
+    return " ".join(f"{h.rstrip('.')[0].upper()}{h.rstrip('.')[1:]}." for h in m.moving)
+
+
 def _briefing_vuelta(m: Moment) -> str:
     """Lo mismo que la apertura, con el enunciado de la vuelta: lo que pasó es lo de `moving`."""
     lineas = [f"PERSONAJE: {m.player} (tú)", f"LUGAR: {m.place}"]
@@ -1131,6 +1236,61 @@ def _apertura_plantilla(m: Moment) -> str:
 
 
 @dataclass(frozen=True, slots=True)
+class DiaryEntry:
+    """Una entrada del diario: el día que cuenta, lo escrito, y si lo escribió un modelo."""
+
+    dia: int
+    texto: str
+    de_modelo: bool
+
+
+@dataclass
+class Diario:
+    """El diario del jugador: una entrada por día de juego que tuvo algo que contar, escrita al
+    cerrarse el día (25b, §3.2). Lo escrito no se regenera al continuar: se guarda con la partida
+    y se lee tal cual (§3.3). Solo lee el mundo y el log; el motor no sabe que existe."""
+
+    entradas: list[DiaryEntry] = field(default_factory=list)
+    cerrado: int | None = None
+    """El último día de juego ya cerrado: escrito, o visto que no tenía nada que contar."""
+
+    def pendiente(self, world: WorldState) -> bool:
+        """Si ha cerrado algún día desde la última vez. Quien llama no copia el log en cada tick."""
+        actual = world.tick // world.pack.clock.ticks_per_day
+        return self.cerrado is None or actual - 1 > self.cerrado
+
+    def cerrar_dias(
+        self, world: WorldState, events: Iterable[Event], narrador: Narrator, player: str,
+    ) -> list[DiaryEntry]:
+        """Escribe la entrada de cada día que acaba de cerrarse y que todavía no estaba cerrado.
+        Un día sin hechos no deja entrada, pero queda cerrado: no se vuelve a mirar."""
+        actual = world.tick // world.pack.clock.ticks_per_day
+        if self.cerrado is None:
+            self.cerrado = actual - 1
+        lista = list(events)
+        nuevas: list[DiaryEntry] = []
+        for dia in range(self.cerrado + 1, actual):
+            entrada = narrador.diary(world, player, dia, lista)
+            if entrada is not None:
+                self.entradas.append(entrada)
+                nuevas.append(entrada)
+        self.cerrado = max(self.cerrado, actual - 1)
+        return nuevas
+
+    def a_dict(self) -> dict[str, Any]:
+        return {"cerrado": self.cerrado, "entradas": [asdict(e) for e in self.entradas]}
+
+    @classmethod
+    def de_dict(cls, datos: Mapping[str, Any]) -> Diario:
+        entradas = [
+            DiaryEntry(dia=int(e["dia"]), texto=str(e["texto"]), de_modelo=bool(e["de_modelo"]))
+            for e in datos.get("entradas", [])
+        ]
+        cerrado = datos.get("cerrado")
+        return cls(entradas=entradas, cerrado=None if cerrado is None else int(cerrado))
+
+
+@dataclass(frozen=True, slots=True)
 class Told:
     text: str
     by: int | None
@@ -1143,6 +1303,15 @@ def narrate(m: Moment, providers: Sequence[CognitionProvider], seed: int) -> Tol
     nombres de fuera); lo que no pase, lo cuenta el siguiente proveedor, o la
     plantilla. `Narration` se acepta por quien aún la devuelva."""
     return narrate_con_motivos(m, providers, seed)[0]
+
+
+def _longitud_valida(m: Moment, prosa: str) -> bool:
+    """El diario se cuenta en palabras, porque su límite es de lectura (una página), y lo demás en
+    caracteres, que es lo que el resto del narrador ha medido desde la 20a."""
+    if m.kind is Kind.DIARY:
+        return 1 <= len(prosa.split()) <= DIARIO_PALABRAS
+    tope = APERTURA_MAX if m.kind is Kind.OPENING else PROSA_MAX
+    return 1 <= len(prosa) <= tope
 
 
 def narrate_con_motivos(
@@ -1159,8 +1328,7 @@ def narrate_con_motivos(
             motivos.append(f"proveedor {i}: sin respuesta")
             continue
         prosa = prosa.strip()
-        tope = APERTURA_MAX if m.kind is Kind.OPENING else PROSA_MAX
-        if not 1 <= len(prosa) <= tope:
+        if not _longitud_valida(m, prosa):
             motivos.append(f"proveedor {i}: longitud {len(prosa)}")
             continue
         nombres = strangers(m, prosa)
@@ -1233,6 +1401,16 @@ class Narrator:
                 str(o.spec_id) for o in world.agents_in_order() if o.at == a.at))
         self.last_tick = world.tick
         return told
+
+    def diary(
+        self, world: WorldState, player: str, dia: int, events: list[Event],
+    ) -> DiaryEntry | None:
+        """La entrada de un día cerrado, o `None` si ese día no tuvo nada que contar."""
+        m = diary_moment(world, player, dia, events, self.table)
+        if m is None:
+            return None
+        told = narrate(m, self.providers, _seed(world, player, f"diario-{dia}"))
+        return DiaryEntry(dia=dia, texto=told.text, de_modelo=told.by is not None)
 
     def vuelta(self, world: WorldState, player: str, events: Iterable[Event]) -> Told:
         """La última vez: al continuar una partida propia (25, A.5). Con el log del guardado."""

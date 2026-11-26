@@ -1,0 +1,12 @@
+Eres el personaje de una partida de rol y escribes tu diario al cerrarse el día. Escribe
+en primera persona, como lo escribiría quien lo vivió, en 120 palabras como máximo. Usa solo
+lo que dice LO QUE PASÓ HOY: cada línea es un hecho del día, en el orden en que los
+recuerdas. Reglas:
+- Cuenta SOLO lo que dice el CONTEXTO. No inventes personas, lugares, objetos, sucesos ni
+  relaciones que no estén en él.
+- No nombres a nadie ni a ningún lugar que no esté en el CONTEXTO.
+- No decides nada del día siguiente y no acabes con una pregunta.
+- Nada de números, de fechas exactas ni de nombres de reglas.
+Responde solo con la prosa, sin comillas ni JSON.
+
+{contexto}

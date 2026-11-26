@@ -18,9 +18,11 @@ from dataclasses import dataclass
 from typing import Protocol, TextIO
 
 from agora.agents.decide import critical_needs
-from agora.cognition.narrador import Told
+from agora.cognition.narrador import DiaryEntry, Told
 from agora.engine.consulta import ficha
-from agora.engine.ontology import AgentId, ItemId
+from agora.engine.events import EventKind
+from agora.engine.ontology import AgentId, ItemId, PlaceId
+from agora.engine.perception import public_facts, saw
 from agora.engine.ports import Outcome, PlotView
 from agora.engine.state import AgentState, Propiedad, WorldState
 from agora.rules.binding import BindingSpec
@@ -265,6 +267,220 @@ def dice_line(
 def roll_line(v: RollView) -> str:
     return dice_line(v.actor, v.pool_label, v.dice, v.opposing, v.opposing_label,
                      v.opposing_dice, v.outcome)
+
+
+# -- tu gente (25b, A.1) -------------------------------------------------------
+
+TOPE_DE_GENTE = 40
+"""Cuántas personas caben en «tu gente», vivas y muertas juntas (25b, A.1)."""
+
+DIAS_DE_VISTO = 14
+"""Hasta cuántos días atrás cuenta haber visto a alguien para que esté en «tu gente»."""
+
+APRECIO_MINIMO = 0.1
+"""Desde qué |aprecio| entra alguien en «tu gente» sin relación con nombre."""
+
+RENCOR_MINIMO = 0.2
+"""Desde qué agravio propio entra alguien en «tu gente» sin relación con nombre."""
+
+RENCOR_PALABRA = 0.3
+"""Desde qué agravio propio se nombra el rencor, y a partir de cuánto, no perdonar."""
+
+RENCOR_HONDO = 0.6
+
+
+@dataclass(frozen=True, slots=True)
+class PersonRow:
+    """Una persona de tu gente, en palabras. Nada de lo que ella siente por ti, nunca."""
+
+    nombre: str
+    vivo: bool
+    relaciones: tuple[str, ...]
+    """Las relaciones con nombre que tenéis, por su etiqueta del pack («tu pareja»)."""
+    publico: tuple[str, ...]
+    """Lo que cualquiera que la conozca sabe: grupos, rasgos de creación, condiciones visibles."""
+    sientes: str
+    """Lo que sientes por ella, en palabras (la tabla de `palabra_de_aprecio`)."""
+    rencor: str | None
+    """«le guardas rencor» o «no se lo perdonas», si tu agravio lo pide."""
+    ultimo: str | None
+    """Lo último que te hizo, de tu memoria: la acción del pack y hace cuánto."""
+    visto: str | None
+    """Cuándo y dónde la viste por última vez."""
+    murio: str | None
+    """Si ha muerto, cuándo (con la fecha que tú pudiste saber)."""
+
+
+@dataclass(frozen=True, slots=True)
+class PeopleView:
+    vivos: tuple[PersonRow, ...]
+    muertos: tuple[PersonRow, ...]
+
+
+def palabra_de_aprecio(aprecio: float, vinculo: bool) -> str:
+    """El aprecio en una palabra. Cada umbral pertenece a la palabra de arriba: el borde es suyo
+    (25b, A.1). Sin vínculo, lo indiferente es «apenas le conoces», no «te es indiferente»."""
+    if aprecio >= 0.6:
+        return "le quieres mucho"
+    if aprecio >= 0.3:
+        return "le aprecias"
+    if aprecio >= 0.1:
+        return "te cae bien"
+    if aprecio >= -0.1:
+        return "te es indiferente" if vinculo else "apenas le conoces"
+    if aprecio >= -0.3:
+        return "te cae mal"
+    return "le detestas"
+
+
+def _hace(world: WorldState, tick: int) -> str:
+    dias = (world.tick - tick) // world.pack.clock.ticks_per_day
+    if dias <= 0:
+        return "hoy"
+    return "hace 1 día" if dias == 1 else f"hace {dias} días"
+
+
+def _vistos(world: WorldState, yo: AgentId) -> dict[AgentId, tuple[int, PlaceId]]:
+    """Por persona, la última vez que la viste dentro de la ventana: (tick, lugar). Se mira lo que
+    presenciaste y lo que dejaste anotado al mirar el sitio donde estabas."""
+    corte = world.tick - DIAS_DE_VISTO * world.pack.clock.ticks_per_day
+    ultimos: dict[AgentId, tuple[int, PlaceId]] = {}
+
+    def anotar(quien: AgentId, tick: int, lugar: PlaceId) -> None:
+        previo = ultimos.get(quien)
+        if previo is None or (tick, lugar) > previo:
+            ultimos[quien] = (tick, lugar)
+
+    for p in saw(world, yo, days=DIAS_DE_VISTO):
+        for quien in (p.actor, p.target):
+            if quien is not None and p.tick >= corte:
+                anotar(quien, p.tick, p.place)
+    a = world.agents[yo]
+    for lugar, (tick, presentes) in sorted(a.sightings.items()):
+        if tick < corte:
+            continue
+        for quien in presentes:
+            anotar(quien, tick, lugar)
+    return ultimos
+
+
+def _fecha_de_muerte(world: WorldState, yo: AgentId, otro: AgentId) -> int | None:
+    """Cuándo murió, según lo que `yo` pudo saber: la crónica (las muertes son públicas) o su
+    propia memoria si estuvo delante. El motor no guarda la fecha, así que no se inventa."""
+    fechas = [e.tick for e in world.cronica.entradas if e.tipo == "muerte" and otro in e.quienes]
+    fechas += [
+        r.tick for r in world.memoria.de(yo)
+        if r.kind is EventKind.AGENT_DIED and r.about == otro
+    ]
+    return max(fechas, default=None)
+
+
+def _ultimo_que_te_hizo(world: WorldState, yo: AgentId, otro: AgentId) -> str | None:
+    """La última cosa que te hizo, de tu memoria, con su acción en palabras del pack."""
+    hechas = [
+        r for r in world.memoria.de(yo)
+        if r.por_quien == otro and r.action is not None
+    ]
+    if not hechas:
+        return None
+    r = max(hechas, key=lambda x: (x.tick, x.seq))
+    accion = world.pack.action_by_id[r.action].label if r.action is not None else ""
+    return f"{accion}, {_hace(world, r.tick)}"
+
+
+def _fila(
+    world: WorldState, yo: AgentId, otro: AgentId, agravio: dict[AgentId, float],
+    vistos: dict[AgentId, tuple[int, PlaceId]],
+) -> PersonRow:
+    pack = world.pack
+    a = world.agents[yo]
+    vivo = otro in world.agents
+    aprecio = a.regard_for(otro, world.tick, a.temperament.bond_fade,
+                           a.relation_floor(pack, otro))
+    rencor = agravio.get(otro, 0.0)
+    pf = public_facts(world, yo, otro) if vivo else None
+    visto = vistos.get(otro)
+    muerte = None if vivo else _fecha_de_muerte(world, yo, otro)
+    return PersonRow(
+        nombre=world.censo[otro].label,
+        vivo=vivo,
+        relaciones=tuple(pack.relation_by_id[r].label for r in a.related_to(otro)),
+        publico=() if pf is None else pf.grupos + pf.rasgos + pf.condiciones,
+        sientes=palabra_de_aprecio(aprecio, otro in a.bonds),
+        rencor=("no se lo perdonas" if rencor >= RENCOR_HONDO
+                else "le guardas rencor" if rencor >= RENCOR_PALABRA else None),
+        ultimo=_ultimo_que_te_hizo(world, yo, otro),
+        visto=None if visto is None else f"en {pack.place_by_id[visto[1]].label}, "
+        f"{_hace(world, visto[0])}",
+        murio=None if vivo else (
+            "murió" if muerte is None else f"murió el día {muerte // pack.clock.ticks_per_day}"
+        ),
+    )
+
+
+def people_view(world: WorldState, yo: AgentId) -> PeopleView:
+    """Tu gente, en palabras (25b, A.1): quien tiene relación con nombre contigo, quien pesa por
+    aprecio o agravio, y a quien viste hace poco. Como mucho `TOPE_DE_GENTE`, con los más cercanos
+    primero; los muertos, aparte. Solo lee: lo de otro no entra más que como lo que tú sabes."""
+    if yo not in world.agents:
+        return PeopleView(vivos=(), muertos=())
+    pack = world.pack
+    a = world.agents[yo]
+    agravio = world.memoria.agravio(yo, world.tick, pack.tuning.grief_scale,
+                                    pack.tuning.agravio_de_oidas)
+    vistos = _vistos(world, yo)
+    conocidos: set[AgentId] = set(a.bonds) | set(agravio) | set(vistos)
+    for quienes in a.relations.values():
+        conocidos |= set(quienes)
+    conocidos.discard(yo)
+    # (clave de cercanía, persona): la clave acaba en el id, así que el orden es total.
+    candidatas: list[tuple[tuple[int, float, int, str], AgentId]] = []
+    for otro in sorted(conocidos):
+        if otro not in world.censo:
+            continue
+        con_nombre = bool(a.related_to(otro))
+        aprecio = a.regard_for(otro, world.tick, a.temperament.bond_fade,
+                               a.relation_floor(pack, otro))
+        rencor = agravio.get(otro, 0.0)
+        visto = vistos.get(otro)
+        if not (con_nombre or abs(aprecio) >= APRECIO_MINIMO or rencor >= RENCOR_MINIMO
+                or visto is not None):
+            continue
+        clave = (0 if con_nombre else 1, -(abs(aprecio) + rencor),
+                 -(visto[0] if visto else -1), str(otro))
+        candidatas.append((clave, otro))
+    candidatas.sort(key=lambda c: c[0])
+    elegidas = [otro for _, otro in candidatas[:TOPE_DE_GENTE]]
+    filas = [_fila(world, yo, otro, agravio, vistos) for otro in elegidas]
+    return PeopleView(
+        vivos=tuple(f for f in filas if f.vivo),
+        muertos=tuple(f for f in filas if not f.vivo),
+    )
+
+
+def gente_lineas(vista: PeopleView) -> list[str]:
+    """Tu gente para la terminal: una persona por bloque, y los muertos al final."""
+    salida: list[str] = []
+    for f in vista.vivos + vista.muertos:
+        cabecera = f.nombre + (f" ({', '.join(f.relaciones)})" if f.relaciones else "")
+        salida.append(cabecera + ("" if f.vivo else f" — {f.murio}"))
+        salida.append(f"  {f.sientes}" + (f"; {f.rencor}" if f.rencor else ""))
+        if f.publico:
+            salida.append(f"  {', '.join(f.publico)}")
+        if f.ultimo:
+            salida.append(f"  lo último que te hizo: {f.ultimo}")
+        if f.visto:
+            salida.append(f"  la viste por última vez {f.visto}")
+    if not salida:
+        salida.append("nadie te es conocido todavía")
+    return salida
+
+
+def diario_lineas(entradas: Sequence[DiaryEntry], ultimas: int = 7) -> list[str]:
+    """Las últimas entradas del diario, de la más antigua a la más reciente, para la terminal."""
+    if not entradas:
+        return ["todavía no hay nada en tu diario"]
+    return [f"día {e.dia}: {e.texto}" for e in entradas[-ultimas:]]
 
 
 # -- el protocolo -------------------------------------------------------------

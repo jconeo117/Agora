@@ -35,7 +35,7 @@ from agora.banco import (
 from agora.banco_aperturas import cargar_casos, run_opening_bank
 from agora.banco_aperturas import lineas as lineas_aperturas
 from agora.cognition.borrador import BorradorError, escribir_borrador, pedir_borrador
-from agora.cognition.narrador import Narrator, Table, load_table
+from agora.cognition.narrador import Diario, Narrator, Table, load_table
 from agora.cognition.ollama import OllamaProvider
 from agora.cognition.openai_compat import OpenAICompatibleProvider
 from agora.cognition.voz import hablar
@@ -525,19 +525,36 @@ def _jugar(sim: Simulation, args: argparse.Namespace, ticks: int) -> None:
         # Se cuenta la apertura al llegar: una partida nueva, o un forastero que llega
         # a un mundo guardado. Reanudar la propia partida no la vuelve a contar.
         llega = args.load is None or args.jugar_ficha is not None
+        diario = Diario()
         terminal = Terminal(sim, sys.stdin, sys.stdout, cab.voz, interpreter=cab.interprete,
                             narrator=cab.narrador, apertura=llega,
-                            enlace=enlace_del_mundo(args, sim.state.pack))
+                            enlace=enlace_del_mundo(args, sim.state.pack), diario=diario)
         escena = TerminalCombat(sys.stdin, sys.stdout, cab.interprete, cab.narrador,
                                 lambda: sim.state, empezada=terminal.quitar_piloto)
         resultado = correr_partida(
             sim, args, ticks, fuente=terminal, combate=escena, escena=escena,
             terminal=terminal, grabar=args.grabar,
+            entre_ticks=_diario_de_la_terminal(diario, cab.narrador),
         )
     print(f"\n# fin de la partida: {resultado.reason}, {resultado.ticks} ticks jugados")
     seguir_sin_jugador(sim, ticks, resultado, print)
     for linea in resumen_de_la_partida(sim):
         print(linea)
+
+
+def _diario_de_la_terminal(
+    diario: Diario, narrador: Narrator | None,
+) -> Callable[[Simulation], None]:
+    """Cierra los días del diario de la terminal al cambiar de día (25b, A.2). No imprime nada: lo
+    que escribe el diario se lee con `diario`, nunca solo."""
+    def cerrar(sim: Simulation) -> None:
+        jugador = sim.state.player
+        if jugador is None or not diario.pendiente(sim.state):
+            return
+        diario.cerrar_dias(sim.state, list(sim.log),
+                           narrador if narrador is not None else Narrator((), Table()),
+                           str(jugador))
+    return cerrar
 
 
 def _interprete(args: argparse.Namespace) -> OpenAICompatibleProvider | None:
